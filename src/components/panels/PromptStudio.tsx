@@ -65,13 +65,13 @@ export function PromptStudio() {
 
   return (
     <div
-      className="absolute inset-0 z-modal flex flex-col bg-canvas"
+      className="absolute inset-0 z-modal flex flex-col bg-ui-canvas"
       role="dialog"
       aria-label="Prompt-Generator"
     >
-      <header className="flex h-12 shrink-0 items-center gap-3 border-b-2 border-ink bg-surface px-3">
-        <h2 className="font-display text-ui-title font-bold">Prompt-Generator</h2>
-        <p className="text-[11px] text-ink-muted">
+      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-ui bg-ui-surface px-3">
+        <h2 className="text-ui-title font-semibold">Prompt-Generator</h2>
+        <p className="text-[11px] text-ui-muted">
           Auftrag beschreiben, Prompt kopieren, Antwort zurück einfügen.
         </p>
         <div className="ml-auto">
@@ -81,7 +81,7 @@ export function PromptStudio() {
 
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(320px,420px)_1fr]">
         {/* ------------------------------------------------------------ Auftrag */}
-        <section className="min-h-0 space-y-3 overflow-y-auto border-r-2 border-ink bg-surface p-4">
+        <section className="min-h-0 space-y-3 overflow-y-auto border-r border-ui bg-ui-surface p-4">
           <Field label="Thema" hint="Der eine Satz, worum es geht.">
             <textarea
               className="nz-field resize-y"
@@ -163,8 +163,8 @@ export function PromptStudio() {
             </Field>
           </div>
 
-          <fieldset className="space-y-1.5 border-2 border-ink p-2">
-            <legend className="px-1 font-mono text-[10px] font-bold uppercase tracking-label">
+          <fieldset className="space-y-1.5 border border-ui p-2">
+            <legend className="px-1 text-[11px] font-semibold uppercase tracking-wide text-ui-faint">
               Feinheiten
             </legend>
             <Check
@@ -189,9 +189,9 @@ export function PromptStudio() {
         </section>
 
         {/* ------------------------------------------------------------- Prompt */}
-        <section className="flex min-h-0 flex-col bg-paper-deep">
-          <div className="flex shrink-0 items-center gap-2 border-b-2 border-ink bg-surface px-3 py-2">
-            <span className="font-mono text-[10px] font-bold uppercase tracking-label text-ink-muted">
+        <section className="flex min-h-0 flex-col bg-ui-sunken">
+          <div className="flex shrink-0 items-center gap-2 border-b border-ui bg-ui-surface px-3 py-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-ui-faint">
               Prompt · {prompt.length.toLocaleString('de-DE')} Zeichen
             </span>
             <div className="ml-auto flex items-center gap-2">
@@ -206,7 +206,7 @@ export function PromptStudio() {
           </pre>
 
           {/* ------------------------------------------------------- Rückweg */}
-          <div className="shrink-0 border-t-2 border-ink bg-surface p-3">
+          <div className="shrink-0 border-t border-ui bg-ui-surface p-3">
             <Field
               label="Antwort des Modells"
               hint="Hier einfügen — das Deck wird direkt geöffnet. Ein umschließender Codeblock stört nicht."
@@ -232,9 +232,11 @@ export function PromptStudio() {
                 Als Deck öffnen
               </Button>
               {importError ? (
-                <span className={cx('text-[11px] font-semibold text-danger')}>{importError}</span>
+                <span className={cx('text-[11px] font-semibold text-ui-danger')}>
+                  {importError}
+                </span>
               ) : (
-                <span className="text-[11px] text-ink-muted">
+                <span className="text-[11px] text-ui-muted">
                   Ersetzt das aktuelle Deck. Vorher sichern, wenn es noch gebraucht wird.
                 </span>
               )}
@@ -267,7 +269,7 @@ function Check({
       />
       <span>
         <span className="block text-ui-body font-semibold">{label}</span>
-        <span className="block text-[11px] text-ink-muted">{hint}</span>
+        <span className="block text-[11px] text-ui-muted">{hint}</span>
       </span>
     </label>
   );

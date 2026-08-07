@@ -57,12 +57,12 @@ export function TopBar() {
   };
 
   return (
-    <header className="relative flex h-12 shrink-0 items-center gap-2 border-b border-line bg-surface px-3">
+    <header className="relative flex h-12 shrink-0 items-center gap-2 border-b border-ui bg-ui-surface px-3">
       <Logo className="mr-1" />
 
       <div className="flex min-w-0 flex-col leading-tight">
         <span className="truncate text-ui-title font-semibold">{deck.meta.title}</span>
-        <span className="truncate text-[11px] text-ink-subtle">
+        <span className="truncate text-[11px] text-ui-faint">
           {fileName}
           {dirty ? ' · unsaved' : ''}
         </span>
@@ -100,7 +100,7 @@ export function TopBar() {
       </Button>
 
       <div className="ml-auto flex items-center gap-2">
-        <span className="tabular-nums text-[11px] text-ink-subtle">
+        <span className="tabular-nums text-[11px] text-ui-faint">
           {Math.min(slideIndex + 1, total)} / {total}
         </span>
 
@@ -133,7 +133,7 @@ export function TopBar() {
       {busy ? (
         <span
           role="status"
-          className="pointer-events-none absolute left-1/2 top-14 z-toast -translate-x-1/2 bg-surface-inverse px-3 py-1 text-[11px] text-ink-inverse shadow-lg"
+          className="pointer-events-none absolute left-1/2 top-14 z-toast -translate-x-1/2 bg-ui-inverse px-3 py-1 text-[11px] text-ui-on-inverse shadow-ui-lg"
         >
           {busy}…
         </span>
@@ -191,7 +191,7 @@ function ExportMenu({
       {open ? (
         <div
           className={cx(
-            'nz-panel absolute left-0 top-9 z-popover w-64 animate-pop-in p-1 shadow-lg',
+            'nz-panel absolute left-0 top-9 z-popover w-64 animate-pop-in p-1 shadow-ui-lg',
           )}
           role="menu"
         >
@@ -225,7 +225,7 @@ function ExportMenu({
             hint="Single page"
             onClick={() => run('Rendering PDF', () => exportPdf(deck, { slideIndex }))}
           />
-          <p className="border-t border-line px-2 py-1.5 text-[11px] text-ink-subtle">
+          <p className="border-t border-ui px-2 py-1.5 text-[11px] text-ui-faint">
             Exports render through the same pipeline as the canvas — {brand.name} CI included.
           </p>
         </div>
@@ -250,14 +250,14 @@ function MenuItem({
       type="button"
       role="menuitem"
       onClick={onClick}
-      className="flex w-full items-start gap-2 px-2 py-1.5 text-left transition-colors duration-fast hover:bg-surface-subtle"
+      className="flex w-full items-start gap-2 px-2 py-1.5 text-left transition-colors duration-fast hover:bg-ui-subtle"
     >
-      <span className="mt-0.5 text-ink-subtle">
+      <span className="mt-0.5 text-ui-faint">
         <Icon name={icon} size={15} />
       </span>
       <span className="min-w-0">
         <span className="block truncate text-ui-body font-medium">{label}</span>
-        {hint ? <span className="block truncate text-[11px] text-ink-subtle">{hint}</span> : null}
+        {hint ? <span className="block truncate text-[11px] text-ui-faint">{hint}</span> : null}
       </span>
     </button>
   );

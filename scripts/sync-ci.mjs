@@ -5,7 +5,7 @@
    Übernimmt Schriften, Marken-Grafiken und das Icon-Set aus dem CI-Repo
    (https://github.com/daimpad/nozilla-ci) in dieses Projekt:
 
-     public/fonts/                 Zilla Slab · Inter · Space Mono (SIL OFL)
+     public/fonts/                 Zilla Slab · Inter · Space Mono als WOFF2 (SIL OFL)
      public/brand/                 Wortmarke, Favicon, Social Preview
      src/assets/icons.generated.ts 462 Icons, Dialekt A, als Primitive
 
@@ -65,6 +65,13 @@ const SIGNAL_HEX = '#00FF9C';
 /* 1 · Schriften                                                               */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Im CI-Repo liegen die Schriften als TTF (dort werden sie auch für PDF- und
+ * Druckwege gebraucht). Im Browser ist TTF die falsche Verpackung: dieselben
+ * Konturen sind als WOFF2 rund 70 % kleiner, weil das Format die
+ * Glyphen-Tabellen vorverarbeitet und mit Brotli komprimiert. Deshalb wandelt
+ * der Sync beim Übernehmen um und legt nur die WOFF2-Dateien ins `public/`.
+ */
 const FONT_FILES = [
   'ZillaSlab-Medium.ttf',
   'ZillaSlab-SemiBold.ttf',
@@ -75,8 +82,8 @@ const FONT_FILES = [
   'Inter-Bold.ttf',
   'SpaceMono-Regular.ttf',
   'SpaceMono-Bold.ttf',
-  'OFL.txt',
 ];
+const LICENCE_FILES = ['OFL.txt'];
 
 console.log('nozilla CI-Sync');
 console.log(`  Quelle: ${CI_ROOT}\n`);
@@ -84,7 +91,22 @@ console.log(`  Quelle: ${CI_ROOT}\n`);
 console.log('Schriften');
 const fontsOut = join(ROOT, 'public', 'fonts');
 if (!CHECK_ONLY) mkdirSync(fontsOut, { recursive: true });
+
+let ttfBytes = 0;
+let woff2Bytes = 0;
 for (const file of FONT_FILES) {
+  const from = join(CI_ROOT, 'project', 'fonts', file);
+  if (!existsSync(from)) {
+    problems.push(`Schrift fehlt im CI-Repo: ${file}`);
+    continue;
+  }
+  const ttf = readFileSync(from);
+  ttfBytes += ttf.length;
+  const woff2 = await compressToWoff2(ttf, file);
+  woff2Bytes += woff2.length;
+  if (!CHECK_ONLY) writeFileSync(join(fontsOut, file.replace(/\.ttf$/, '.woff2')), woff2);
+}
+for (const file of LICENCE_FILES) {
   const from = join(CI_ROOT, 'project', 'fonts', file);
   if (!existsSync(from)) {
     problems.push(`Schrift fehlt im CI-Repo: ${file}`);
@@ -92,7 +114,25 @@ for (const file of FONT_FILES) {
   }
   if (!CHECK_ONLY) copyFileSync(from, join(fontsOut, file));
 }
-note(`${FONT_FILES.length} Dateien → public/fonts/`);
+note(
+  `${FONT_FILES.length} Schnitte als WOFF2 → public/fonts/ ` +
+    `(${kb(ttfBytes)} TTF → ${kb(woff2Bytes)}, −${Math.round((1 - woff2Bytes / ttfBytes) * 100)} %)`,
+);
+
+async function compressToWoff2(ttf, label) {
+  const { compress } = await import('wawoff2');
+  const out = await compress(ttf);
+  // wawoff2 gibt je nach Version Buffer oder Uint8Array zurück.
+  const bytes = Buffer.isBuffer(out) ? out : Buffer.from(out);
+  if (bytes.length < 1024 || bytes.subarray(0, 4).toString('latin1') !== 'wOF2') {
+    problems.push(`WOFF2-Umwandlung fehlgeschlagen: ${label}`);
+  }
+  return bytes;
+}
+
+function kb(bytes) {
+  return `${Math.round(bytes / 1024)} kB`;
+}
 
 /* -------------------------------------------------------------------------- */
 /* 2 · Marken-Grafiken                                                         */

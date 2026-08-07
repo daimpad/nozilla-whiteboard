@@ -178,6 +178,95 @@ export type ToneName = keyof typeof elementTones;
 export const toneNames = Object.keys(elementTones) as ToneName[];
 
 /* -------------------------------------------------------------------------- */
+/* Werkzeug-Oberfläche — bewusst *nicht* die Marke                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Die Trennlinie dieses Projekts, an genau einer Stelle formuliert:
+ *
+ *   Alles oberhalb (`palette`, `color`, `elementTones`) beschreibt **Inhalt** —
+ *   was auf einer Folie landet und exportiert wird. Das ist die nozilla CI und
+ *   darf nichts anderes sein.
+ *
+ *   Alles hier unten beschreibt **Werkzeug** — Leisten, Paletten, Felder,
+ *   Knöpfe. Das ist bewusst neutral: Weiß und ein kühler Grauton. Wer eine
+ *   Folie baut, soll die Marke auf der Bühne sehen, nicht im Rahmen darum.
+ *   Ein cremefarbener Editor um eine cremefarbene Folie macht beides unlesbar.
+ *
+ * Regel: eine Chrome-Komponente greift auf `ui.*` zu, nie auf `palette` oder
+ * `color`. Der Umkehrschluss gilt genauso — kein `ui`-Wert erreicht je eine
+ * Szene, einen SVG- oder einen PDF-Export.
+ *
+ * Die einzige Brücke ist `ui.accent`: das Signalgrün der Marke markiert auch
+ * in der Oberfläche das Aktive. Eine zweite, erfundene Akzentfarbe wäre eine
+ * Marke neben der Marke.
+ */
+export const ui = {
+  /* Flächen — Weiß, darunter ein kühles Grau */
+  canvas: '#ECEFF4',
+  surface: '#FFFFFF',
+  surfaceSubtle: '#F5F7FA',
+  surfaceSunken: '#ECEFF4',
+  surfaceInverse: '#12161C',
+  overlay: 'rgba(18, 22, 28, 0.62)',
+
+  /* Schrift — neutrales Fast-Schwarz, nicht das harte Tinte-Schwarz der Marke */
+  ink: '#12161C',
+  inkMuted: '#515B6B',
+  inkSubtle: '#6F7A8C',
+  inkInverse: '#FFFFFF',
+
+  /* Linien — hier sind Graustufen richtig; auf der Folie wären sie es nicht */
+  border: '#DDE2EA',
+  borderStrong: '#C4CBD7',
+
+  /* Akzent — das Signalgrün der Marke, die einzige Farbe, die herüberkommt */
+  accent: palette.signal,
+  accentStrong: palette.signalStrong,
+  accentSoft: palette.signalSoft,
+  accentBorder: '#6BE7BB',
+  onAccent: palette.ink,
+
+  /* Auswahl auf der Bühne. Bewusst ein kühles Blau: es muss sich von jedem
+     Inhalt abheben, und Inhalt ist per CI schwarz, creme oder signalgrün. */
+  select: '#2A4BD8',
+  selectWash: 'rgba(42, 75, 216, 0.10)',
+
+  /* Status */
+  warn: '#B26A00',
+  warnBg: '#FFF7E6',
+  danger: '#C9282E',
+  dangerBg: '#FEEDEE',
+  info: '#1F3CB8',
+  infoBg: '#EEF2FE',
+} as const;
+
+/**
+ * Radien der Oberfläche. Auf der Folie ist der Radius 0 und bleibt es
+ * (`RADIUS`) — ein Knopf in einer Werkzeugleiste ist aber kein Folienobjekt.
+ */
+export const uiRadius = {
+  sm: 3,
+  md: 5,
+  lg: 8,
+  full: 999,
+} as const;
+
+/**
+ * Schatten der Oberfläche: weich und klein, damit sie Ebenen andeuten statt
+ * Aufmerksamkeit zu ziehen. Die harten Versatzschatten der Marke (`shadow`)
+ * gehören auf die Bühne, wo sie exportiert werden.
+ */
+export const uiShadow = {
+  none: 'none',
+  sm: '0 1px 2px rgba(18, 22, 28, 0.06)',
+  md: '0 2px 6px rgba(18, 22, 28, 0.08), 0 1px 2px rgba(18, 22, 28, 0.04)',
+  lg: '0 8px 24px rgba(18, 22, 28, 0.12), 0 2px 6px rgba(18, 22, 28, 0.06)',
+  stage: '0 1px 3px rgba(18, 22, 28, 0.10), 0 12px 32px rgba(18, 22, 28, 0.10)',
+  focus: `0 0 0 3px rgba(42, 75, 216, 0.28)`,
+} as const;
+
+/* -------------------------------------------------------------------------- */
 /* Typografie — drei Schriften, klare Rollen                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -192,19 +281,26 @@ export const fontFamily = {
   mono: "'Space Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace",
 } as const;
 
+/**
+ * Ausgeliefert wird WOFF2, nicht TTF: dieselben Konturen, rund zwei Drittel
+ * weniger Bytes (1875 kB → 630 kB über alle neun Schnitte). Umgewandelt wird
+ * beim CI-Sync (`scripts/sync-ci.mjs`), damit im CI-Repo weiter die TTFs für
+ * Druck und Office liegen können.
+ */
 export const webfont = {
   enabled: true,
   directory: 'fonts',
+  format: 'woff2',
   faces: [
-    { family: 'Zilla Slab', weight: 500, style: 'normal', file: 'ZillaSlab-Medium.ttf' },
-    { family: 'Zilla Slab', weight: 600, style: 'normal', file: 'ZillaSlab-SemiBold.ttf' },
-    { family: 'Zilla Slab', weight: 700, style: 'normal', file: 'ZillaSlab-Bold.ttf' },
-    { family: 'Inter', weight: 400, style: 'normal', file: 'Inter-Regular.ttf' },
-    { family: 'Inter', weight: 500, style: 'normal', file: 'Inter-Medium.ttf' },
-    { family: 'Inter', weight: 600, style: 'normal', file: 'Inter-SemiBold.ttf' },
-    { family: 'Inter', weight: 700, style: 'normal', file: 'Inter-Bold.ttf' },
-    { family: 'Space Mono', weight: 400, style: 'normal', file: 'SpaceMono-Regular.ttf' },
-    { family: 'Space Mono', weight: 700, style: 'normal', file: 'SpaceMono-Bold.ttf' },
+    { family: 'Zilla Slab', weight: 500, style: 'normal', file: 'ZillaSlab-Medium.woff2' },
+    { family: 'Zilla Slab', weight: 600, style: 'normal', file: 'ZillaSlab-SemiBold.woff2' },
+    { family: 'Zilla Slab', weight: 700, style: 'normal', file: 'ZillaSlab-Bold.woff2' },
+    { family: 'Inter', weight: 400, style: 'normal', file: 'Inter-Regular.woff2' },
+    { family: 'Inter', weight: 500, style: 'normal', file: 'Inter-Medium.woff2' },
+    { family: 'Inter', weight: 600, style: 'normal', file: 'Inter-SemiBold.woff2' },
+    { family: 'Inter', weight: 700, style: 'normal', file: 'Inter-Bold.woff2' },
+    { family: 'Space Mono', weight: 400, style: 'normal', file: 'SpaceMono-Regular.woff2' },
+    { family: 'Space Mono', weight: 700, style: 'normal', file: 'SpaceMono-Bold.woff2' },
   ],
 } as const;
 
@@ -590,6 +686,9 @@ export const theme = {
   paperAlpha,
   color,
   elementTones,
+  ui,
+  uiRadius,
+  uiShadow,
   fontFamily,
   webfont,
   pdfFontFamily,

@@ -1,17 +1,21 @@
-# Brand faces
+# Marken-Schriften
 
-Drop the licensed `Nozilla Sans` `.woff2` files here and flip
-`webfont.enabled` to `true` in `theme.config.ts`:
+Zilla Slab, Inter und Space Mono — die drei Schriften der nozilla CI, selbst
+gehostet, ohne CDN. Lizenz: SIL Open Font License 1.1, siehe `OFL.txt`.
+
+Die Dateien stammen aus [`daimpad/nozilla-ci`](https://github.com/daimpad/nozilla-ci)
+(`project/fonts/`, dort als TTF) und werden beim Sync nach WOFF2 gewandelt:
 
 ```
-NozillaSans-Regular.woff2    (400)
-NozillaSans-Medium.woff2     (500)
-NozillaSans-SemiBold.woff2   (600)
-NozillaSans-Bold.woff2       (700)
-NozillaSans-Italic.woff2     (400 italic)
+npm run sync:ci -- ../nozilla-ci
 ```
 
-The `@font-face` rules are generated from that config at runtime
-(`src/theme/fonts.ts`), so nothing else needs to change. Without these files
-the CI stack falls back to the system faces declared in `theme.config.ts`, and
-the application looks and exports correctly either way.
+WOFF2 statt TTF, weil dieselben Konturen so rund zwei Drittel kleiner sind
+(1875 kB → 630 kB über alle neun Schnitte). Nichts hier von Hand bearbeiten —
+`scripts/sync-ci.mjs` überschreibt den Ordner.
+
+Welche Datei zu welcher Familie und welchem Schnitt gehört, steht in
+`theme.config.ts` unter `webfont.faces`; die `@font-face`-Regeln entstehen zur
+Laufzeit daraus (`src/theme/fonts.ts`). Fehlen die Dateien, greift der
+System-Fallback aus `fontFamily` — die Anwendung bleibt bedienbar und
+exportiert weiterhin korrekt, nur eben nicht in den Marken-Schriften.

@@ -144,12 +144,12 @@ export default function App() {
       <div
         className={cx(
           'pointer-events-none absolute inset-0 z-modal flex items-center justify-center',
-          'border-heavy border-dashed border-ink bg-signal/70 transition-opacity duration-fast',
+          'border-2 border-dashed border-ui-select bg-ui-select-wash transition-opacity duration-fast',
           dropping ? 'opacity-100' : 'opacity-0',
         )}
         aria-hidden={!dropping}
       >
-        <p className=" bg-surface px-4 py-3 text-ui-title font-semibold shadow-xl">
+        <p className="rounded-md bg-ui-surface px-4 py-3 text-ui-title font-semibold shadow-ui-lg">
           Drop a <code className="font-mono">.md</code> deck to open it, or an image to place it
         </p>
       </div>
