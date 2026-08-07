@@ -1,9 +1,28 @@
+<div align="center">
+
+<img src="docs/assets/slides.png" alt="Drei exportierte Folien: Titelfolie, CI-Bibliothek, Zitatfolie auf Tinte" width="900">
+
 # nozilla Whiteboard
 
-Ein lokales Werkzeug im Browser, das zwei Dinge gleichzeitig ist: eine
-**Markdown-Präsentation** und eine **freie Fläche**. Es kann nur eines
-herstellen — Material, das der
+**Markdown-Präsentation und freie Fläche in einem.**
+Es kann nur eines herstellen — Material, das der
 [nozilla Corporate Identity](https://github.com/daimpad/nozilla-ci) entspricht.
+
+[![CI](https://github.com/daimpad/nozilla-whiteboard/actions/workflows/ci.yml/badge.svg)](https://github.com/daimpad/nozilla-whiteboard/actions/workflows/ci.yml)
+[![Pages](https://github.com/daimpad/nozilla-whiteboard/actions/workflows/static.yml/badge.svg)](https://daimpad.github.io/nozilla-whiteboard/)
+![Kein Server](https://img.shields.io/badge/Server-keiner-000000)
+![462 Icons](https://img.shields.io/badge/Icons-462-00FF9C?labelColor=000000)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-000000)
+
+[**Ausprobieren**](https://daimpad.github.io/nozilla-whiteboard/) ·
+[Dateiformat](#das-dateiformat) ·
+[Export](#export) ·
+[Architektur](#die-architektur-in-einem-bild) ·
+[Prompt-Generator](./PROMPT.md)
+
+</div>
+
+---
 
 Die Worte schreibst du in Markdown. Alles andere legst du von Hand. Am Ende
 steht wieder eine `.md` — Inhalt und Positionen in einer Datei.
@@ -16,6 +35,12 @@ npm run dev      # http://127.0.0.1:5173
 Kein Server, keine Datenbank, kein Konto. Alles passiert im Browser, alles was
 bleibt ist eine Datei auf der Platte.
 
+<img src="docs/assets/app.png" alt="Die Anwendung: Bausteinbibliothek links, Fläche in der Mitte, Inspektor rechts, Filmstreifen unten">
+
+<sub>Links die Bibliothek, in der Mitte die Fläche, rechts der Inspektor. Die
+Oberfläche ist bewusst neutral — die einzige Farbe im Bild sitzt auf der
+Folie.</sub>
+
 ---
 
 ## Die CI ist nicht Stil, sondern Statik
@@ -23,14 +48,14 @@ bleibt ist eine Datei auf der Platte.
 Die Marken-Vorgaben sind hier keine Empfehlung, an die man sich erinnern muss.
 Sie sind so eingebaut, dass ein Verstoß gar nicht erst entstehen kann:
 
-| Regel | Wie sie erzwungen wird |
-| --- | --- |
-| Radius ist 0 | Auf der Folie: `RADIUS = 0`, und Formen nehmen keinen Radius-Parameter entgegen. Die Werkzeugleisten dürfen runde Ecken haben — sie sind keine Folie (siehe unten). |
-| Schatten sind harte Versätze | Ein Schatten ist eine zweite, versetzte Fläche in Tinte. Es gibt keinen Weichzeichner — auch deshalb exportiert er exakt nach PDF. |
-| Farbe hat drei Rollen | Ein Element wählt eine Rolle (`paper`, `paperAlt`, `signal`, `ink`), keinen Farbwert. **Einen Farbwähler gibt es nicht.** |
-| Keine fremden Icons | Das Set sind die 462 Icons des CI-Repos, aus deren Geometrie generiert. |
-| Drei Schriften | Zilla Slab · Inter · Space Mono, selbst gehostet aus dem CI-Repo. Auf dem Bildschirm als WOFF2, im Export eingebettet oder als Umriss — die Marken-Schrift steht in der Datei, nicht nur ihr Name. Labels werden automatisch in Versalien mit 0,12 em gesetzt. |
-| Grüner Marker | `==so==` im Markdown. Wird auf Fläche, in SVG und in PDF identisch gezeichnet. |
+| Regel                        | Wie sie erzwungen wird                                                                                                                                                                                                                                         |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Radius ist 0                 | Auf der Folie: `RADIUS = 0`, und Formen nehmen keinen Radius-Parameter entgegen. Die Werkzeugleisten dürfen runde Ecken haben — sie sind keine Folie (siehe unten).                                                                                            |
+| Schatten sind harte Versätze | Ein Schatten ist eine zweite, versetzte Fläche in Tinte. Es gibt keinen Weichzeichner — auch deshalb exportiert er exakt nach PDF.                                                                                                                             |
+| Farbe hat drei Rollen        | Ein Element wählt eine Rolle (`paper`, `paperAlt`, `signal`, `ink`), keinen Farbwert. **Einen Farbwähler gibt es nicht.**                                                                                                                                      |
+| Keine fremden Icons          | Das Set sind die 462 Icons des CI-Repos, aus deren Geometrie generiert.                                                                                                                                                                                        |
+| Drei Schriften               | Zilla Slab · Inter · Space Mono, selbst gehostet aus dem CI-Repo. Auf dem Bildschirm als WOFF2, im Export eingebettet oder als Umriss — die Marken-Schrift steht in der Datei, nicht nur ihr Name. Labels werden automatisch in Versalien mit 0,12 em gesetzt. |
+| Grüner Marker                | `==so==` im Markdown. Auf der Fläche, in SVG und PDF dieselbe Fläche unter dem Wort; in PPTX eine Texthervorhebung, damit er beim Umbruch am Wort bleibt.                                                                                                      |
 
 Die Standard-Tailwind-Palette ist **ersetzt**, nicht erweitert: ein
 versehentliches `bg-blue-500` ist ein sichtbarer Fehler und kein stiller
@@ -42,9 +67,9 @@ Ein Werkzeug, das cremefarbene Folien baut, darf selbst nicht cremefarben sein
 — sonst sieht man nicht mehr, wo die Folie anfängt. `theme.config.ts` führt
 deshalb zwei getrennte Sätze:
 
-| | Namensraum | Wofür |
-| --- | --- | --- |
-| **Inhalt** | `palette`, `color`, `elementTones` → `bg-signal`, `text-ink`, `border-line`, `shadow-md`, `rounded-none` | alles, was auf einer Folie landet und exportiert wird. Papier, Tinte, Signal. Radius 0, harte Versatzschatten. |
+|              | Namensraum                                                                                               | Wofür                                                                                                                              |
+| ------------ | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Inhalt**   | `palette`, `color`, `elementTones` → `bg-signal`, `text-ink`, `border-line`, `shadow-md`, `rounded-none` | alles, was auf einer Folie landet und exportiert wird. Papier, Tinte, Signal. Radius 0, harte Versatzschatten.                     |
 | **Werkzeug** | `ui`, `uiRadius`, `uiShadow` → `bg-ui-surface`, `text-ui-ink`, `border-ui`, `shadow-ui-md`, `rounded-md` | Leisten, Paletten, Felder, Griffe, Auswahlrahmen. Weiß und kühles Grau, kleine Radien, weiche Schatten. Erreicht nie einen Export. |
 
 Die Oberfläche leiht sich **nichts** von der Marke, auch keinen Akzent. Sie
@@ -60,41 +85,53 @@ schlägt an, sobald eine Bedienfläche einen Marken-Ton benutzt — oder ein
 
 ## Was das Werkzeug kann
 
-**Markdown-Motor.** Deck aus einer `.md` laden (Knopf, `⌘O`, oder Datei ins
+### Markdown-Motor
+
+Deck aus einer `.md` laden (Knopf, `⌘O`, oder Datei ins
 Fenster ziehen). Folientrenner ist `---`; der Trenner wird in Codeblöcken und
 HTML-Kommentaren ignoriert und verwechselt eine Setext-Überschrift nicht mit
 einem Folienwechsel. Deck-Frontmatter oben, Folien-Metadaten je Folie in einem
 `<!-- nzl … -->`-Block. Überschriften, Listen, Aufgabenlisten, Code, Zitate,
 Tabellen, Bilder — gesetzt in der CI-Hierarchie.
 
-**Freie Fläche.** Ziehen, größer ziehen, drehen; Mehrfachauswahl per Shift oder
-Gummiband. Einrasten auf das 8er-Raster *und* auf Hilfslinien: Kanten und
+### Freie Fläche
+
+<img src="docs/assets/library.png" alt="Die Bausteinbibliothek mit den 462 CI-Icons und der Tonwert-Auswahl" width="330" align="right">
+
+Ziehen, größer ziehen, drehen; Mehrfachauswahl per Shift oder
+Gummiband. Einrasten auf das 8er-Raster _und_ auf Hilfslinien: Kanten und
 Mitten der Nachbarn, Folienränder, Satzspiegel. `Alt` hält das Raster an.
 Duplizieren, löschen, stapeln, ausrichten, verteilen, sperren. Rückgängig und
 Wiederholen mit Gesten-Bewusstsein — ein Zug ist ein Schritt, nicht sechzig.
 
-**Präsentation.** `P` startet, `Esc` beendet, `F` Vollbild, `N` Notizen.
+### Präsentation
+
+`P` startet, `Esc` beendet, `F` Vollbild, `N` Notizen.
 Übergänge und Einblendungen; Elemente tragen einen Schritt, damit eine Folie
 Gedanke für Gedanke aufgeht. Übersicht mit `⌘K`, Filmstreifen immer sichtbar.
 `prefers-reduced-motion` wird beachtet.
 
-**Export.**
+<br clear="right">
 
-| Format | Was herauskommt |
-| --- | --- |
-| **Markdown** | Das Deck samt aller Positionen, wieder ladbar |
-| **SVG** | Echte `<path>`/`<text>`-Vektoren — kein `foreignObject`, keine Rasterung |
-| **PDF** | Vektorseiten mit markierbarem, durchsuchbarem Text |
+<img src="docs/assets/present.png" alt="Präsentationsmodus: die Folie füllt das Fenster, die Bedienung blendet sich weg">
+
+### Export
+
+| Format         | Was herauskommt                                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Markdown**   | Das Deck samt aller Positionen, wieder ladbar                                                                 |
+| **SVG**        | Echte `<path>`/`<text>`-Vektoren — kein `foreignObject`, keine Rasterung                                      |
+| **PDF**        | Vektorseiten mit markierbarem, durchsuchbarem Text                                                            |
 | **PowerPoint** | `.pptx` mit echten Formen und **bearbeitbaren Textrahmen** — auch der Weg nach Google Slides (dort hochladen) |
 
 Für SVG und PDF gibt es zwei Wege, wie die Schrift in die Datei kommt. Beide
 erzeugen dasselbe Bild; sie unterscheiden sich darin, was die Gegenseite
 können muss:
 
-| | Was passiert | Wofür |
-| --- | --- | --- |
-| **Schrift einbetten** (Vorgabe) | Die benutzten Schnitte liegen *in* der Datei — im PDF als eingebettete Teilmenge (nur die vorkommenden Zeichen), im SVG als `@font-face` mit Daten-URI. | Alles, was danach noch gelesen, durchsucht oder redigiert wird. |
-| **Text in Pfade** | Jede Glyphe wird zur Kontur. Danach steht in der Datei keine Schriftreferenz mehr. | Druckvorstufe, Illustrator, Inkscape — überall, wo eingebettete Schriften ignoriert werden. |
+|                                 | Was passiert                                                                                                                                            | Wofür                                                                                       |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **Schrift einbetten** (Vorgabe) | Die benutzten Schnitte liegen _in_ der Datei — im PDF als eingebettete Teilmenge (nur die vorkommenden Zeichen), im SVG als `@font-face` mit Daten-URI. | Alles, was danach noch gelesen, durchsucht oder redigiert wird.                             |
+| **Text in Pfade**               | Jede Glyphe wird zur Kontur. Danach steht in der Datei keine Schriftreferenz mehr.                                                                      | Druckvorstufe, Illustrator, Inkscape — überall, wo eingebettete Schriften ignoriert werden. |
 
 Ein sechsseitiges Deck kostet als PDF mit eingebetteten Schriften rund 140 kB,
 als Umriss-PDF rund 950 kB. Der Umriss-Weg ist der teurere und der sicherere.
@@ -122,9 +159,15 @@ die Marken-Schriften müssen auf dem Rechner installiert sein, der die Datei
 Eine Einheit der Fläche ist genau 9525 EMU. 1280 × 720 Einheiten fallen damit
 ohne Rundung auf PowerPoints Breitbild-Vorgabe von 13⅓ × 7,5 Zoll.
 
-**Prompt-Generator.** Ein Formular beschreibt den Auftrag, daraus entsteht ein
-Prompt, der ein Sprachmodell fertiges Deck-Markdown schreiben lässt. Die Antwort
-fügst du zurück ein und das Deck ist offen. Siehe [`PROMPT.md`](./PROMPT.md).
+### Prompt-Generator
+
+Ein Formular beschreibt den Auftrag, daraus entsteht ein Prompt, der ein
+Sprachmodell fertiges Deck-Markdown schreiben lässt. Die Antwort fügst du
+zurück ein und das Deck ist offen. Der Prompt wird **aus dem laufenden Schema
+gebaut** — er kann deshalb nichts nennen, was der Parser nicht kennt. Siehe
+[`PROMPT.md`](./PROMPT.md).
+
+<img src="docs/assets/prompt.png" alt="Der Prompt-Generator: Auftrag als Formular links, fertiger Prompt rechts, Rückweg unten">
 
 ---
 
@@ -159,7 +202,7 @@ Drei Bausteine machen das möglich:
   Einlesen zu Kubiken, weil PDF keinen Bogen-Operator kennt.
 - **`src/lib/text/typeset.ts`** — ein kleiner Markdown-Setzer, der mit der
   echten Schrift misst (Canvas `measureText`) und positionierte Textzeilen
-  ausgibt. Nur deshalb ist exportierter Text *Text* und kein Bild.
+  ausgibt. Nur deshalb ist exportierter Text _Text_ und kein Bild.
 - **`src/lib/text/truetype.ts`** — ein kleiner TrueType-Leser: Zeichen →
   Umriss, in derselben Segmentliste. Damit fällt auch Text in die eine
   Zeichenstrecke, wenn er als Pfad exportiert werden soll. Wo ein Zeichen
@@ -170,6 +213,7 @@ Drei Bausteine machen das möglich:
 
 ```
 theme.config.ts               Die CI. Eine Datei. Alles liest von hier.
+CLAUDE.md                     Arbeitsanweisung — Regeln und bekannte Fallen
 PROMPT.md                     Der Deck-Prompt, erklärt
 scripts/sync-ci.mjs           Holt Schriften, Marke und Icons aus dem CI-Repo
 src/
@@ -272,7 +316,7 @@ Er schreibt:
 - `src/assets/wordmark.generated.ts` — die Wortmarke als Vektorpfade
 
 Die Wortmarke wird als **Pfad** übernommen, nicht als Bild — nur so landet sie
-in SVG *und* PDF als echter Vektor, ohne dass der Export eine Datei nachladen
+in SVG _und_ PDF als echter Vektor, ohne dass der Export eine Datei nachladen
 muss.
 
 Die Schriften kommen als TTF und werden beim Sync zusätzlich nach WOFF2
@@ -285,19 +329,19 @@ WOFF2 kann keiner von beiden lesen.
 
 ## Tasten
 
-| | |
-| --- | --- |
+|                |                                                           |
+| -------------- | --------------------------------------------------------- |
 | `→` `←` `Leer` | Folie vor / zurück (in der Präsentation: Einblendschritt) |
-| Pfeiltasten | Auswahl um eine Rasterstufe schieben (`⇧` = fünf) |
-| `⌘D` / `⌫` | Duplizieren / löschen |
-| `⌘]` `⌘[` | Nach vorn / nach hinten (`⇧` = ganz) |
-| `⌘A` / `Esc` | Alles wählen / Auswahl aufheben |
-| `⌘Z` `⇧⌘Z` | Rückgängig / wiederholen |
-| `⌘O` `⌘S` | Markdown öffnen / sichern |
-| `⌘K` | Übersicht |
-| `P` / `Esc` | Präsentieren / zurück |
-| `N` / `F` | Notizen / Vollbild (während der Präsentation) |
-| `G` | Raster an/aus |
+| Pfeiltasten    | Auswahl um eine Rasterstufe schieben (`⇧` = fünf)         |
+| `⌘D` / `⌫`     | Duplizieren / löschen                                     |
+| `⌘]` `⌘[`      | Nach vorn / nach hinten (`⇧` = ganz)                      |
+| `⌘A` / `Esc`   | Alles wählen / Auswahl aufheben                           |
+| `⌘Z` `⇧⌘Z`     | Rückgängig / wiederholen                                  |
+| `⌘O` `⌘S`      | Markdown öffnen / sichern                                 |
+| `⌘K`           | Übersicht                                                 |
+| `P` / `Esc`    | Präsentieren / zurück                                     |
+| `N` / `F`      | Notizen / Vollbild (während der Präsentation)             |
+| `G`            | Raster an/aus                                             |
 
 Während du in einem Feld tippst, sind alle Tasten wirkungslos.
 
@@ -309,7 +353,7 @@ Während du in einem Feld tippst, sind alle Tasten wirkungslos.
 npm run dev        # Entwicklungsserver
 npm run build      # Typprüfung + Produktions-Build
 npm run preview    # Build ausliefern
-npm test           # 2 932 Tests
+npm test           # rund 3 000 Tests
 npm run lint
 npm run typecheck
 npm run format
@@ -326,12 +370,16 @@ CI-Konformität aller 462 Icons.
 
 ### Was man wissen sollte
 
-- **Schriften im PDF.** Ein PDF kann keine Web-Schrift referenzieren, ohne sie
-  einzubetten. Der Export nutzt deshalb die metrisch verwandten Kernschriften
-  aus `theme.config.ts` (Times für die Slab-Serif, Helvetica für Inter, Courier
-  für Space Mono). Der Zeilenumbruch ist zu dem Zeitpunkt längst gegen die
-  echten Bildschirmmaße gefallen und jede Zeile sitzt absolut — der Ersatz
-  verschiebt also nichts, er zeichnet die Glyphen nur etwas anders.
+- **Schriften im PDF** werden eingebettet, als Teilmenge aus den benutzten
+  Zeichen. Lässt sich eine Datei nicht laden, fällt der Export auf die metrisch
+  verwandten Kernschriften zurück (Times für die Slab-Serif, Helvetica für
+  Inter, Courier für Space Mono). Der Umbruch ist da längst gegen die echten
+  Bildschirmmaße gefallen und jede Zeile sitzt absolut — der Ersatz verschiebt
+  also nichts, er zeichnet die Glyphen nur anders. Sichtbar ist das trotzdem,
+  weshalb es der Notnagel bleibt.
+- **Schriften im PPTX** werden _nicht_ eingebettet: eine `.pptx` verweist auf
+  Schriften, sie trägt sie nicht. Zilla Slab, Inter und Space Mono müssen auf
+  dem Rechner installiert sein, der die Datei öffnet.
 - **Bilder.** Ein Bild auf der Fläche wird als Data-URI eingebettet, damit das
   Deck eine tragbare Datei bleibt. In Markdown relativ referenzierte Bilder
   lösen gegen die Seite auf und müssen unter `public/` liegen.
