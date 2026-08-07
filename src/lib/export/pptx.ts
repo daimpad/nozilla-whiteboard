@@ -81,10 +81,21 @@ export async function deckToPptx(deck: Deck, options: PptxOptions = {}): Promise
     }),
   );
 
+  /*
+     Nur eingepackt, was auch referenziert wird.
+
+     `collectMedia()` sammelt jede Bildquelle des Decks — auch die aus dem
+     Fließtext, für die es in PPTX keine Entsprechung gibt (ein Textrahmen
+     kennt keine eingebetteten Bilder). Diese Bytes ohne Relationship ins
+     Paket zu legen erzeugt einen toten Teil, und tote Teile sind laut
+     Spezifikation kein gültiges Paket.
+  */
+  const referenced = media.filter((item) => slides.some((slide) => slide.media.includes(item)));
+
   const entries: ZipEntry[] = [];
   const add = (name: string, xml: string) => entries.push({ name, data: utf8(xml) });
 
-  add('[Content_Types].xml', contentTypes(slides, media));
+  add('[Content_Types].xml', contentTypes(slides, referenced));
   add('_rels/.rels', PARTS.rootRels);
   add('docProps/core.xml', coreProps(deck, options));
   add('docProps/app.xml', appProps(deck));
@@ -112,7 +123,7 @@ export async function deckToPptx(deck: Deck, options: PptxOptions = {}): Promise
     }
   });
 
-  for (const item of media) {
+  for (const item of referenced) {
     entries.push({ name: `ppt/media/${item.file}`, data: item.bytes, store: true });
   }
 
@@ -130,22 +141,71 @@ interface MediaItem {
   bytes: Uint8Array;
 }
 
+/**
+ * Bildendung und Inhaltstyp je MIME.
+ *
+ * Die Endung steuert den `<Default>`-Eintrag im Content-Types-Verzeichnis, und
+ * der muss zum Inhalt passen — ein GIF, das `image1.png` heißt und als
+ * `image/png` angemeldet ist, ist ein Verstoß gegen die Spezifikation, den
+ * PowerPoint als beschädigte Datei auslegen darf.
+ */
+const IMAGE_TYPES: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpeg',
+  'image/jpg': 'jpeg',
+  'image/gif': 'gif',
+  'image/bmp': 'bmp',
+  'image/tiff': 'tiff',
+  'image/webp': 'webp',
+  'image/x-emf': 'emf',
+  'image/x-wmf': 'wmf',
+};
+
+export function imageContentType(ext: string): string {
+  const found = Object.entries(IMAGE_TYPES).find(([, value]) => value === ext);
+  return found ? found[0] : `image/${ext}`;
+}
+
 function collectMedia(images: ImageMap): MediaItem[] {
   const out: MediaItem[] = [];
   let index = 0;
   for (const image of images.values()) {
-    const match = /^data:([^;,]+)[^,]*,(.*)$/s.exec(image.dataUrl);
+    const match = /^data:([^;,]*)((?:;[^,]*)*),([\s\S]*)$/.exec(image.dataUrl);
     if (!match) continue;
-    const mime = match[1];
-    const ext = mime === 'image/jpeg' ? 'jpeg' : mime === 'image/svg+xml' ? 'svg' : 'png';
+
+    const mime = (match[1] || 'image/png').toLowerCase();
+    const isBase64 = /;base64/i.test(match[2]);
+    const bytes = decodeDataUrl(match[3], isBase64);
+    // Ein leeres Medium wäre ein toter Teil im Paket, auf den eine
+    // Relationship zeigt — lieber gar kein Bild als ein kaputtes.
+    if (bytes.length === 0) continue;
+
+    /*
+       SVG ist in PPTX kein eigenständiges Bild: `a:blip` verlangt ein Raster,
+       das SVG hängt nur als Erweiterung daran. Ohne dieses Raster zeigt
+       PowerPoint eine leere Fläche. Solche Quellen werden deshalb
+       übersprungen — sie sind auf der Folie ohnehin selten, und ein Loch mit
+       Ansage ist besser als ein Loch ohne.
+    */
+    if (mime === 'image/svg+xml') continue;
+
+    const ext = IMAGE_TYPES[mime] ?? 'png';
     index += 1;
-    out.push({ src: image.src, file: `image${index}.${ext}`, ext, bytes: decodeDataUrl(match[2]) });
+    out.push({ src: image.src, file: `image${index}.${ext}`, ext, bytes });
   }
   return out;
 }
 
-function decodeDataUrl(payload: string): Uint8Array {
+/**
+ * Eine Daten-URL in Bytes.
+ *
+ * Nicht jede ist base64-kodiert: `data:image/svg+xml;utf8,<svg …>` ist gültig
+ * und häufig. `atob()` darauf wirft, und ein stillschweigend leeres Ergebnis
+ * hätte ein Null-Byte-Bild ins Paket gelegt.
+ */
+function decodeDataUrl(payload: string, isBase64: boolean): Uint8Array {
   try {
+    if (!isBase64) return new TextEncoder().encode(decodeURIComponent(payload));
     const binary = atob(payload.replace(/\s/g, ''));
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
@@ -946,10 +1006,12 @@ function tableShape(
       '<a:tc><a:txBody><a:bodyPr/><a:lstStyle/>' +
       paragraphXml(para) +
       '</a:txBody>' +
+      // `a:tcPr` ist im Schema eine *Sequenz*: erst die Linien (lnL, lnR,
+      // lnT, lnB), dann die Füllung. Umgekehrt ist die Datei ungültig.
       '<a:tcPr marL="45720" marR="45720" marT="27432" marB="27432" anchor="ctr">' +
-      (header ? solidFill(bg.codeBackground) : '<a:noFill/>') +
       `<a:lnB w="${emu(strokeWidthOf('hair'))}" cap="flat">${solidFill(bg.line)}` +
       '<a:prstDash val="solid"/></a:lnB>' +
+      (header ? solidFill(bg.codeBackground) : '<a:noFill/>') +
       '</a:tcPr></a:tc>'
     );
   };
@@ -1046,11 +1108,7 @@ function contentTypes(slides: readonly BuiltSlide[], media: readonly MediaItem[]
       ? 'application/vnd.openxmlformats-package.relationships+xml'
       : ext === 'xml'
         ? 'application/xml'
-        : ext === 'jpeg'
-          ? 'image/jpeg'
-          : ext === 'svg'
-            ? 'image/svg+xml'
-            : 'image/png';
+        : imageContentType(ext);
 
   const overrides = [
     '/ppt/presentation.xml|application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml',

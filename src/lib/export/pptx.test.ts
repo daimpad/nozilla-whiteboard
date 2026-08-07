@@ -275,6 +275,15 @@ describe('Folieninhalt', () => {
     expect(slide2).toContain('<a:t>Eins</a:t>');
   });
 
+  it('ordnet die Zelleigenschaften wie das Schema es verlangt', () => {
+    // `a:tcPr` ist eine Sequenz: erst die Linien, dann die Füllung.
+    for (const [, inner] of slide2.matchAll(/<a:tcPr[^>]*>([\s\S]*?)<\/a:tcPr>/g)) {
+      const line = inner.indexOf('<a:lnB');
+      const fill = Math.max(inner.indexOf('<a:solidFill'), inner.indexOf('<a:noFill'));
+      if (line >= 0 && fill >= 0) expect(line).toBeLessThan(fill);
+    }
+  });
+
   it('schreibt Notizen in eine eigene Notizfolie', () => {
     expect(parts.get('ppt/notesSlides/notesSlide1.xml')).toContain('<a:t>Eine Notiz.</a:t>');
     expect(parts.get('ppt/slides/_rels/slide1.xml.rels')).toContain('notesSlide1.xml');
@@ -293,6 +302,83 @@ describe('Folieninhalt', () => {
     for (const [, text] of slide1.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)) {
       expect(text).not.toMatch(/[\r\n\t]/);
     }
+  });
+});
+
+describe('Bilder', () => {
+  const PIXEL =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+  const build = async (deckSource: string, images: Array<[string, string]>) => {
+    const map = new Map(
+      images.map(([src, dataUrl]) => [src, { src, dataUrl, format: 'png', width: 1, height: 1 }]),
+    );
+    return readZip(await deckToPptx(parseDeck(deckSource), { images: map as never }));
+  };
+
+  it('bettet ein platziertes Bild ein und verweist darauf', async () => {
+    const built = await build(
+      [
+        '<!-- nzl',
+        'elements:',
+        '  - kind: image',
+        '    x: 0',
+        '    y: 0',
+        '    src: p.png',
+        '-->',
+      ].join('\n'),
+      [['p.png', PIXEL]],
+    );
+    expect(built.has('ppt/media/image1.png')).toBe(true);
+    expect(built.get('ppt/slides/slide1.xml')).toContain('<p:pic>');
+    expect(built.get('ppt/slides/_rels/slide1.xml.rels')).toContain('../media/image1.png');
+  });
+
+  it('packt kein Bild ein, auf das nichts zeigt', async () => {
+    // Ein Bild im Fließtext hat in PPTX keine Entsprechung — ein Textrahmen
+    // kennt keine eingebetteten Bilder. Die Bytes trotzdem einzupacken
+    // erzeugte einen toten Teil, und der macht das Paket ungültig.
+    const built = await build('# Kopf\n\n![Diagramm](d.png)\n\nText.', [['d.png', PIXEL]]);
+    expect([...built.keys()].filter((name) => name.startsWith('ppt/media/'))).toEqual([]);
+    expect(built.get('[Content_Types].xml')).not.toContain('Extension="png"');
+  });
+
+  it('benennt jedes Format richtig, statt alles png zu nennen', async () => {
+    const gif = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    const built = await build(
+      [
+        '<!-- nzl',
+        'elements:',
+        '  - kind: image',
+        '    x: 0',
+        '    y: 0',
+        '    src: g.gif',
+        '-->',
+      ].join('\n'),
+      [['g.gif', gif]],
+    );
+    expect(built.has('ppt/media/image1.gif')).toBe(true);
+    expect(built.get('[Content_Types].xml')).toContain(
+      '<Default Extension="gif" ContentType="image/gif"/>',
+    );
+  });
+
+  it('legt kein leeres Bild ab, wenn die Daten-URL nicht base64 ist', async () => {
+    const inline = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"/>';
+    const built = await build(
+      [
+        '<!-- nzl',
+        'elements:',
+        '  - kind: image',
+        '    x: 0',
+        '    y: 0',
+        '    src: i.svg',
+        '-->',
+      ].join('\n'),
+      [['i.svg', inline]],
+    );
+    expect([...built.keys()].filter((name) => name.startsWith('ppt/media/'))).toEqual([]);
+    expect(built.get('ppt/slides/slide1.xml')).not.toContain('<p:pic>');
   });
 });
 
