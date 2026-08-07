@@ -9,6 +9,9 @@ import {
   shadow,
   space,
   stroke,
+  ui,
+  uiRadius,
+  uiShadow,
   uiType,
 } from './theme.config';
 
@@ -17,8 +20,15 @@ import {
  * ersetzt statt erweitert — ein versehentliches `bg-blue-500` ist damit ein
  * sichtbarer Fehler und kein stiller CI-Bruch.
  *
- * Die Radius-Skala hat genau einen Eintrag: 0. `rounded-lg` existiert nicht,
- * weil es in dieser Marke nichts gibt, das es beschreiben könnte.
+ * Zwei getrennte Namensräume, weil es zwei getrennte Dinge sind:
+ *
+ *   `bg-signal`, `text-ink`, `border-line`, `shadow-md`, `rounded-none`
+ *       → die Marke. Gehört auf die Folie.
+ *   `bg-ui-surface`, `text-ui-ink`, `border-ui`, `shadow-ui-md`, `rounded-md`
+ *       → das Werkzeug. Gehört in Leisten, Paletten und Felder.
+ *
+ * Der Namensraum ist die Kontrolle: `bg-paper` in einer Werkzeugleiste sticht
+ * beim Lesen sofort heraus, `bg-ui-surface` in einem Export-Pfad ebenso.
  */
 const px = (n: number) => `${n}px`;
 
@@ -68,7 +78,7 @@ const config: Config = {
       info: palette.info,
       'info-bg': color.infoBg,
 
-      /* Semantische Aliase */
+      /* Semantische Aliase der Marke */
       canvas: color.canvas,
       surface: color.surface,
       'surface-alt': color.surfaceAlt,
@@ -79,14 +89,52 @@ const config: Config = {
       'ink-inverse': color.inkInverse,
       line: color.line,
       'line-soft': color.lineSoft,
+
+      /* Die Werkzeug-Oberfläche — neutral, nie auf einer Folie. */
+      'ui-canvas': ui.canvas,
+      'ui-surface': ui.surface,
+      'ui-subtle': ui.surfaceSubtle,
+      'ui-sunken': ui.surfaceSunken,
+      'ui-inverse': ui.surfaceInverse,
+      'ui-overlay': ui.overlay,
+      'ui-ink': ui.ink,
+      'ui-muted': ui.inkMuted,
+      'ui-faint': ui.inkSubtle,
+      'ui-on-inverse': ui.inkInverse,
+      ui: ui.border,
+      'ui-strong': ui.borderStrong,
+      'ui-accent': ui.accent,
+      'ui-accent-strong': ui.accentStrong,
+      'ui-accent-soft': ui.accentSoft,
+      'ui-accent-border': ui.accentBorder,
+      'ui-select': ui.select,
+      'ui-select-wash': ui.selectWash,
+      'ui-warn': ui.warn,
+      'ui-warn-bg': ui.warnBg,
+      'ui-danger': ui.danger,
+      'ui-danger-bg': ui.dangerBg,
+      'ui-info': ui.info,
+      'ui-info-bg': ui.infoBg,
     },
     fontFamily: {
       display: [fontFamily.display],
       sans: [fontFamily.body],
       mono: [fontFamily.mono],
     },
-    /* Der Radius ist 0. Es gibt keinen zweiten Wert. */
-    borderRadius: { none: String(RADIUS), DEFAULT: String(RADIUS) },
+    /*
+     * Auf der Folie ist der Radius 0 — dafür steht `rounded-none`, und der
+     * Szenen-Renderer kennt ohnehin nur `RADIUS`. Die abgerundeten Stufen
+     * gehören der Oberfläche: ein Knopf in einer Werkzeugleiste ist kein
+     * Folienobjekt, und ihn eckig zu machen hat die Marke nie gefordert.
+     */
+    borderRadius: {
+      none: String(RADIUS),
+      DEFAULT: px(uiRadius.sm),
+      sm: px(uiRadius.sm),
+      md: px(uiRadius.md),
+      lg: px(uiRadius.lg),
+      full: px(uiRadius.full),
+    },
     borderWidth: {
       0: '0',
       ...Object.fromEntries(Object.entries(stroke).map(([key, value]) => [key, px(value)])),
@@ -94,9 +142,17 @@ const config: Config = {
       2: px(stroke.rule),
       3: px(stroke.strong),
       4: px(stroke.heavy),
-      DEFAULT: px(stroke.rule),
+      /* Die Oberfläche zeichnet Haarlinien; die CI-Stärken heißen `border-rule`
+         und aufwärts und bleiben der Bühne vorbehalten. */
+      DEFAULT: px(1),
     } as Record<string, string>,
-    boxShadow: { ...shadow },
+    /* `shadow-md` = harter Marken-Versatz, `shadow-ui-md` = weiche Ebene. */
+    boxShadow: {
+      ...shadow,
+      ...(Object.fromEntries(
+        Object.entries(uiShadow).map(([key, value]) => [`ui-${key}`, value]),
+      ) as Record<string, string>),
+    },
     spacing: {
       px: '1px',
       ...gridSpacing,
@@ -120,7 +176,10 @@ const config: Config = {
     letterSpacing: {
       tight: '-0.02em',
       normal: '0',
-      /* 0.12em ist die Label-Laufweite der CI. */
+      /* Für Abschnittsüberschriften in der Oberfläche. */
+      wide: '0.04em',
+      wider: '0.06em',
+      /* 0.12em ist die Label-Laufweite der CI — auf der Folie, nicht im Formular. */
       label: '0.12em',
     },
     transitionDuration: Object.fromEntries(

@@ -5,19 +5,22 @@
 /* ==========================================================================
    nozilla Whiteboard — globale Stile.
 
-   Jeder Wert unten ist eine CSS-Custom-Property, die aus `theme.config.ts`
-   kommt (siehe `src/theme/index.ts#cssVariables`). Hier steht kein einziger
-   Marken-Wert im Klartext.
+   Zwei Welten, streng getrennt (siehe `theme.config.ts`, Abschnitt
+   „Werkzeug-Oberfläche"):
 
-   Die Formensprache in einem Satz: scharfe Kanten, harte Versatzschatten,
-   kein Verlauf, kein Weichzeichner, kein Glas.
+     --nz-ui-*     das Werkzeug. Weiß, kühles Grau, weiche Schatten, kleine
+                   Radien. Neutral, damit die Folie die einzige Farbfläche im
+                   Bild ist.
+     --nz-color-*  die Marke. Papier, Tinte, Signal, harte Versatzschatten,
+                   Radius 0. Gehört auf die Bühne und in den Export.
+
+   Beide Sätze kommen aus `theme.config.ts` (`src/theme/index.ts#cssVariables`).
+   Hier steht kein einziger Wert im Klartext.
    ========================================================================== */
 
 @layer base {
   * {
     box-sizing: border-box;
-    /* Es gibt keinen Radius. Auch nicht „nur ein bisschen". */
-    border-radius: 0;
   }
 
   html,
@@ -28,8 +31,8 @@
 
   body {
     margin: 0;
-    background: var(--nz-color-canvas);
-    color: var(--nz-color-ink);
+    background: var(--nz-ui-canvas);
+    color: var(--nz-ui-ink);
     font-family: var(--nz-font-body);
     font-size: 13px;
     line-height: 1.45;
@@ -39,13 +42,13 @@
   }
 
   :focus-visible {
-    outline: var(--nz-stroke-strong) solid var(--nz-color-focus);
+    outline: 2px solid var(--nz-ui-select);
     outline-offset: 1px;
   }
 
   ::selection {
-    background: var(--nz-color-signal);
-    color: var(--nz-color-ink);
+    background: var(--nz-ui-select-wash);
+    color: var(--nz-ui-ink);
   }
 
   button,
@@ -56,18 +59,20 @@
     color: inherit;
   }
 
-  /* Scrollbalken: Tinte auf Papier, eckig. */
+  /* Scrollbalken: schmal und grau, damit sie nicht mitreden. */
   ::-webkit-scrollbar {
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--nz-color-ink);
-    border: 4px solid transparent;
+    background: var(--nz-ui-strong);
+    border: 3px solid transparent;
+    border-radius: var(--nz-ui-radius-full);
     background-clip: content-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    border-width: 3px;
+    background: var(--nz-ui-faint);
+    background-clip: content-box;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
@@ -78,115 +83,57 @@
   /* ------------------------------------------------------------------ Chrome */
 
   .nz-panel {
-    background: var(--nz-color-surface);
-    border: var(--nz-stroke-rule) solid var(--nz-color-line);
-    box-shadow: var(--nz-shadow-md);
+    background: var(--nz-ui-surface);
+    border: 1px solid var(--nz-ui-border);
+    border-radius: var(--nz-ui-radius-md);
+    box-shadow: var(--nz-ui-shadow-md);
   }
 
   .nz-field {
     width: 100%;
-    padding: 6px 8px;
-    background: var(--nz-color-surface);
-    border: var(--nz-stroke-rule) solid var(--nz-color-line);
+    padding: 5px 8px;
+    background: var(--nz-ui-surface);
+    color: var(--nz-ui-ink);
+    border: 1px solid var(--nz-ui-border);
+    border-radius: var(--nz-ui-radius-sm);
     font-size: 12px;
-    transition: box-shadow var(--nz-dur-fast) var(--nz-ease-standard);
+    transition:
+      border-color var(--nz-dur-fast) var(--nz-ease-standard),
+      box-shadow var(--nz-dur-fast) var(--nz-ease-standard);
   }
   .nz-field:hover {
-    box-shadow: var(--nz-shadow-sm);
+    border-color: var(--nz-ui-strong);
   }
   .nz-field:focus {
     outline: none;
-    box-shadow: var(--nz-shadow-signal);
+    border-color: var(--nz-ui-select);
+    box-shadow: var(--nz-ui-shadow-focus);
   }
 
-  /* Labels sind Space Mono Bold, ALL-CAPS, 0.12em — überall. */
+  /* Feld-Beschriftung: klein, ruhig, in der Oberflächenschrift. Die
+     Versalien-Labels in Space Mono Bold mit 0.12em sind ein Folien-Element —
+     ein Formular ist keine Folie. */
   .nz-label {
     display: block;
-    font-family: var(--nz-font-mono);
     font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
+    font-weight: 600;
+    letter-spacing: 0.02em;
     text-transform: uppercase;
-    color: var(--nz-color-ink-muted);
-    margin-bottom: 5px;
-  }
-
-  /* ---------------------------------------------------------------- Markdown */
-
-  .nz-prose {
-    color: var(--nz-color-ink);
-    font-size: 13px;
-    line-height: 1.55;
-  }
-  .nz-prose > * + * {
-    margin-top: 0.7em;
-  }
-  .nz-prose h1,
-  .nz-prose h2,
-  .nz-prose h3 {
-    font-family: var(--nz-font-display);
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    line-height: 1.1;
-  }
-  .nz-prose h1 {
-    font-size: 1.5em;
-  }
-  .nz-prose h2 {
-    font-size: 1.25em;
-  }
-  .nz-prose h3 {
-    font-size: 1.1em;
-  }
-  .nz-prose ul,
-  .nz-prose ol {
-    padding-left: 1.25em;
-  }
-  .nz-prose ul {
-    list-style: square;
-  }
-  .nz-prose ol {
-    list-style: decimal;
-  }
-  .nz-prose a {
-    color: inherit;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-  .nz-prose code {
-    font-family: var(--nz-font-mono);
-    font-size: 0.92em;
-    background: var(--nz-color-surface-alt);
-    padding: 0.1em 0.32em;
-  }
-  .nz-prose pre {
-    background: var(--nz-color-surface-alt);
-    border: var(--nz-stroke-rule) solid var(--nz-color-line);
-    padding: var(--nz-space-3);
-    overflow-x: auto;
-  }
-  .nz-prose pre code {
-    background: none;
-    padding: 0;
-  }
-  .nz-prose blockquote {
-    border-left: var(--nz-stroke-strong) solid var(--nz-color-ink);
-    padding-left: var(--nz-space-3);
-  }
-
-  /* Der grüne Marker — das Signature-Element. */
-  .nz-prose mark,
-  mark.g {
-    background: var(--nz-color-signal);
-    color: var(--nz-color-ink);
-    padding: 0 0.14em;
+    color: var(--nz-ui-faint);
+    margin-bottom: 4px;
   }
 
   /* ------------------------------------------------------------------ Fläche */
 
+  /*
+     Die Bühne ist die Grenze zwischen beiden Welten: die Fläche selbst ist
+     Marken-Papier (sie wird exportiert), der Schlagschatten darum ist
+     Werkzeug (er wird es nicht). Deshalb hier beide Präfixe nebeneinander —
+     die einzige Stelle im Projekt, an der das richtig ist.
+  */
   .nz-stage {
     background: var(--nz-color-surface);
-    box-shadow: var(--nz-shadow-lg);
+    box-shadow: var(--nz-ui-shadow-stage);
   }
 
   .nz-stage--present {
@@ -204,12 +151,19 @@
     cursor: not-allowed;
   }
 
+  /* Griffe sind Werkzeug. Weiß mit blauer Kontur, damit sie sich von jedem
+     CI-Inhalt abheben — der ist schwarz, creme oder signalgrün. */
   .nz-handle {
     position: absolute;
-    width: 10px;
-    height: 10px;
-    background: var(--nz-color-signal);
-    border: var(--nz-stroke-rule) solid var(--nz-color-ink);
+    width: 9px;
+    height: 9px;
+    background: var(--nz-ui-surface);
+    border: 1.5px solid var(--nz-ui-select);
+    border-radius: var(--nz-ui-radius-sm);
+    box-shadow: var(--nz-ui-shadow-sm);
+  }
+  .nz-handle--round {
+    border-radius: var(--nz-ui-radius-full);
   }
 }
 

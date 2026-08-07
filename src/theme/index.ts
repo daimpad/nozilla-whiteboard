@@ -12,6 +12,9 @@ export {
   color,
   elementTones,
   toneNames,
+  ui,
+  uiRadius,
+  uiShadow,
   fontFamily,
   webfont,
   pdfFontFamily,
@@ -58,6 +61,9 @@ import {
   space,
   stroke,
   typeScale,
+  ui,
+  uiRadius,
+  uiShadow,
   canvas as canvasTokens,
   type ShadowName,
   type StrokeName,
@@ -100,6 +106,17 @@ export function cssVariables(): Record<string, string> {
 
   for (const [key, value] of Object.entries(color)) {
     vars[`--nz-color-${kebab(key)}`] = value;
+  }
+  // Die Oberfläche bekommt ein eigenes Präfix. Wer `--nz-ui-*` in einer
+  // Export-Datei sieht, sieht sofort, dass dort etwas falsch abgebogen ist.
+  for (const [key, value] of Object.entries(ui)) {
+    vars[`--nz-ui-${kebab(key)}`] = value;
+  }
+  for (const [key, value] of Object.entries(uiRadius)) {
+    vars[`--nz-ui-radius-${kebab(key)}`] = `${value}px`;
+  }
+  for (const [key, value] of Object.entries(uiShadow)) {
+    vars[`--nz-ui-shadow-${kebab(key)}`] = value;
   }
   for (const [key, value] of Object.entries(stroke)) {
     vars[`--nz-stroke-${kebab(key)}`] = `${value}px`;

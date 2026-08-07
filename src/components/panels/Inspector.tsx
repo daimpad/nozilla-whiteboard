@@ -62,10 +62,10 @@ export function Inspector() {
 
   return (
     <aside
-      className="flex h-full w-[300px] shrink-0 flex-col border-l border-line bg-surface"
+      className="flex h-full w-[300px] shrink-0 flex-col border-l border-ui bg-ui-surface"
       aria-label="Inspector"
     >
-      <div className="flex items-center gap-1 border-b border-line px-2 py-2">
+      <div className="flex items-center gap-1 border-b border-ui px-2 py-2">
         <TabButton active={effectiveTab === 'slide'} onClick={() => setTab('slide')}>
           Slide
         </TabButton>
@@ -101,8 +101,8 @@ function TabButton({
       onClick={onClick}
       aria-pressed={active}
       className={cx(
-        'h-7 flex-1  text-ui-body font-medium transition-colors duration-fast ease-standard',
-        active ? 'bg-signal text-ink' : 'text-ink-muted hover:bg-paper-deep',
+        'h-7 flex-1 rounded-sm text-ui-body font-medium transition-colors duration-fast ease-standard',
+        active ? 'bg-ui-accent-soft text-ui-ink' : 'text-ui-muted hover:bg-ui-sunken',
       )}
     >
       {children}
@@ -151,7 +151,7 @@ function SlidePanel() {
         </Field>
       </div>
 
-      <label className="flex items-center gap-2 text-ui-body text-ink-muted">
+      <label className="flex items-center gap-2 text-ui-body text-ui-muted">
         <input
           type="checkbox"
           checked={Boolean(slide.meta.bare)}
@@ -230,7 +230,7 @@ function DeckPanel() {
         />
       </Field>
 
-      <dl className=" border border-line bg-surface-alt p-2 text-[11px] text-ink-muted">
+      <dl className="rounded-md border border-ui bg-ui-subtle p-2 text-[11px] text-ui-muted">
         <div className="flex justify-between">
           <dt>Slides</dt>
           <dd className="font-mono">{slideCount}</dd>
@@ -268,7 +268,7 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
 
   if (!first) {
     return (
-      <div className="p-6 text-center text-ui-body text-ink-subtle">
+      <div className="p-6 text-center text-ui-body text-ui-faint">
         <Icon name="table" size={22} className="mx-auto mb-2 opacity-50" />
         Nothing selected.
         <br />
@@ -391,8 +391,10 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
               aria-pressed={first.tone === name}
               onClick={() => patch({ tone: name as ToneName })}
               className={cx(
-                'h-6 w-6  border transition-transform duration-fast ease-standard',
-                first.tone === name ? 'scale-110 border-ink' : 'border-line hover:scale-105',
+                'h-6 w-6 rounded-sm border transition-transform duration-fast ease-standard',
+                first.tone === name
+                  ? 'scale-110 border-ui-select ring-2 ring-ui-select'
+                  : 'border-ui hover:scale-105',
               )}
               style={{
                 background: elementTones[name].surface,
@@ -440,7 +442,7 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
       <KindFields element={first} patch={patch} />
 
       {/* ----------------------------------------------------------- reveal */}
-      <div className=" border border-line p-2">
+      <div className="rounded-md border border-ui p-2">
         <Field label="Reveal step" hint="0 shows with the slide; 1+ appears on an advance.">
           <div className="flex items-center gap-2">
             <input
@@ -655,7 +657,7 @@ function KindFields({ element, patch }: KindFieldsProps) {
               options={connectorKinds.map((value) => ({ value, label: titleCase(value) }))}
             />
           </Field>
-          <label className="flex items-center gap-2 text-ui-body text-ink-muted">
+          <label className="flex items-center gap-2 text-ui-body text-ui-muted">
             <input
               type="checkbox"
               checked={element.dashed}
@@ -741,8 +743,8 @@ function IconField({
   return (
     <Field label="Icon">
       <div className="flex items-center gap-2">
-        <span className="flex h-8 w-8 items-center justify-center border border-line bg-surface-alt text-ink">
-          {value ? <Icon name={value} size={17} /> : <span className="text-ink-subtle">—</span>}
+        <span className="flex h-8 w-8 items-center justify-center rounded-sm border border-ui bg-ui-subtle text-ui-ink">
+          {value ? <Icon name={value} size={17} /> : <span className="text-ui-faint">—</span>}
         </span>
         <Select
           className="flex-1"

@@ -53,7 +53,7 @@ export function PresentView() {
   return (
     <div
       ref={setViewport}
-      className="relative flex h-full w-full items-center justify-center overflow-hidden bg-surface-inverse"
+      className="relative flex h-full w-full items-center justify-center overflow-hidden bg-ui-inverse"
       onPointerMove={showChrome}
       onClick={(event) => {
         // Clicking the slide advances; clicking a control does not.
@@ -90,16 +90,16 @@ export function PresentView() {
           chromeVisible ? 'opacity-100' : 'opacity-0',
         )}
       >
-        <div className="pointer-events-auto flex items-center gap-1 bg-surface/95 px-2 py-1 shadow-lg">
+        <div className="pointer-events-auto flex items-center gap-1 rounded-md bg-ui-surface/95 px-2 py-1 shadow-ui-lg">
           <IconButton icon="arrow-left" label="Previous" onClick={retreat} />
-          <span className="min-w-16 text-center tabular-nums text-[12px] text-ink-muted">
+          <span className="min-w-16 text-center tabular-nums text-[12px] text-ui-muted">
             {slideIndex + 1} / {deck.slides.length}
             {steps > 0 ? ` · ${Math.min(revealStep, steps)}/${steps}` : ''}
           </span>
           <IconButton icon="arrow-right" label="Next" onClick={advance} />
         </div>
 
-        <div className="pointer-events-auto flex items-center gap-1 bg-surface/95 px-2 py-1 shadow-lg">
+        <div className="pointer-events-auto flex items-center gap-1 rounded-md bg-ui-surface/95 px-2 py-1 shadow-ui-lg">
           <IconButton
             icon="list-check"
             label="Presenter notes (N)"
@@ -121,11 +121,11 @@ export function PresentView() {
 
       {/* ------------------------------------------------------------- notes */}
       {notesOpen ? (
-        <aside className="pointer-events-auto absolute right-4 top-4 w-80 bg-surface p-3 shadow-xl">
-          <h3 className="mb-1 text-ui-label font-bold uppercase tracking-label text-ink-subtle">
+        <aside className="pointer-events-auto absolute right-4 top-4 w-80 rounded-md bg-ui-surface p-3 shadow-ui-lg">
+          <h3 className="mb-1 text-ui-label font-bold uppercase tracking-wide text-ui-faint">
             Notes · {slideTitle(slide, slideIndex)}
           </h3>
-          <p className="whitespace-pre-wrap text-ui-body text-ink-muted">
+          <p className="whitespace-pre-wrap text-ui-body text-ui-muted">
             {slide.meta.notes?.trim() || 'No notes for this slide.'}
           </p>
         </aside>
@@ -138,7 +138,7 @@ export function PresentView() {
           chromeVisible ? 'opacity-70' : 'opacity-0',
         )}
       >
-        <p className=" bg-surface/90 px-3 py-1 text-[11px] text-ink-muted">
+        <p className="rounded-full bg-ui-surface/90 px-3 py-1 text-[11px] text-ui-muted">
           → / Space advance · ← back · F fullscreen · Esc exit
         </p>
       </div>

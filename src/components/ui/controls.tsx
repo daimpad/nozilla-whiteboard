@@ -1,7 +1,15 @@
 /**
- * The small set of CI-styled controls the application chrome is built from.
- * Every visual value comes from Tailwind classes generated from
- * `theme.config.ts`, so the chrome cannot drift from the brand either.
+ * Die kleine Menge an Bedienelementen, aus der die Werkzeug-Oberfläche besteht.
+ *
+ * Alles hier benutzt ausschließlich den `ui-*`-Namensraum aus
+ * `theme.config.ts` — weiße Flächen, kühle Graustufen, kleine Radien, weiche
+ * Schatten. Das ist Absicht: die Marke gehört auf die Folie, nicht in die
+ * Werkzeugleiste. Taucht in dieser Datei ein `bg-paper`, `border-line` oder
+ * `shadow-md` auf, ist etwas falsch abgebogen.
+ *
+ * Die einzige Marken-Farbe, die hierher darf, ist das Signalgrün als
+ * `ui-accent` — für den einen Knopf pro Ansicht, der wirklich die Hauptsache
+ * ist.
  */
 import {
   forwardRef,
@@ -30,16 +38,15 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const BUTTON_BASE =
-  'inline-flex items-center justify-center gap-2  px-3 h-8 text-ui-body font-medium ' +
+  'inline-flex items-center justify-center gap-2 rounded-sm px-3 h-8 text-ui-body font-medium ' +
   'transition-colors duration-fast ease-standard disabled:opacity-40 disabled:pointer-events-none ' +
   'whitespace-nowrap';
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-signal text-ink hover:bg-signal-strong',
-  secondary: 'bg-surface text-ink hover:bg-surface-alt',
-  ghost:
-    'border-transparent shadow-none text-ink-muted hover:border-ink hover:shadow-sm hover:text-ink',
-  danger: 'bg-surface text-danger hover:bg-danger-bg',
+  primary: 'bg-ui-accent text-ui-ink hover:bg-ui-accent-strong border border-ui-accent-border',
+  secondary: 'bg-ui-surface text-ui-ink border border-ui hover:bg-ui-subtle hover:border-ui-strong',
+  ghost: 'text-ui-muted hover:bg-ui-sunken hover:text-ui-ink',
+  danger: 'bg-ui-surface text-ui-danger border border-ui hover:bg-ui-danger-bg',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -53,7 +60,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       className={cx(
         BUTTON_BASE,
         BUTTON_VARIANTS[variant],
-        active && 'bg-signal text-ink border-ink',
+        active && 'border-ui-accent-border bg-ui-accent-soft text-ui-ink',
         className,
       )}
       {...rest}
@@ -89,12 +96,12 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       aria-label={label}
       aria-pressed={active}
       className={cx(
-        'inline-flex h-8 w-8 shrink-0 items-center justify-center  transition-colors',
+        'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm transition-colors',
         'duration-fast ease-standard disabled:opacity-40 disabled:pointer-events-none',
         tone === 'danger'
-          ? 'text-ink-muted hover:bg-danger-bg hover:text-danger'
-          : 'text-ink-muted hover:bg-surface-alt hover:text-ink',
-        active && 'bg-signal text-ink shadow-sm hover:bg-signal-strong hover:text-ink',
+          ? 'text-ui-muted hover:bg-ui-danger-bg hover:text-ui-danger'
+          : 'text-ui-muted hover:bg-ui-sunken hover:text-ui-ink',
+        active && 'bg-ui-accent-soft text-ui-ink hover:bg-ui-accent-soft hover:text-ui-ink',
         className,
       )}
       {...rest}
@@ -123,7 +130,7 @@ export function Field({
     <label className={cx('block', className)}>
       <span className="nz-label">{label}</span>
       {children}
-      {hint ? <span className="mt-1 block text-[11px] text-ink-subtle">{hint}</span> : null}
+      {hint ? <span className="mt-1 block text-[11px] text-ui-faint">{hint}</span> : null}
     </label>
   );
 }
@@ -170,7 +177,7 @@ export function Segmented<T extends string>({
     <div
       role="radiogroup"
       className={cx(
-        'inline-flex items-center gap-0.5  border border-line bg-surface-alt p-0.5',
+        'inline-flex items-center gap-0.5 rounded-sm border border-ui bg-ui-subtle p-0.5',
         className,
       )}
     >
@@ -183,10 +190,12 @@ export function Segmented<T extends string>({
           title={option.title ?? option.label}
           onClick={() => onChange(option.value)}
           className={cx(
-            'inline-flex h-6 items-center justify-center gap-1.5  px-2 text-[11px] font-medium',
+            'inline-flex h-6 items-center justify-center gap-1.5 rounded-sm px-2 text-[11px] font-medium',
             'transition-colors duration-fast ease-standard',
             compact && 'px-1.5',
-            value === option.value ? 'bg-signal text-ink' : 'text-ink-muted hover:text-ink',
+            value === option.value
+              ? 'bg-ui-surface text-ui-ink shadow-ui-sm'
+              : 'text-ui-faint hover:text-ui-ink',
           )}
         >
           {option.icon ? <Icon name={option.icon} size={13} /> : null}
@@ -202,12 +211,12 @@ export function Segmented<T extends string>({
 /* -------------------------------------------------------------------------- */
 
 export function Divider({ className }: { className?: string }) {
-  return <div className={cx('h-5 w-px shrink-0 bg-border', className)} />;
+  return <div className={cx('h-5 w-px shrink-0 bg-ui', className)} />;
 }
 
 export function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <h3 className="px-3 pb-1.5 pt-3 text-[11px] font-bold uppercase tracking-label text-ink-subtle">
+    <h3 className="px-3 pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-wider text-ui-faint">
       {children}
     </h3>
   );
@@ -215,7 +224,7 @@ export function SectionTitle({ children }: { children: ReactNode }) {
 
 export function Kbd({ children }: { children: ReactNode }) {
   return (
-    <kbd className=" border border-line bg-surface px-1 font-mono text-[10px] text-ink-subtle">
+    <kbd className="rounded-sm border border-ui bg-ui-surface px-1 font-mono text-[10px] text-ui-faint">
       {children}
     </kbd>
   );

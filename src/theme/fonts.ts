@@ -1,7 +1,7 @@
 /**
  * Die Marken-Schriften einbinden.
  *
- * Zilla Slab, Inter und Space Mono liegen selbst gehostet unter
+ * Zilla Slab, Inter und Space Mono liegen als WOFF2 selbst gehostet unter
  * `public/fonts/` (SIL Open Font License 1.1) — dieselbe Entscheidung wie im
  * CI-Repo: das Werkzeug rendert offline, ohne Dritt-CDN.
  *
@@ -23,7 +23,7 @@ export function installWebfonts(base = import.meta.env.BASE_URL ?? '/'): void {
     .map(
       (face) => `@font-face {
   font-family: '${face.family}';
-  src: url('${prefix}/${face.file}') format('truetype');
+  src: url('${prefix}/${face.file}') format('${webfont.format}');
   font-weight: ${face.weight};
   font-style: ${face.style};
   font-display: swap;

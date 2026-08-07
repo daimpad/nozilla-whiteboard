@@ -6,9 +6,15 @@
  * rotate handles, the marquee and the smart-alignment guides. Keeping the two
  * apart means the drawing layer stays export-identical while the interaction
  * layer can be as chatty as it likes.
+ *
+ * Deshalb zieht diese Datei ihre Farben aus `ui.*`, nicht aus der CI: Rahmen,
+ * Griffe, Hilfslinien und Raster sind Werkzeug und werden nie exportiert. Sie
+ * müssen sich von jedem Inhalt abheben — und Inhalt ist per CI schwarz, creme
+ * oder signalgrün, weshalb ein Auswahlrahmen in genau diesen Farben in der
+ * Zeichnung verschwinden würde.
  */
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { canvas as canvasTokens, color as ci, motion, stroke } from '@/theme';
+import { canvas as canvasTokens, motion, ui } from '@/theme';
 import {
   computeSnap,
   normalizeRect,
@@ -312,7 +318,7 @@ export function CanvasStage({ slide, deck, slideNumber, totalSlides }: CanvasSta
   return (
     <div
       ref={setViewport}
-      className="relative flex h-full w-full items-center justify-center overflow-auto bg-canvas p-10"
+      className="relative flex h-full w-full items-center justify-center overflow-auto bg-ui-canvas p-10"
       data-testid="canvas-viewport"
     >
       <div
@@ -378,8 +384,8 @@ export function CanvasStage({ slide, deck, slideNumber, totalSlides }: CanvasSta
               top: marquee.y * scale,
               width: marquee.w * scale,
               height: marquee.h * scale,
-              borderColor: ci.selection,
-              background: ci.selectionWash,
+              borderColor: ui.select,
+              background: ui.selectWash,
             }}
           />
         ) : null}
@@ -400,9 +406,9 @@ function GridOverlay({ scale }: { scale: number }) {
     <div
       className="pointer-events-none absolute inset-0 rounded-[inherit]"
       style={{
-        backgroundImage: `radial-gradient(${ci.gridStrong} 1px, transparent 1px)`,
+        backgroundImage: `radial-gradient(${ui.inkSubtle} 1px, transparent 1px)`,
         backgroundSize: `${major}px ${major}px`,
-        opacity: 0.5,
+        opacity: 0.35,
       }}
     />
   );
@@ -438,7 +444,7 @@ function SelectionOverlay({
             top: bounds.y * scale,
             width: bounds.w * scale,
             height: bounds.h * scale,
-            borderColor: ci.selection,
+            borderColor: ui.select,
           }}
         />
       ) : null}
@@ -454,7 +460,7 @@ function SelectionOverlay({
             height: element.h * scale,
             transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
             transformOrigin: 'center center',
-            outline: `${stroke.rule}px solid ${ci.selection}`,
+            outline: `1.5px solid ${ui.select}`,
             outlineOffset: 0,
           }}
         >
@@ -505,7 +511,7 @@ function GuideOverlay({ guides, scale }: { guides: Guide[]; scale: number }) {
               top: Math.min(guide.start, 0) * scale,
               width: 1,
               height: (Math.max(guide.end, canvasTokens.height) - Math.min(guide.start, 0)) * scale,
-              background: ci.snapGuide,
+              background: ui.select,
               transition: `opacity ${motion.duration.fast}ms linear`,
             }}
           />
@@ -518,7 +524,7 @@ function GuideOverlay({ guides, scale }: { guides: Guide[]; scale: number }) {
               left: Math.min(guide.start, 0) * scale,
               height: 1,
               width: (Math.max(guide.end, canvasTokens.width) - Math.min(guide.start, 0)) * scale,
-              background: ci.snapGuide,
+              background: ui.select,
             }}
           />
         ),

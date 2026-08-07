@@ -1,0 +1,122 @@
+/**
+ * Die Trennlinie zwischen Marke und Werkzeug, als Test.
+ *
+ * Sie ist in `theme.config.ts` beschrieben, aber eine Beschreibung hält keine
+ * Regel. Was sie hält, ist ein Test, der beim nächsten schnellen `bg-paper` in
+ * einer Werkzeugleiste rot wird — genau die Verwechslung, die diesen Umbau
+ * nötig gemacht hat.
+ */
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { palette, ui, uiRadius, uiShadow, RADIUS, shadow } from '@/theme';
+
+const COMPONENT_ROOT = join(process.cwd(), 'src', 'components');
+
+/** Kommentare heraus — sonst schlägt der Test auf seiner eigenen Erklärung an. */
+function code(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((entry) => {
+    const path = join(dir, entry);
+    if (statSync(path).isDirectory()) return sourceFiles(path);
+    return path.endsWith('.tsx') || path.endsWith('.ts') ? [path] : [];
+  });
+}
+
+/**
+ * Marken-Utilities, die in der Oberfläche nichts verloren haben. Bewusst die
+ * Flächen- und Linienfarben: eine cremefarbene Leiste um eine cremefarbene
+ * Folie ist genau der Fehler, den diese Liste verhindert.
+ */
+const BRAND_ONLY_CLASSES = [
+  'bg-paper',
+  'bg-paper-alt',
+  'bg-paper-deep',
+  'bg-canvas',
+  'bg-surface',
+  'bg-surface-alt',
+  'bg-surface-raised',
+  'bg-surface-inverse',
+  'bg-signal',
+  'bg-ink',
+  'text-ink-muted',
+  'text-ink-subtle',
+  'text-ink-inverse',
+  'border-line',
+  'border-ink',
+];
+
+/**
+ * Diese Dateien zeigen Marken-Inhalt *als Vorschau* — Tonwert-Plättchen,
+ * Element-Kacheln, die Wortmarke. Sie dürfen Marken-Werte lesen; sie färben
+ * damit aber keine Bedienfläche, sondern zeichnen, was auf der Folie landet.
+ */
+const PREVIEWS_BRAND_CONTENT = new Set([
+  'Logo.tsx',
+  'Icon.tsx',
+  'SlideView.tsx',
+  'AssetSidebar.tsx',
+  'Inspector.tsx',
+]);
+
+describe('Marke und Werkzeug sind getrennt', () => {
+  it('färbt keine Bedienfläche mit einem Marken-Ton', () => {
+    const offenders: string[] = [];
+    for (const file of sourceFiles(COMPONENT_ROOT)) {
+      const source = code(readFileSync(file, 'utf8'));
+      for (const className of BRAND_ONLY_CLASSES) {
+        // Nur als ganze Utility, nicht als Präfix von `bg-ui-surface` o. ä.
+        const pattern = new RegExp(`(^|[\\s'"\`:])${className}(?![\\w-])`, 'm');
+        if (pattern.test(source)) offenders.push(`${file.split('/').pop()}: ${className}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('liest Marken-Tokens nur dort, wo Inhalt gezeigt wird', () => {
+    const offenders: string[] = [];
+    for (const file of sourceFiles(COMPONENT_ROOT)) {
+      const name = file.split('/').pop() ?? '';
+      if (PREVIEWS_BRAND_CONTENT.has(name)) continue;
+      const source = code(readFileSync(file, 'utf8'));
+      if (/from '@\/theme'/.test(source) && /\b(palette|elementTones)\b/.test(source)) {
+        offenders.push(name);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('hält die beiden Farbsätze auseinander — bis auf die eine erklärte Brücke', () => {
+    // Reines Weiß zählt nicht: es steht in beiden Sätzen, weil es Weiß ist,
+    // nicht weil eine Marken-Entscheidung herübergereicht wurde.
+    const brandValues = new Set(
+      Object.values(palette)
+        .map((value) => value.toLowerCase())
+        .filter((value) => value !== '#ffffff'),
+    );
+    const shared = Object.entries(ui)
+      .filter(([, value]) => brandValues.has(String(value).toLowerCase()))
+      .map(([key]) => key);
+    // Das Signalgrün markiert auch in der Oberfläche das Aktive. Sonst nichts.
+    expect(shared.sort()).toEqual(['accent', 'accentSoft', 'accentStrong', 'onAccent']);
+  });
+
+  it('rundet die Oberfläche, aber nie die Folie', () => {
+    expect(RADIUS).toBe(0);
+    expect(Object.values(uiRadius).every((value) => value > 0)).toBe(true);
+  });
+
+  it('trennt harte Marken-Versätze von weichen Oberflächen-Schatten', () => {
+    // Auf der Folie: Versatz, kein Weichzeichner — sonst wäre der PDF-Export
+    // nicht deckungsgleich mit dem Bildschirm.
+    for (const [name, value] of Object.entries(shadow)) {
+      if (name === 'none') continue;
+      expect(value).toMatch(/0 0 |0 0$|0px 0 /);
+    }
+    // In der Oberfläche darf er weich sein, er wird ja nie exportiert.
+    expect(uiShadow.md).toContain('6px');
+  });
+});

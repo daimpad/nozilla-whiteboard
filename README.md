@@ -25,16 +25,35 @@ Sie sind so eingebaut, dass ein Verstoß gar nicht erst entstehen kann:
 
 | Regel | Wie sie erzwungen wird |
 | --- | --- |
-| Radius ist 0 | `borderRadius` hat in Tailwind genau einen Wert. `rounded-lg` existiert nicht. Formen nehmen keinen Radius-Parameter entgegen. |
+| Radius ist 0 | Auf der Folie: `RADIUS = 0`, und Formen nehmen keinen Radius-Parameter entgegen. Die Werkzeugleisten dürfen runde Ecken haben — sie sind keine Folie (siehe unten). |
 | Schatten sind harte Versätze | Ein Schatten ist eine zweite, versetzte Fläche in Tinte. Es gibt keinen Weichzeichner — auch deshalb exportiert er exakt nach PDF. |
 | Farbe hat drei Rollen | Ein Element wählt eine Rolle (`paper`, `paperAlt`, `signal`, `ink`), keinen Farbwert. **Einen Farbwähler gibt es nicht.** |
 | Keine fremden Icons | Das Set sind die 462 Icons des CI-Repos, aus deren Geometrie generiert. |
-| Drei Schriften | Zilla Slab · Inter · Space Mono, selbst gehostet aus dem CI-Repo. Labels werden automatisch in Versalien mit 0,12 em gesetzt. |
+| Drei Schriften | Zilla Slab · Inter · Space Mono, selbst gehostet aus dem CI-Repo, als WOFF2 (630 kB statt 1875 kB als TTF). Labels werden automatisch in Versalien mit 0,12 em gesetzt. |
 | Grüner Marker | `==so==` im Markdown. Wird auf Fläche, in SVG und in PDF identisch gezeichnet. |
 
 Die Standard-Tailwind-Palette ist **ersetzt**, nicht erweitert: ein
 versehentliches `bg-blue-500` ist ein sichtbarer Fehler und kein stiller
 CI-Bruch.
+
+### Die Marke gehört auf die Folie, nicht in die Leiste
+
+Ein Werkzeug, das cremefarbene Folien baut, darf selbst nicht cremefarben sein
+— sonst sieht man nicht mehr, wo die Folie anfängt. `theme.config.ts` führt
+deshalb zwei getrennte Sätze:
+
+| | Namensraum | Wofür |
+| --- | --- | --- |
+| **Inhalt** | `palette`, `color`, `elementTones` → `bg-signal`, `text-ink`, `border-line`, `shadow-md`, `rounded-none` | alles, was auf einer Folie landet und exportiert wird. Papier, Tinte, Signal. Radius 0, harte Versatzschatten. |
+| **Werkzeug** | `ui`, `uiRadius`, `uiShadow` → `bg-ui-surface`, `text-ui-ink`, `border-ui`, `shadow-ui-md`, `rounded-md` | Leisten, Paletten, Felder, Griffe, Auswahlrahmen. Weiß und kühles Grau, kleine Radien, weiche Schatten. Erreicht nie einen Export. |
+
+Die einzige Brücke ist `ui.accent`: das Signalgrün markiert auch in der
+Oberfläche das Aktive. Eine zweite, erfundene Akzentfarbe wäre eine Marke neben
+der Marke.
+
+`src/theme/theme.test.ts` hält die Linie: er liest die Komponenten-Quellen und
+schlägt an, sobald eine Bedienfläche einen Marken-Ton benutzt — oder ein
+`ui`-Wert und ein Marken-Wert unbemerkt derselbe werden.
 
 ---
 
@@ -193,7 +212,7 @@ Wer eine Regel bricht, bekommt einen roten Lauf.
 
 Er schreibt:
 
-- `public/fonts/` — Zilla Slab · Inter · Space Mono (SIL OFL, siehe `OFL.txt`)
+- `public/fonts/` — Zilla Slab · Inter · Space Mono als WOFF2 (SIL OFL, siehe `OFL.txt`)
 - `public/brand/` — Wortmarke, Favicon, Social Preview
 - `src/assets/icons.generated.ts` — 462 Icons als Primitive
 - `src/assets/wordmark.generated.ts` — die Wortmarke als Vektorpfade
@@ -201,6 +220,10 @@ Er schreibt:
 Die Wortmarke wird als **Pfad** übernommen, nicht als Bild — nur so landet sie
 in SVG *und* PDF als echter Vektor, ohne dass der Export eine Datei nachladen
 muss.
+
+Die Schriften liegen im CI-Repo als TTF (dort werden sie auch für Druck und
+Office gebraucht) und werden beim Sync nach WOFF2 gewandelt: dieselben
+Konturen, 630 kB statt 1875 kB.
 
 ---
 
