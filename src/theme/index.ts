@@ -1,12 +1,14 @@
 /**
- * Runtime access to the CI. Everything here is a thin, typed re-export of
- * `theme.config.ts` plus derived helpers. Components must never import raw
- * colour literals — they import from here (or use the Tailwind classes, which
- * are generated from the same file).
+ * Laufzeit-Zugriff auf die CI. Alles hier ist ein dünner, typisierter
+ * Re-Export von `theme.config.ts` plus abgeleitete Helfer. Komponenten
+ * importieren von hier — oder benutzen die Tailwind-Klassen, die aus derselben
+ * Datei generiert werden.
  */
 export {
   brand,
   palette,
+  inkAlpha,
+  paperAlpha,
   color,
   elementTones,
   toneNames,
@@ -16,9 +18,11 @@ export {
   fontWeight,
   typeScale,
   uiType,
-  radius,
+  RADIUS,
   stroke,
   strokeNames,
+  shadowOffset,
+  shadowNames,
   space,
   shadow,
   motion,
@@ -27,12 +31,15 @@ export {
   slideTransitions,
   revealAnimations,
   slideLayouts,
+  forbiddenWords,
+  MAX_MARKERS_PER_PARAGRAPH,
   theme,
 } from '@theme';
 
 export type {
   ToneName,
   StrokeName,
+  ShadowName,
   TypeStyleName,
   SlideTransition,
   RevealAnimation,
@@ -45,85 +52,92 @@ import {
   elementTones,
   fontFamily,
   motion,
-  radius,
+  RADIUS,
   shadow,
+  shadowOffset,
   space,
   stroke,
   typeScale,
   canvas as canvasTokens,
+  type ShadowName,
   type StrokeName,
   type ToneName,
   type TypeStyleName,
 } from '@theme';
 
-/** Resolve a tone name to its CI colour set, falling back to `neutral`. */
+/** Eine Flächenrolle auflösen; ohne Angabe gilt Papier. */
 export function tone(name: ToneName | undefined) {
-  return elementTones[name ?? 'neutral'] ?? elementTones.neutral;
+  return elementTones[name ?? 'paper'] ?? elementTones.paper;
 }
 
-/** Resolve a type-scale entry, falling back to `body`. */
+/** Einen Eintrag der Typo-Hierarchie auflösen; ohne Angabe gilt Fließtext. */
 export function typeStyle(name: TypeStyleName | undefined) {
   return typeScale[name ?? 'body'] ?? typeScale.body;
 }
 
-/** Resolve a named CI line weight to px. */
+/** Eine benannte CI-Strichstärke in Pixel. */
 export function strokeWidth(name: StrokeName | undefined): number {
-  return stroke[name ?? 'regular'] ?? stroke.regular;
+  return stroke[name ?? 'rule'] ?? stroke.rule;
 }
 
-/** The concrete font stack for a type-scale family key. */
+/** Den Versatz eines harten Schattens in Pixel. */
+export function shadowSize(name: ShadowName | undefined): number {
+  return shadowOffset[name ?? 'none'] ?? 0;
+}
+
+/** Der konkrete Schriftstapel zu einer Familien-Rolle. */
 export function familyStack(family: 'display' | 'body' | 'mono'): string {
   return fontFamily[family];
 }
 
 /**
- * CSS custom properties, injected once at boot on `:root`. This is what lets
- * plain CSS (`src/index.css`) and inline styles stay in lock-step with the CI
- * without duplicating any value.
+ * CSS-Custom-Properties, einmal beim Start auf `:root` gesetzt. Damit bleiben
+ * reines CSS (`src/index.css`) und Inline-Styles im Gleichtakt mit der CI,
+ * ohne einen Wert zu doppeln.
  */
 export function cssVariables(): Record<string, string> {
   const vars: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(color)) {
-    vars[`--nzl-color-${kebab(key)}`] = value;
-  }
-  for (const [key, value] of Object.entries(radius)) {
-    vars[`--nzl-radius-${kebab(key)}`] = typeof value === 'number' ? `${value}px` : String(value);
+    vars[`--nz-color-${kebab(key)}`] = value;
   }
   for (const [key, value] of Object.entries(stroke)) {
-    vars[`--nzl-stroke-${kebab(key)}`] = `${value}px`;
+    vars[`--nz-stroke-${kebab(key)}`] = `${value}px`;
   }
   for (const [key, value] of Object.entries(space)) {
-    vars[`--nzl-space-${key}`] = `${value}px`;
+    vars[`--nz-space-${key}`] = `${value}px`;
   }
   for (const [key, value] of Object.entries(shadow)) {
-    vars[`--nzl-shadow-${kebab(key)}`] = value;
+    vars[`--nz-shadow-${kebab(key)}`] = value;
   }
   for (const [key, value] of Object.entries(motion.duration)) {
-    vars[`--nzl-duration-${kebab(key)}`] = `${value}ms`;
+    vars[`--nz-dur-${kebab(key)}`] = `${value}ms`;
   }
   for (const [key, value] of Object.entries(motion.easing)) {
-    vars[`--nzl-ease-${kebab(key)}`] = value;
+    vars[`--nz-ease-${kebab(key)}`] = value;
   }
   for (const [key, value] of Object.entries(fontFamily)) {
-    vars[`--nzl-font-${kebab(key)}`] = value;
+    vars[`--nz-font-${kebab(key)}`] = value;
   }
   for (const [key, style] of Object.entries(typeScale)) {
-    vars[`--nzl-type-${kebab(key)}-size`] = `${style.size}px`;
-    vars[`--nzl-type-${kebab(key)}-lh`] = String(style.lineHeight);
-    vars[`--nzl-type-${kebab(key)}-weight`] = String(style.weight);
-    vars[`--nzl-type-${kebab(key)}-tracking`] = `${style.tracking}em`;
+    vars[`--nz-type-${kebab(key)}-size`] = `${style.size}px`;
+    vars[`--nz-type-${kebab(key)}-lh`] = String(style.lineHeight);
+    vars[`--nz-type-${kebab(key)}-weight`] = String(style.weight);
+    vars[`--nz-type-${kebab(key)}-tracking`] = `${style.tracking}em`;
   }
 
-  vars['--nzl-canvas-w'] = `${canvasTokens.width}px`;
-  vars['--nzl-canvas-h'] = `${canvasTokens.height}px`;
-  vars['--nzl-grid'] = `${canvasTokens.gridSize}px`;
-  vars['--nzl-stagger'] = `${motion.stagger}ms`;
+  // Der Radius steht als Variable da, damit auch fremdes CSS ihn zieht — und
+  // damit sichtbar ist, dass er 0 ist und bleibt.
+  vars['--nz-radius'] = `${RADIUS}`;
+  vars['--nz-canvas-w'] = `${canvasTokens.width}px`;
+  vars['--nz-canvas-h'] = `${canvasTokens.height}px`;
+  vars['--nz-grid'] = `${canvasTokens.gridSize}px`;
+  vars['--nz-stagger'] = `${motion.stagger}ms`;
 
   return vars;
 }
 
-/** Apply the CI custom properties to a document root. Idempotent. */
+/** Die CI-Variablen auf ein Dokument setzen. Mehrfach aufrufbar. */
 export function applyThemeVariables(root: HTMLElement = document.documentElement): void {
   const vars = cssVariables();
   for (const [key, value] of Object.entries(vars)) {

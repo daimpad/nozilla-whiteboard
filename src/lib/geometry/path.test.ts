@@ -66,8 +66,37 @@ describe('parsePath', () => {
     expect(t.y1).toBeCloseTo((2 / 3) * -4, 6);
   });
 
-  it('rejects elliptical arcs loudly', () => {
-    expect(() => parsePath('M 0 0 A 5 5 0 0 1 10 10')).toThrow(/arcs are not supported/i);
+  it('converts elliptical arcs to cubics, because PDF has no arc operator', () => {
+    const segs = parsePath('M 0 0 A 5 5 0 0 1 10 0');
+    expect(segs[0]).toEqual({ c: 'M', x: 0, y: 0 });
+    expect(segs.every((seg) => seg.c === 'M' || seg.c === 'C')).toBe(true);
+
+    // Der Bogen endet, wo er enden soll.
+    const last = segs[segs.length - 1] as Extract<Seg, { c: 'C' }>;
+    expect(last.x).toBeCloseTo(10, 6);
+    expect(last.y).toBeCloseTo(0, 6);
+  });
+
+  it('approximates a half circle within a fraction of a pixel', () => {
+    // Halbkreis mit Radius 5 um (5,0): der Scheitel muss bei (5,5) liegen.
+    const bounds = segsBounds(parsePath('M 0 0 A 5 5 0 0 1 10 0'));
+    expect(bounds.x).toBeCloseTo(0, 3);
+    expect(bounds.w).toBeCloseTo(10, 3);
+    expect(bounds.h).toBeCloseTo(5, 2);
+  });
+
+  it('scales up radii that are too small to span the chord', () => {
+    // rx/ry sind zu klein für die Sehne — SVG F.6.6 skaliert sie hoch.
+    const segs = parsePath('M 0 0 A 1 1 0 0 1 10 0');
+    const last = segs[segs.length - 1] as Extract<Seg, { c: 'C' }>;
+    expect(last.x).toBeCloseTo(10, 6);
+  });
+
+  it('treats a zero radius as a straight line', () => {
+    expect(parsePath('M 0 0 A 0 0 0 0 1 10 10')).toEqual([
+      { c: 'M', x: 0, y: 0 },
+      { c: 'L', x: 10, y: 10 },
+    ]);
   });
 
   it('rejects path data that does not start with a command', () => {

@@ -13,8 +13,8 @@ describe('the bundled welcome deck', () => {
   const deck = parseDeck(welcome);
 
   it('parses into the expected shape', () => {
-    expect(deck.meta.title).toBe('Nozilla Whiteboard');
-    expect(deck.meta.footer).toBe('Nozilla — Internal');
+    expect(deck.meta.title).toBe('nozilla Whiteboard');
+    expect(deck.meta.footer).toBe('nozilla · Gute digitale Dienste.');
     expect(deck.slides.length).toBeGreaterThanOrEqual(6);
   });
 
@@ -66,18 +66,23 @@ describe('the bundled welcome deck', () => {
     });
   });
 
-  it('is not derailed by a code sample that itself contains deck syntax', () => {
-    // Slide two documents the metadata format inside a fenced block: it holds a
-    // literal `<!-- nzl`, a literal `-->` and a literal `---`.
-    const withCode = deck.slides.find((slide) => slide.markdown.includes('```md'));
-    expect(withCode).toBeDefined();
-    expect(withCode!.markdown).toContain('<!-- nzl');
-    expect(withCode!.markdown).toContain('-->');
+  it('setzt den grünen Marker als Marker, nicht als Sternchen', () => {
+    const withMarker = deck.slides.filter((slide) => slide.markdown.includes('=='));
+    expect(withMarker.length).toBeGreaterThan(0);
 
-    // The splitter must still see the same slides, and the sample must survive.
-    const reloaded = parseDeck(serializeDeck(deck));
-    expect(reloaded.slides).toHaveLength(deck.slides.length);
-    expect(reloaded.slides[1].markdown).toBe(withCode!.markdown);
-    expect(reloaded.slides[1].elements).toHaveLength(withCode!.elements.length);
+    for (const slide of withMarker) {
+      // Regel 5 der CI: höchstens drei Marker pro Absatz.
+      for (const paragraph of slide.markdown.split(/\n{2,}/)) {
+        const markers = paragraph.match(/==[^=]+==/g) ?? [];
+        expect(markers.length).toBeLessThanOrEqual(3);
+      }
+    }
+  });
+
+  it('hält sich an die Farbrollen der CI', () => {
+    const tones = new Set(deck.slides.flatMap((slide) => slide.elements.map((el) => el.tone)));
+    for (const tone of tones) {
+      expect(['paper', 'paperAlt', 'signal', 'ink']).toContain(tone);
+    }
   });
 });

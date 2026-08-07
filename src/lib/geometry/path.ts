@@ -73,7 +73,12 @@ export function matToSvg(m: Mat): string {
 
 export function isIdentity(m: Mat): boolean {
   return (
-    near(m[0], 1) && near(m[1], 0) && near(m[2], 0) && near(m[3], 1) && near(m[4], 0) && near(m[5], 0)
+    near(m[0], 1) &&
+    near(m[1], 0) &&
+    near(m[2], 0) &&
+    near(m[3], 1) &&
+    near(m[4], 0) &&
+    near(m[5], 0)
   );
 }
 
@@ -114,9 +119,7 @@ export function segsToPath(segs: readonly Seg[], precision = 3): string {
         out.push(`L${n(seg.x)} ${n(seg.y)}`);
         break;
       case 'C':
-        out.push(
-          `C${n(seg.x1)} ${n(seg.y1)} ${n(seg.x2)} ${n(seg.y2)} ${n(seg.x)} ${n(seg.y)}`,
-        );
+        out.push(`C${n(seg.x1)} ${n(seg.y1)} ${n(seg.x2)} ${n(seg.y2)} ${n(seg.x)} ${n(seg.y)}`);
         break;
       case 'Z':
         out.push('Z');
@@ -285,10 +288,20 @@ export function parsePath(d: string): Seg[] {
         lastCubicCtrl = lastQuadCtrl = null;
         break;
       }
-      case 'A':
-        throw new Error(
-          'Elliptical arcs are not supported in Nozilla path data — use cubic curves or a circle/ellipse primitive.',
-        );
+      case 'A': {
+        const rx = num();
+        const ry = num();
+        const rotation = num();
+        const largeArc = num() !== 0;
+        const sweep = num() !== 0;
+        const ex = num() + ox;
+        const ey = num() + oy;
+        out.push(...arcToCubics(cx, cy, rx, ry, rotation, largeArc, sweep, ex, ey));
+        cx = ex;
+        cy = ey;
+        lastCubicCtrl = lastQuadCtrl = null;
+        break;
+      }
       default:
         throw new Error(`Unsupported path command: ${cmd}`);
     }
@@ -297,14 +310,101 @@ export function parsePath(d: string): Seg[] {
   return out;
 }
 
-function quadToCubic(
-  x0: number,
-  y0: number,
-  qx: number,
-  qy: number,
-  x: number,
-  y: number,
-): Seg {
+/**
+ * Elliptical arc → cubic Béziers, per the SVG endpoint-parameterisation notes
+ * (F.6.5 / F.6.6). The arc is split into sweeps of at most 90°, each of which a
+ * cubic approximates to well under a tenth of a pixel at icon scale.
+ *
+ * This exists because PDF has no arc operator: `parsePath` normalises to
+ * move/line/cubic so all three renderers draw the identical curve.
+ */
+export function arcToCubics(
+  x1: number,
+  y1: number,
+  rxIn: number,
+  ryIn: number,
+  degrees: number,
+  largeArc: boolean,
+  sweep: boolean,
+  x2: number,
+  y2: number,
+): Seg[] {
+  // Degenerate radii collapse the arc to a straight line (SVG F.6.2).
+  if (rxIn === 0 || ryIn === 0) return [{ c: 'L', x: x2, y: y2 }];
+  if (x1 === x2 && y1 === y2) return [];
+
+  let rx = Math.abs(rxIn);
+  let ry = Math.abs(ryIn);
+  const phi = (degrees * Math.PI) / 180;
+  const cosPhi = Math.cos(phi);
+  const sinPhi = Math.sin(phi);
+
+  const dx2 = (x1 - x2) / 2;
+  const dy2 = (y1 - y2) / 2;
+  const x1p = cosPhi * dx2 + sinPhi * dy2;
+  const y1p = -sinPhi * dx2 + cosPhi * dy2;
+
+  // Scale the radii up if they are too small to span the chord (F.6.6).
+  const lambda = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry);
+  if (lambda > 1) {
+    const scale = Math.sqrt(lambda);
+    rx *= scale;
+    ry *= scale;
+  }
+
+  const rxSq = rx * rx;
+  const rySq = ry * ry;
+  const numerator = rxSq * rySq - rxSq * y1p * y1p - rySq * x1p * x1p;
+  const denominator = rxSq * y1p * y1p + rySq * x1p * x1p;
+  const factor =
+    (largeArc === sweep ? -1 : 1) * Math.sqrt(Math.max(0, numerator) / (denominator || 1));
+
+  const cxp = (factor * rx * y1p) / ry;
+  const cyp = (-factor * ry * x1p) / rx;
+  const cx = cosPhi * cxp - sinPhi * cyp + (x1 + x2) / 2;
+  const cy = sinPhi * cxp + cosPhi * cyp + (y1 + y2) / 2;
+
+  const theta1 = Math.atan2((y1p - cyp) / ry, (x1p - cxp) / rx);
+  const theta2 = Math.atan2((-y1p - cyp) / ry, (-x1p - cxp) / rx);
+  let delta = theta2 - theta1;
+  if (!sweep && delta > 0) delta -= 2 * Math.PI;
+  else if (sweep && delta < 0) delta += 2 * Math.PI;
+
+  const segments = Math.max(1, Math.ceil(Math.abs(delta) / (Math.PI / 2)));
+  const step = delta / segments;
+  const alpha = (4 / 3) * Math.tan(step / 4);
+
+  const point = (theta: number) => ({
+    x: cx + rx * cosPhi * Math.cos(theta) - ry * sinPhi * Math.sin(theta),
+    y: cy + rx * sinPhi * Math.cos(theta) + ry * cosPhi * Math.sin(theta),
+  });
+  const derivative = (theta: number) => ({
+    x: -rx * cosPhi * Math.sin(theta) - ry * sinPhi * Math.cos(theta),
+    y: -rx * sinPhi * Math.sin(theta) + ry * cosPhi * Math.cos(theta),
+  });
+
+  const out: Seg[] = [];
+  for (let i = 0; i < segments; i += 1) {
+    const from = theta1 + i * step;
+    const to = from + step;
+    const p0 = point(from);
+    const d0 = derivative(from);
+    const p1 = point(to);
+    const d1 = derivative(to);
+    out.push({
+      c: 'C',
+      x1: p0.x + alpha * d0.x,
+      y1: p0.y + alpha * d0.y,
+      x2: p1.x - alpha * d1.x,
+      y2: p1.y - alpha * d1.y,
+      x: p1.x,
+      y: p1.y,
+    });
+  }
+  return out;
+}
+
+function quadToCubic(x0: number, y0: number, qx: number, qy: number, x: number, y: number): Seg {
   return {
     c: 'C',
     x1: x0 + (2 / 3) * (qx - x0),
@@ -335,7 +435,15 @@ export function rectSegs(x: number, y: number, w: number, h: number, r = 0): Seg
   return [
     { c: 'M', x: x + radius, y },
     { c: 'L', x: x + w - radius, y },
-    { c: 'C', x1: x + w - radius + k, y1: y, x2: x + w, y2: y + radius - k, x: x + w, y: y + radius },
+    {
+      c: 'C',
+      x1: x + w - radius + k,
+      y1: y,
+      x2: x + w,
+      y2: y + radius - k,
+      x: x + w,
+      y: y + radius,
+    },
     { c: 'L', x: x + w, y: y + h - radius },
     {
       c: 'C',

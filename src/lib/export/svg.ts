@@ -18,7 +18,7 @@ export interface SvgOptions {
 export function sceneToSvg(scene: Scene, options: SvgOptions = {}): string {
   const { pretty = true } = options;
   const nl = pretty ? '\n' : '';
-  const pad = pretty ? '  ' : '';
+  const pad = pretty ? ' ' : '';
 
   const body = scene.prims.map((prim) => pad + primToSvg(prim)).join(nl);
 
@@ -37,7 +37,8 @@ export function sceneToSvg(scene: Scene, options: SvgOptions = {}): string {
 
 /** Convenience: the whole deck as a vertical strip of slides in one SVG. */
 export function scenesToContactSheet(scenes: Scene[], gap = 24): string {
-  if (scenes.length === 0) return sceneToSvg({ width: 0, height: 0, background: '#fff', prims: [], title: 'Empty' });
+  if (scenes.length === 0)
+    return sceneToSvg({ width: 0, height: 0, background: '#fff', prims: [], title: 'Empty' });
   const width = scenes[0].width;
   const height = scenes.reduce((sum, scene) => sum + scene.height + gap, 0) - gap;
 
@@ -83,7 +84,6 @@ function primToSvg(prim: ScenePrim): string {
         `width="${round(prim.w)}"`,
         `height="${round(prim.h)}"`,
       ];
-      if (prim.r) attrs.push(`rx="${round(prim.r)}"`);
       return `<rect ${attrs.join(' ')}${paintAttrs(prim)}/>`;
     }
 
@@ -129,7 +129,8 @@ function paintAttrs(
     attrs.push(`stroke-width="${round(prim.strokeWidth ?? 1)}"`);
     if (prim.lineCap) attrs.push(`stroke-linecap="${prim.lineCap}"`);
     if (prim.lineJoin) attrs.push(`stroke-linejoin="${prim.lineJoin}"`);
-    if (prim.dash?.length) attrs.push(`stroke-dasharray="${prim.dash.map((n) => round(n)).join(' ')}"`);
+    if (prim.dash?.length)
+      attrs.push(`stroke-dasharray="${prim.dash.map((n) => round(n)).join(' ')}"`);
   }
   if (prim.opacity !== undefined && prim.opacity < 1) {
     attrs.push(`opacity="${round(prim.opacity, 3)}"`);

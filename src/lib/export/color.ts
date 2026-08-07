@@ -18,8 +18,16 @@ export function parseColor(input: string | undefined): Rgba | null {
   const hex = HEX_RE.exec(value);
   if (hex) {
     let digits = hex[1];
-    if (digits.length === 3) digits = digits.split('').map((c) => c + c).join('');
-    else if (digits.length === 4) digits = digits.split('').map((c) => c + c).join('');
+    if (digits.length === 3)
+      digits = digits
+        .split('')
+        .map((c) => c + c)
+        .join('');
+    else if (digits.length === 4)
+      digits = digits
+        .split('')
+        .map((c) => c + c)
+        .join('');
     if (digits.length === 6) {
       const int = Number.parseInt(digits, 16);
       return { r: (int >> 16) & 255, g: (int >> 8) & 255, b: int & 255, a: 1 };

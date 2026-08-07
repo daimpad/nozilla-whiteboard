@@ -1,22 +1,14 @@
 /**
- * The CI asset palette.
+ * Die CI-Palette der platzierbaren Bausteine.
  *
- * These are the only things an author can place on a canvas. Each preset is a
- * partial element that is merged over the CI defaults in `createElement`, so
- * "inherits default CI styles automatically" is structural rather than a
- * convention someone has to remember.
+ * Nur das hier lässt sich auf eine Fläche legen. Jeder Eintrag ist ein
+ * Teil-Element, das über die CI-Vorgaben gelegt wird — „erbt automatisch die
+ * CI" ist damit strukturell und keine Konvention.
  */
-import { elementDefaults, radius, typeScale } from '@/theme';
+import { typeScale } from '@/theme';
 import type { CanvasElement, ElementKind } from '@/model/types';
 
-export const presetGroups = [
-  'text',
-  'cards',
-  'badges',
-  'shapes',
-  'connectors',
-  'media',
-] as const;
+export const presetGroups = ['type', 'cards', 'labels', 'shapes', 'connectors', 'brand'] as const;
 export type PresetGroup = (typeof presetGroups)[number];
 
 export interface AssetPreset {
@@ -24,21 +16,18 @@ export interface AssetPreset {
   label: string;
   group: PresetGroup;
   kind: ElementKind;
-  /** Merged over the CI defaults for the kind. */
   patch: Partial<CanvasElement>;
   hint?: string;
 }
 
 export const presetGroupLabels: Record<PresetGroup, string> = {
-  text: 'Type',
-  cards: 'Cards',
-  badges: 'Badges',
-  shapes: 'Shapes & frames',
-  connectors: 'Connectors',
-  media: 'Media',
+  type: 'Typografie',
+  cards: 'Karten',
+  labels: 'Labels',
+  shapes: 'Formen',
+  connectors: 'Verbinder',
+  brand: 'Marke & Medien',
 };
-
-/* -------------------------------------------------------------------------- */
 
 const preset = <K extends ElementKind>(
   id: string,
@@ -50,248 +39,298 @@ const preset = <K extends ElementKind>(
 ): AssetPreset => ({ id, label, group, kind, patch: patch as Partial<CanvasElement>, hint });
 
 export const assetPresets: AssetPreset[] = [
-  /* ------------------------------------------------------------------ type */
-  preset('text-display', 'Display', 'text', 'text', {
-    text: 'Display headline',
-    typeStyle: 'display',
-    w: 760,
-    h: 90,
-  }),
-  preset('text-h1', 'Heading 1', 'text', 'text', {
-    text: 'Heading one',
-    typeStyle: 'h1',
-    w: 620,
-    h: 68,
-  }),
-  preset('text-h2', 'Heading 2', 'text', 'text', {
-    text: 'Heading two',
-    typeStyle: 'h2',
-    w: 520,
-    h: 52,
-  }),
-  preset('text-h3', 'Heading 3', 'text', 'text', {
-    text: 'Heading three',
-    typeStyle: 'h3',
-    w: 420,
-    h: 40,
-  }),
-  preset('text-lead', 'Lead', 'text', 'text', {
-    text: 'A short lead paragraph that introduces the point.',
-    typeStyle: 'lead',
-    w: 520,
-    h: 96,
-  }),
-  preset('text-body', 'Body', 'text', 'text', {
-    text: 'Body copy for supporting detail.',
-    typeStyle: 'body',
-    w: 420,
-    h: 84,
-  }),
-  preset('text-caption', 'Caption', 'text', 'text', {
-    text: 'Caption or source note',
-    typeStyle: 'caption',
-    tone: 'neutral',
-    w: 320,
-    h: 24,
-  }),
-  preset('text-overline', 'Overline', 'text', 'text', {
-    text: 'SECTION LABEL',
-    typeStyle: 'overline',
-    w: 280,
-    h: 20,
-  }),
+  /* ------------------------------------------------------------ Typografie */
   preset(
-    'markdown-block',
-    'Markdown block',
+    'text-display',
+    'Kampagnensatz',
+    'type',
     'text',
-    'markdown',
-    {
-      markdown: '### Sub-heading\n\n- First point\n- Second point\n- Third point',
-      w: 460,
-      h: 220,
-    },
-    'Full Markdown, typeset with the CI scale',
+    { text: 'Gute digitale Dienste.', typeStyle: 'display', w: 1104, h: 260 },
+    'Zilla Slab Bold 128 — für den einen Satz',
   ),
-  preset('markdown-panel', 'Markdown panel', 'text', 'markdown', {
-    markdown: '**Panel**\n\nMarkdown inside a CI surface.\n\n```ts\nconst ci = true;\n```',
-    fill: 'soft',
-    tone: 'neutral',
-    w: 460,
-    h: 260,
-    radius: radius.lg,
-  }),
-
-  /* ----------------------------------------------------------------- cards */
-  preset('card-feature', 'Feature card', 'cards', 'card', {
-    variant: 'feature',
-    icon: 'sparkle',
-    title: 'Feature title',
-    body: 'One sentence describing what this does for the reader.',
-    w: 320,
-    h: 216,
-  }),
-  preset('card-stat', 'Stat card', 'cards', 'card', {
-    variant: 'stat',
-    eyebrow: 'Growth',
-    title: '38%',
-    body: 'Quarter over quarter',
-    tone: 'support',
-    w: 260,
+  preset('text-headline', 'Headline 88', 'type', 'text', {
+    text: 'Wir bauen wartbare Plattformen.',
+    typeStyle: 'headline',
+    w: 1000,
     h: 180,
   }),
-  preset('card-step', 'Step card', 'cards', 'card', {
-    variant: 'step',
-    eyebrow: '1',
-    title: 'Discover',
-    body: 'What happens in this stage.',
-    w: 280,
-    h: 200,
+  preset('text-h1', 'Überschrift 1', 'type', 'text', {
+    text: 'Überschrift',
+    typeStyle: 'h1',
+    w: 800,
+    h: 70,
   }),
-  preset('card-quote', 'Quote card', 'cards', 'card', {
+  preset('text-h2', 'Überschrift 2', 'type', 'text', {
+    text: 'Zwischentitel',
+    typeStyle: 'h2',
+    w: 640,
+    h: 52,
+  }),
+  preset('text-h3', 'Überschrift 3', 'type', 'text', {
+    text: 'Kleiner Titel',
+    typeStyle: 'h3',
+    w: 520,
+    h: 40,
+  }),
+  preset('text-lead', 'Lead', 'type', 'text', {
+    text: 'Ein Satz, der etwas behauptet — und den die nächste Folie belegt.',
+    typeStyle: 'lead',
+    w: 620,
+    h: 100,
+  }),
+  preset('text-body', 'Fließtext', 'type', 'text', {
+    text: 'Fließtext in Inter, 17 Pixel, Zeilenhöhe 1,55.',
+    typeStyle: 'body',
+    w: 520,
+    h: 90,
+  }),
+  preset('text-small', 'Kleintext', 'type', 'text', {
+    text: 'Quelle, Fußnote, Randbemerkung',
+    typeStyle: 'small',
+    w: 400,
+    h: 30,
+  }),
+  preset(
+    'text-label',
+    'Label',
+    'type',
+    'text',
+    { text: 'Abschnitt', typeStyle: 'label', w: 300, h: 20 },
+    'Space Mono Bold, ALL-CAPS, 0.12em — wird automatisch gesetzt',
+  ),
+  preset(
+    'markdown-block',
+    'Markdown-Block',
+    'type',
+    'markdown',
+    {
+      markdown: '### Zwischentitel\n\n- Erster Punkt\n- Zweiter Punkt\n- Dritter Punkt',
+      w: 520,
+      h: 240,
+    },
+    'Volles Markdown, gesetzt in der CI-Hierarchie',
+  ),
+  preset(
+    'markdown-panel',
+    'Markdown-Fläche',
+    'type',
+    'markdown',
+    {
+      markdown:
+        'Markdown auf einer Fläche.\n\nDer ==grüne Marker== schreibt sich `==so==`.\n\n```ts\nexport const brand = "nozilla";\n```',
+      fill: 'framed',
+      shadow: 'md',
+      w: 560,
+      h: 300,
+    },
+    'Mit Kontur und hartem Schatten',
+  ),
+
+  /* ---------------------------------------------------------------- Karten */
+  preset('card-feature', 'Karte', 'cards', 'card', {
+    variant: 'feature',
+    icon: 'square-check',
+    title: 'Was wir machen',
+    body: 'Ein Satz, der die Behauptung der Karte trägt.',
+    w: 340,
+    h: 240,
+  }),
+  preset('card-stat', 'Zahl', 'cards', 'card', {
+    variant: 'stat',
+    label: 'Laufzeit',
+    title: '38 %',
+    body: 'weniger Wartungsaufwand',
+    w: 300,
+    h: 210,
+  }),
+  preset('card-step', 'Schritt', 'cards', 'card', {
+    variant: 'step',
+    label: '1',
+    title: 'Verstehen',
+    body: 'Was in dieser Phase passiert.',
+    w: 300,
+    h: 230,
+  }),
+  preset('card-quote', 'Zitat', 'cards', 'card', {
     variant: 'quote',
-    title: 'The whole point of a deck is to make one idea land.',
-    body: '— Nozilla design team',
-    tone: 'neutral',
-    fill: 'soft',
-    w: 420,
+    title: 'Wir schreiben Sätze, die etwas behaupten.',
+    body: 'nozilla',
+    w: 460,
     h: 220,
   }),
-  preset('card-callout', 'Callout', 'cards', 'card', {
-    variant: 'callout',
-    icon: 'info',
-    title: 'Worth knowing',
-    body: 'A short aside that should not be missed.',
-    tone: 'accent',
-    w: 400,
-    h: 150,
+  preset('card-note', 'Hinweis', 'cards', 'card', {
+    variant: 'note',
+    icon: 'circle-info',
+    title: 'Worauf es ankommt',
+    body: 'Eine Randbemerkung, die nicht untergehen darf.',
+    w: 440,
+    h: 170,
   }),
-  preset('card-solid', 'Solid card', 'cards', 'card', {
+  preset(
+    'card-signal',
+    'Karte, Signal',
+    'cards',
+    'card',
+    {
+      variant: 'feature',
+      icon: 'rocket',
+      title: 'Der eine Punkt',
+      body: 'Signal-Grün trägt eine Folie — nicht fünf.',
+      tone: 'signal',
+      w: 340,
+      h: 240,
+    },
+    'Sparsam: 5 % der Fläche',
+  ),
+  preset('card-ink', 'Karte, Tinte', 'cards', 'card', {
     variant: 'feature',
-    icon: 'rocket',
-    title: 'Emphasis card',
-    body: 'Reach for this when one card has to carry the slide.',
-    fill: 'solid',
-    tone: 'primary',
-    w: 320,
-    h: 216,
+    icon: 'terminal',
+    title: 'Invers',
+    body: 'Tinte als Fläche, Papier als Schrift.',
+    tone: 'ink',
+    w: 340,
+    h: 240,
   }),
 
-  /* ---------------------------------------------------------------- badges */
-  preset('badge-solid', 'Solid badge', 'badges', 'badge', {
-    text: 'New',
-    fill: 'solid',
-    tone: 'primary',
-    w: 108,
-    h: 36,
+  /* ---------------------------------------------------------------- Labels */
+  preset('badge-signal', 'Badge Signal', 'labels', 'badge', {
+    text: 'Neu',
+    tone: 'signal',
+    w: 128,
+    h: 40,
   }),
-  preset('badge-soft', 'Soft badge', 'badges', 'badge', {
-    text: 'In progress',
-    fill: 'soft',
-    tone: 'support',
-    w: 148,
-    h: 36,
+  preset('badge-paper', 'Badge Papier', 'labels', 'badge', {
+    text: 'In Arbeit',
+    tone: 'paper',
+    w: 176,
+    h: 40,
   }),
-  preset('badge-outline', 'Outline badge', 'badges', 'badge', {
-    text: 'Draft',
-    fill: 'outline',
-    tone: 'neutral',
-    w: 116,
-    h: 36,
+  preset('badge-ink', 'Badge Tinte', 'labels', 'badge', {
+    text: 'Abgelöst',
+    tone: 'ink',
+    w: 176,
+    h: 40,
   }),
-  preset('badge-icon', 'Icon badge', 'badges', 'badge', {
-    text: 'Shipped',
+  preset('badge-icon', 'Badge mit Icon', 'labels', 'badge', {
+    text: 'Fertig',
     icon: 'check',
-    fill: 'soft',
-    tone: 'support',
-    w: 156,
-    h: 38,
+    tone: 'signal',
+    w: 196,
+    h: 44,
   }),
 
-  /* ---------------------------------------------------------------- shapes */
-  preset('shape-rounded', 'Container', 'shapes', 'shape', { shape: 'rounded', w: 280, h: 180 }),
-  preset('shape-rectangle', 'Rectangle', 'shapes', 'shape', { shape: 'rectangle', w: 240, h: 150 }),
-  preset('shape-pill', 'Pill', 'shapes', 'shape', { shape: 'pill', w: 220, h: 72 }),
+  /* ---------------------------------------------------------------- Formen */
+  preset('shape-rectangle', 'Rechteck', 'shapes', 'shape', { shape: 'rectangle', w: 280, h: 180 }),
+  preset('shape-rectangle-shadow', 'Rechteck mit Schatten', 'shapes', 'shape', {
+    shape: 'rectangle',
+    shadow: 'md',
+    w: 280,
+    h: 180,
+  }),
+  preset('shape-outline', 'Nur Kontur', 'shapes', 'shape', {
+    shape: 'rectangle',
+    fill: 'outline',
+    strokeWeight: 'strong',
+    w: 280,
+    h: 180,
+  }),
   preset('shape-ellipse', 'Ellipse', 'shapes', 'shape', { shape: 'ellipse', w: 200, h: 200 }),
-  preset('shape-diamond', 'Diamond', 'shapes', 'shape', { shape: 'diamond', w: 190, h: 190 }),
-  preset('shape-triangle', 'Triangle', 'shapes', 'shape', { shape: 'triangle', w: 190, h: 165 }),
-  preset('shape-hexagon', 'Hexagon', 'shapes', 'shape', { shape: 'hexagon', w: 210, h: 185 }),
+  preset('shape-diamond', 'Raute', 'shapes', 'shape', { shape: 'diamond', w: 200, h: 200 }),
+  preset('shape-triangle', 'Dreieck', 'shapes', 'shape', { shape: 'triangle', w: 200, h: 170 }),
+  preset('shape-hexagon', 'Sechseck', 'shapes', 'shape', { shape: 'hexagon', w: 220, h: 190 }),
   preset('shape-chevron', 'Chevron', 'shapes', 'shape', {
     shape: 'chevron',
-    label: 'Stage',
-    w: 240,
-    h: 84,
+    label: 'Phase',
+    w: 260,
+    h: 88,
   }),
   preset('shape-banner', 'Banner', 'shapes', 'shape', {
     shape: 'banner',
     label: 'Banner',
-    fill: 'solid',
-    w: 260,
+    tone: 'signal',
+    w: 280,
     h: 64,
   }),
-  preset('shape-callout', 'Speech bubble', 'shapes', 'shape', {
+  preset('shape-callout', 'Sprechblase', 'shapes', 'shape', {
     shape: 'callout',
-    label: 'Quick note',
-    w: 260,
-    h: 160,
+    label: 'Kurze Notiz',
+    w: 280,
+    h: 170,
   }),
-  preset('shape-frame', 'Corner frame', 'shapes', 'shape', {
+  preset('shape-frame', 'Eckwinkel', 'shapes', 'shape', {
     shape: 'frame',
     fill: 'outline',
-    strokeWeight: 'bold',
-    w: 320,
-    h: 220,
+    strokeWeight: 'heavy',
+    w: 340,
+    h: 240,
   }),
-  preset('shape-bracket', 'Bracket', 'shapes', 'shape', {
+  preset('shape-bracket', 'Klammer', 'shapes', 'shape', {
     shape: 'bracket',
     fill: 'outline',
-    strokeWeight: 'medium',
-    w: 44,
-    h: 220,
+    strokeWeight: 'strong',
+    w: 48,
+    h: 240,
   }),
-  preset('shape-outline', 'Outline container', 'shapes', 'shape', {
-    shape: 'rounded',
-    fill: 'outline',
-    strokeWeight: 'medium',
-    w: 280,
-    h: 180,
-  }),
+  preset('shape-cross', 'Kreuz', 'shapes', 'shape', { shape: 'cross', w: 180, h: 180 }),
 
-  /* ------------------------------------------------------------ connectors */
-  preset('connector-arrow', 'Arrow', 'connectors', 'connector', {
+  /* ------------------------------------------------------------- Verbinder */
+  preset('connector-arrow', 'Pfeil', 'connectors', 'connector', {
     connector: 'arrow',
-    w: 220,
-    h: 0,
-  }),
-  preset('connector-line', 'Line', 'connectors', 'connector', {
-    connector: 'line',
-    w: 220,
-    h: 0,
-  }),
-  preset('connector-double', 'Double arrow', 'connectors', 'connector', {
-    connector: 'double-arrow',
     w: 240,
     h: 0,
   }),
-  preset('connector-elbow', 'Elbow', 'connectors', 'connector', {
-    connector: 'elbow',
-    w: 220,
-    h: 120,
+  preset('connector-line', 'Linie', 'connectors', 'connector', {
+    connector: 'line',
+    w: 240,
+    h: 0,
   }),
-  preset('connector-dashed', 'Dashed arrow', 'connectors', 'connector', {
+  preset('connector-double', 'Doppelpfeil', 'connectors', 'connector', {
+    connector: 'double-arrow',
+    w: 260,
+    h: 0,
+  }),
+  preset('connector-elbow', 'Winkel', 'connectors', 'connector', {
+    connector: 'elbow',
+    w: 240,
+    h: 140,
+  }),
+  preset('connector-dashed', 'Gestrichelt', 'connectors', 'connector', {
     connector: 'arrow',
     dashed: true,
-    w: 220,
+    w: 240,
+    h: 0,
+  }),
+  preset('connector-rule', 'Regel', 'connectors', 'connector', {
+    connector: 'line',
+    strokeWeight: 'heavy',
+    w: 300,
     h: 0,
   }),
 
-  /* ----------------------------------------------------------------- media */
+  /* --------------------------------------------------------------- Marke   */
+  preset(
+    'wordmark',
+    'Wortmarke',
+    'brand',
+    'wordmark',
+    { w: 320, h: 80 },
+    'Nie drehen, nie umfärben, nie verzerren, nie mit Schatten',
+  ),
+  preset(
+    'wordmark-large',
+    'Wortmarke groß',
+    'brand',
+    'wordmark',
+    { w: 560, h: 140 },
+    'Mindestgröße digital: 96 px Wortmarkenbreite',
+  ),
   preset(
     'image-placeholder',
-    'Image',
-    'media',
+    'Bild',
+    'brand',
     'image',
-    { w: elementDefaults.image.width, h: elementDefaults.image.height },
-    'Drop a file onto the canvas, or set a path in the inspector',
+    { w: 440, h: 280, shadow: 'md' },
+    'Datei auf die Fläche ziehen — Fotografie schwarzweiß mit Korn',
   ),
 ];
 
@@ -299,5 +338,5 @@ export function presetsByGroup(group: PresetGroup): AssetPreset[] {
   return assetPresets.filter((entry) => entry.group === group);
 }
 
-/** Type styles offered in the inspector, in CI ramp order. */
+/** Die Typo-Stufen, die der Inspektor anbietet — in CI-Reihenfolge. */
 export const typeStyleOptions = Object.keys(typeScale) as Array<keyof typeof typeScale>;

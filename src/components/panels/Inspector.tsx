@@ -8,15 +8,17 @@
 import { useMemo, useState } from 'react';
 import {
   elementTones,
-  radius as radiusTokens,
   revealAnimations,
   slideLayouts,
   slideTransitions,
+  shadowNames,
+  shadowOffset,
   strokeNames,
   toneNames,
   typeScale,
   type RevealAnimation,
   type SlideLayout,
+  type ShadowName,
   type SlideTransition,
   type StrokeName,
   type ToneName,
@@ -37,7 +39,15 @@ import {
 } from '@/model/types';
 import { readFileAsDataUrl } from '@/lib/export/download';
 import { selectCurrentSlide, useDeckStore, useSelectedElements } from '@/state/deckStore';
-import { Button, Divider, Field, IconButton, Segmented, Select, cx } from '@/components/ui/controls';
+import {
+  Button,
+  Divider,
+  Field,
+  IconButton,
+  Segmented,
+  Select,
+  cx,
+} from '@/components/ui/controls';
 import { Icon } from '@/components/ui/Icon';
 
 type Tab = 'slide' | 'element' | 'deck';
@@ -52,10 +62,10 @@ export function Inspector() {
 
   return (
     <aside
-      className="flex h-full w-[300px] shrink-0 flex-col border-l border-border bg-surface"
+      className="flex h-full w-[300px] shrink-0 flex-col border-l border-line bg-surface"
       aria-label="Inspector"
     >
-      <div className="flex items-center gap-1 border-b border-border px-2 py-2">
+      <div className="flex items-center gap-1 border-b border-line px-2 py-2">
         <TabButton active={effectiveTab === 'slide'} onClick={() => setTab('slide')}>
           Slide
         </TabButton>
@@ -91,8 +101,8 @@ function TabButton({
       onClick={onClick}
       aria-pressed={active}
       className={cx(
-        'h-7 flex-1 rounded-sm text-ui-body font-medium transition-colors duration-fast ease-standard',
-        active ? 'bg-primary-soft text-primary' : 'text-ink-muted hover:bg-surface-sunken',
+        'h-7 flex-1  text-ui-body font-medium transition-colors duration-fast ease-standard',
+        active ? 'bg-signal text-ink' : 'text-ink-muted hover:bg-paper-deep',
       )}
     >
       {children}
@@ -156,7 +166,7 @@ function SlidePanel() {
           spellCheck={false}
           onChange={(event) => setSlideMarkdown(event.target.value)}
           rows={12}
-          className="nzl-field resize-y font-mono text-[12px] leading-relaxed"
+          className="nz-field resize-y font-mono text-[12px] leading-relaxed"
           placeholder={'# Heading\n\n- A point\n- Another point'}
         />
       </Field>
@@ -166,7 +176,7 @@ function SlidePanel() {
           value={slide.meta.notes ?? ''}
           onChange={(event) => setSlideMeta({ notes: event.target.value })}
           rows={4}
-          className="nzl-field resize-y"
+          className="nz-field resize-y"
           placeholder="Only you see these."
         />
       </Field>
@@ -190,7 +200,7 @@ function DeckPanel() {
     <div className="space-y-3 p-3">
       <Field label="Title">
         <input
-          className="nzl-field"
+          className="nz-field"
           value={meta.title}
           onChange={(event) => setDeckMeta({ title: event.target.value })}
         />
@@ -198,14 +208,14 @@ function DeckPanel() {
       <div className="grid grid-cols-2 gap-2">
         <Field label="Author">
           <input
-            className="nzl-field"
+            className="nz-field"
             value={meta.author ?? ''}
             onChange={(event) => setDeckMeta({ author: event.target.value })}
           />
         </Field>
         <Field label="Date">
           <input
-            className="nzl-field"
+            className="nz-field"
             value={meta.date ?? ''}
             placeholder="2026-08-07"
             onChange={(event) => setDeckMeta({ date: event.target.value })}
@@ -214,13 +224,13 @@ function DeckPanel() {
       </div>
       <Field label="Footer" hint="Shown bottom-left on every slide that allows chrome.">
         <input
-          className="nzl-field"
+          className="nz-field"
           value={meta.footer ?? ''}
           onChange={(event) => setDeckMeta({ footer: event.target.value })}
         />
       </Field>
 
-      <dl className="rounded-md border border-border bg-surface-subtle p-2 text-[11px] text-ink-muted">
+      <dl className=" border border-line bg-surface-alt p-2 text-[11px] text-ink-muted">
         <div className="flex justify-between">
           <dt>Slides</dt>
           <dd className="font-mono">{slideCount}</dd>
@@ -259,7 +269,7 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
   if (!first) {
     return (
       <div className="p-6 text-center text-ui-body text-ink-subtle">
-        <Icon name="grid" size={22} className="mx-auto mb-2 opacity-50" />
+        <Icon name="table" size={22} className="mx-auto mb-2 opacity-50" />
         Nothing selected.
         <br />
         Pick an element on the canvas, or add one from the library.
@@ -271,7 +281,11 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
     <div className="space-y-3 p-3">
       {/* ----------------------------------------------------------- actions */}
       <div className="flex flex-wrap items-center gap-1">
-        <IconButton icon="layers" label="Bring to front" onClick={() => reorderSelection('front')} />
+        <IconButton
+          icon="layer-group"
+          label="Bring to front"
+          onClick={() => reorderSelection('front')}
+        />
         <IconButton
           icon="arrow-up"
           label="Bring forward"
@@ -282,7 +296,7 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
           label="Send backward"
           onClick={() => reorderSelection('backward')}
         />
-        <IconButton icon="box" label="Send to back" onClick={() => reorderSelection('back')} />
+        <IconButton icon="square" label="Send to back" onClick={() => reorderSelection('back')} />
         <Divider />
         <IconButton icon="plus" label="Duplicate" onClick={duplicateSelection} />
         <IconButton
@@ -291,26 +305,53 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
           active={first.locked}
           onClick={() => patch({ locked: !first.locked })}
         />
-        <IconButton icon="close" label="Delete" tone="danger" onClick={deleteSelection} />
+        <IconButton icon="xmark" label="Delete" tone="danger" onClick={deleteSelection} />
       </div>
 
       <div className="flex flex-wrap items-center gap-1">
-        <IconButton icon="chevron-right" label="Align left" className="rotate-180" onClick={() => alignSelection('left')} />
-        <IconButton icon="minus" label="Align horizontal centres" onClick={() => alignSelection('hcenter')} />
-        <IconButton icon="chevron-right" label="Align right" onClick={() => alignSelection('right')} />
-        <Divider />
-        <IconButton icon="chevron-down" label="Align top" className="rotate-180" onClick={() => alignSelection('top')} />
-        <IconButton icon="minus" label="Align vertical centres" className="rotate-90" onClick={() => alignSelection('vcenter')} />
-        <IconButton icon="chevron-down" label="Align bottom" onClick={() => alignSelection('bottom')} />
+        <IconButton
+          icon="chevron-right"
+          label="Align left"
+          className="rotate-180"
+          onClick={() => alignSelection('left')}
+        />
+        <IconButton
+          icon="minus"
+          label="Align horizontal centres"
+          onClick={() => alignSelection('hcenter')}
+        />
+        <IconButton
+          icon="chevron-right"
+          label="Align right"
+          onClick={() => alignSelection('right')}
+        />
         <Divider />
         <IconButton
-          icon="grid"
+          icon="chevron-down"
+          label="Align top"
+          className="rotate-180"
+          onClick={() => alignSelection('top')}
+        />
+        <IconButton
+          icon="minus"
+          label="Align vertical centres"
+          className="rotate-90"
+          onClick={() => alignSelection('vcenter')}
+        />
+        <IconButton
+          icon="chevron-down"
+          label="Align bottom"
+          onClick={() => alignSelection('bottom')}
+        />
+        <Divider />
+        <IconButton
+          icon="table"
           label="Distribute horizontally"
           onClick={() => distributeSelection('h')}
           disabled={elements.length < 3}
         />
         <IconButton
-          icon="layers"
+          icon="layer-group"
           label="Distribute vertically"
           onClick={() => distributeSelection('v')}
           disabled={elements.length < 3}
@@ -350,10 +391,13 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
               aria-pressed={first.tone === name}
               onClick={() => patch({ tone: name as ToneName })}
               className={cx(
-                'h-6 w-6 rounded-pill border transition-transform duration-fast ease-spring',
-                first.tone === name ? 'scale-110 border-ink' : 'border-border hover:scale-105',
+                'h-6 w-6  border transition-transform duration-fast ease-standard',
+                first.tone === name ? 'scale-110 border-ink' : 'border-line hover:scale-105',
               )}
-              style={{ background: elementTones[name].solidFill }}
+              style={{
+                background: elementTones[name].surface,
+                boxShadow: `inset 0 0 0 2px ${elementTones[name].line}`,
+              }}
             />
           ))}
         </div>
@@ -374,13 +418,13 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
             options={strokeNames.map((value) => ({ value, label: titleCase(value) }))}
           />
         </Field>
-        <Field label="Corner radius">
+        <Field label="Schatten" hint="Harter Versatz, kein Weichzeichner.">
           <Select
-            value={String(first.radius)}
-            onChange={(event) => patch({ radius: Number(event.target.value) })}
-            options={Object.entries(radiusTokens).map(([label, value]) => ({
-              value: String(value),
-              label: `${label} · ${value}`,
+            value={first.shadow}
+            onChange={(event) => patch({ shadow: event.target.value as ShadowName })}
+            options={shadowNames.map((value) => ({
+              value,
+              label: value === 'none' ? 'ohne' : `${shadowOffset[value]} px`,
             }))}
           />
         </Field>
@@ -396,13 +440,13 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
       <KindFields element={first} patch={patch} />
 
       {/* ----------------------------------------------------------- reveal */}
-      <div className="rounded-md border border-border p-2">
+      <div className=" border border-line p-2">
         <Field label="Reveal step" hint="0 shows with the slide; 1+ appears on an advance.">
           <div className="flex items-center gap-2">
             <input
               type="number"
               min={0}
-              className="nzl-field w-16"
+              className="nz-field w-16"
               value={first.reveal?.step ?? 0}
               onChange={(event) => setRevealStep(Number(event.target.value) || 0)}
             />
@@ -437,7 +481,7 @@ function KindFields({ element, patch }: KindFieldsProps) {
           <Field label="Text">
             <textarea
               rows={3}
-              className="nzl-field resize-y"
+              className="nz-field resize-y"
               value={element.text}
               onChange={(event) => patch({ text: event.target.value } as Partial<CanvasElement>)}
             />
@@ -447,7 +491,9 @@ function KindFields({ element, patch }: KindFieldsProps) {
               <Select
                 value={element.typeStyle}
                 onChange={(event) =>
-                  patch({ typeStyle: event.target.value as TypeStyleName } as Partial<CanvasElement>)
+                  patch({
+                    typeStyle: event.target.value as TypeStyleName,
+                  } as Partial<CanvasElement>)
                 }
                 options={(Object.keys(typeScale) as TypeStyleName[]).map((value) => ({
                   value,
@@ -480,9 +526,11 @@ function KindFields({ element, patch }: KindFieldsProps) {
             <textarea
               rows={8}
               spellCheck={false}
-              className="nzl-field resize-y font-mono text-[12px]"
+              className="nz-field resize-y font-mono text-[12px]"
               value={element.markdown}
-              onChange={(event) => patch({ markdown: event.target.value } as Partial<CanvasElement>)}
+              onChange={(event) =>
+                patch({ markdown: event.target.value } as Partial<CanvasElement>)
+              }
             />
           </Field>
           <Field label="Align">
@@ -505,17 +553,17 @@ function KindFields({ element, patch }: KindFieldsProps) {
               options={cardVariants.map((value) => ({ value, label: titleCase(value) }))}
             />
           </Field>
-          <Field label="Eyebrow">
+          <Field label="Label">
             <input
-              className="nzl-field"
-              value={element.eyebrow ?? ''}
-              onChange={(event) => patch({ eyebrow: event.target.value } as Partial<CanvasElement>)}
+              className="nz-field"
+              value={element.label ?? ''}
+              onChange={(event) => patch({ label: event.target.value } as Partial<CanvasElement>)}
             />
           </Field>
           <Field label="Title">
             <textarea
               rows={2}
-              className="nzl-field resize-y"
+              className="nz-field resize-y"
               value={element.title}
               onChange={(event) => patch({ title: event.target.value } as Partial<CanvasElement>)}
             />
@@ -523,7 +571,7 @@ function KindFields({ element, patch }: KindFieldsProps) {
           <Field label="Body">
             <textarea
               rows={3}
-              className="nzl-field resize-y"
+              className="nz-field resize-y"
               value={element.body}
               onChange={(event) => patch({ body: event.target.value } as Partial<CanvasElement>)}
             />
@@ -541,7 +589,7 @@ function KindFields({ element, patch }: KindFieldsProps) {
         <>
           <Field label="Text">
             <input
-              className="nzl-field"
+              className="nz-field"
               value={element.text}
               onChange={(event) => patch({ text: event.target.value } as Partial<CanvasElement>)}
             />
@@ -587,7 +635,7 @@ function KindFields({ element, patch }: KindFieldsProps) {
           </Field>
           <Field label="Label">
             <input
-              className="nzl-field"
+              className="nz-field"
               value={element.label ?? ''}
               onChange={(event) => patch({ label: event.target.value } as Partial<CanvasElement>)}
             />
@@ -611,13 +659,15 @@ function KindFields({ element, patch }: KindFieldsProps) {
             <input
               type="checkbox"
               checked={element.dashed}
-              onChange={(event) => patch({ dashed: event.target.checked } as Partial<CanvasElement>)}
+              onChange={(event) =>
+                patch({ dashed: event.target.checked } as Partial<CanvasElement>)
+              }
             />
             Dashed
           </label>
           <Field label="Label">
             <input
-              className="nzl-field"
+              className="nz-field"
               value={element.label ?? ''}
               onChange={(event) => patch({ label: event.target.value } as Partial<CanvasElement>)}
             />
@@ -630,7 +680,7 @@ function KindFields({ element, patch }: KindFieldsProps) {
         <>
           <Field label="Source" hint="A path relative to the deck, or an embedded data URI.">
             <input
-              className="nzl-field"
+              className="nz-field"
               value={element.src.startsWith('data:') ? '(embedded image)' : element.src}
               readOnly={element.src.startsWith('data:')}
               onChange={(event) => patch({ src: event.target.value } as Partial<CanvasElement>)}
@@ -654,7 +704,7 @@ function KindFields({ element, patch }: KindFieldsProps) {
           </Button>
           <Field label="Alt text">
             <input
-              className="nzl-field"
+              className="nz-field"
               value={element.alt}
               onChange={(event) => patch({ alt: event.target.value } as Partial<CanvasElement>)}
             />
@@ -691,7 +741,7 @@ function IconField({
   return (
     <Field label="Icon">
       <div className="flex items-center gap-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-sm border border-border bg-surface-subtle text-primary">
+        <span className="flex h-8 w-8 items-center justify-center border border-line bg-surface-alt text-ink">
           {value ? <Icon name={value} size={17} /> : <span className="text-ink-subtle">—</span>}
         </span>
         <Select
@@ -727,7 +777,7 @@ function NumberField({
     <Field label={label}>
       <input
         type="number"
-        className="nzl-field"
+        className="nz-field"
         value={Math.round(value * 100) / 100}
         min={min}
         max={max}

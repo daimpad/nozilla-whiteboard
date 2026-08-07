@@ -14,6 +14,7 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { CanvasStage } from '@/components/canvas/CanvasStage';
 import { AssetSidebar } from '@/components/panels/AssetSidebar';
 import { Inspector } from '@/components/panels/Inspector';
+import { PromptStudio } from '@/components/panels/PromptStudio';
 import { Overview } from '@/components/chrome/Overview';
 import { TopBar } from '@/components/chrome/TopBar';
 import { SlideRail } from '@/components/chrome/SlideRail';
@@ -24,6 +25,7 @@ import type { CanvasElement } from '@/model/types';
 export default function App() {
   const mode = useDeckStore((state) => state.mode);
   const overviewOpen = useDeckStore((state) => state.overviewOpen);
+  const promptOpen = useDeckStore((state) => state.promptOpen);
   const deck = useDeckStore((state) => state.deck);
   const slide = useDeckStore(selectCurrentSlide);
   const slideIndex = useDeckStore((state) => state.slideIndex);
@@ -77,7 +79,8 @@ export default function App() {
           element.src = src;
         }).catch(() => null);
 
-        const ratio = image && image.naturalWidth > 0 ? image.naturalHeight / image.naturalWidth : 0.5625;
+        const ratio =
+          image && image.naturalWidth > 0 ? image.naturalHeight / image.naturalWidth : 0.5625;
         const width = 420;
         addElement(
           createElement('image', {
@@ -136,16 +139,17 @@ export default function App() {
       </div>
 
       {overviewOpen ? <Overview /> : null}
+      {promptOpen ? <PromptStudio /> : null}
 
       <div
         className={cx(
           'pointer-events-none absolute inset-0 z-modal flex items-center justify-center',
-          'border-heavy border-dashed border-primary bg-primary-soft/70 transition-opacity duration-fast',
+          'border-heavy border-dashed border-ink bg-signal/70 transition-opacity duration-fast',
           dropping ? 'opacity-100' : 'opacity-0',
         )}
         aria-hidden={!dropping}
       >
-        <p className="rounded-lg bg-surface px-4 py-3 text-ui-title font-semibold shadow-xl">
+        <p className=" bg-surface px-4 py-3 text-ui-title font-semibold shadow-xl">
           Drop a <code className="font-mono">.md</code> deck to open it, or an image to place it
         </p>
       </div>

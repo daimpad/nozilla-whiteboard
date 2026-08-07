@@ -59,7 +59,8 @@ export async function scenesToPdf(
   });
 
   scenes.forEach((scene, index) => {
-    if (index > 0) doc.addPage([pageWidth, pageHeight], pageWidth >= pageHeight ? 'landscape' : 'portrait');
+    if (index > 0)
+      doc.addPage([pageWidth, pageHeight], pageWidth >= pageHeight ? 'landscape' : 'portrait');
     drawScene(doc, scene, scale, options);
   });
 
@@ -79,9 +80,11 @@ function drawScene(doc: jsPDF, scene: Scene, scale: number, options: PdfOptions)
     if (Math.abs(next - currentOpacity) < 0.001) return;
     currentOpacity = next;
     // jsPDF exposes the graphics-state constructor on the instance.
-    const GStateCtor = (doc as unknown as {
-      GState?: new (options: Record<string, unknown>) => unknown;
-    }).GState;
+    const GStateCtor = (
+      doc as unknown as {
+        GState?: new (options: Record<string, unknown>) => unknown;
+      }
+    ).GState;
     if (GStateCtor) {
       doc.setGState(new GStateCtor({ opacity: next, 'stroke-opacity': next }) as never);
     }
@@ -120,7 +123,7 @@ interface PaintLike {
   stroke?: string;
   strokeWidth?: number;
   dash?: number[];
-  lineCap?: 'butt' | 'round';
+  lineCap?: 'butt' | 'round' | 'square';
   lineJoin?: 'miter' | 'round';
 }
 
@@ -148,7 +151,8 @@ function drawSegs(
     const flat = strokeColor.a < 1 ? blend(strokeColor, backdrop) : strokeColor;
     doc.setDrawColor(flat.r, flat.g, flat.b);
     doc.setLineWidth(strokeWidth * scale);
-    doc.setLineCap(paint.lineCap === 'round' ? 'round' : 'butt');
+    // Die CI zeichnet mit square caps; jsPDF kennt genau diese drei.
+    doc.setLineCap(paint.lineCap ?? 'butt');
     doc.setLineJoin(paint.lineJoin === 'round' ? 'round' : 'miter');
     doc.setLineDashPattern(paint.dash ? paint.dash.map((n) => n * scale) : [], 0);
   }
@@ -231,7 +235,7 @@ export function splitSubpaths(
 }
 
 function rectToSegs(prim: Extract<ScenePrim, { t: 'rect' }>): Seg[] {
-  return rectSegs(prim.x, prim.y, prim.w, prim.h, prim.r ?? 0);
+  return rectSegs(prim.x, prim.y, prim.w, prim.h, 0);
 }
 
 function ellipseToSegs(prim: Extract<ScenePrim, { t: 'ellipse' }>): Seg[] {

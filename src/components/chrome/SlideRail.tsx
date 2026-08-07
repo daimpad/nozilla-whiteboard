@@ -26,7 +26,7 @@ export function SlideRail() {
 
   return (
     <nav
-      className="flex h-[104px] shrink-0 items-center gap-2 border-t border-border bg-surface px-2"
+      className="flex h-[104px] shrink-0 items-center gap-2 border-t border-line bg-surface px-2"
       aria-label="Slides"
     >
       <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-2">
@@ -50,9 +50,9 @@ export function SlideRail() {
             title={`${index + 1}. ${slideTitle(slide, index)}`}
             aria-current={index === slideIndex}
             className={cx(
-              'group relative shrink-0 overflow-hidden rounded-sm border bg-surface transition-all',
+              'group relative shrink-0 overflow-hidden  border bg-surface transition-all',
               'duration-fast ease-standard hover:-translate-y-px hover:shadow-md',
-              index === slideIndex ? 'border-primary shadow-sm ring-1 ring-primary' : 'border-border',
+              index === slideIndex ? 'border-ink shadow-sm ring-1 ring-ink' : 'border-line',
             )}
             style={{ width: THUMB_WIDTH, height: (THUMB_WIDTH * canvas.height) / canvas.width }}
           >
@@ -65,8 +65,10 @@ export function SlideRail() {
             />
             <span
               className={cx(
-                'absolute left-1 top-1 rounded-xs px-1 text-[10px] font-bold tabular-nums',
-                index === slideIndex ? 'bg-primary text-ink-inverse' : 'bg-surface/85 text-ink-muted',
+                'absolute left-1 top-1  px-1 text-[10px] font-bold tabular-nums',
+                index === slideIndex
+                  ? 'bg-signal text-ink-inverse'
+                  : 'bg-surface/85 text-ink-muted',
               )}
             >
               {index + 1}

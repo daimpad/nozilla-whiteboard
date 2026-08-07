@@ -1,55 +1,105 @@
 import { describe, expect, it } from 'vitest';
 import { parsePath, segsBounds } from '@/lib/geometry/path';
-import { iconGrid, iconNames, icons, iconsByCategory, searchIcons, type IconPrim } from './icons';
+import {
+  iconGrid,
+  iconNames,
+  icons,
+  iconsByCategory,
+  isIconName,
+  searchIcons,
+  type IconPrim,
+} from './icons';
 
 /**
- * These are CI conformance tests, not smoke tests: an icon that breaks one of
- * them would render differently on the canvas, in an SVG export or in a PDF.
+ * Das sind CI-Konformitätstests, keine Rauchproben: ein Icon, das eine dieser
+ * Regeln bricht, sähe auf der Fläche, im SVG oder im PDF anders aus als im
+ * CI-Repo — und genau das darf nicht passieren.
+ *
+ * Die Geometrie ist generiert (`scripts/sync-ci.mjs`); geprüft wird deshalb
+ * das Ergebnis der Übersetzung, nicht die Handarbeit.
  */
-describe('the CI icon library', () => {
-  it('is not empty and has unique names', () => {
-    expect(iconNames.length).toBeGreaterThan(40);
+describe('das nozilla-Icon-Set', () => {
+  it('ist vollständig und eindeutig', () => {
+    expect(iconNames.length).toBe(462);
     expect(new Set(iconNames).size).toBe(iconNames.length);
   });
 
-  it.each(iconNames)('%s draws something', (name) => {
-    expect(icons[name].prims.length).toBeGreaterThan(0);
+  it.each(iconNames)('%s zeichnet etwas', (name) => {
+    expect(icons[name].prims.length).toBeGreaterThan(1);
   });
 
-  it.each(iconNames)('%s uses only arc-free path data', (name) => {
-    for (const prim of icons[name].prims as IconPrim[]) {
+  it.each(iconNames)('%s hat lesbare Pfaddaten', (name) => {
+    for (const prim of icons[name].prims as readonly IconPrim[]) {
       if (prim.t !== 'path') continue;
-      expect(prim.d).not.toMatch(/[Aa]/);
+      // Arcs sind erlaubt und werden beim Parsen zu Kubiken — PDF kennt keine.
       expect(() => parsePath(prim.d)).not.toThrow();
+      expect(parsePath(prim.d).length).toBeGreaterThan(0);
     }
   });
 
-  it.each(iconNames)('%s stays on the 24×24 grid', (name) => {
-    for (const prim of icons[name].prims as IconPrim[]) {
+  it.each(iconNames)('%s bleibt im 64er-Raster', (name) => {
+    for (const prim of icons[name].prims as readonly IconPrim[]) {
+      // Gedrehte Geometrie darf rechnerisch ausbrechen — sie wird zurückgedreht.
+      if ('rotate' in prim && prim.rotate) continue;
       for (const { x, y } of primPoints(prim)) {
-        expect(x).toBeGreaterThanOrEqual(-0.5);
-        expect(y).toBeGreaterThanOrEqual(-0.5);
-        expect(x).toBeLessThanOrEqual(iconGrid + 0.5);
-        expect(y).toBeLessThanOrEqual(iconGrid + 0.5);
+        expect(x).toBeGreaterThanOrEqual(-1);
+        expect(y).toBeGreaterThanOrEqual(-1);
+        expect(x).toBeLessThanOrEqual(iconGrid + 1);
+        expect(y).toBeLessThanOrEqual(iconGrid + 1);
       }
     }
   });
 
-  it.each(iconNames)('%s has a label and a known category', (name) => {
+  it.each(iconNames)('%s benutzt nur CI-Farbrollen', (name) => {
+    for (const prim of icons[name].prims as readonly IconPrim[]) {
+      if (prim.fill) expect(['ink', 'signal']).toContain(prim.fill);
+      if (prim.stroke) expect(['ink', 'signal']).toContain(prim.stroke);
+    }
+  });
+
+  it.each(iconNames)('%s trägt die Signatur des Sets', (name) => {
+    // Jedes Icon endet mit demselben 6 × 6-Punkt unten rechts — das
+    // Erkennungszeichen, das auch die Wortmarke trägt.
+    const last = icons[name].prims[icons[name].prims.length - 1];
+    expect(last).toEqual({ t: 'rect', x: 54, y: 54, w: 6, h: 6, fill: 'signal' });
+  });
+
+  it.each(iconNames)('%s ist beschriftet und einsortiert', (name) => {
     expect(icons[name].label.length).toBeGreaterThan(0);
-    expect(icons[name].category).toBeTruthy();
+    expect(icons[name].category.length).toBeGreaterThan(0);
   });
 
-  it('groups every icon into exactly one category', () => {
+  it('ordnet jedes Icon genau einer Kategorie zu', () => {
     const grouped = iconsByCategory().flatMap((group) => group.names);
-    expect(grouped.sort()).toEqual([...iconNames].sort());
+    expect(grouped.slice().sort()).toEqual([...iconNames].sort());
   });
 
-  it('searches by name and by label', () => {
-    expect(searchIcons('chart')).toContain('chart-bar');
-    expect(searchIcons('Bar chart')).toContain('chart-bar');
+  it('sucht über Name, deutsche Beschriftung und Bedeutung', () => {
+    expect(searchIcons('arrow-right')).toContain('arrow-right');
+    expect(searchIcons('Pfeil rechts')).toContain('arrow-right');
+    // Die Bedeutung ist im CI gepflegt: „vorwärts, weiter, Ziel".
+    expect(searchIcons('weiter')).toContain('arrow-right');
     expect(searchIcons('')).toEqual(iconNames);
     expect(searchIcons('zzzz')).toEqual([]);
+  });
+
+  it('erkennt gültige Namen', () => {
+    expect(isIconName('rocket')).toBe(true);
+    expect(isIconName('kein-icon')).toBe(false);
+    expect(isIconName(42)).toBe(false);
+  });
+
+  it('behält die Bogen-Geometrie im Raster, nachdem sie zu Kubiken wurde', () => {
+    // `database` ist der Prüfstein: drei Ellipsenbögen, die nach der Umwandlung
+    // immer noch dasselbe Fass beschreiben müssen.
+    const paths = (icons.database.prims as readonly IconPrim[]).filter((prim) => prim.t === 'path');
+    expect(paths.length).toBeGreaterThan(0);
+    for (const path of paths) {
+      const bounds = segsBounds(parsePath((path as Extract<IconPrim, { t: 'path' }>).d));
+      expect(bounds.x).toBeGreaterThanOrEqual(-1);
+      expect(bounds.x + bounds.w).toBeLessThanOrEqual(iconGrid + 1);
+      expect(bounds.y + bounds.h).toBeLessThanOrEqual(iconGrid + 1);
+    }
   });
 });
 
@@ -77,19 +127,6 @@ function primPoints(prim: IconPrim): Array<{ x: number; y: number }> {
         { x: prim.x, y: prim.y },
         { x: prim.x + prim.w, y: prim.y + prim.h },
       ];
-    case 'line':
-      return [
-        { x: prim.x1, y: prim.y1 },
-        { x: prim.x2, y: prim.y2 },
-      ];
-    case 'polyline':
-    case 'polygon': {
-      const out: Array<{ x: number; y: number }> = [];
-      for (let i = 0; i + 1 < prim.points.length; i += 2) {
-        out.push({ x: prim.points[i], y: prim.points[i + 1] });
-      }
-      return out;
-    }
     default:
       return [];
   }

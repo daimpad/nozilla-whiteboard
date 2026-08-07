@@ -1,247 +1,214 @@
 ---
-title: Nozilla Whiteboard
-author: Nozilla Design
+title: nozilla Whiteboard
+author: nozilla
 date: 2026-08-07
-footer: Nozilla — Internal
+footer: nozilla · Gute digitale Dienste.
 ---
 
 <!-- nzl
 layout: title
-transition: rise
-background: brand
+transition: cut
+background: paper
 bare: true
-notes: Ninety seconds. Land the hybrid idea, then move.
+notes: Neunzig Sekunden. Erst die Idee, dann weiter.
 elements:
-  - id: badge-intro
+  - id: mark-title
+    kind: wordmark
+    x: 88
+    y: 72
+    w: 260
+    h: 62
+  - id: badge-title
     kind: badge
     x: 88
-    y: 96
-    w: 210
-    h: 40
-    tone: inverse
-    fill: solid
-    text: Markdown + Canvas
-    icon: sparkle
-  - id: icon-mark
-    kind: icon
-    x: 1064
-    y: 96
-    w: 128
-    h: 128
-    tone: inverse
-    icon: nozilla
-    strokeWeight: heavy
-    opacity: 0.35
+    y: 512
+    w: 268
+    h: 44
+    tone: signal
+    text: Markdown + Fläche
   - id: rule-title
     kind: connector
     x: 88
     y: 470
-    w: 260
+    w: 320
     h: 0
-    tone: inverse
     connector: line
     strokeWeight: heavy
 -->
 
-# Decks that behave like whiteboards
+# Folien, die sich wie ein Whiteboard benehmen.
 
-Write the words in Markdown. Arrange everything else by hand.
+Die Worte schreibst du in Markdown. Alles andere legst du von Hand.
 
 ---
 
 <!-- nzl
 layout: split
 transition: fade
-notes: The two halves of the tool. Point at the canvas while you talk.
+notes: Die zwei Hälften. Beim Reden auf die rechte Seite zeigen.
 elements:
   - id: card-md
     kind: card
-    x: 664
-    y: 168
-    w: 300
+    x: 700
+    y: 140
+    w: 492
     h: 190
-    icon: document
-    title: Markdown is the source
-    body: Headings, lists, code and tables are typeset with the CI scale.
+    icon: file-lines
+    label: Inhalt
+    title: Markdown ist die Quelle
+    body: Überschriften, Listen, Code und Tabellen werden in der CI-Hierarchie gesetzt.
     reveal:
       step: 1
       animation: rise
   - id: card-canvas
     kind: card
-    x: 664
-    y: 380
-    w: 300
+    x: 700
+    y: 360
+    w: 492
     h: 190
-    tone: accent
-    icon: layers
-    title: The canvas is freeform
-    body: Drag, snap, duplicate and layer pre-built CI elements over the top.
+    tone: signal
+    icon: object-group
+    label: Layout
+    title: Die Fläche ist frei
+    body: Ziehen, einrasten, duplizieren, stapeln — mit fertigen CI-Bausteinen.
     reveal:
       step: 2
       animation: rise
-  - id: arrow-link
-    kind: connector
-    x: 592
-    y: 300
-    w: 56
-    h: 0
-    tone: neutral
-    connector: arrow
-    strokeWeight: medium
 -->
 
-## One file, two ways to think
+## Eine Datei, zwei Denkweisen
 
-- The **left half** is prose: it flows, it reflows, it stays diffable.
-- The **right half** is layout: it stays exactly where you put it.
-- Both live in the same `.md`, so version control sees one artefact.
-
-```md
-<!-- nzl
-elements:
-  - kind: badge
-    x: 88
-    y: 96
-    text: Anything you place
--->
-```
+- Die ==linke Hälfte== ist Prosa: sie fließt, sie bricht um, sie bleibt diffbar.
+- Die ==rechte Hälfte== ist Layout: sie bleibt genau da, wo du sie hinlegst.
+- Beides steht in derselben `.md`, die Versionsverwaltung sieht ein Artefakt.
 
 ---
 
 <!-- nzl
 layout: canvas
 background: grid
-transition: zoom
-notes: Everything here came out of the sidebar. Nothing was hand-coloured.
+transition: fade
+notes: Alles hier kam aus der Seitenleiste. Nichts wurde von Hand eingefärbt.
 elements:
-  - id: heading-lib
+  - id: h-lib
     kind: text
     x: 88
-    y: 84
-    w: 620
-    h: 60
-    text: The CI library, unedited
+    y: 72
+    w: 900
+    h: 64
+    text: Die CI-Bibliothek, unverändert
     typeStyle: h1
   - id: sub-lib
     kind: text
     x: 88
-    y: 146
-    w: 620
+    y: 148
+    w: 760
     h: 34
-    text: Every tile below inherits palette, radii and line weights automatically.
+    text: Jede Kachel erbt Palette, Kanten und Strichstärken automatisch.
     typeStyle: lead
-    tone: neutral
   - id: stat-1
     kind: card
     x: 88
-    y: 224
-    w: 236
-    h: 172
-    tone: primary
+    y: 216
+    w: 254
+    h: 180
     variant: stat
-    eyebrow: Icons
-    title: "56"
-    body: Stroke-consistent, arc-free
+    label: Icons
+    title: "462"
+    body: Dialekt A, 4 px, square caps
   - id: stat-2
     kind: card
-    x: 344
-    y: 224
-    w: 236
-    h: 172
-    tone: support
+    x: 362
+    y: 216
+    w: 254
+    h: 180
     variant: stat
-    eyebrow: Shapes
-    title: "12"
-    body: Containers, frames, callouts
+    label: Farbrollen
+    title: "3"
+    body: Papier, Tinte, Signal
   - id: stat-3
     kind: card
-    x: 600
-    y: 224
-    w: 236
-    h: 172
-    tone: accent
+    x: 636
+    y: 216
+    w: 254
+    h: 180
     variant: stat
-    eyebrow: Tones
-    title: "7"
-    body: Locked to the CI ramp
-  - id: callout-1
+    tone: signal
+    label: Radius
+    title: "0"
+    body: Überall, ohne Ausnahme
+  - id: note-1
     kind: card
-    x: 856
-    y: 224
-    w: 336
-    h: 172
-    tone: warning
-    variant: callout
-    icon: bulb
-    title: No colour picker
-    body: Constraint is the feature — a deck cannot drift off-brand.
+    x: 910
+    y: 216
+    w: 282
+    h: 180
+    variant: note
+    icon: circle-info
+    title: Kein Farbwähler
+    body: Die Einschränkung ist das Merkmal — ein Deck kann nicht abdriften.
   - id: hex-1
     kind: shape
     x: 88
     y: 432
-    w: 180
-    h: 156
+    w: 190
+    h: 160
     shape: hexagon
-    label: Shapes
-    tone: primary
+    label: Formen
   - id: chev-1
     kind: shape
-    x: 292
+    x: 300
     y: 470
-    w: 200
-    h: 80
+    w: 210
+    h: 84
     shape: chevron
-    label: Flow
-    tone: support
+    label: Phase
+    tone: signal
   - id: bubble-1
     kind: shape
-    x: 516
+    x: 532
     y: 432
     w: 232
-    h: 156
+    h: 160
     shape: callout
-    label: Speech bubble
-    tone: accent
+    label: Sprechblase
+    shadow: md
   - id: frame-1
     kind: shape
-    x: 772
+    x: 786
     y: 432
-    w: 200
-    h: 156
+    w: 180
+    h: 160
     shape: frame
     fill: outline
-    strokeWeight: bold
-    tone: neutral
-  - id: icon-tile-1
+    strokeWeight: heavy
+  - id: icon-1
     kind: icon
-    x: 996
+    x: 988
     y: 432
-    w: 88
-    h: 88
+    w: 96
+    h: 96
     icon: rocket
-    frame: square
-    fill: soft
-    tone: primary
-  - id: icon-tile-2
+    frame: box
+    fill: framed
+  - id: icon-2
     kind: icon
     x: 1096
     y: 432
-    w: 88
-    h: 88
-    icon: shield
-    frame: circle
-    fill: soft
-    tone: support
+    w: 96
+    h: 96
+    icon: shield-halved
+    frame: box
+    fill: framed
+    tone: signal
   - id: badge-row
     kind: badge
-    x: 996
-    y: 540
-    w: 188
-    h: 40
-    text: Shipped
+    x: 988
+    y: 548
+    w: 204
+    h: 44
+    text: Fertig
     icon: check
-    fill: soft
-    tone: support
 -->
 
 ---
@@ -249,107 +216,104 @@ elements:
 <!-- nzl
 layout: split
 transition: slide
-notes: Talk through the export guarantee — this is the differentiator.
+notes: Der Export ist das Argument. Hier langsam sprechen.
 elements:
-  - id: export-md
+  - id: exp-md
     kind: card
     x: 700
-    y: 132
+    y: 128
     w: 492
-    h: 130
-    tone: neutral
-    variant: callout
-    icon: document
+    h: 138
+    variant: note
+    icon: file-lines
     title: Markdown
-    body: Content and canvas positions, written back into frontmatter-style metadata.
-  - id: export-svg
+    body: Inhalt und Position, zurück in die Datei geschrieben.
+  - id: exp-svg
     kind: card
     x: 700
-    y: 278
+    y: 286
     w: 492
-    h: 130
-    tone: primary
-    variant: callout
-    icon: box
+    h: 138
+    variant: note
+    icon: bezier-curve
     title: SVG
-    body: Real paths and real text nodes — no foreignObject, no screenshots.
-  - id: export-pdf
+    body: Echte Pfade, echte Textknoten — kein foreignObject, kein Screenshot.
+  - id: exp-pdf
     kind: card
     x: 700
-    y: 424
+    y: 444
     w: 492
-    h: 130
-    tone: accent
-    variant: callout
-    icon: book
+    h: 138
+    variant: note
+    icon: file-pdf
     title: PDF
-    body: Vector pages with selectable, searchable text.
+    body: Vektorseiten mit markierbarem, durchsuchbarem Text.
 -->
 
-## Exports that stay vectors
+## Export bleibt Vektor
 
-The canvas, the SVG writer and the PDF writer all consume **one scene model**.
+Fläche, SVG-Schreiber und PDF-Schreiber lesen ==dieselbe Szene==.
 
-There is no second renderer that could disagree, so what you arrange is
-literally what you ship.
+Es gibt keinen zweiten Renderer, der widersprechen könnte. Was du legst, ist
+das, was du lieferst.
 
 ---
 
 <!-- nzl
 layout: quote
-background: subtle
-transition: fade
+background: ink
+transition: cut
 bare: true
 elements:
-  - id: quote-icon
-    kind: icon
-    x: 608
-    y: 168
-    w: 64
-    h: 64
-    icon: quote
-    tone: primary
-    fill: none
+  - id: quote-mark
+    kind: wordmark
+    x: 88
+    y: 596
+    w: 180
+    h: 44
+    variant: paper
 -->
 
-> Constraints do not limit a deck.
-> They are the only reason it looks like it came from one company.
+> Einschränkungen begrenzen ein Deck nicht.
+> Sie sind der einzige Grund, warum es aussieht, als käme es aus einem Haus.
 
 ---
 
 <!-- nzl
-transition: rise
-notes: Close on the shortcuts so people can actually use it.
+transition: fade
+notes: Mit den Tasten schließen, damit die Leute es auch benutzen.
 elements:
-  - id: kbd-card
+  - id: kbd
     kind: markdown
     x: 664
-    y: 150
+    y: 128
     w: 528
-    h: 430
-    fill: soft
-    tone: neutral
+    h: 464
+    fill: framed
+    shadow: md
     padding: 28
     markdown: |
-      ### Shortcuts
+      ### Tasten
 
-      | Action | Keys |
+      | Was | Tasten |
       | --- | --- |
-      | Next / previous slide | `→` `←` `Space` |
-      | Nudge selection | Arrow keys |
-      | Duplicate | `⌘D` |
-      | Delete | `⌫` |
-      | Layer forward / back | `⌘]` `⌘[` |
-      | Select all | `⌘A` |
-      | Undo / redo | `⌘Z` `⇧⌘Z` |
-      | Overview | `⌘K` |
-      | Present | `P` |
-      | Save Markdown | `⌘S` |
+      | Folie vor / zurück | `→` `←` `Leer` |
+      | Auswahl schieben | Pfeiltasten |
+      | Duplizieren | `⌘D` |
+      | Löschen | `⌫` |
+      | Ebene vor / zurück | `⌘]` `⌘[` |
+      | Alles wählen | `⌘A` |
+      | Rückgängig / Wiederholen | `⌘Z` `⇧⌘Z` |
+      | Übersicht | `⌘K` |
+      | Präsentieren | `P` |
+      | Markdown sichern | `⌘S` |
 -->
 
-## Get going
+## Loslegen
 
-1. Drop a `.md` file anywhere on the window to open it.
-2. Click anything in the left library to place it — it arrives on-brand.
-3. Drag with snapping; hold `Alt` to ignore the grid.
-4. Press `P` to present, `Esc` to come back.
+1. Eine `.md` irgendwo ins Fenster ziehen — sie wird geöffnet.
+2. Links in der Bibliothek klicken — der Baustein kommt CI-konform an.
+3. Ziehen mit Einrasten; `Alt` hält das Raster an.
+4. `P` startet die Präsentation, `Esc` bringt dich zurück.
+
+Der grüne Marker schreibt sich `==so==` — ein bis drei Wörter pro Absatz.

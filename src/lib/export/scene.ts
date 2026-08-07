@@ -1,31 +1,38 @@
 /**
- * Slide → Scene.
+ * Folie → Szene.
  *
- * A `Scene` is a flat, fully-resolved list of drawing primitives in slide
- * coordinates. It contains no Markdown, no CSS and no DOM — every colour is a
- * literal, every glyph run is positioned, every curve is a cubic. The SVG and
- * PDF exporters are then thin translators over the same scene, which is why
- * they cannot disagree.
+ * Eine `Scene` ist eine flache, vollständig aufgelöste Liste von Zeichen-
+ * Primitiven in Folien-Koordinaten. Kein Markdown, kein CSS, kein DOM: jede
+ * Farbe ist ein Literal, jeder Textlauf sitzt, jede Kurve ist ein Bézier.
+ * Canvas, SVG-Export und PDF-Export sind danach nur noch Übersetzer über
+ * derselben Szene — deshalb können sie nicht auseinanderlaufen.
+ *
+ * Zwei CI-Eigenheiten sind hier eingebaut, nicht aufgesetzt:
+ *   • Es gibt keinen Radius. Rechtecke sind Rechtecke.
+ *   • Schatten sind eine zweite, versetzte Fläche in Tinte — keine Weichzeichnung.
+ *     Genau deshalb exportieren sie exakt, auch nach PDF.
  */
 import {
   canvas as canvasTokens,
   color as ci,
   elementTones,
+  palette,
+  shadowSize,
   stroke as strokeTokens,
   strokeWidth as strokeWidthOf,
   typeScale,
 } from '@/theme';
 import { iconDef, iconGrid, iconStrokeGrid, type IconName, type IconPrim } from '@/assets/icons';
+import { wordmark } from '@/assets/wordmark.generated';
 import {
   circleSegs,
   ellipseSegs,
-  lineSegs,
   matMultiply,
   matRotateAbout,
+  matScale,
   matTranslate,
   parsePath,
   polySegs,
-  rectSegs,
   transformSegs,
   type Mat,
   type Seg,
@@ -34,16 +41,10 @@ import { connectorGeometry, shapeGeometry } from '@/lib/geometry/shapes';
 import { flowFrame, footerFrame } from '@/lib/layout/slideLayout';
 import { font, measureText, type FontSpec } from '@/lib/text/measure';
 import { typesetMarkdown, typesetText, type TypesetResult } from '@/lib/text/typeset';
-import type {
-  CanvasElement,
-  CardElement,
-  Deck,
-  Slide,
-  SlideBackground,
-} from '@/model/types';
+import type { CanvasElement, CardElement, Deck, Slide, SlideBackground } from '@/model/types';
 
 /* -------------------------------------------------------------------------- */
-/* Scene model                                                                 */
+/* Szenen-Modell                                                               */
 /* -------------------------------------------------------------------------- */
 
 export interface ScenePaint {
@@ -52,7 +53,8 @@ export interface ScenePaint {
   strokeWidth?: number;
   dash?: number[];
   opacity?: number;
-  lineCap?: 'butt' | 'round';
+  /** Die CI zeichnet mit `square`-Enden; `butt` nur, wo eine Linie exakt enden muss. */
+  lineCap?: 'butt' | 'round' | 'square';
   lineJoin?: 'miter' | 'round';
 }
 
@@ -67,7 +69,7 @@ export interface SceneRun {
 }
 
 export type ScenePrim =
-  | ({ t: 'rect'; x: number; y: number; w: number; h: number; r?: number } & ScenePaint)
+  | ({ t: 'rect'; x: number; y: number; w: number; h: number } & ScenePaint)
   | ({ t: 'ellipse'; cx: number; cy: number; rx: number; ry: number } & ScenePaint)
   | ({ t: 'path'; segs: Seg[]; closed: boolean } & ScenePaint)
   | {
@@ -75,7 +77,7 @@ export type ScenePrim =
       x: number;
       y: number;
       runs: SceneRun[];
-      /** Degrees, about (x, y). */
+      /** Grad, um (x, y). */
       rotate?: number;
       opacity?: number;
     }
@@ -86,7 +88,6 @@ export type ScenePrim =
       w: number;
       h: number;
       href: string;
-      radius?: number;
       opacity?: number;
       rotate?: number;
     };
@@ -100,85 +101,73 @@ export interface Scene {
 }
 
 export interface SceneOptions {
-  /** Include the deck footer and slide number. */
+  /** Fußzeile und Foliennummer mitzeichnen. */
   chrome?: boolean;
-  /** 1-based slide number for the footer. */
   slideNumber?: number;
   totalSlides?: number;
-  /** Only include elements whose reveal step is ≤ this. `Infinity` = everything. */
+  /** Nur Elemente bis zu diesem Einblendschritt. `Infinity` = alle. */
   revealStep?: number;
-  /** Supplies intrinsic image sizes so Markdown figures lay out correctly. */
   resolveImageSize?: (src: string) => { w: number; h: number } | undefined;
 }
 
 /* -------------------------------------------------------------------------- */
-/* Backgrounds                                                                 */
+/* Untergründe                                                                 */
 /* -------------------------------------------------------------------------- */
 
 export interface BackgroundStyle {
   fill: string;
-  text: string;
+  /** Die Tinte dieser Fläche — Schwarz auf Papier, Papier auf Schwarz. */
+  ink: string;
   muted: string;
-  border: string;
-  accent: string;
+  line: string;
+  signal: string;
   codeBackground: string;
+  /** Die Farbe der harten Schatten auf dieser Fläche. */
+  shadowColor: string;
   dots?: string;
 }
 
+const PAPER_BASE = {
+  ink: ci.ink,
+  muted: ci.inkMuted,
+  line: ci.line,
+  signal: palette.signal,
+  shadowColor: ci.ink,
+} as const;
+
 export function backgroundStyle(background: SlideBackground): BackgroundStyle {
   switch (background) {
-    case 'subtle':
-      return {
-        fill: ci.surfaceSubtle,
-        text: ci.ink,
-        muted: ci.inkMuted,
-        border: ci.border,
-        accent: ci.primary,
-        codeBackground: ci.surface,
-      };
-    case 'inverse':
-      return {
-        fill: ci.surfaceInverse,
-        text: ci.inkInverse,
-        muted: elementTones.inverse.accentText,
-        border: ci.borderInverse,
-        accent: elementTones.primary.fill,
-        codeBackground: 'rgba(255,255,255,0.06)',
-      };
-    case 'brand':
-      return {
-        fill: ci.primary,
-        text: ci.inkOnBrand,
-        muted: 'rgba(255,255,255,0.78)',
-        border: 'rgba(255,255,255,0.28)',
-        accent: ci.inkOnBrand,
-        codeBackground: 'rgba(255,255,255,0.12)',
-      };
+    case 'paper-alt':
+      return { ...PAPER_BASE, fill: palette.paperAlt, codeBackground: palette.paperDeep };
+    case 'paper-deep':
+      return { ...PAPER_BASE, fill: palette.paperDeep, codeBackground: palette.paperAlt };
+    case 'signal':
+      return { ...PAPER_BASE, fill: palette.signal, codeBackground: palette.signalSoft };
     case 'grid':
       return {
-        fill: ci.surface,
-        text: ci.ink,
-        muted: ci.inkMuted,
-        border: ci.border,
-        accent: ci.primary,
-        codeBackground: ci.surfaceSunken,
+        ...PAPER_BASE,
+        fill: palette.paper,
+        codeBackground: palette.paperAlt,
         dots: ci.grid,
       };
-    case 'surface':
-    default:
+    case 'ink':
       return {
-        fill: ci.surface,
-        text: ci.ink,
-        muted: ci.inkMuted,
-        border: ci.border,
-        accent: ci.primary,
-        codeBackground: ci.surfaceSunken,
+        fill: palette.ink,
+        ink: palette.paper,
+        muted: 'rgba(255, 254, 229, 0.64)',
+        line: palette.paper,
+        signal: palette.signal,
+        codeBackground: palette.ink800,
+        shadowColor: palette.paper,
       };
+    case 'paper':
+    default:
+      return { ...PAPER_BASE, fill: palette.paper, codeBackground: palette.paperAlt };
   }
 }
 
 /* -------------------------------------------------------------------------- */
-/* Scene construction                                                          */
+/* Szenenaufbau                                                                */
 /* -------------------------------------------------------------------------- */
 
 export function buildSlideScene(slide: Slide, deck: Deck, options: SceneOptions = {}): Scene {
@@ -203,10 +192,7 @@ export function buildSlideScene(slide: Slide, deck: Deck, options: SceneOptions 
   };
 }
 
-/**
- * Everything behind the freeform elements: the slide surface, the optional dot
- * grid and the typeset flow (Markdown) content.
- */
+/** Die Fläche, das optionale Punktraster und der gesetzte Fließtext. */
 export function buildSlideBackdrop(slide: Slide, options: SceneOptions = {}): ScenePrim[] {
   const bg = backgroundStyle(slide.meta.background);
   const prims: ScenePrim[] = [];
@@ -230,15 +216,7 @@ export function buildSlideBackdrop(slide: Slide, options: SceneOptions = {}): Sc
       align: frame.align,
       baseStyle: frame.baseStyle,
       resolveImageSize: options.resolveImageSize,
-      palette: {
-        text: bg.text,
-        muted: bg.muted,
-        accent: bg.accent,
-        border: bg.border,
-        codeText: bg.text,
-        codeBackground: bg.codeBackground,
-        quoteBar: bg.accent,
-      },
+      palette: flowPalette(bg),
     });
 
     let dy = frame.y;
@@ -251,30 +229,31 @@ export function buildSlideBackdrop(slide: Slide, options: SceneOptions = {}): Sc
   return prims;
 }
 
-/** The deck footer and slide number, when the slide allows them. */
+function flowPalette(bg: BackgroundStyle) {
+  return {
+    text: bg.ink,
+    muted: bg.muted,
+    accent: bg.ink,
+    border: bg.line,
+    codeText: bg.ink,
+    codeBackground: bg.codeBackground,
+    quoteBar: bg.ink,
+    marker: bg.signal,
+    markerText: ci.inkOnSignal,
+  };
+}
+
+/** Fußzeile und Foliennummer — Space Mono, ALL-CAPS, wie die CI es für Labels will. */
 export function buildSlideChrome(
   slide: Slide,
   deck: Deck,
   options: SceneOptions = {},
 ): ScenePrim[] {
   if (options.chrome === false || slide.meta.bare) return [];
-  return deckChrome(deck, backgroundStyle(slide.meta.background), options);
-}
 
-function gridDots(colorValue: string): ScenePrim[] {
+  const bg = backgroundStyle(slide.meta.background);
   const out: ScenePrim[] = [];
-  const step = canvasTokens.gridSize * canvasTokens.gridMajorEvery;
-  for (let x = step; x < canvasTokens.width; x += step) {
-    for (let y = step; y < canvasTokens.height; y += step) {
-      out.push({ t: 'ellipse', cx: x, cy: y, rx: 1, ry: 1, fill: colorValue });
-    }
-  }
-  return out;
-}
-
-function deckChrome(deck: Deck, bg: BackgroundStyle, options: SceneOptions): ScenePrim[] {
-  const out: ScenePrim[] = [];
-  const style = typeScale.caption;
+  const style = typeScale.labelSmall;
   const spec = font({
     family: style.family,
     size: style.size,
@@ -283,12 +262,12 @@ function deckChrome(deck: Deck, bg: BackgroundStyle, options: SceneOptions): Sce
   });
 
   if (deck.meta.footer) {
-    const width = measureText(deck.meta.footer, spec);
+    const text = deck.meta.footer.toLocaleUpperCase('de-DE');
     out.push({
       t: 'text',
       x: footerFrame.left,
       y: footerFrame.y,
-      runs: [{ dx: 0, text: deck.meta.footer, font: spec, color: bg.muted, width }],
+      runs: [{ dx: 0, text, font: spec, color: bg.muted, width: measureText(text, spec) }],
     });
   }
 
@@ -308,107 +287,151 @@ function deckChrome(deck: Deck, bg: BackgroundStyle, options: SceneOptions): Sce
   return out;
 }
 
+function gridDots(colorValue: string): ScenePrim[] {
+  const out: ScenePrim[] = [];
+  const step = canvasTokens.gridSize * canvasTokens.gridMajorEvery;
+  for (let x = step; x < canvasTokens.width; x += step) {
+    for (let y = step; y < canvasTokens.height; y += step) {
+      // Quadrat statt Punkt — auch das Raster hält sich an die Formensprache.
+      out.push({ t: 'rect', x: x - 1, y: y - 1, w: 2, h: 2, fill: colorValue });
+    }
+  }
+  return out;
+}
+
 /* -------------------------------------------------------------------------- */
-/* Element painting                                                            */
+/* Farbe eines Elements                                                        */
 /* -------------------------------------------------------------------------- */
 
 export interface ElementPaint {
+  /** Fläche und Kontur des Körpers. */
   body: ScenePaint;
+  /** Ob der Körper überhaupt eine Fläche hat (für den Schatten wichtig). */
+  hasBody: boolean;
   text: string;
   muted: string;
-  accent: string;
-  border: string;
+  /** Tinte für Icons, Aufzählungen, Linien innerhalb des Elements. */
+  ink: string;
+  line: string;
+  signal: string;
   codeBackground: string;
 }
 
-/** Resolve an element's tone + fill style into concrete CI paint values. */
-export function elementPaint(element: CanvasElement): ElementPaint {
-  const t = elementTones[element.tone] ?? elementTones.neutral;
+/**
+ * Eine Flächenrolle plus einen Malstil in konkrete CI-Werte auflösen.
+ * Es gibt genau vier Malstile, weil das CI genau vier kennt.
+ */
+export function elementPaint(
+  element: CanvasElement,
+  bg: BackgroundStyle = backgroundStyle('paper'),
+): ElementPaint {
+  const t = elementTones[element.tone] ?? elementTones.paper;
   const sw = strokeWidthOf(element.strokeWeight);
 
-  switch (element.fill) {
-    case 'solid':
-      return {
-        body: { fill: t.solidFill, stroke: undefined, strokeWidth: 0 },
-        text: t.solidText,
-        muted: withAlpha(t.solidText, 0.78),
-        accent: t.solidText,
-        border: withAlpha(t.solidText, 0.3),
-        codeBackground: withAlpha(t.solidText, 0.14),
-      };
-    case 'outline':
-      return {
-        body: { fill: undefined, stroke: t.accentText, strokeWidth: sw },
-        text: t.text,
-        muted: t.accentText,
-        accent: t.accentText,
-        border: t.border,
-        codeBackground: t.softFill,
-      };
-    case 'soft':
-      return {
-        body: { fill: t.softFill, stroke: t.border, strokeWidth: sw },
-        text: t.text,
-        muted: t.accentText,
-        accent: t.accentText,
-        border: t.border,
-        codeBackground: withAlpha(t.accentText, 0.1),
-      };
-    case 'none':
-    default:
-      return {
-        body: {},
-        text: t.text,
-        muted: t.accentText,
-        accent: t.accentText,
-        border: t.border,
-        codeBackground: t.softFill,
-      };
-  }
+  // Ohne eigene Fläche erbt das Element die Tinte des Untergrunds — sonst
+  // stünde schwarze Schrift auf schwarzem Grund.
+  const bare = element.fill === 'none' || element.fill === 'outline';
+  const text = bare ? bg.ink : t.text;
+  const muted = bare ? bg.muted : t.textMuted;
+  const line = bare ? bg.line : t.line;
+
+  const body: ScenePaint =
+    element.fill === 'none'
+      ? {}
+      : element.fill === 'outline'
+        ? { stroke: line, strokeWidth: sw, lineJoin: 'miter', lineCap: 'square' }
+        : element.fill === 'flat'
+          ? { fill: t.surface }
+          : {
+              fill: t.surface,
+              stroke: t.line,
+              strokeWidth: sw,
+              lineJoin: 'miter',
+              lineCap: 'square',
+            };
+
+  return {
+    body,
+    hasBody: element.fill !== 'none',
+    text,
+    muted,
+    ink: text,
+    line,
+    signal: element.tone === 'signal' && !bare ? ci.ink : bg.signal,
+    codeBackground: bare ? bg.codeBackground : t.surfaceAlt,
+  };
 }
 
-/** Element rotation as a matrix about its own centre. */
+/** Die Drehung eines Elements als Matrix um seine eigene Mitte. */
 function elementMatrix(element: CanvasElement): Mat {
   const base = matTranslate(element.x, element.y);
   if (!element.rotation) return base;
   return matMultiply(base, matRotateAbout(element.rotation, element.w / 2, element.h / 2));
 }
 
+/* -------------------------------------------------------------------------- */
+/* Elemente zeichnen                                                           */
+/* -------------------------------------------------------------------------- */
+
 /**
- * Paint a single element. Exported because the on-screen canvas renders through
- * exactly this function too — what you see really is what gets exported.
+ * Ein einzelnes Element malen. Exportiert, weil der Canvas genau durch diese
+ * Funktion rendert — was man sieht, ist wirklich das, was exportiert wird.
  */
 export function buildElementPrims(
   element: CanvasElement,
-  bg: BackgroundStyle = backgroundStyle('surface'),
+  bg: BackgroundStyle = backgroundStyle('paper'),
   options: SceneOptions = {},
 ): ScenePrim[] {
-  const paint = elementPaint(element);
+  const paint = elementPaint(element, bg);
   const matrix = elementMatrix(element);
   const opacity = element.opacity;
+  const offset = shadowSize(element.shadow);
   const out: ScenePrim[] = [];
+
+  /** Körper zeichnen — mit hartem Schatten darunter, wenn einer gesetzt ist. */
+  const emitBody = (segs: Seg[], closed: boolean, style: ScenePaint = paint.body) => {
+    if (offset > 0 && closed && (style.fill || style.stroke)) {
+      out.push({
+        t: 'path',
+        segs: transformSegs(segs, matMultiply(matTranslate(offset, offset), matrix)),
+        closed: true,
+        fill: bg.shadowColor,
+        opacity: opacity === 1 ? undefined : opacity,
+      });
+    }
+    if (!style.fill && !style.stroke) return;
+    out.push({
+      t: 'path',
+      segs: transformSegs(segs, matrix),
+      closed,
+      ...style,
+      opacity: combineOpacity(opacity, style.opacity),
+    });
+  };
 
   const emitPath = (segs: Seg[], closed: boolean, style: ScenePaint) => {
     out.push({
       t: 'path',
       segs: transformSegs(segs, matrix),
       closed,
-      lineCap: 'round',
-      lineJoin: 'round',
+      lineJoin: 'miter',
+      lineCap: 'square',
       ...style,
       opacity: combineOpacity(opacity, style.opacity),
     });
   };
 
+  const boxSegs = () => polySegs([0, 0, element.w, 0, element.w, element.h, 0, element.h], true);
+
   switch (element.kind) {
     case 'shape': {
-      const geometry = shapeGeometry(element.shape, element.w, element.h, element.radius);
-      emitPath(geometry.segs, geometry.closed, paint.body);
+      const geometry = shapeGeometry(element.shape, element.w, element.h);
+      emitBody(geometry.segs, geometry.closed);
       if (element.label?.trim()) {
         const result = typesetText(element.label, element.labelStyle ?? 'body', {
           width: Math.max(8, element.w - element.padding * 2),
           align: 'center',
-          palette: { text: paint.text, muted: paint.muted, accent: paint.accent },
+          palette: elementTypesetPalette(paint),
         });
         out.push(
           ...typesetToScene(
@@ -426,66 +449,63 @@ export function buildElementPrims(
     case 'connector': {
       const sw = strokeWidthOf(element.strokeWeight);
       const geometry = connectorGeometry(element.connector, element.w, element.h, sw);
-      const strokeColor = paint.body.stroke ?? paint.accent;
       emitPath(geometry.segs, false, {
-        stroke: strokeColor,
+        stroke: paint.ink,
         strokeWidth: sw,
-        dash: element.dashed ? [sw * 3.2, sw * 2.6] : undefined,
+        lineCap: element.dashed ? 'butt' : 'square',
+        dash: element.dashed ? [sw * 3, sw * 2.5] : undefined,
       });
       for (const head of geometry.heads) {
-        emitPath(head, true, { fill: strokeColor, strokeWidth: 0 });
+        emitPath(head, true, { fill: paint.ink });
       }
       if (element.label?.trim()) {
-        const result = typesetText(element.label, 'caption', {
+        const result = typesetText(element.label, 'label', {
           width: Math.max(40, element.w),
           align: 'center',
-          palette: { text: paint.text, muted: paint.muted, accent: paint.accent },
+          palette: elementTypesetPalette(paint),
         });
-        out.push(
-          ...typesetToScene(result, 0, -result.height - sw * 3, matrix, opacity),
-        );
+        out.push(...typesetToScene(result, 0, -result.height - sw * 3, matrix, opacity));
       }
       break;
     }
 
     case 'badge': {
-      const r = Math.min(element.radius, element.h / 2);
-      emitPath(rectSegs(0, 0, element.w, element.h, r), true, paint.body);
+      emitBody(boxSegs(), true);
 
-      const style = typeScale.caption;
-      const size = Math.min(style.size * 1.05, element.h * 0.42);
+      const style = typeScale.label;
+      const size = Math.min(style.size, element.h * 0.4);
       const spec = font({
         family: style.family,
         size,
-        weight: 600,
-        tracking: 0.02,
+        weight: style.weight,
+        tracking: style.tracking,
       });
-      const iconSize = element.icon ? size * 1.25 : 0;
-      const gap = element.icon ? size * 0.42 : 0;
-      const textWidth = measureText(element.text, spec);
-      const totalWidth = iconSize + gap + textWidth;
-      const startX = (element.w - totalWidth) / 2;
+      const text = element.text.toLocaleUpperCase('de-DE');
+      const iconSize = element.icon ? size * 1.6 : 0;
+      const gap = element.icon ? size * 0.6 : 0;
+      const textWidth = measureText(text, spec);
+      const startX = (element.w - (iconSize + gap + textWidth)) / 2;
       const centerY = element.h / 2;
 
       if (element.icon) {
         out.push(
-          ...iconScene(
-            element.icon,
-            startX,
-            centerY - iconSize / 2,
-            iconSize,
-            paint.text,
-            strokeWidthOf('medium'),
+          ...iconScene(element.icon, {
+            x: startX,
+            y: centerY - iconSize / 2,
+            size: iconSize,
+            ink: paint.text,
+            signal: paint.signal,
+            strokeWidth: strokeWidthOf('heavy'),
             matrix,
             opacity,
-          ),
+          }),
         );
       }
       out.push(
         ...textPrim(
           startX + iconSize + gap,
-          centerY + size * 0.35,
-          [{ dx: 0, text: element.text, font: spec, color: paint.text, width: textWidth }],
+          centerY + size * 0.36,
+          [{ dx: 0, text, font: spec, color: paint.text, width: textWidth }],
           matrix,
           opacity,
         ),
@@ -494,43 +514,31 @@ export function buildElementPrims(
     }
 
     case 'icon': {
-      if (element.frame !== 'none') {
-        const frameSegs =
-          element.frame === 'circle'
-            ? ellipseSegs(element.w / 2, element.h / 2, element.w / 2, element.h / 2)
-            : rectSegs(0, 0, element.w, element.h, element.radius);
-        emitPath(frameSegs, true, paint.body);
-      } else if (element.fill !== 'none') {
-        emitPath(rectSegs(0, 0, element.w, element.h, element.radius), true, paint.body);
-      }
-
-      const inset = element.frame === 'none' ? 0 : element.padding;
-      const size = Math.max(4, Math.min(element.w, element.h) - inset * 2);
-      const glyphColor = element.fill === 'solid' ? paint.text : paint.accent;
+      if (element.frame === 'box' || element.fill !== 'none') emitBody(boxSegs(), true);
+      const inset = element.frame === 'box' ? element.padding : 0;
+      const size = Math.max(8, Math.min(element.w, element.h) - inset * 2);
       out.push(
-        ...iconScene(
-          element.icon,
-          (element.w - size) / 2,
-          (element.h - size) / 2,
+        ...iconScene(element.icon, {
+          x: (element.w - size) / 2,
+          y: (element.h - size) / 2,
           size,
-          glyphColor,
-          strokeWidthOf(element.strokeWeight),
+          ink: paint.text,
+          signal: paint.signal,
+          strokeWidth: strokeWidthOf(element.strokeWeight),
           matrix,
           opacity,
-        ),
+        }),
       );
       break;
     }
 
     case 'text': {
-      if (element.fill !== 'none') {
-        emitPath(rectSegs(0, 0, element.w, element.h, element.radius), true, paint.body);
-      }
+      if (element.fill !== 'none') emitBody(boxSegs(), true);
       const inner = element.fill === 'none' ? 0 : element.padding;
       const result = typesetText(element.text, element.typeStyle, {
         width: Math.max(8, element.w - inner * 2),
         align: element.align,
-        palette: { text: paint.text, muted: paint.muted, accent: paint.accent },
+        palette: elementTypesetPalette(paint),
       });
       const dy =
         element.valign === 'middle'
@@ -543,35 +551,40 @@ export function buildElementPrims(
     }
 
     case 'markdown': {
-      if (element.fill !== 'none') {
-        emitPath(rectSegs(0, 0, element.w, element.h, element.radius), true, paint.body);
-      }
+      if (element.fill !== 'none') emitBody(boxSegs(), true);
       const inner = element.fill === 'none' ? 0 : element.padding;
       const result = typesetMarkdown(element.markdown, {
         width: Math.max(8, element.w - inner * 2),
         align: element.align,
         resolveImageSize: options.resolveImageSize,
-        palette: {
-          text: paint.text,
-          muted: paint.muted,
-          accent: paint.accent,
-          border: paint.border,
-          codeText: paint.text,
-          codeBackground: paint.codeBackground,
-          quoteBar: paint.accent,
-        },
+        palette: elementTypesetPalette(paint),
       });
       out.push(...typesetToScene(result, inner, inner, matrix, opacity));
       break;
     }
 
-    case 'card': {
-      out.push(...cardScene(element, paint, matrix));
+    case 'card':
+      out.push(...cardScene(element, paint, matrix, bg, emitBody, boxSegs));
       break;
-    }
+
+    case 'wordmark':
+      out.push(...wordmarkScene(element, paint, bg, matrix, opacity));
+      break;
 
     case 'image': {
       if (element.src) {
+        if (offset > 0) {
+          emitPath(boxSegs(), true, { fill: 'transparent' });
+        }
+        if (offset > 0) {
+          out.push({
+            t: 'path',
+            segs: transformSegs(boxSegs(), matMultiply(matTranslate(offset, offset), matrix)),
+            closed: true,
+            fill: bg.shadowColor,
+            opacity: opacity === 1 ? undefined : opacity,
+          });
+        }
         out.push({
           t: 'image',
           x: element.x,
@@ -579,16 +592,23 @@ export function buildElementPrims(
           w: element.w,
           h: element.h,
           href: element.src,
-          radius: element.radius,
-          opacity,
+          opacity: opacity === 1 ? undefined : opacity,
           rotate: element.rotation || undefined,
         });
+        if (element.fill !== 'none') {
+          emitPath(boxSegs(), true, {
+            stroke: paint.line,
+            strokeWidth: strokeWidthOf(element.strokeWeight),
+          });
+        }
       } else {
-        emitPath(rectSegs(0, 0, element.w, element.h, element.radius), true, {
-          fill: bg.codeBackground,
-          stroke: paint.border,
-          strokeWidth: strokeTokens.hairline,
-          dash: [6, 5],
+        // Platzhalter: gestrichelter Rahmen, damit sichtbar ist, dass hier
+        // noch ein Bild fehlt.
+        emitPath(boxSegs(), true, {
+          stroke: paint.line,
+          strokeWidth: strokeTokens.rule,
+          dash: [8, 6],
+          lineCap: 'butt',
         });
       }
       break;
@@ -598,40 +618,109 @@ export function buildElementPrims(
   return out;
 }
 
+function elementTypesetPalette(paint: ElementPaint) {
+  return {
+    text: paint.text,
+    muted: paint.muted,
+    accent: paint.ink,
+    border: paint.line,
+    codeText: paint.text,
+    codeBackground: paint.codeBackground,
+    quoteBar: paint.ink,
+    marker: paint.signal,
+    markerText: ci.inkOnSignal,
+  };
+}
+
 /* -------------------------------------------------------------------------- */
-/* Cards                                                                       */
+/* Wortmarke                                                                   */
 /* -------------------------------------------------------------------------- */
 
-function cardScene(element: CardElement, paint: ElementPaint, matrix: Mat): ScenePrim[] {
+const wordmarkLetters = parsePath(wordmark.letters);
+const wordmarkPeriod = parsePath(wordmark.period);
+
+/**
+ * Die Wortmarke als Vektor. Sie wird proportional eingepasst, nie verzerrt,
+ * nie gedreht, nie umgefärbt und bekommt keinen Schatten — das sind vier der
+ * Logo-Regeln des CI, und sie stehen hier als Code, nicht als Bitte.
+ */
+function wordmarkScene(
+  element: Extract<CanvasElement, { kind: 'wordmark' }>,
+  paint: ElementPaint,
+  bg: BackgroundStyle,
+  matrix: Mat,
+  opacity: number,
+): ScenePrim[] {
+  const [vx, vy, vw, vh] = wordmark.viewBox;
+  const scale = Math.min(element.w / vw, element.h / vh);
+  const dx = (element.w - vw * scale) / 2;
+  const dy = (element.h - vh * scale) / 2;
+
+  // Drehung wird bewusst ignoriert: „Was wir nie tun — drehen."
+  const place = matMultiply(
+    matMultiply(matTranslate(element.x, element.y), matTranslate(dx, dy)),
+    matMultiply(matScale(scale), matTranslate(-vx, -vy)),
+  );
+  void matrix;
+
+  const letterColor =
+    element.variant === 'ink'
+      ? palette.ink
+      : element.variant === 'paper'
+        ? palette.paper
+        : element.variant === 'mono'
+          ? paint.ink
+          : bg.ink;
+
+  const prims: ScenePrim[] = [
+    {
+      t: 'path',
+      segs: transformSegs(wordmarkLetters, place),
+      closed: true,
+      fill: letterColor,
+      opacity: opacity === 1 ? undefined : opacity,
+    },
+  ];
+
+  // Der Punkt bleibt grün — außer in der einfarbigen Fassung.
+  prims.push({
+    t: 'path',
+    segs: transformSegs(wordmarkPeriod, place),
+    closed: true,
+    fill: element.variant === 'mono' ? letterColor : palette.signal,
+    opacity: opacity === 1 ? undefined : opacity,
+  });
+
+  return prims;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Karten                                                                      */
+/* -------------------------------------------------------------------------- */
+
+function cardScene(
+  element: CardElement,
+  paint: ElementPaint,
+  matrix: Mat,
+  bg: BackgroundStyle,
+  emitBody: (segs: Seg[], closed: boolean, style?: ScenePaint) => void,
+  boxSegs: () => Seg[],
+): ScenePrim[] {
   const out: ScenePrim[] = [];
   const pad = element.padding;
   const innerWidth = Math.max(8, element.w - pad * 2);
+  const gap = 12;
 
-  const emitPath = (segs: Seg[], closed: boolean, style: ScenePaint) => {
-    out.push({
-      t: 'path',
-      segs: transformSegs(segs, matrix),
-      closed,
-      lineCap: 'round',
-      lineJoin: 'round',
-      ...style,
-      opacity: combineOpacity(element.opacity, style.opacity),
-    });
-  };
-
-  emitPath(rectSegs(0, 0, element.w, element.h, element.radius), true, paint.body);
+  emitBody(boxSegs(), true);
 
   let y = pad;
-  const gap = 10;
 
   switch (element.variant) {
     case 'stat': {
-      if (element.eyebrow) {
-        y += pushOverline(out, element.eyebrow, pad, y, innerWidth, paint.muted, matrix, element.opacity);
-        y += 4;
-      }
-      const style = typeScale.display;
-      const size = Math.min(style.size, element.h * 0.44);
+      if (element.label)
+        y += pushLabel(out, element.label, pad, y, innerWidth, paint, matrix, element.opacity) + 8;
+      const style = typeScale.headline;
+      const size = Math.min(style.size, element.h * 0.42);
       const spec = font({
         family: style.family,
         size,
@@ -642,17 +731,17 @@ function cardScene(element: CardElement, paint: ElementPaint, matrix: Mat): Scen
       out.push(
         ...textPrim(
           pad,
-          y + size * 0.82,
+          y + size * 0.8,
           [{ dx: 0, text: element.title, font: spec, color: paint.text, width }],
           matrix,
           element.opacity,
         ),
       );
-      y += size * 1.06 + gap * 0.5;
+      y += size * 0.95 + gap * 0.5;
       if (element.body) {
         const result = typesetText(element.body, 'small', {
           width: innerWidth,
-          palette: { text: paint.muted, muted: paint.muted, accent: paint.accent },
+          palette: { ...elementTypesetPalette(paint), text: paint.muted },
         });
         out.push(...typesetToScene(result, pad, y, matrix, element.opacity));
       }
@@ -660,21 +749,16 @@ function cardScene(element: CardElement, paint: ElementPaint, matrix: Mat): Scen
     }
 
     case 'quote': {
-      const iconSize = 26;
-      out.push(
-        ...iconScene('quote', pad, y, iconSize, paint.accent, strokeTokens.regular, matrix, element.opacity),
-      );
-      y += iconSize + gap;
       const quote = typesetText(element.title, 'lead', {
         width: innerWidth,
-        palette: { text: paint.text, muted: paint.muted, accent: paint.accent },
+        palette: elementTypesetPalette(paint),
       });
       out.push(...typesetToScene(quote, pad, y, matrix, element.opacity));
       y += quote.height + gap;
       if (element.body) {
-        const attribution = typesetText(element.body, 'caption', {
+        const attribution = typesetText(element.body, 'label', {
           width: innerWidth,
-          palette: { text: paint.muted, muted: paint.muted, accent: paint.accent },
+          palette: { ...elementTypesetPalette(paint), text: paint.muted },
         });
         out.push(...typesetToScene(attribution, pad, y, matrix, element.opacity));
       }
@@ -682,36 +766,59 @@ function cardScene(element: CardElement, paint: ElementPaint, matrix: Mat): Scen
     }
 
     case 'step': {
-      const badgeSize = 34;
-      emitPath(circleSegs(pad + badgeSize / 2, y + badgeSize / 2, badgeSize / 2), true, {
-        fill: paint.accent,
+      const size = 44;
+      out.push({
+        t: 'path',
+        segs: transformSegs(
+          polySegs([pad, y, pad + size, y, pad + size, y + size, pad, y + size], true),
+          matrix,
+        ),
+        closed: true,
+        fill: bg.signal,
       });
-      const numberSpec = font({ family: 'display', size: 17, weight: 700 });
-      const label = element.eyebrow?.trim() || '1';
+      const numberSpec = font({ family: 'display', size: 24, weight: 700 });
+      const label = element.label?.trim() || '1';
       const labelWidth = measureText(label, numberSpec);
       out.push(
         ...textPrim(
-          pad + badgeSize / 2 - labelWidth / 2,
-          y + badgeSize / 2 + 6,
-          [{ dx: 0, text: label, font: numberSpec, color: ci.inkInverse, width: labelWidth }],
+          pad + size / 2 - labelWidth / 2,
+          y + size / 2 + 8,
+          [{ dx: 0, text: label, font: numberSpec, color: ci.inkOnSignal, width: labelWidth }],
           matrix,
           element.opacity,
         ),
       );
-      y += badgeSize + gap;
-      y += pushTitleAndBody(out, element, paint, pad, y, innerWidth, matrix);
+      y += size + gap;
+      pushTitleAndBody(out, element, paint, pad, y, innerWidth, matrix);
       break;
     }
 
-    case 'callout': {
+    case 'note': {
       const barWidth = strokeTokens.heavy;
-      emitPath(rectSegs(0, 0, barWidth, element.h, barWidth / 2), true, { fill: paint.accent });
+      out.push({
+        t: 'path',
+        segs: transformSegs(
+          polySegs([0, 0, barWidth, 0, barWidth, element.h, 0, element.h], true),
+          matrix,
+        ),
+        closed: true,
+        fill: bg.signal,
+      });
       const inset = pad + barWidth;
       let cy = pad;
       if (element.icon) {
-        const iconSize = 22;
+        const iconSize = 28;
         out.push(
-          ...iconScene(element.icon, inset, cy, iconSize, paint.accent, strokeTokens.regular, matrix, element.opacity),
+          ...iconScene(element.icon, {
+            x: inset,
+            y: cy,
+            size: iconSize,
+            ink: paint.text,
+            signal: paint.signal,
+            strokeWidth: strokeWidthOf('heavy'),
+            matrix,
+            opacity: element.opacity,
+          }),
         );
         cy += iconSize + gap * 0.6;
       }
@@ -730,15 +837,23 @@ function cardScene(element: CardElement, paint: ElementPaint, matrix: Mat): Scen
     case 'feature':
     default: {
       if (element.icon) {
-        const iconSize = 30;
+        const iconSize = 40;
         out.push(
-          ...iconScene(element.icon, pad, y, iconSize, paint.accent, strokeTokens.regular, matrix, element.opacity),
+          ...iconScene(element.icon, {
+            x: pad,
+            y,
+            size: iconSize,
+            ink: paint.text,
+            signal: paint.signal,
+            strokeWidth: strokeWidthOf('heavy'),
+            matrix,
+            opacity: element.opacity,
+          }),
         );
         y += iconSize + gap;
       }
-      if (element.eyebrow) {
-        y += pushOverline(out, element.eyebrow, pad, y, innerWidth, paint.muted, matrix, element.opacity);
-        y += 4;
+      if (element.label) {
+        y += pushLabel(out, element.label, pad, y, innerWidth, paint, matrix, element.opacity) + 6;
       }
       pushTitleAndBody(out, element, paint, pad, y, innerWidth, matrix);
       break;
@@ -748,19 +863,19 @@ function cardScene(element: CardElement, paint: ElementPaint, matrix: Mat): Scen
   return out;
 }
 
-function pushOverline(
+function pushLabel(
   out: ScenePrim[],
   text: string,
   x: number,
   y: number,
   width: number,
-  colorValue: string,
+  paint: ElementPaint,
   matrix: Mat,
   opacity: number,
 ): number {
-  const result = typesetText(text.toUpperCase(), 'overline', {
+  const result = typesetText(text, 'label', {
     width,
-    palette: { text: colorValue, muted: colorValue, accent: colorValue },
+    palette: { ...elementTypesetPalette(paint), text: paint.muted },
   });
   out.push(...typesetToScene(result, x, y, matrix, opacity));
   return result.height;
@@ -779,15 +894,15 @@ function pushTitleAndBody(
   if (element.title) {
     const title = typesetText(element.title, 'h4', {
       width,
-      palette: { text: paint.text, muted: paint.muted, accent: paint.accent },
+      palette: elementTypesetPalette(paint),
     });
     out.push(...typesetToScene(title, x, cursor, matrix, element.opacity));
-    cursor += title.height + 6;
+    cursor += title.height + 8;
   }
   if (element.body) {
     const body = typesetText(element.body, 'small', {
       width,
-      palette: { text: paint.muted, muted: paint.muted, accent: paint.accent },
+      palette: { ...elementTypesetPalette(paint), text: paint.muted },
     });
     out.push(...typesetToScene(body, x, cursor, matrix, element.opacity));
     cursor += body.height;
@@ -799,41 +914,60 @@ function pushTitleAndBody(
 /* Icons                                                                       */
 /* -------------------------------------------------------------------------- */
 
+export interface IconSceneOptions {
+  x: number;
+  y: number;
+  size: number;
+  /** Tintenfarbe für Striche und schwarze Flächen. */
+  ink: string;
+  /** Signalfarbe für grüne Flächen — inklusive der Signatur unten rechts. */
+  signal: string;
+  /** Gewünschte CI-Strichstärke; wird ins 64er-Raster umgerechnet. */
+  strokeWidth: number;
+  matrix?: Mat;
+  opacity?: number;
+}
+
 /**
- * Emit an icon at (x, y) with the given box `size`, in the local space of
- * `matrix`. Stroke width scales with the icon so a 24 px and a 240 px copy of
- * the same icon look like the same drawing.
+ * Ein Icon zeichnen. Die Strichstärke skaliert mit dem Icon, damit eine 32-px-
+ * und eine 160-px-Fassung erkennbar dieselbe Zeichnung sind — genau so gibt das
+ * CI-Set sie aus.
  */
-export function iconScene(
-  name: IconName | undefined,
-  x: number,
-  y: number,
-  size: number,
-  colorValue: string,
-  ciStrokeWidth: number,
-  matrix: Mat = matTranslate(0, 0),
-  opacity = 1,
-): ScenePrim[] {
+export function iconScene(name: IconName | undefined, options: IconSceneOptions): ScenePrim[] {
+  const {
+    x,
+    y,
+    size,
+    ink,
+    signal,
+    strokeWidth,
+    matrix = matTranslate(0, 0),
+    opacity = 1,
+  } = options;
   const def = iconDef(name);
   const scale = size / iconGrid;
-  const local = matMultiply(
-    matMultiply(matrix, matTranslate(x, y)),
-    [scale, 0, 0, scale, 0, 0] as Mat,
-  );
-  const weight = (ciStrokeWidth / strokeTokens.regular) * iconStrokeGrid * scale;
+  const base = matMultiply(matMultiply(matrix, matTranslate(x, y)), matScale(scale));
+  const weight = (strokeWidth / strokeTokens.heavy) * iconStrokeGrid * scale;
 
   return def.prims.map((prim) => {
     const { segs, closed } = iconPrimSegs(prim);
-    const filled = 'fill' in prim && prim.fill === true;
+    const local = prim.rotate
+      ? matMultiply(base, matRotateAbout(prim.rotate[0], prim.rotate[1], prim.rotate[2]))
+      : base;
+    const filled = Boolean(prim.fill);
+    const color = (role: 'ink' | 'signal' | undefined) => (role === 'signal' ? signal : ink);
+
     return {
       t: 'path',
       segs: transformSegs(segs, local),
       closed,
-      fill: filled ? colorValue : undefined,
-      stroke: filled ? undefined : colorValue,
-      strokeWidth: filled ? 0 : weight,
-      lineCap: 'round',
-      lineJoin: 'round',
+      fill: filled ? color(prim.fill) : undefined,
+      stroke: filled ? undefined : color(prim.stroke),
+      strokeWidth: filled ? 0 : prim.sw ? (prim.sw / iconStrokeGrid) * weight : weight,
+      dash: prim.dash ? prim.dash.map((value) => value * scale) : undefined,
+      // Die Signatur des Sets: square caps, miter joins. Keine runden Enden.
+      lineCap: 'square',
+      lineJoin: 'miter',
       opacity: opacity === 1 ? undefined : opacity,
     } satisfies ScenePrim;
   });
@@ -848,13 +982,22 @@ function iconPrimSegs(prim: IconPrim): { segs: Seg[]; closed: boolean } {
     case 'ellipse':
       return { segs: ellipseSegs(prim.cx, prim.cy, prim.rx, prim.ry), closed: true };
     case 'rect':
-      return { segs: rectSegs(prim.x, prim.y, prim.w, prim.h, prim.r ?? 0), closed: true };
-    case 'line':
-      return { segs: lineSegs(prim.x1, prim.y1, prim.x2, prim.y2), closed: false };
-    case 'polyline':
-      return { segs: polySegs(prim.points, false), closed: false };
-    case 'polygon':
-      return { segs: polySegs(prim.points, true), closed: true };
+      return {
+        segs: polySegs(
+          [
+            prim.x,
+            prim.y,
+            prim.x + prim.w,
+            prim.y,
+            prim.x + prim.w,
+            prim.y + prim.h,
+            prim.x,
+            prim.y + prim.h,
+          ],
+          true,
+        ),
+        closed: true,
+      };
     default:
       return { segs: [], closed: false };
   }
@@ -871,10 +1014,9 @@ function parseIconPath(d: string): Seg[] {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Typeset → Scene                                                             */
+/* Satz → Szene                                                                */
 /* -------------------------------------------------------------------------- */
 
-/** Translate typeset output into scene primitives, optionally through a matrix. */
 export function typesetToScene(
   result: TypesetResult,
   dx: number,
@@ -903,11 +1045,27 @@ export function typesetToScene(
       case 'rect': {
         out.push({
           t: 'path',
-          segs: transformSegs(rectSegs(prim.x, prim.y, prim.w, prim.h, prim.r ?? 0), local),
+          segs: transformSegs(
+            polySegs(
+              [
+                prim.x,
+                prim.y,
+                prim.x + prim.w,
+                prim.y,
+                prim.x + prim.w,
+                prim.y + prim.h,
+                prim.x,
+                prim.y + prim.h,
+              ],
+              true,
+            ),
+            local,
+          ),
           closed: true,
           fill: prim.fill === 'transparent' ? undefined : prim.fill,
           stroke: prim.stroke,
           strokeWidth: prim.strokeWidth,
+          lineJoin: 'miter',
           opacity: opacity === 1 ? undefined : opacity,
         });
         break;
@@ -957,22 +1115,20 @@ function applyMatrix(m: Mat, x: number, y: number): { x: number; y: number } {
   return { x: m[0] * x + m[2] * y + m[4], y: m[1] * x + m[3] * y + m[5] };
 }
 
-/** Rotation angle (degrees) encoded in a rotation+translation matrix. */
 function matrixRotation(m: Mat): number {
   const angle = (Math.atan2(m[1], m[0]) * 180) / Math.PI;
   return Math.abs(angle) < 1e-6 ? 0 : angle;
 }
-
-/* -------------------------------------------------------------------------- */
-/* Colour helpers                                                              */
-/* -------------------------------------------------------------------------- */
 
 function combineOpacity(a: number, b: number | undefined): number | undefined {
   const value = a * (b ?? 1);
   return value >= 1 ? undefined : value;
 }
 
-/** Blend a hex colour with an alpha channel, producing `rgba(...)`. */
+/* -------------------------------------------------------------------------- */
+/* Farb-Helfer                                                                 */
+/* -------------------------------------------------------------------------- */
+
 export function withAlpha(hex: string, alpha: number): string {
   const rgb = hexToRgb(hex);
   if (!rgb) return hex;
@@ -983,7 +1139,11 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } | nul
   const match = /^#?([\da-f]{3}|[\da-f]{6})$/i.exec(hex.trim());
   if (!match) return null;
   let value = match[1];
-  if (value.length === 3) value = value.split('').map((c) => c + c).join('');
+  if (value.length === 3)
+    value = value
+      .split('')
+      .map((c) => c + c)
+      .join('');
   const int = Number.parseInt(value, 16);
   return { r: (int >> 16) & 255, g: (int >> 8) & 255, b: int & 255 };
 }

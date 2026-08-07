@@ -1,251 +1,261 @@
-# Nozilla Whiteboard
+# nozilla Whiteboard
 
-A local-first, browser-only tool that is a **Markdown presentation deck** and a
-**freeform whiteboard canvas** at the same time — and stays strictly inside the
-Nozilla corporate identity while you use it.
+Ein lokales Werkzeug im Browser, das zwei Dinge gleichzeitig ist: eine
+**Markdown-Präsentation** und eine **freie Fläche**. Es kann nur eines
+herstellen — Material, das der
+[nozilla Corporate Identity](https://github.com/daimpad/nozilla-ci) entspricht.
 
-Write the words in Markdown. Arrange everything else by hand. Save the whole
-thing — content *and* canvas positions — back into one `.md` file.
+Die Worte schreibst du in Markdown. Alles andere legst du von Hand. Am Ende
+steht wieder eine `.md` — Inhalt und Positionen in einer Datei.
 
 ```bash
 npm install
 npm run dev      # http://127.0.0.1:5173
 ```
 
-No server, no database, no account. Everything happens in the browser and
-everything you keep is a file on your disk.
+Kein Server, keine Datenbank, kein Konto. Alles passiert im Browser, alles was
+bleibt ist eine Datei auf der Platte.
 
 ---
 
-## What it does
+## Die CI ist nicht Stil, sondern Statik
 
-### Markdown engine
+Die Marken-Vorgaben sind hier keine Empfehlung, an die man sich erinnern muss.
+Sie sind so eingebaut, dass ein Verstoß gar nicht erst entstehen kann:
 
-- Loads a deck from a `.md` file (button, `⌘O`, or drop the file on the window).
-- Splits slides on a `---` line. The splitter ignores `---` inside fenced code
-  blocks and HTML comments, and refuses to mistake a Setext `Heading\n---`
-  underline for a slide break.
-- Deck-level YAML frontmatter (`title`, `author`, `date`, `footer`); unknown
-  keys are preserved verbatim through a save.
-- Per-slide metadata in an HTML comment: layout, transition, background,
-  presenter notes and the full canvas element list.
-- Renders headings, lists (bulleted / numbered / task), code blocks, block
-  quotes, tables, inline emphasis, links and images — all typeset with the CI
-  type scale.
-
-### Interactive canvas
-
-- Drag, resize (8 handles) and rotate anything; multi-select with shift-click or
-  a marquee.
-- Snap to the 8 px CI grid **and** to smart guides: sibling edges and centres,
-  slide edges and centre lines, and the CI safe-area margins. Hold `Alt` to
-  ignore snapping.
-- Duplicate (`⌘D`), delete (`⌫`), layer (`⌘]` / `⌘[`), align, distribute, lock.
-- Undo / redo with gesture-aware history — a drag is one undo step, not sixty.
-
-### Presentation
-
-- `P` to present, `Esc` to exit, `F` for fullscreen, `N` for presenter notes.
-- Six slide transitions and six element reveal animations; elements carry a
-  reveal *step* so a slide can be walked through one idea at a time.
-- Overview grid (`⌘K`) and an always-visible filmstrip for jumping and
-  reordering.
-- Honours `prefers-reduced-motion`.
-
-### Export & import
-
-| Format | What you get |
+| Regel | Wie sie erzwungen wird |
 | --- | --- |
-| **Markdown** | The deck, plus every canvas position, in one re-importable `.md` |
-| **SVG** | Real `<path>`/`<text>` vectors — no `foreignObject`, no rasterisation |
-| **PDF** | Vector pages with selectable, searchable text |
+| Radius ist 0 | `borderRadius` hat in Tailwind genau einen Wert. `rounded-lg` existiert nicht. Formen nehmen keinen Radius-Parameter entgegen. |
+| Schatten sind harte Versätze | Ein Schatten ist eine zweite, versetzte Fläche in Tinte. Es gibt keinen Weichzeichner — auch deshalb exportiert er exakt nach PDF. |
+| Farbe hat drei Rollen | Ein Element wählt eine Rolle (`paper`, `paperAlt`, `signal`, `ink`), keinen Farbwert. **Einen Farbwähler gibt es nicht.** |
+| Keine fremden Icons | Das Set sind die 462 Icons des CI-Repos, aus deren Geometrie generiert. |
+| Drei Schriften | Zilla Slab · Inter · Space Mono, selbst gehostet aus dem CI-Repo. Labels werden automatisch in Versalien mit 0,12 em gesetzt. |
+| Grüner Marker | `==so==` im Markdown. Wird auf Fläche, in SVG und in PDF identisch gezeichnet. |
+
+Die Standard-Tailwind-Palette ist **ersetzt**, nicht erweitert: ein
+versehentliches `bg-blue-500` ist ein sichtbarer Fehler und kein stiller
+CI-Bruch.
 
 ---
 
-## The architecture that matters
+## Was das Werkzeug kann
 
-Almost every feature above falls out of one decision: **there is a single
-rendering pipeline**, and the editor is a client of it like everything else.
+**Markdown-Motor.** Deck aus einer `.md` laden (Knopf, `⌘O`, oder Datei ins
+Fenster ziehen). Folientrenner ist `---`; der Trenner wird in Codeblöcken und
+HTML-Kommentaren ignoriert und verwechselt eine Setext-Überschrift nicht mit
+einem Folienwechsel. Deck-Frontmatter oben, Folien-Metadaten je Folie in einem
+`<!-- nzl … -->`-Block. Überschriften, Listen, Aufgabenlisten, Code, Zitate,
+Tabellen, Bilder — gesetzt in der CI-Hierarchie.
+
+**Freie Fläche.** Ziehen, größer ziehen, drehen; Mehrfachauswahl per Shift oder
+Gummiband. Einrasten auf das 8er-Raster *und* auf Hilfslinien: Kanten und
+Mitten der Nachbarn, Folienränder, Satzspiegel. `Alt` hält das Raster an.
+Duplizieren, löschen, stapeln, ausrichten, verteilen, sperren. Rückgängig und
+Wiederholen mit Gesten-Bewusstsein — ein Zug ist ein Schritt, nicht sechzig.
+
+**Präsentation.** `P` startet, `Esc` beendet, `F` Vollbild, `N` Notizen.
+Übergänge und Einblendungen; Elemente tragen einen Schritt, damit eine Folie
+Gedanke für Gedanke aufgeht. Übersicht mit `⌘K`, Filmstreifen immer sichtbar.
+`prefers-reduced-motion` wird beachtet.
+
+**Export.**
+
+| Format | Was herauskommt |
+| --- | --- |
+| **Markdown** | Das Deck samt aller Positionen, wieder ladbar |
+| **SVG** | Echte `<path>`/`<text>`-Vektoren — kein `foreignObject`, keine Rasterung |
+| **PDF** | Vektorseiten mit markierbarem, durchsuchbarem Text |
+
+**Prompt-Generator.** Ein Formular beschreibt den Auftrag, daraus entsteht ein
+Prompt, der ein Sprachmodell fertiges Deck-Markdown schreiben lässt. Die Antwort
+fügst du zurück ein und das Deck ist offen. Siehe [`PROMPT.md`](./PROMPT.md).
+
+---
+
+## Die Architektur in einem Bild
+
+Fast alles oben fällt aus einer Entscheidung: **es gibt genau eine
+Zeichenstrecke**, und der Editor ist ihr Kunde wie alle anderen.
 
 ```
- Slide ──► buildSlideScene() ──► Scene { ScenePrim[] }
+ Folie ──► buildSlideScene() ──► Scene { ScenePrim[] }
                                     │
                     ┌───────────────┼───────────────┐
                     ▼               ▼               ▼
               primsToSvgMarkup   sceneToSvg     scenesToPdf
-              (live canvas)      (.svg file)    (.pdf file)
+              (die Fläche)       (.svg)         (.pdf)
 ```
 
-A `Scene` is flat and fully resolved: every colour is a literal, every glyph run
-is positioned, every curve is a cubic Bézier. The on-screen canvas renders by
-injecting **the exact markup the SVG exporter produces**, so the editor is
-literally WYSIWYG with respect to export — there is no second renderer that
-could disagree.
+Eine `Scene` ist flach und vollständig aufgelöst: jede Farbe ein Literal, jeder
+Textlauf gesetzt, jede Kurve ein Bézier. Die Fläche zeichnet, indem sie **genau
+das Markup einsetzt, das der SVG-Export erzeugt** — der Editor ist damit
+buchstäblich WYSIWYG gegenüber dem Export. Es gibt keinen zweiten Renderer, der
+widersprechen könnte.
 
-Two supporting pieces make that possible:
+Zwei Bausteine machen das möglich:
 
-- **`src/lib/geometry/path.ts`** — one normalised segment list (move / line /
-  cubic / close) for all geometry. Elliptical arcs are deliberately unsupported
-  because PDF has no arc operator; circles become Béziers instead.
-- **`src/lib/text/typeset.ts`** — a small Markdown typesetter that measures with
-  the real font (canvas `measureText`) and emits positioned, styled text lines.
-  That is what makes exported text *text* rather than a screenshot.
+- **`src/lib/geometry/path.ts`** — eine normalisierte Segmentliste (Move /
+  Linie / Kubik / Schließen) für alle Geometrie. Ellipsenbögen werden beim
+  Einlesen zu Kubiken, weil PDF keinen Bogen-Operator kennt.
+- **`src/lib/text/typeset.ts`** — ein kleiner Markdown-Setzer, der mit der
+  echten Schrift misst (Canvas `measureText`) und positionierte Textzeilen
+  ausgibt. Nur deshalb ist exportierter Text *Text* und kein Bild.
 
-### Layout
+### Wo was liegt
 
 ```
-theme.config.ts              The CI. One file. Everything reads from it.
+theme.config.ts               Die CI. Eine Datei. Alles liest von hier.
+PROMPT.md                     Der Deck-Prompt, erklärt
+scripts/sync-ci.mjs           Holt Schriften, Marke und Icons aus dem CI-Repo
 src/
-  assets/       icons.ts     56 icons as structured primitives (not path blobs)
-                presets.ts   the CI asset palette the sidebar offers
-  model/        types.ts     deck / slide / element model
-                factory.ts   the only way an element is created or normalised
+  assets/     icons.ts        Fassade über dem generierten Set (462 Icons)
+              *.generated.ts  Erzeugt — nicht von Hand ändern
+              presets.ts      Die Bausteine, die die Bibliothek anbietet
+  model/      types.ts        Deck / Folie / Element
+              factory.ts      Der einzige Weg, auf dem ein Element entsteht
   lib/
-    markdown/   deck.ts      Markdown ⇄ Deck (the file format)
-    geometry/   path.ts      segments, matrices, path parsing
-                shapes.ts    CI shape and connector geometry
-                snap.ts      grid snapping, smart guides, resize maths
-    text/       measure.ts   font metrics (+ a deterministic test fallback)
-                typeset.ts   Markdown → positioned text
-    layout/     slideLayout.ts  the flow frame for each layout preset
-    export/     scene.ts     Slide → Scene  ◄── the hub
-                svg.ts       Scene → SVG
-                pdf.ts       Scene → PDF
-                images.ts    image resolution for export
-                download.ts  File System Access API + fallbacks
-  state/        deckStore.ts state, actions, undo/redo
-                persistence.ts  localStorage autosave (as Markdown)
-  components/   canvas · panels · chrome · present · ui
+    markdown/ deck.ts         Markdown ⇄ Deck (das Dateiformat)
+    geometry/ path.ts         Segmente, Matrizen, Pfad-Parser (inkl. Bögen)
+              shapes.ts       CI-Formen und Verbinder
+              snap.ts         Raster, Hilfslinien, Größenänderung
+    text/     measure.ts      Schriftmaße (+ deterministischer Ersatz für Tests)
+              typeset.ts      Markdown → gesetzter Text
+    export/   scene.ts        Folie → Szene  ◄── die Drehscheibe
+              svg.ts · pdf.ts Szene → Datei
+    prompt/   buildPrompt.ts  Der Prompt, aus dem laufenden Schema gebaut
+  state/      deckStore.ts    Zustand, Aktionen, Verlauf
+  components/ canvas · panels · chrome · present · ui
 ```
 
 ---
 
-## The file format
+## Das Dateiformat
 
-A deck that has never been touched by the canvas is just ordinary Markdown. A
-deck saved from the canvas is ordinary Markdown plus one metadata comment per
-slide:
+Ein Deck, das die Fläche nie gesehen hat, ist gewöhnliches Markdown. Ein Deck
+aus der Fläche ist gewöhnliches Markdown plus ein Metadaten-Kommentar je Folie:
 
 ```md
 ---
-title: Quarterly Review
-footer: Nozilla — Internal
+title: Ablösung der Altplattform
+footer: nozilla · Gute digitale Dienste.
 ---
 
 <!-- nzl
 layout: title
-transition: rise
-background: brand
-notes: Ninety seconds on this one.
+background: paper
+notes: Erst das Problem benennen, dann das Angebot.
 elements:
-  - id: badge-1
-    kind: badge
-    x: 88
-    y: 96
-    w: 210
-    h: 40
-    tone: inverse
-    text: Markdown + Canvas
-    icon: sparkle
+  - kind: card
+    x: 700
+    y: 152
+    w: 492
+    h: 176
+    variant: stat
+    label: Wartung
+    title: 38 %
+    body: der Entwicklungszeit fließen in Fehlerbehebung.
 -->
 
-# Decks that behave like whiteboards
+# Die Altplattform kostet mehr, als sie trägt.
 
----
-
-## Second slide
+Drei Viertel der Meldungen betreffen ==zwei Module==.
 ```
 
-Design rules the writer follows:
+Was der Schreiber dabei einhält:
 
-- **Only what changed is written.** Any property still equal to its CI default
-  is omitted, so the metadata stays readable and diffs stay small.
-- **Round trips are lossless.** `parse(serialize(deck))` reproduces the deck,
-  and `serialize` is idempotent. Both are tested against the shipped deck.
-- **Hand edits degrade gracefully.** A bad value falls back to the CI default
-  instead of failing the file; a broken element never takes the deck with it.
-- **Content containing `-->` is safe.** The writer escapes it reversibly
-  (`-->` ⇄ `--&gt;` ⇄ `--&&gt;` …) so prose can talk about the format itself.
-
----
-
-## Corporate identity
-
-`theme.config.ts` is the single source of truth, and everything downstream is
-generated from it:
-
-- `tailwind.config.ts` builds the utility classes from it — the default Tailwind
-  palette is **replaced**, so a stray `bg-blue-500` fails to compile rather than
-  silently going off-brand.
-- `src/theme/index.ts` publishes it as CSS custom properties at boot.
-- The exporters read it directly, because they have no DOM to read from.
-
-| | |
-| --- | --- |
-| **Palette** | Cobalt (primary), Ember (accent), Verdigris (support), Amber / Coral (status), Graphite (neutral) — 10 steps each |
-| **Tones** | 7 element tones. There is deliberately **no colour picker**: an author picks a tone, not a hex |
-| **Type** | Display → overline, 11 steps, with line height and tracking per step |
-| **Form** | 8 radii, 5 named line weights, a 4 px spacing grid |
-| **Motion** | 5 durations, 4 easing curves, one stagger interval |
-| **Canvas** | 1280 × 720 authoring units, 8 px grid, CI safe-area margins |
-
-### Using the licensed brand face
-
-The app ships with a system-font stack so it looks right on a fresh checkout.
-To use the real face, drop the `.woff2` files into `public/fonts/` and set
-`webfont.enabled = true` in `theme.config.ts`. Nothing else changes: the
-`@font-face` rules are generated from the same config at runtime.
+- **Nur Geändertes wird geschrieben.** Alles, was noch dem CI-Standard
+  entspricht, fällt weg. Die Metadaten bleiben lesbar, die Diffs klein.
+- **Der Rundlauf ist verlustfrei.** `parse(serialize(deck))` ergibt dasselbe
+  Deck, und `serialize` ist idempotent. Beides wird gegen das mitgelieferte Deck
+  getestet.
+- **Handarbeit darf schiefgehen.** Ein falscher Wert fällt auf den CI-Standard
+  zurück statt die Datei zu sprengen; ein kaputtes Element reißt nicht das Deck
+  mit.
+- **`-->` im Inhalt ist sicher.** Der Schreiber maskiert es umkehrbar, damit
+  Prosa über das Format reden darf.
 
 ---
 
-## Keyboard
+## CI-Sync
 
-| | |
-| --- | --- |
-| `→` `←` `Space` | Next / previous slide (or reveal step, when presenting) |
-| Arrow keys | Nudge the selection by one grid step (`⇧` = five) |
-| `⌘D` / `⌫` | Duplicate / delete the selection |
-| `⌘]` `⌘[` | Bring forward / send backward (`⇧` = to front / to back) |
-| `⌘A` / `Esc` | Select all / clear the selection |
-| `⌘Z` `⇧⌘Z` | Undo / redo |
-| `⌘O` `⌘S` | Open / save Markdown |
-| `⌘K` | Overview |
-| `P` / `Esc` | Present / exit |
-| `N` / `F` | Presenter notes / fullscreen (while presenting) |
-| `G` | Toggle the grid |
-
-Shortcuts are inert while you are typing in a field.
-
----
-
-## Development
+Schriften, Marken-Grafiken und Icons kommen aus dem CI-Repo und werden nicht von
+Hand kopiert:
 
 ```bash
-npm run dev        # dev server
-npm run build      # typecheck + production build
-npm run preview    # serve the build
-npm test           # 399 unit tests
-npm run lint
-npm run typecheck
+git clone https://github.com/daimpad/nozilla-ci ../nozilla-ci
+npm run sync:ci             # oder: node scripts/sync-ci.mjs <pfad>
+npm run sync:ci -- --check  # nur prüfen
 ```
 
-The test suite covers the parts where a regression would be invisible until it
-reached a file: the Markdown splitter and round trip, the path parser and
-transforms, snapping and resize maths, line breaking and typesetting, the scene
-builder, the SVG writer, the PDF geometry translation, and the store's history
-and layer semantics. The bundled deck (`src/decks/welcome.md`) doubles as an
-end-to-end fixture.
+Der Sync erzwingt dieselben Regeln wie der Build im CI-Repo: 64er-Raster, 4 px,
+square caps, miter joins, keine abgerundeten Rechtecke, nur Tinte und Signal.
+Wer eine Regel bricht, bekommt einen roten Lauf.
 
-### Notes and limitations
+Er schreibt:
 
-- **PDF fonts.** A PDF cannot reference a web font without embedding it, so the
-  exporter uses the metric-compatible core fonts named in `theme.config.ts`.
-  Line breaking has already happened against the real on-screen metrics and
-  every line is emitted at an absolute position, so the substitution never
-  reflows a deck — only the glyph shapes differ slightly.
-- **Images.** Drop an image on the canvas and it is embedded as a data URI, so
-  the deck stays a single portable file. Images referenced by relative path in
-  Markdown resolve against the page, which means they need to live under
-  `public/`.
-- **Raw HTML in Markdown** is sanitised for display and is not typeset into
-  SVG/PDF — exporting it as vector text would misrepresent it.
+- `public/fonts/` — Zilla Slab · Inter · Space Mono (SIL OFL, siehe `OFL.txt`)
+- `public/brand/` — Wortmarke, Favicon, Social Preview
+- `src/assets/icons.generated.ts` — 462 Icons als Primitive
+- `src/assets/wordmark.generated.ts` — die Wortmarke als Vektorpfade
+
+Die Wortmarke wird als **Pfad** übernommen, nicht als Bild — nur so landet sie
+in SVG *und* PDF als echter Vektor, ohne dass der Export eine Datei nachladen
+muss.
+
+---
+
+## Tasten
+
+| | |
+| --- | --- |
+| `→` `←` `Leer` | Folie vor / zurück (in der Präsentation: Einblendschritt) |
+| Pfeiltasten | Auswahl um eine Rasterstufe schieben (`⇧` = fünf) |
+| `⌘D` / `⌫` | Duplizieren / löschen |
+| `⌘]` `⌘[` | Nach vorn / nach hinten (`⇧` = ganz) |
+| `⌘A` / `Esc` | Alles wählen / Auswahl aufheben |
+| `⌘Z` `⇧⌘Z` | Rückgängig / wiederholen |
+| `⌘O` `⌘S` | Markdown öffnen / sichern |
+| `⌘K` | Übersicht |
+| `P` / `Esc` | Präsentieren / zurück |
+| `N` / `F` | Notizen / Vollbild (während der Präsentation) |
+| `G` | Raster an/aus |
+
+Während du in einem Feld tippst, sind alle Tasten wirkungslos.
+
+---
+
+## Entwicklung
+
+```bash
+npm run dev        # Entwicklungsserver
+npm run build      # Typprüfung + Produktions-Build
+npm run preview    # Build ausliefern
+npm test           # 2 932 Tests
+npm run lint
+npm run typecheck
+npm run format
+npm run sync:ci    # CI-Bestände neu holen
+```
+
+Getestet wird, wo ein Fehler unsichtbar bliebe, bis er in einer Datei landet:
+der Folien-Trenner und der Rundlauf, der Pfad-Parser samt Bogen-Umwandlung,
+Raster und Größenänderung, Zeilenumbruch und Satz, der Szenenaufbau, der
+SVG-Schreiber, die PDF-Geometrie, der Verlauf des Zustands — und die
+CI-Konformität aller 462 Icons.
+
+`src/decks/welcome.md` ist zugleich Beispiel und Prüfstein.
+
+### Was man wissen sollte
+
+- **Schriften im PDF.** Ein PDF kann keine Web-Schrift referenzieren, ohne sie
+  einzubetten. Der Export nutzt deshalb die metrisch verwandten Kernschriften
+  aus `theme.config.ts` (Times für die Slab-Serif, Helvetica für Inter, Courier
+  für Space Mono). Der Zeilenumbruch ist zu dem Zeitpunkt längst gegen die
+  echten Bildschirmmaße gefallen und jede Zeile sitzt absolut — der Ersatz
+  verschiebt also nichts, er zeichnet die Glyphen nur etwas anders.
+- **Bilder.** Ein Bild auf der Fläche wird als Data-URI eingebettet, damit das
+  Deck eine tragbare Datei bleibt. In Markdown relativ referenzierte Bilder
+  lösen gegen die Seite auf und müssen unter `public/` liegen.
+- **Rohes HTML in Markdown** wird für die Anzeige entschärft und nicht nach
+  SVG/PDF gesetzt — es als Vektortext auszugeben wäre eine Behauptung, die nicht
+  stimmt.

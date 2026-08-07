@@ -33,14 +33,22 @@ export function Overview() {
       role="dialog"
       aria-label="Slide overview"
     >
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-surface px-3">
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-surface px-3">
         <h2 className="text-ui-title font-semibold">Overview</h2>
         <span className="text-[11px] text-ink-subtle">
           {deck.slides.length} slide{deck.slides.length === 1 ? '' : 's'}
         </span>
         <div className="ml-auto flex items-center gap-1">
-          <IconButton icon="plus" label="Add a slide" onClick={() => addSlide(deck.slides.length)} />
-          <IconButton icon="close" label="Close overview (Esc)" onClick={() => toggleOverview(false)} />
+          <IconButton
+            icon="plus"
+            label="Add a slide"
+            onClick={() => addSlide(deck.slides.length)}
+          />
+          <IconButton
+            icon="xmark"
+            label="Close overview (Esc)"
+            onClick={() => toggleOverview(false)}
+          />
         </div>
       </div>
 
@@ -59,11 +67,9 @@ export function Overview() {
                   toggleOverview(false);
                 }}
                 className={cx(
-                  'block w-full overflow-hidden rounded-md border bg-surface text-left transition-all',
+                  'block w-full overflow-hidden  border bg-surface text-left transition-all',
                   'duration-fast ease-standard hover:-translate-y-0.5 hover:shadow-lg',
-                  index === slideIndex
-                    ? 'border-primary shadow-md ring-2 ring-primary-border'
-                    : 'border-border',
+                  index === slideIndex ? 'border-ink shadow-md ring-2 ring-ink' : 'border-line',
                 )}
               >
                 <span
@@ -78,7 +84,7 @@ export function Overview() {
                     className="h-full w-full"
                   />
                 </span>
-                <span className="flex items-center gap-2 border-t border-border px-2 py-1.5">
+                <span className="flex items-center gap-2 border-t border-line px-2 py-1.5">
                   <span className="tabular-nums text-[11px] font-semibold text-ink-subtle">
                     {index + 1}
                   </span>
@@ -88,7 +94,7 @@ export function Overview() {
                 </span>
               </button>
 
-              <div className="absolute right-1.5 top-1.5 flex gap-0.5 rounded-sm bg-surface/90 p-0.5 opacity-0 shadow-sm transition-opacity duration-fast group-hover:opacity-100 group-focus-within:opacity-100">
+              <div className="absolute right-1.5 top-1.5 flex gap-0.5 bg-surface/90 p-0.5 opacity-0 shadow-sm transition-opacity duration-fast group-hover:opacity-100 group-focus-within:opacity-100">
                 <IconButton
                   icon="arrow-left"
                   label="Move earlier"
@@ -113,7 +119,7 @@ export function Overview() {
                   size={13}
                 />
                 <IconButton
-                  icon="close"
+                  icon="xmark"
                   label="Delete slide"
                   tone="danger"
                   onClick={() => deleteSlide(index)}

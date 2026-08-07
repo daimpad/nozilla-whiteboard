@@ -3,7 +3,12 @@
  * Every visual value comes from Tailwind classes generated from
  * `theme.config.ts`, so the chrome cannot drift from the brand either.
  */
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
+import {
+  forwardRef,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+} from 'react';
 import { Icon } from './Icon';
 import type { IconName } from '@/assets/icons';
 
@@ -25,16 +30,16 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const BUTTON_BASE =
-  'inline-flex items-center justify-center gap-2 rounded-sm px-3 h-8 text-ui-body font-medium ' +
+  'inline-flex items-center justify-center gap-2  px-3 h-8 text-ui-body font-medium ' +
   'transition-colors duration-fast ease-standard disabled:opacity-40 disabled:pointer-events-none ' +
   'whitespace-nowrap';
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-primary text-ink-inverse hover:bg-primary-hover active:bg-primary-active',
-  secondary:
-    'bg-surface text-ink border border-border hover:bg-surface-subtle hover:border-border-strong',
-  ghost: 'text-ink-muted hover:bg-surface-sunken hover:text-ink',
-  danger: 'bg-surface text-danger border border-border hover:bg-danger-soft',
+  primary: 'bg-signal text-ink hover:bg-signal-strong',
+  secondary: 'bg-surface text-ink hover:bg-surface-alt',
+  ghost:
+    'border-transparent shadow-none text-ink-muted hover:border-ink hover:shadow-sm hover:text-ink',
+  danger: 'bg-surface text-danger hover:bg-danger-bg',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -48,7 +53,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       className={cx(
         BUTTON_BASE,
         BUTTON_VARIANTS[variant],
-        active && 'bg-primary-soft text-primary border-primary-border',
+        active && 'bg-signal text-ink border-ink',
         className,
       )}
       {...rest}
@@ -84,10 +89,12 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       aria-label={label}
       aria-pressed={active}
       className={cx(
-        'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm transition-colors',
+        'inline-flex h-8 w-8 shrink-0 items-center justify-center  transition-colors',
         'duration-fast ease-standard disabled:opacity-40 disabled:pointer-events-none',
-        tone === 'danger' ? 'text-ink-muted hover:bg-danger-soft hover:text-danger' : 'text-ink-muted hover:bg-surface-sunken hover:text-ink',
-        active && 'bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary',
+        tone === 'danger'
+          ? 'text-ink-muted hover:bg-danger-bg hover:text-danger'
+          : 'text-ink-muted hover:bg-surface-alt hover:text-ink',
+        active && 'bg-signal text-ink shadow-sm hover:bg-signal-strong hover:text-ink',
         className,
       )}
       {...rest}
@@ -114,7 +121,7 @@ export function Field({
 }) {
   return (
     <label className={cx('block', className)}>
-      <span className="nzl-label">{label}</span>
+      <span className="nz-label">{label}</span>
       {children}
       {hint ? <span className="mt-1 block text-[11px] text-ink-subtle">{hint}</span> : null}
     </label>
@@ -130,7 +137,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   ref,
 ) {
   return (
-    <select ref={ref} className={cx('nzl-field cursor-pointer', className)} {...rest}>
+    <select ref={ref} className={cx('nz-field cursor-pointer', className)} {...rest}>
       {options.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}
@@ -163,7 +170,7 @@ export function Segmented<T extends string>({
     <div
       role="radiogroup"
       className={cx(
-        'inline-flex items-center gap-0.5 rounded-sm border border-border bg-surface-subtle p-0.5',
+        'inline-flex items-center gap-0.5  border border-line bg-surface-alt p-0.5',
         className,
       )}
     >
@@ -176,12 +183,10 @@ export function Segmented<T extends string>({
           title={option.title ?? option.label}
           onClick={() => onChange(option.value)}
           className={cx(
-            'inline-flex h-6 items-center justify-center gap-1.5 rounded-xs px-2 text-[11px] font-medium',
+            'inline-flex h-6 items-center justify-center gap-1.5  px-2 text-[11px] font-medium',
             'transition-colors duration-fast ease-standard',
             compact && 'px-1.5',
-            value === option.value
-              ? 'bg-surface text-ink shadow-xs'
-              : 'text-ink-subtle hover:text-ink',
+            value === option.value ? 'bg-signal text-ink' : 'text-ink-muted hover:text-ink',
           )}
         >
           {option.icon ? <Icon name={option.icon} size={13} /> : null}
@@ -202,7 +207,7 @@ export function Divider({ className }: { className?: string }) {
 
 export function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <h3 className="px-3 pb-1.5 pt-3 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
+    <h3 className="px-3 pb-1.5 pt-3 text-[11px] font-bold uppercase tracking-label text-ink-subtle">
       {children}
     </h3>
   );
@@ -210,7 +215,7 @@ export function SectionTitle({ children }: { children: ReactNode }) {
 
 export function Kbd({ children }: { children: ReactNode }) {
   return (
-    <kbd className="rounded-xs border border-border bg-surface px-1 font-mono text-[10px] text-ink-subtle">
+    <kbd className=" border border-line bg-surface px-1 font-mono text-[10px] text-ink-subtle">
       {children}
     </kbd>
   );
