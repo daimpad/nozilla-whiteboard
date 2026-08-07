@@ -93,7 +93,7 @@ export function AssetSidebar() {
               className={cx(
                 'h-5 w-5 rounded-sm border transition-transform duration-fast ease-standard',
                 tone === name
-                  ? 'scale-110 border-ui-select ring-2 ring-ui-select'
+                  ? 'scale-110 border-ui-accent ring-2 ring-ui-accent'
                   : 'border-ui hover:scale-105',
               )}
               style={{

@@ -393,7 +393,7 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
               className={cx(
                 'h-6 w-6 rounded-sm border transition-transform duration-fast ease-standard',
                 first.tone === name
-                  ? 'scale-110 border-ui-select ring-2 ring-ui-select'
+                  ? 'scale-110 border-ui-accent ring-2 ring-ui-accent'
                   : 'border-ui hover:scale-105',
               )}
               style={{

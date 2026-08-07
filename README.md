@@ -47,9 +47,10 @@ deshalb zwei getrennte Sätze:
 | **Inhalt** | `palette`, `color`, `elementTones` → `bg-signal`, `text-ink`, `border-line`, `shadow-md`, `rounded-none` | alles, was auf einer Folie landet und exportiert wird. Papier, Tinte, Signal. Radius 0, harte Versatzschatten. |
 | **Werkzeug** | `ui`, `uiRadius`, `uiShadow` → `bg-ui-surface`, `text-ui-ink`, `border-ui`, `shadow-ui-md`, `rounded-md` | Leisten, Paletten, Felder, Griffe, Auswahlrahmen. Weiß und kühles Grau, kleine Radien, weiche Schatten. Erreicht nie einen Export. |
 
-Die einzige Brücke ist `ui.accent`: das Signalgrün markiert auch in der
-Oberfläche das Aktive. Eine zweite, erfundene Akzentfarbe wäre eine Marke neben
-der Marke.
+Die Oberfläche leiht sich **nichts** von der Marke, auch keinen Akzent. Sie
+kennt Weiß, sechs Graustufen und Schwarz. Der Knopf, der die Hauptsache ist,
+wird dunkel statt bunt — damit die einzige Farbe im Bild die auf der Folie ist.
+Auch Auswahlrahmen, Griffe und Hilfslinien laufen in derselben Schwarz-Familie.
 
 `src/theme/theme.test.ts` hält die Linie: er liest die Komponenten-Quellen und
 schlägt an, sobald eine Bedienfläche einen Marken-Ton benutzt — oder ein

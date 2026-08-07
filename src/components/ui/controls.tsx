@@ -7,9 +7,9 @@
  * Werkzeugleiste. Taucht in dieser Datei ein `bg-paper`, `border-line` oder
  * `shadow-md` auf, ist etwas falsch abgebogen.
  *
- * Die einzige Marken-Farbe, die hierher darf, ist das Signalgrün als
- * `ui-accent` — für den einen Knopf pro Ansicht, der wirklich die Hauptsache
- * ist.
+ * Der Akzent ist Schwarz, nicht bunt: der eine Knopf pro Ansicht, der die
+ * Hauptsache ist, wird dunkel. So bleibt die einzige Farbe im Bild die auf der
+ * Folie.
  */
 import {
   forwardRef,
@@ -43,7 +43,7 @@ const BUTTON_BASE =
   'whitespace-nowrap';
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-ui-accent text-ui-ink hover:bg-ui-accent-strong border border-ui-accent-border',
+  primary: 'bg-ui-accent text-ui-on-accent hover:bg-ui-accent-hover active:bg-ui-accent-active',
   secondary: 'bg-ui-surface text-ui-ink border border-ui hover:bg-ui-subtle hover:border-ui-strong',
   ghost: 'text-ui-muted hover:bg-ui-sunken hover:text-ui-ink',
   danger: 'bg-ui-surface text-ui-danger border border-ui hover:bg-ui-danger-bg',
@@ -60,7 +60,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       className={cx(
         BUTTON_BASE,
         BUTTON_VARIANTS[variant],
-        active && 'border-ui-accent-border bg-ui-accent-soft text-ui-ink',
+        active && 'border-ui-strong bg-ui-accent-soft text-ui-ink',
         className,
       )}
       {...rest}
@@ -190,11 +190,11 @@ export function Segmented<T extends string>({
           title={option.title ?? option.label}
           onClick={() => onChange(option.value)}
           className={cx(
-            'inline-flex h-6 items-center justify-center gap-1.5 rounded-sm px-2 text-[11px] font-medium',
+            'inline-flex h-6 items-center justify-center gap-1.5 rounded-xs px-2 text-[11px] font-medium',
             'transition-colors duration-fast ease-standard',
             compact && 'px-1.5',
             value === option.value
-              ? 'bg-ui-surface text-ui-ink shadow-ui-sm'
+              ? 'bg-ui-surface text-ui-ink shadow-ui-xs'
               : 'text-ui-faint hover:text-ui-ink',
           )}
         >
@@ -224,7 +224,7 @@ export function SectionTitle({ children }: { children: ReactNode }) {
 
 export function Kbd({ children }: { children: ReactNode }) {
   return (
-    <kbd className="rounded-sm border border-ui bg-ui-surface px-1 font-mono text-[10px] text-ui-faint">
+    <kbd className="rounded-xs border border-ui bg-ui-surface px-1 font-mono text-[10px] text-ui-faint">
       {children}
     </kbd>
   );
