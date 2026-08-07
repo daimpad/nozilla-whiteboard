@@ -85,6 +85,7 @@ Gedanke für Gedanke aufgeht. Übersicht mit `⌘K`, Filmstreifen immer sichtbar
 | **Markdown** | Das Deck samt aller Positionen, wieder ladbar |
 | **SVG** | Echte `<path>`/`<text>`-Vektoren — kein `foreignObject`, keine Rasterung |
 | **PDF** | Vektorseiten mit markierbarem, durchsuchbarem Text |
+| **PowerPoint** | `.pptx` mit echten Formen und **bearbeitbaren Textrahmen** — auch der Weg nach Google Slides (dort hochladen) |
 
 Für SVG und PDF gibt es zwei Wege, wie die Schrift in die Datei kommt. Beide
 erzeugen dasselbe Bild; sie unterscheiden sich darin, was die Gegenseite
@@ -97,6 +98,29 @@ können muss:
 
 Ein sechsseitiges Deck kostet als PDF mit eingebetteten Schriften rund 140 kB,
 als Umriss-PDF rund 950 kB. Der Umriss-Weg ist der teurere und der sicherere.
+
+### PDF und PPTX wollen Gegensätzliches
+
+Das ist keine Doppelung, sondern eine Arbeitsteilung:
+
+**PDF ist eins zu eins.** Der Umbruch ist gefallen, jede Zeile steht an einer
+absoluten Position, die Schrift liegt in der Datei. Was du gelegt hast, kommt
+an — überall gleich, unveränderlich.
+
+**PPTX ist bearbeitbar.** Der Text liegt in echten Textrahmen, die PowerPoint
+selbst umbricht; Überschriftenebene, Listen und Auszeichnung bleiben als
+Struktur erhalten, nicht als Bild davon. Formen werden zu `a:custGeom` aus
+derselben Segmentliste, eine Markdown-Tabelle zu einer PowerPoint-Tabelle, die
+Notizen zu Notizfolien, die Foliennummer zu einem Feld, das mitzählt.
+
+Der Preis der Bearbeitbarkeit: PowerPoint misst mit eigenen Metriken, der
+Umbruch kann also eine Silbe anders fallen als auf der Fläche. Das ist keine
+Ungenauigkeit — es ist die Bedingung dafür, dass man hineinschreiben kann. Und
+die Marken-Schriften müssen auf dem Rechner installiert sein, der die Datei
+öffnet; eine `.pptx` verweist auf Schriften, sie trägt sie nicht.
+
+Eine Einheit der Fläche ist genau 9525 EMU. 1280 × 720 Einheiten fallen damit
+ohne Rundung auf PowerPoints Breitbild-Vorgabe von 13⅓ × 7,5 Zoll.
 
 **Prompt-Generator.** Ein Formular beschreibt den Auftrag, daraus entsteht ein
 Prompt, der ein Sprachmodell fertiges Deck-Markdown schreiben lässt. Die Antwort
@@ -112,11 +136,15 @@ Zeichenstrecke**, und der Editor ist ihr Kunde wie alle anderen.
 ```
  Folie ──► buildSlideScene() ──► Scene { ScenePrim[] }
                                     │
-                    ┌───────────────┼───────────────┐
-                    ▼               ▼               ▼
-              primsToSvgMarkup   sceneToSvg     scenesToPdf
-              (die Fläche)       (.svg)         (.pdf)
+                    ┌───────────────┼───────────────┬───────────────┐
+                    ▼               ▼               ▼               ▼
+              primsToSvgMarkup   sceneToSvg     scenesToPdf     deckToPptx
+              (die Fläche)       (.svg)         (.pdf)          (.pptx)
 ```
+
+Der PPTX-Weg nimmt aus der Szene nur die Geometrie und holt sich den Text aus
+dem Deck-Modell — vor dem Umbruch. Das ist die eine begründete Ausnahme von der
+Regel, und der Grund dafür steht oben.
 
 Eine `Scene` ist flach und vollständig aufgelöst: jede Farbe ein Literal, jeder
 Textlauf gesetzt, jede Kurve ein Bézier. Die Fläche zeichnet, indem sie **genau
@@ -162,6 +190,11 @@ src/
               svg.ts · pdf.ts Szene → Datei
               fontFiles.ts    Schnitte beschaffen und kodieren
               outline.ts      Textprimitiven → Pfadprimitiven
+              pptx.ts         Deck → PowerPoint (Geometrie aus der Szene,
+                              Text aus dem Modell — deshalb bearbeitbar)
+              pptxText.ts     Markdown → PowerPoint-Absätze
+              pptxParts.ts    Master, Layout, Theme
+              zip.ts          ZIP-Schreiber (eine .pptx ist ein ZIP)
     prompt/   buildPrompt.ts  Der Prompt, aus dem laufenden Schema gebaut
   state/      deckStore.ts    Zustand, Aktionen, Verlauf
   components/ canvas · panels · chrome · present · ui
