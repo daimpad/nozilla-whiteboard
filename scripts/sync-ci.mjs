@@ -5,7 +5,7 @@
    Übernimmt Schriften, Marken-Grafiken und das Icon-Set aus dem CI-Repo
    (https://github.com/daimpad/nozilla-ci) in dieses Projekt:
 
-     public/fonts/                 Zilla Slab · Inter · Space Mono als WOFF2 (SIL OFL)
+     public/fonts/                 Zilla Slab · Inter · Space Mono, WOFF2 + TTF (SIL OFL)
      public/brand/                 Wortmarke, Favicon, Social Preview
      src/assets/icons.generated.ts 462 Icons, Dialekt A, als Primitive
 
@@ -66,11 +66,19 @@ const SIGNAL_HEX = '#00FF9C';
 /* -------------------------------------------------------------------------- */
 
 /**
- * Im CI-Repo liegen die Schriften als TTF (dort werden sie auch für PDF- und
- * Druckwege gebraucht). Im Browser ist TTF die falsche Verpackung: dieselben
- * Konturen sind als WOFF2 rund 70 % kleiner, weil das Format die
- * Glyphen-Tabellen vorverarbeitet und mit Brotli komprimiert. Deshalb wandelt
- * der Sync beim Übernehmen um und legt nur die WOFF2-Dateien ins `public/`.
+ * Beide Formate werden gebraucht, und zwar für verschiedene Dinge:
+ *
+ *   WOFF2  Der Bildschirm. Dieselben Konturen wie TTF, rund zwei Drittel
+ *          kleiner — das Format verarbeitet die Glyphen-Tabellen vor und
+ *          komprimiert mit Brotli. Das lädt der Browser über `@font-face`.
+ *
+ *   TTF    Der Export. jsPDF bettet TrueType ein (und bildet dabei eine
+ *          Teilmenge), und der Umriss-Leser in `src/lib/text/truetype.ts`
+ *          braucht die unkomprimierte `glyf`-Tabelle. WOFF2 kann keiner von
+ *          beiden lesen.
+ *
+ * Geladen wird zur Laufzeit nur, was gebraucht wird: beim Start das WOFF2,
+ * die TTFs erst, wenn jemand exportiert.
  */
 const FONT_FILES = [
   'ZillaSlab-Medium.ttf',
@@ -104,7 +112,10 @@ for (const file of FONT_FILES) {
   ttfBytes += ttf.length;
   const woff2 = await compressToWoff2(ttf, file);
   woff2Bytes += woff2.length;
-  if (!CHECK_ONLY) writeFileSync(join(fontsOut, file.replace(/\.ttf$/, '.woff2')), woff2);
+  if (!CHECK_ONLY) {
+    writeFileSync(join(fontsOut, file), ttf);
+    writeFileSync(join(fontsOut, file.replace(/\.ttf$/, '.woff2')), woff2);
+  }
 }
 for (const file of LICENCE_FILES) {
   const from = join(CI_ROOT, 'project', 'fonts', file);
@@ -115,8 +126,9 @@ for (const file of LICENCE_FILES) {
   if (!CHECK_ONLY) copyFileSync(from, join(fontsOut, file));
 }
 note(
-  `${FONT_FILES.length} Schnitte als WOFF2 → public/fonts/ ` +
-    `(${kb(ttfBytes)} TTF → ${kb(woff2Bytes)}, −${Math.round((1 - woff2Bytes / ttfBytes) * 100)} %)`,
+  `${FONT_FILES.length} Schnitte → public/fonts/ ` +
+    `(WOFF2 für den Bildschirm: ${kb(ttfBytes)} → ${kb(woff2Bytes)}, ` +
+    `−${Math.round((1 - woff2Bytes / ttfBytes) * 100)} %; TTF für den Export)`,
 );
 
 async function compressToWoff2(ttf, label) {

@@ -5,7 +5,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { brand, canvas as canvasTokens } from '@/theme';
 import { openMarkdownFile } from '@/lib/export/download';
-import { exportMarkdown, exportPdf, exportSvg } from '@/lib/export';
+import {
+  exportMarkdown,
+  exportPdf,
+  exportSvg,
+  textModeLabels,
+  textModeHints,
+  textModes,
+  type TextMode,
+} from '@/lib/export';
 import { selectCanRedo, selectCanUndo, useDeckStore } from '@/state/deckStore';
 import { Button, Divider, IconButton, Segmented, cx } from '@/components/ui/controls';
 import { Icon } from '@/components/ui/Icon';
@@ -154,6 +162,9 @@ function ExportMenu({
   const deck = useDeckStore((state) => state.deck);
   const slideIndex = useDeckStore((state) => state.slideIndex);
   const [open, setOpen] = useState(false);
+  // Wie die Schrift in die Datei kommt. Eine Entscheidung pro Export, kein
+  // Deck-Zustand — sie hängt am Ziel (Bildschirm, Druckerei), nicht am Inhalt.
+  const [textMode, setTextMode] = useState<TextMode>('embedded');
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -205,26 +216,54 @@ function ExportMenu({
             icon="square"
             label="SVG — current slide"
             hint={`${canvasTokens.width}×${canvasTokens.height} vectors`}
-            onClick={() => run('Rendering SVG', () => exportSvg(deck, { slideIndex }))}
+            onClick={() =>
+              run('Rendering SVG', () => exportSvg(deck, { slideIndex, text: textMode }))
+            }
           />
           <MenuItem
             icon="layer-group"
             label="SVG — whole deck"
             hint="One file, slides stacked"
-            onClick={() => run('Rendering SVG', () => exportSvg(deck))}
+            onClick={() => run('Rendering SVG', () => exportSvg(deck, { text: textMode }))}
           />
           <MenuItem
             icon="book"
             label="PDF — whole deck"
-            hint="Vector pages, selectable text"
-            onClick={() => run('Rendering PDF', () => exportPdf(deck))}
+            hint={
+              textMode === 'embedded'
+                ? 'Vector pages, selectable text'
+                : 'Vector pages, text as paths'
+            }
+            onClick={() => run('Rendering PDF', () => exportPdf(deck, { text: textMode }))}
           />
           <MenuItem
             icon="play"
             label="PDF — current slide"
             hint="Single page"
-            onClick={() => run('Rendering PDF', () => exportPdf(deck, { slideIndex }))}
+            onClick={() =>
+              run('Rendering PDF', () => exportPdf(deck, { slideIndex, text: textMode }))
+            }
           />
+
+          <div className="border-t border-ui px-2 pb-1.5 pt-2">
+            <span className="nz-label">Schrift in SVG und PDF</span>
+            <Segmented
+              value={textMode}
+              onChange={setTextMode}
+              className="w-full"
+              options={textModes.map((mode) => ({
+                value: mode,
+                label: textModeLabels[mode],
+                title: textModeHints[mode],
+              }))}
+            />
+            <p className="mt-1.5 text-[11px] leading-snug text-ui-faint">
+              {textMode === 'embedded'
+                ? 'Die Marken-Schnitte liegen in der Datei. Text bleibt markierbar und durchsuchbar.'
+                : 'Jede Glyphe wird zur Kontur — gleiches Bild auch dort, wo eingebettete Schriften ignoriert werden.'}
+            </p>
+          </div>
+
           <p className="border-t border-ui px-2 py-1.5 text-[11px] text-ui-faint">
             Exports render through the same pipeline as the canvas — {brand.name} CI included.
           </p>

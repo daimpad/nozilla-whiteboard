@@ -5,15 +5,23 @@
  * text (selectable, searchable, copy-pasteable). Nothing is rasterised except
  * bitmap images the author placed themselves.
  *
- * Font note — a PDF cannot reference the CI web font without embedding it, so
- * the exporter uses the metric-compatible core fonts declared in
- * `theme.config.ts` (`pdfFontFamily`). Because line breaking has already
- * happened against the *real* on-screen metrics and every line is emitted at an
- * absolute position, the substitution never reflows the deck; it only changes
- * the glyph shapes slightly.
+ * Schriften: die Marken-Schnitte werden **eingebettet**. jsPDF liest dafür die
+ * TrueType-Fassung aus `public/fonts/` und legt nur die tatsächlich benutzten
+ * Zeichen ins Dokument — eine Folie mit zwanzig Wörtern kostet ein paar Kilobyte,
+ * nicht dreihundert.
+ *
+ * Wenn eine Schrift nicht geladen werden kann, fällt der Export auf die
+ * metrisch verwandten Kernschriften zurück (`theme.config.ts#pdfFontFamily`).
+ * Der Umbruch ist zu diesem Zeitpunkt längst gegen die echten
+ * Bildschirm-Metriken gefallen und jede Zeile steht an einer absoluten
+ * Position — der Ersatz verschiebt also nichts, er zeichnet nur die Glyphen
+ * anders. Sichtbar ist das trotzdem, weshalb es der Notnagel bleibt und nicht
+ * der Normalfall.
  */
 import type { jsPDF } from 'jspdf';
 import { brand, canvas as canvasTokens, pdfFontFamily } from '@/theme';
+import type { FontFamilyKey } from '@/lib/text/measure';
+import { facesFor, loadTtf, toBase64, type FaceRef } from './fontFiles';
 import { ellipseSegs, rectSegs, type Seg } from '@/lib/geometry/path';
 import { parseColor, type Rgba } from './color';
 import type { Scene, ScenePrim, SceneRun } from './scene';
@@ -29,6 +37,69 @@ export interface PdfOptions {
   scale?: number;
   /** Bitmap data for `image` primitives, keyed by `href`. */
   images?: Map<string, { dataUrl: string; format: string }>;
+  /**
+   * Die Marken-Schriften einbetten (Vorgabe). Aus, wenn die Szene ohnehin
+   * schon in Umrisse gewandelt wurde — dann gibt es keinen Text mehr, den eine
+   * Schrift tragen müsste.
+   */
+  embedFonts?: boolean;
+}
+
+/**
+ * Welcher eingebettete Schnitt für welche Rolle und welches Gewicht zuständig
+ * ist. Wird pro Dokument aufgebaut; leer, wenn nichts eingebettet werden konnte.
+ */
+type FontMap = Map<string, { name: string; style: string }>;
+
+const fontKey = (family: FontFamilyKey, weight: number) => `${family}|${weight}`;
+
+/**
+ * Die benutzten Schnitte in das Dokument legen.
+ *
+ * Fehlschläge sind kein Abbruch: kommt eine Datei nicht an, bleibt der Eintrag
+ * einfach aus der Karte, und `drawText` nimmt für diesen Lauf die Kernschrift.
+ * Ein PDF mit ersetzter Schrift ist besser als gar keins.
+ */
+async function embedFaces(doc: jsPDF, scenes: readonly Scene[]): Promise<FontMap> {
+  const specs = scenes.flatMap((scene) =>
+    scene.prims.flatMap((prim) => (prim.t === 'text' ? prim.runs.map((run) => run.font) : [])),
+  );
+  const map: FontMap = new Map();
+  if (specs.length === 0) return map;
+
+  const loaded = await Promise.all(
+    facesFor(specs).map(async (face): Promise<[FaceRef, ArrayBuffer] | null> => {
+      try {
+        return [face, await loadTtf(face)];
+      } catch (error) {
+        console.warn(`Schrift ${face.id} nicht einbettbar — PDF nimmt die Kernschrift.`, error);
+        return null;
+      }
+    }),
+  );
+
+  for (const entry of loaded) {
+    if (!entry) continue;
+    const [face, bytes] = entry;
+    const fileName = `${face.id}.ttf`;
+    doc.addFileToVFS(fileName, toBase64(bytes));
+    // Jeder Schnitt bekommt einen eigenen Namen unter `normal`. jsPDF würde
+    // `bold` sonst als Synthese verstehen und den Strich künstlich verdicken —
+    // die Marke hat für jedes Gewicht eine eigene Datei, die soll auch greifen.
+    doc.addFont(fileName, face.id, 'normal');
+    map.set(fontKey(face.role, face.weight), { name: face.id, style: 'normal' });
+  }
+
+  // Jede angefragte Kombination auf den Schnitt zeigen lassen, der sie trägt.
+  for (const spec of specs) {
+    const key = fontKey(spec.family, spec.weight);
+    if (map.has(key)) continue;
+    const face = facesFor([spec])[0];
+    const target = face ? map.get(fontKey(face.role, face.weight)) : undefined;
+    if (target) map.set(key, target);
+  }
+
+  return map;
 }
 
 /**
@@ -58,10 +129,12 @@ export async function scenesToPdf(
     creator: brand.product,
   });
 
+  const fonts = options.embedFonts === false ? new Map() : await embedFaces(doc, scenes);
+
   scenes.forEach((scene, index) => {
     if (index > 0)
       doc.addPage([pageWidth, pageHeight], pageWidth >= pageHeight ? 'landscape' : 'portrait');
-    drawScene(doc, scene, scale, options);
+    drawScene(doc, scene, scale, options, fonts);
   });
 
   return doc;
@@ -71,7 +144,13 @@ export async function scenesToPdf(
 /* Drawing                                                                     */
 /* -------------------------------------------------------------------------- */
 
-function drawScene(doc: jsPDF, scene: Scene, scale: number, options: PdfOptions): void {
+function drawScene(
+  doc: jsPDF,
+  scene: Scene,
+  scale: number,
+  options: PdfOptions,
+  fonts: FontMap,
+): void {
   const backdrop = parseColor(scene.background) ?? { r: 255, g: 255, b: 255, a: 1 };
   let currentOpacity = 1;
 
@@ -106,7 +185,7 @@ function drawScene(doc: jsPDF, scene: Scene, scale: number, options: PdfOptions)
         break;
       case 'text':
         setOpacity(prim.opacity ?? 1);
-        drawText(doc, prim, scale, backdrop);
+        drawText(doc, prim, scale, backdrop, fonts);
         break;
       case 'image':
         setOpacity(prim.opacity ?? 1);
@@ -159,17 +238,29 @@ function drawSegs(
 
   const style = hasFill && hasStroke ? 'FD' : hasFill ? 'F' : 'S';
 
-  for (const subpath of splitSubpaths(segs)) {
-    if (subpath.legs.length === 0) continue;
+  /*
+     Alle Teilkonturen bilden *einen* Pfad, und der wird genau einmal gemalt.
+     Das ist keine Sparmaßnahme, sondern die Bedingung dafür, dass Löcher
+     Löcher bleiben: PDF entscheidet über die Nonzero-Regel, welche Fläche
+     innen liegt, und die kann nur über einen gemeinsamen Pfad greifen. Jede
+     Kontur einzeln zu füllen macht aus dem „o" einen schwarzen Klecks — und
+     seit Text als Umriss exportiert werden kann, ist das kein Randfall mehr,
+     sondern jeder zweite Buchstabe.
+
+     jsPDF nimmt dafür `null` als Stil: dann konstruiert `lines()` nur und malt
+     nicht. Der letzte Aufruf trägt den echten Stil und schließt den Pfad ab.
+  */
+  const subpaths = splitSubpaths(segs).filter((subpath) => subpath.legs.length > 0);
+  subpaths.forEach((subpath, index) => {
     doc.lines(
       subpath.legs,
       subpath.start.x * scale,
       subpath.start.y * scale,
       [scale, scale],
-      style,
+      index === subpaths.length - 1 ? style : null,
       subpath.closed,
     );
-  }
+  });
 
   if (paint.dash) doc.setLineDashPattern([], 0);
 }
@@ -251,6 +342,7 @@ function drawText(
   prim: Extract<ScenePrim, { t: 'text' }>,
   scale: number,
   backdrop: Rgba,
+  fonts: FontMap,
 ): void {
   const angleDeg = prim.rotate ?? 0;
   const rad = (angleDeg * Math.PI) / 180;
@@ -263,8 +355,12 @@ function drawText(
     if (!color || color.a === 0) continue;
     const flat = color.a < 1 ? blend(color, backdrop) : color;
 
-    const family = pdfFontFamily[run.font.family];
-    doc.setFont(family, pdfFontStyle(run.font.weight, run.font.italic));
+    const embedded = fonts.get(fontKey(run.font.family, run.font.weight));
+    if (embedded) {
+      doc.setFont(embedded.name, embedded.style);
+    } else {
+      doc.setFont(pdfFontFamily[run.font.family], pdfFontStyle(run.font.weight, run.font.italic));
+    }
     doc.setFontSize(run.font.size * scale);
     doc.setTextColor(flat.r, flat.g, flat.b);
 
