@@ -1,0 +1,402 @@
+/**
+ * A tiny, dependency-free 2-D path toolkit.
+ *
+ * Everything that is drawn — CI shapes, icons, connectors, card chrome — is
+ * reduced to the same normalised segment list (`Seg[]`: move / line / cubic /
+ * close). The DOM renderer serialises segments to an SVG `d` attribute, the SVG
+ * exporter does the same, and the PDF exporter walks them with jsPDF's
+ * `lines()` primitive. One geometry pipeline, three outputs, no drift.
+ *
+ * Elliptical arcs are deliberately unsupported: jsPDF has no arc operator, so
+ * every curve here is a cubic Bézier. `KAPPA` is the standard circle-to-cubic
+ * constant.
+ */
+
+export type Seg =
+  | { c: 'M'; x: number; y: number }
+  | { c: 'L'; x: number; y: number }
+  | { c: 'C'; x1: number; y1: number; x2: number; y2: number; x: number; y: number }
+  | { c: 'Z' };
+
+/** Affine matrix: x' = a·x + c·y + e, y' = b·x + d·y + f */
+export type Mat = readonly [number, number, number, number, number, number];
+
+export const IDENTITY: Mat = [1, 0, 0, 1, 0, 0];
+
+/** 4·(√2 − 1)/3 — the cubic control-point offset that approximates a quarter circle. */
+export const KAPPA = 0.5522847498307936;
+
+/* -------------------------------------------------------------------------- */
+/* Matrices                                                                    */
+/* -------------------------------------------------------------------------- */
+
+export function matMultiply(m1: Mat, m2: Mat): Mat {
+  const [a1, b1, c1, d1, e1, f1] = m1;
+  const [a2, b2, c2, d2, e2, f2] = m2;
+  return [
+    a1 * a2 + c1 * b2,
+    b1 * a2 + d1 * b2,
+    a1 * c2 + c1 * d2,
+    b1 * c2 + d1 * d2,
+    a1 * e2 + c1 * f2 + e1,
+    b1 * e2 + d1 * f2 + f1,
+  ];
+}
+
+export function matTranslate(tx: number, ty: number): Mat {
+  return [1, 0, 0, 1, tx, ty];
+}
+
+export function matScale(sx: number, sy: number = sx): Mat {
+  return [sx, 0, 0, sy, 0, 0];
+}
+
+export function matRotate(degrees: number): Mat {
+  const rad = (degrees * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return [cos, sin, -sin, cos, 0, 0];
+}
+
+/** Rotation about an arbitrary pivot. */
+export function matRotateAbout(degrees: number, cx: number, cy: number): Mat {
+  return matMultiply(matMultiply(matTranslate(cx, cy), matRotate(degrees)), matTranslate(-cx, -cy));
+}
+
+export function applyMat(m: Mat, x: number, y: number): { x: number; y: number } {
+  return { x: m[0] * x + m[2] * y + m[4], y: m[1] * x + m[3] * y + m[5] };
+}
+
+export function matToSvg(m: Mat): string {
+  return `matrix(${m.map((n) => round(n, 4)).join(' ')})`;
+}
+
+export function isIdentity(m: Mat): boolean {
+  return (
+    near(m[0], 1) && near(m[1], 0) && near(m[2], 0) && near(m[3], 1) && near(m[4], 0) && near(m[5], 0)
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Segment utilities                                                           */
+/* -------------------------------------------------------------------------- */
+
+export function transformSegs(segs: readonly Seg[], m: Mat): Seg[] {
+  if (isIdentity(m)) return segs.slice();
+  return segs.map((seg) => {
+    switch (seg.c) {
+      case 'M':
+      case 'L': {
+        const p = applyMat(m, seg.x, seg.y);
+        return { c: seg.c, x: p.x, y: p.y };
+      }
+      case 'C': {
+        const p1 = applyMat(m, seg.x1, seg.y1);
+        const p2 = applyMat(m, seg.x2, seg.y2);
+        const p = applyMat(m, seg.x, seg.y);
+        return { c: 'C', x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, x: p.x, y: p.y };
+      }
+      default:
+        return { c: 'Z' };
+    }
+  });
+}
+
+export function segsToPath(segs: readonly Seg[], precision = 3): string {
+  const n = (v: number) => round(v, precision);
+  const out: string[] = [];
+  for (const seg of segs) {
+    switch (seg.c) {
+      case 'M':
+        out.push(`M${n(seg.x)} ${n(seg.y)}`);
+        break;
+      case 'L':
+        out.push(`L${n(seg.x)} ${n(seg.y)}`);
+        break;
+      case 'C':
+        out.push(
+          `C${n(seg.x1)} ${n(seg.y1)} ${n(seg.x2)} ${n(seg.y2)} ${n(seg.x)} ${n(seg.y)}`,
+        );
+        break;
+      case 'Z':
+        out.push('Z');
+        break;
+    }
+  }
+  return out.join(' ');
+}
+
+/** Axis-aligned bounding box of a segment list (control points included). */
+export function segsBounds(segs: readonly Seg[]): { x: number; y: number; w: number; h: number } {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  const take = (x: number, y: number) => {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  };
+  for (const seg of segs) {
+    if (seg.c === 'M' || seg.c === 'L') take(seg.x, seg.y);
+    else if (seg.c === 'C') {
+      take(seg.x1, seg.y1);
+      take(seg.x2, seg.y2);
+      take(seg.x, seg.y);
+    }
+  }
+  if (minX === Infinity) return { x: 0, y: 0, w: 0, h: 0 };
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Path-data parser (M/L/H/V/C/S/Q/T/Z → normalised M/L/C/Z)                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Parse SVG path data into absolute move/line/cubic/close segments.
+ * Quadratics are exactly promoted to cubics; smooth variants get their implied
+ * reflected control point. Elliptical arcs (A/a) throw — see the module note.
+ */
+export function parsePath(d: string): Seg[] {
+  const out: Seg[] = [];
+  const tokens = d.match(/[MmLlHhVvCcSsQqTtAaZz]|-?\d*\.?\d+(?:[eE][-+]?\d+)?/g) ?? [];
+
+  let i = 0;
+  let cmd = '';
+  let cx: number = 0;
+  let cy: number = 0;
+  let startX: number = 0;
+  let startY: number = 0;
+  // Last cubic/quadratic control point, for S/T reflection.
+  let lastCubicCtrl: { x: number; y: number } | null = null;
+  let lastQuadCtrl: { x: number; y: number } | null = null;
+
+  const num = (): number => {
+    const token = tokens[i++];
+    const value = Number(token);
+    if (Number.isNaN(value)) throw new Error(`Invalid number in path data: ${String(token)}`);
+    return value;
+  };
+
+  while (i < tokens.length) {
+    const token = tokens[i];
+    if (/[MmLlHhVvCcSsQqTtAaZz]/.test(token)) {
+      cmd = token;
+      i++;
+    } else if (!cmd) {
+      throw new Error(`Path data must start with a command: ${d}`);
+    } else if (cmd === 'M') {
+      cmd = 'L';
+    } else if (cmd === 'm') {
+      cmd = 'l';
+    }
+
+    const rel = cmd === cmd.toLowerCase();
+    const ox = rel ? cx : 0;
+    const oy = rel ? cy : 0;
+
+    switch (cmd.toUpperCase()) {
+      case 'M': {
+        cx = num() + ox;
+        cy = num() + oy;
+        startX = cx;
+        startY = cy;
+        out.push({ c: 'M', x: cx, y: cy });
+        lastCubicCtrl = lastQuadCtrl = null;
+        break;
+      }
+      case 'L': {
+        cx = num() + ox;
+        cy = num() + oy;
+        out.push({ c: 'L', x: cx, y: cy });
+        lastCubicCtrl = lastQuadCtrl = null;
+        break;
+      }
+      case 'H': {
+        cx = num() + ox;
+        out.push({ c: 'L', x: cx, y: cy });
+        lastCubicCtrl = lastQuadCtrl = null;
+        break;
+      }
+      case 'V': {
+        cy = num() + oy;
+        out.push({ c: 'L', x: cx, y: cy });
+        lastCubicCtrl = lastQuadCtrl = null;
+        break;
+      }
+      case 'C': {
+        const x1 = num() + ox;
+        const y1 = num() + oy;
+        const x2 = num() + ox;
+        const y2 = num() + oy;
+        cx = num() + ox;
+        cy = num() + oy;
+        out.push({ c: 'C', x1, y1, x2, y2, x: cx, y: cy });
+        lastCubicCtrl = { x: x2, y: y2 };
+        lastQuadCtrl = null;
+        break;
+      }
+      case 'S': {
+        const refX: number = lastCubicCtrl ? lastCubicCtrl.x : cx;
+        const refY: number = lastCubicCtrl ? lastCubicCtrl.y : cy;
+        const x1: number = 2 * cx - refX;
+        const y1: number = 2 * cy - refY;
+        const x2 = num() + ox;
+        const y2 = num() + oy;
+        cx = num() + ox;
+        cy = num() + oy;
+        out.push({ c: 'C', x1, y1, x2, y2, x: cx, y: cy });
+        lastCubicCtrl = { x: x2, y: y2 };
+        lastQuadCtrl = null;
+        break;
+      }
+      case 'Q': {
+        const qx = num() + ox;
+        const qy = num() + oy;
+        const ex = num() + ox;
+        const ey = num() + oy;
+        out.push(quadToCubic(cx, cy, qx, qy, ex, ey));
+        lastQuadCtrl = { x: qx, y: qy };
+        lastCubicCtrl = null;
+        cx = ex;
+        cy = ey;
+        break;
+      }
+      case 'T': {
+        const refX: number = lastQuadCtrl ? lastQuadCtrl.x : cx;
+        const refY: number = lastQuadCtrl ? lastQuadCtrl.y : cy;
+        const qx: number = 2 * cx - refX;
+        const qy: number = 2 * cy - refY;
+        const ex = num() + ox;
+        const ey = num() + oy;
+        out.push(quadToCubic(cx, cy, qx, qy, ex, ey));
+        lastQuadCtrl = { x: qx, y: qy };
+        lastCubicCtrl = null;
+        cx = ex;
+        cy = ey;
+        break;
+      }
+      case 'Z': {
+        out.push({ c: 'Z' });
+        cx = startX;
+        cy = startY;
+        lastCubicCtrl = lastQuadCtrl = null;
+        break;
+      }
+      case 'A':
+        throw new Error(
+          'Elliptical arcs are not supported in Nozilla path data — use cubic curves or a circle/ellipse primitive.',
+        );
+      default:
+        throw new Error(`Unsupported path command: ${cmd}`);
+    }
+  }
+
+  return out;
+}
+
+function quadToCubic(
+  x0: number,
+  y0: number,
+  qx: number,
+  qy: number,
+  x: number,
+  y: number,
+): Seg {
+  return {
+    c: 'C',
+    x1: x0 + (2 / 3) * (qx - x0),
+    y1: y0 + (2 / 3) * (qy - y0),
+    x2: x + (2 / 3) * (qx - x),
+    y2: y + (2 / 3) * (qy - y),
+    x,
+    y,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Primitive builders                                                          */
+/* -------------------------------------------------------------------------- */
+
+export function rectSegs(x: number, y: number, w: number, h: number, r = 0): Seg[] {
+  const radius = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+  if (radius <= 0.01) {
+    return [
+      { c: 'M', x, y },
+      { c: 'L', x: x + w, y },
+      { c: 'L', x: x + w, y: y + h },
+      { c: 'L', x, y: y + h },
+      { c: 'Z' },
+    ];
+  }
+  const k = radius * KAPPA;
+  return [
+    { c: 'M', x: x + radius, y },
+    { c: 'L', x: x + w - radius, y },
+    { c: 'C', x1: x + w - radius + k, y1: y, x2: x + w, y2: y + radius - k, x: x + w, y: y + radius },
+    { c: 'L', x: x + w, y: y + h - radius },
+    {
+      c: 'C',
+      x1: x + w,
+      y1: y + h - radius + k,
+      x2: x + w - radius + k,
+      y2: y + h,
+      x: x + w - radius,
+      y: y + h,
+    },
+    { c: 'L', x: x + radius, y: y + h },
+    { c: 'C', x1: x + radius - k, y1: y + h, x2: x, y2: y + h - radius + k, x, y: y + h - radius },
+    { c: 'L', x, y: y + radius },
+    { c: 'C', x1: x, y1: y + radius - k, x2: x + radius - k, y2: y, x: x + radius, y },
+    { c: 'Z' },
+  ];
+}
+
+export function ellipseSegs(cx: number, cy: number, rx: number, ry: number): Seg[] {
+  const kx = rx * KAPPA;
+  const ky = ry * KAPPA;
+  return [
+    { c: 'M', x: cx, y: cy - ry },
+    { c: 'C', x1: cx + kx, y1: cy - ry, x2: cx + rx, y2: cy - ky, x: cx + rx, y: cy },
+    { c: 'C', x1: cx + rx, y1: cy + ky, x2: cx + kx, y2: cy + ry, x: cx, y: cy + ry },
+    { c: 'C', x1: cx - kx, y1: cy + ry, x2: cx - rx, y2: cy + ky, x: cx - rx, y: cy },
+    { c: 'C', x1: cx - rx, y1: cy - ky, x2: cx - kx, y2: cy - ry, x: cx, y: cy - ry },
+    { c: 'Z' },
+  ];
+}
+
+export function circleSegs(cx: number, cy: number, r: number): Seg[] {
+  return ellipseSegs(cx, cy, r, r);
+}
+
+export function polySegs(points: readonly number[], close: boolean): Seg[] {
+  const segs: Seg[] = [];
+  for (let i = 0; i + 1 < points.length; i += 2) {
+    segs.push({ c: i === 0 ? 'M' : 'L', x: points[i], y: points[i + 1] });
+  }
+  if (close) segs.push({ c: 'Z' });
+  return segs;
+}
+
+export function lineSegs(x1: number, y1: number, x2: number, y2: number): Seg[] {
+  return [
+    { c: 'M', x: x1, y: y1 },
+    { c: 'L', x: x2, y: y2 },
+  ];
+}
+
+/* -------------------------------------------------------------------------- */
+/* Small helpers                                                               */
+/* -------------------------------------------------------------------------- */
+
+export function round(value: number, precision = 3): number {
+  const factor = 10 ** precision;
+  const rounded = Math.round(value * factor) / factor;
+  return Object.is(rounded, -0) ? 0 : rounded;
+}
+
+function near(a: number, b: number, eps = 1e-9): boolean {
+  return Math.abs(a - b) < eps;
+}

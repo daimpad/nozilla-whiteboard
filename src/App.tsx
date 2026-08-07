@@ -1,0 +1,154 @@
+/**
+ * The application shell.
+ *
+ * Edit mode is [library | canvas | inspector]; presentation mode takes over the
+ * whole window. Deck files and images can be dropped anywhere.
+ */
+import { useCallback, useEffect, useState } from 'react';
+import welcomeDeck from '@/decks/welcome.md?raw';
+import { readFileAsDataUrl, readDroppedFile } from '@/lib/export/download';
+import { createElement } from '@/model/factory';
+import { selectCurrentSlide, useDeckStore } from '@/state/deckStore';
+import { guardUnsavedChanges, loadSession, startAutosave } from '@/state/persistence';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { CanvasStage } from '@/components/canvas/CanvasStage';
+import { AssetSidebar } from '@/components/panels/AssetSidebar';
+import { Inspector } from '@/components/panels/Inspector';
+import { Overview } from '@/components/chrome/Overview';
+import { TopBar } from '@/components/chrome/TopBar';
+import { SlideRail } from '@/components/chrome/SlideRail';
+import { PresentView } from '@/components/present/PresentView';
+import { cx } from '@/components/ui/controls';
+import type { CanvasElement } from '@/model/types';
+
+export default function App() {
+  const mode = useDeckStore((state) => state.mode);
+  const overviewOpen = useDeckStore((state) => state.overviewOpen);
+  const deck = useDeckStore((state) => state.deck);
+  const slide = useDeckStore(selectCurrentSlide);
+  const slideIndex = useDeckStore((state) => state.slideIndex);
+  const loadMarkdown = useDeckStore((state) => state.loadMarkdown);
+  const loadDeck = useDeckStore((state) => state.loadDeck);
+  const addElement = useDeckStore((state) => state.addElement);
+
+  const [dropping, setDropping] = useState(false);
+
+  useKeyboardShortcuts();
+
+  /* --------------------------------------------------------------- startup */
+  useEffect(() => {
+    const session = loadSession();
+    if (session) {
+      loadDeck(session.deck, { fileName: session.fileName });
+      if (session.slideIndex) useDeckStore.getState().goTo(session.slideIndex);
+    } else {
+      loadMarkdown(welcomeDeck, { fileName: 'welcome.md' });
+    }
+    const stopAutosave = startAutosave();
+    const stopGuard = guardUnsavedChanges();
+    return () => {
+      stopAutosave();
+      stopGuard();
+    };
+    // Startup runs once; the store is the source of truth from then on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ------------------------------------------------------------------ drop */
+  const onDrop = useCallback(
+    async (event: React.DragEvent) => {
+      event.preventDefault();
+      setDropping(false);
+      const file = event.dataTransfer.files?.[0];
+      if (!file) return;
+
+      if (/\.(md|markdown|txt)$/i.test(file.name) || file.type.startsWith('text/')) {
+        const opened = await readDroppedFile(file);
+        loadMarkdown(opened.text, { fileName: opened.name });
+        return;
+      }
+
+      if (file.type.startsWith('image/')) {
+        const src = await readFileAsDataUrl(file);
+        const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const element = new Image();
+          element.onload = () => resolve(element);
+          element.onerror = reject;
+          element.src = src;
+        }).catch(() => null);
+
+        const ratio = image && image.naturalWidth > 0 ? image.naturalHeight / image.naturalWidth : 0.5625;
+        const width = 420;
+        addElement(
+          createElement('image', {
+            src,
+            alt: file.name.replace(/\.[^.]+$/, ''),
+            w: width,
+            h: Math.round(width * ratio),
+            x: 120,
+            y: 120,
+          }) as CanvasElement,
+        );
+      }
+    },
+    [addElement, loadMarkdown],
+  );
+
+  if (mode === 'present') {
+    return (
+      <div className="h-full w-full">
+        <PresentView />
+        {overviewOpen ? <Overview /> : null}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="relative flex h-full w-full flex-col overflow-hidden"
+      onDragOver={(event) => {
+        event.preventDefault();
+        setDropping(true);
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget === event.target) setDropping(false);
+      }}
+      onDrop={onDrop}
+    >
+      <TopBar />
+
+      <div className="flex min-h-0 flex-1">
+        <AssetSidebar />
+
+        <main className="relative flex min-w-0 flex-1 flex-col">
+          {slide ? (
+            <CanvasStage
+              slide={slide}
+              deck={deck}
+              slideNumber={slideIndex + 1}
+              totalSlides={deck.slides.length}
+            />
+          ) : null}
+          <SlideRail />
+        </main>
+
+        <Inspector />
+      </div>
+
+      {overviewOpen ? <Overview /> : null}
+
+      <div
+        className={cx(
+          'pointer-events-none absolute inset-0 z-modal flex items-center justify-center',
+          'border-heavy border-dashed border-primary bg-primary-soft/70 transition-opacity duration-fast',
+          dropping ? 'opacity-100' : 'opacity-0',
+        )}
+        aria-hidden={!dropping}
+      >
+        <p className="rounded-lg bg-surface px-4 py-3 text-ui-title font-semibold shadow-xl">
+          Drop a <code className="font-mono">.md</code> deck to open it, or an image to place it
+        </p>
+      </div>
+    </div>
+  );
+}
