@@ -197,48 +197,74 @@ export const toneNames = Object.keys(elementTones) as ToneName[];
  * `color`. Der Umkehrschluss gilt genauso — kein `ui`-Wert erreicht je eine
  * Szene, einen SVG- oder einen PDF-Export.
  *
- * Die einzige Brücke ist `ui.accent`: das Signalgrün der Marke markiert auch
- * in der Oberfläche das Aktive. Eine zweite, erfundene Akzentfarbe wäre eine
- * Marke neben der Marke.
+ * Die Oberfläche leiht sich **nichts** von der Marke, auch keinen Akzent. Sie
+ * kennt Weiß, sechs Graustufen und Schwarz — sonst nichts. Damit ist die
+ * einzige Farbe im Bild die auf der Folie, und das ist der Punkt: das Werkzeug
+ * baut Marken-Material, es ist keins.
  */
+const graphite = {
+  0: '#FFFFFF',
+  25: '#FBFCFD',
+  50: '#F5F7FA',
+  100: '#ECEFF4',
+  200: '#DDE2EA',
+  300: '#C4CBD7',
+  400: '#9AA4B5',
+  500: '#6F7A8C',
+  600: '#515B6B',
+  700: '#3A4351',
+  800: '#232B36',
+  900: '#12161C',
+  950: '#0A0D12',
+} as const;
+
 export const ui = {
   /* Flächen — Weiß, darunter ein kühles Grau */
-  canvas: '#ECEFF4',
-  surface: '#FFFFFF',
-  surfaceSubtle: '#F5F7FA',
-  surfaceSunken: '#ECEFF4',
-  surfaceInverse: '#12161C',
+  canvas: graphite[100],
+  surface: graphite[0],
+  surfaceSubtle: graphite[50],
+  surfaceSunken: graphite[100],
+  surfaceInverse: graphite[900],
   overlay: 'rgba(18, 22, 28, 0.62)',
 
   /* Schrift — neutrales Fast-Schwarz, nicht das harte Tinte-Schwarz der Marke */
-  ink: '#12161C',
-  inkMuted: '#515B6B',
-  inkSubtle: '#6F7A8C',
-  inkInverse: '#FFFFFF',
+  ink: graphite[900],
+  inkMuted: graphite[600],
+  inkSubtle: graphite[500],
+  inkInverse: graphite[0],
 
   /* Linien — hier sind Graustufen richtig; auf der Folie wären sie es nicht */
-  border: '#DDE2EA',
-  borderStrong: '#C4CBD7',
+  border: graphite[200],
+  borderStrong: graphite[300],
+  borderInverse: graphite[700],
 
-  /* Akzent — das Signalgrün der Marke, die einzige Farbe, die herüberkommt */
-  accent: palette.signal,
-  accentStrong: palette.signalStrong,
-  accentSoft: palette.signalSoft,
-  accentBorder: '#6BE7BB',
-  onAccent: palette.ink,
+  /*
+     Der Akzent ist Schwarz. Ein Knopf, der die Hauptsache ist, wird dunkel —
+     nicht bunt. Das hält die Aufmerksamkeit dort, wo die einzige Farbe im Bild
+     sitzt: auf der Folie.
 
-  /* Auswahl auf der Bühne. Bewusst ein kühles Blau: es muss sich von jedem
-     Inhalt abheben, und Inhalt ist per CI schwarz, creme oder signalgrün. */
-  select: '#2A4BD8',
-  selectWash: 'rgba(42, 75, 216, 0.10)',
+     Gedrückt wird dunkler, überfahren heller — bei Schwarz geht nur die eine
+     Richtung, deshalb ist `accentHover` die *hellere* Stufe.
+  */
+  accent: graphite[900],
+  accentHover: graphite[800],
+  accentActive: graphite[950],
+  accentSoft: graphite[100],
+  accentBorder: graphite[300],
+  onAccent: graphite[0],
 
-  /* Status */
-  warn: '#B26A00',
+  /* Auswahl, Griffe, Hilfslinien, Raster — dieselbe Schwarz-Familie. */
+  select: graphite[900],
+  selectWash: 'rgba(18, 22, 28, 0.08)',
+  grid: graphite[300],
+
+  /* Status — die einzigen Farbwerte der Oberfläche, und nur für Rückmeldung. */
+  warn: '#F5A524',
   warnBg: '#FFF7E6',
-  danger: '#C9282E',
+  danger: '#E5484D',
   dangerBg: '#FEEDEE',
-  info: '#1F3CB8',
-  infoBg: '#EEF2FE',
+  info: graphite[700],
+  infoBg: graphite[50],
 } as const;
 
 /**
@@ -246,10 +272,12 @@ export const ui = {
  * (`RADIUS`) — ein Knopf in einer Werkzeugleiste ist aber kein Folienobjekt.
  */
 export const uiRadius = {
-  sm: 3,
-  md: 5,
-  lg: 8,
-  full: 999,
+  xs: 4,
+  sm: 6,
+  md: 10,
+  lg: 16,
+  xl: 24,
+  pill: 999,
 } as const;
 
 /**
@@ -259,11 +287,12 @@ export const uiRadius = {
  */
 export const uiShadow = {
   none: 'none',
-  sm: '0 1px 2px rgba(18, 22, 28, 0.06)',
-  md: '0 2px 6px rgba(18, 22, 28, 0.08), 0 1px 2px rgba(18, 22, 28, 0.04)',
-  lg: '0 8px 24px rgba(18, 22, 28, 0.12), 0 2px 6px rgba(18, 22, 28, 0.06)',
-  stage: '0 1px 3px rgba(18, 22, 28, 0.10), 0 12px 32px rgba(18, 22, 28, 0.10)',
-  focus: `0 0 0 3px rgba(42, 75, 216, 0.28)`,
+  xs: '0 1px 2px rgba(18, 22, 28, 0.06)',
+  sm: '0 1px 3px rgba(18, 22, 28, 0.08), 0 1px 2px rgba(18, 22, 28, 0.04)',
+  md: '0 4px 10px rgba(18, 22, 28, 0.08), 0 1px 3px rgba(18, 22, 28, 0.05)',
+  lg: '0 12px 28px rgba(18, 22, 28, 0.12), 0 2px 6px rgba(18, 22, 28, 0.06)',
+  xl: '0 24px 56px rgba(18, 22, 28, 0.16), 0 4px 10px rgba(18, 22, 28, 0.06)',
+  focus: '0 0 0 3px rgba(18, 22, 28, 0.20)',
 } as const;
 
 /* -------------------------------------------------------------------------- */

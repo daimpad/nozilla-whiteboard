@@ -8,10 +8,7 @@
  * layer can be as chatty as it likes.
  *
  * Deshalb zieht diese Datei ihre Farben aus `ui.*`, nicht aus der CI: Rahmen,
- * Griffe, Hilfslinien und Raster sind Werkzeug und werden nie exportiert. Sie
- * müssen sich von jedem Inhalt abheben — und Inhalt ist per CI schwarz, creme
- * oder signalgrün, weshalb ein Auswahlrahmen in genau diesen Farben in der
- * Zeichnung verschwinden würde.
+ * Griffe, Hilfslinien und Raster sind Werkzeug und werden nie exportiert.
  */
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { canvas as canvasTokens, motion, ui } from '@/theme';
@@ -406,9 +403,9 @@ function GridOverlay({ scale }: { scale: number }) {
     <div
       className="pointer-events-none absolute inset-0 rounded-[inherit]"
       style={{
-        backgroundImage: `radial-gradient(${ui.inkSubtle} 1px, transparent 1px)`,
+        backgroundImage: `radial-gradient(${ui.grid} 1px, transparent 1px)`,
         backgroundSize: `${major}px ${major}px`,
-        opacity: 0.35,
+        opacity: 0.5,
       }}
     />
   );

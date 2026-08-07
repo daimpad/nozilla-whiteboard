@@ -67,10 +67,10 @@ export function Overview() {
                   toggleOverview(false);
                 }}
                 className={cx(
-                  'block w-full overflow-hidden rounded-md border bg-ui-surface text-left transition-all',
+                  'block w-full overflow-hidden rounded-sm border bg-ui-surface text-left transition-all',
                   'duration-fast ease-standard hover:-translate-y-0.5 hover:shadow-ui-lg',
                   index === slideIndex
-                    ? 'border-ui-select shadow-ui-md ring-2 ring-ui-select'
+                    ? 'border-ui-accent shadow-ui-md ring-2 ring-ui-accent'
                     : 'border-ui',
                 )}
               >

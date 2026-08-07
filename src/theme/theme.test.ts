@@ -89,19 +89,24 @@ describe('Marke und Werkzeug sind getrennt', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('hält die beiden Farbsätze auseinander — bis auf die eine erklärte Brücke', () => {
-    // Reines Weiß zählt nicht: es steht in beiden Sätzen, weil es Weiß ist,
-    // nicht weil eine Marken-Entscheidung herübergereicht wurde.
+  it('hält die beiden Farbsätze vollständig auseinander', () => {
+    // Zwei Werte dürfen zusammenfallen, ohne dass etwas herübergereicht wurde:
+    // reines Weiß ist Weiß, und ein Fehler-Rot ist ein Fehler-Rot. Beides sind
+    // keine Marken-Entscheidungen, sondern Konventionen.
+    const STATUS = new Set(['warn', 'warnBg', 'danger', 'dangerBg', 'info', 'infoBg']);
     const brandValues = new Set(
       Object.values(palette)
         .map((value) => value.toLowerCase())
         .filter((value) => value !== '#ffffff'),
     );
     const shared = Object.entries(ui)
+      .filter(([key]) => !STATUS.has(key))
       .filter(([, value]) => brandValues.has(String(value).toLowerCase()))
       .map(([key]) => key);
-    // Das Signalgrün markiert auch in der Oberfläche das Aktive. Sonst nichts.
-    expect(shared.sort()).toEqual(['accent', 'accentSoft', 'accentStrong', 'onAccent']);
+    // Die Oberfläche leiht sich nichts von der Marke — auch keinen Akzent.
+    // Ihr Akzent ist Schwarz, damit die einzige Farbe im Bild auf der Folie
+    // sitzt.
+    expect(shared).toEqual([]);
   });
 
   it('rundet die Oberfläche, aber nie die Folie', () => {
@@ -110,13 +115,22 @@ describe('Marke und Werkzeug sind getrennt', () => {
   });
 
   it('trennt harte Marken-Versätze von weichen Oberflächen-Schatten', () => {
+    // Die dritte Länge einer `box-shadow` ist der Weichzeichner-Radius.
+    const blurRadii = (value: string) =>
+      [...value.matchAll(/(-?[\d.]+)(?:px)?\s+(-?[\d.]+)(?:px)?\s+([\d.]+)(?:px)?/g)].map((match) =>
+        Number(match[3]),
+      );
+
     // Auf der Folie: Versatz, kein Weichzeichner — sonst wäre der PDF-Export
     // nicht deckungsgleich mit dem Bildschirm.
     for (const [name, value] of Object.entries(shadow)) {
       if (name === 'none') continue;
-      expect(value).toMatch(/0 0 |0 0$|0px 0 /);
+      expect(blurRadii(value).every((radius) => radius === 0)).toBe(true);
     }
     // In der Oberfläche darf er weich sein, er wird ja nie exportiert.
-    expect(uiShadow.md).toContain('6px');
+    for (const [name, value] of Object.entries(uiShadow)) {
+      if (name === 'none' || name === 'focus') continue;
+      expect(blurRadii(value).some((radius) => radius > 0)).toBe(true);
+    }
   });
 });

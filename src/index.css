@@ -38,17 +38,18 @@
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     overscroll-behavior: none;
   }
 
   :focus-visible {
-    outline: 2px solid var(--nz-ui-select);
-    outline-offset: 1px;
+    outline: 2px solid var(--nz-ui-accent);
+    outline-offset: 2px;
+    border-radius: var(--nz-ui-radius-xs);
   }
 
   ::selection {
     background: var(--nz-ui-select-wash);
-    color: var(--nz-ui-ink);
   }
 
   button,
@@ -59,19 +60,28 @@
     color: inherit;
   }
 
+  /* Häkchen und Schieber kommen sonst im Systemblau — die letzte Stelle, an
+     der die Oberfläche unaufgefordert Farbe bekäme. */
+  input[type='checkbox'],
+  input[type='radio'],
+  input[type='range'],
+  progress {
+    accent-color: var(--nz-ui-accent);
+  }
+
   /* Scrollbalken: schmal und grau, damit sie nicht mitreden. */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--nz-ui-strong);
+    background: var(--nz-ui-border-strong);
     border: 3px solid transparent;
-    border-radius: var(--nz-ui-radius-full);
+    border-radius: var(--nz-ui-radius-pill);
     background-clip: content-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--nz-ui-faint);
+    background: var(--nz-ui-ink-subtle);
     background-clip: content-box;
   }
   ::-webkit-scrollbar-track {
@@ -85,13 +95,13 @@
   .nz-panel {
     background: var(--nz-ui-surface);
     border: 1px solid var(--nz-ui-border);
-    border-radius: var(--nz-ui-radius-md);
-    box-shadow: var(--nz-ui-shadow-md);
+    border-radius: var(--nz-ui-radius-lg);
+    box-shadow: var(--nz-ui-shadow-sm);
   }
 
   .nz-field {
     width: 100%;
-    padding: 5px 8px;
+    padding: 6px 8px;
     background: var(--nz-ui-surface);
     color: var(--nz-ui-ink);
     border: 1px solid var(--nz-ui-border);
@@ -102,11 +112,11 @@
       box-shadow var(--nz-dur-fast) var(--nz-ease-standard);
   }
   .nz-field:hover {
-    border-color: var(--nz-ui-strong);
+    border-color: var(--nz-ui-border-strong);
   }
   .nz-field:focus {
     outline: none;
-    border-color: var(--nz-ui-select);
+    border-color: var(--nz-ui-accent);
     box-shadow: var(--nz-ui-shadow-focus);
   }
 
@@ -119,7 +129,7 @@
     font-weight: 600;
     letter-spacing: 0.02em;
     text-transform: uppercase;
-    color: var(--nz-ui-faint);
+    color: var(--nz-ui-ink-subtle);
     margin-bottom: 4px;
   }
 
@@ -133,7 +143,7 @@
   */
   .nz-stage {
     background: var(--nz-color-surface);
-    box-shadow: var(--nz-ui-shadow-stage);
+    box-shadow: var(--nz-ui-shadow-lg);
   }
 
   .nz-stage--present {
@@ -151,19 +161,19 @@
     cursor: not-allowed;
   }
 
-  /* Griffe sind Werkzeug. Weiß mit blauer Kontur, damit sie sich von jedem
-     CI-Inhalt abheben — der ist schwarz, creme oder signalgrün. */
+  /* Griffe sind Werkzeug: weiße Fläche, schwarze Kontur. Die weiße Füllung
+     trägt die Lesbarkeit, auch wenn darunter eine schwarze Form liegt. */
   .nz-handle {
     position: absolute;
-    width: 9px;
-    height: 9px;
+    width: 10px;
+    height: 10px;
     background: var(--nz-ui-surface);
     border: 1.5px solid var(--nz-ui-select);
-    border-radius: var(--nz-ui-radius-sm);
-    box-shadow: var(--nz-ui-shadow-sm);
+    border-radius: 2px;
+    box-shadow: var(--nz-ui-shadow-xs);
   }
   .nz-handle--round {
-    border-radius: var(--nz-ui-radius-full);
+    border-radius: var(--nz-ui-radius-pill);
   }
 }
 

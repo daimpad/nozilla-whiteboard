@@ -50,10 +50,10 @@ export function SlideRail() {
             title={`${index + 1}. ${slideTitle(slide, index)}`}
             aria-current={index === slideIndex}
             className={cx(
-              'group relative shrink-0 overflow-hidden rounded-md border bg-ui-surface transition-all',
+              'group relative shrink-0 overflow-hidden rounded-sm border bg-ui-surface transition-all',
               'duration-fast ease-standard hover:-translate-y-px hover:shadow-ui-md',
               index === slideIndex
-                ? 'border-ui-select shadow-ui-sm ring-1 ring-ui-select'
+                ? 'border-ui-accent shadow-ui-sm ring-1 ring-ui-accent'
                 : 'border-ui',
             )}
             style={{ width: THUMB_WIDTH, height: (THUMB_WIDTH * canvas.height) / canvas.width }}
@@ -67,9 +67,9 @@ export function SlideRail() {
             />
             <span
               className={cx(
-                'absolute left-1 top-1 rounded-sm px-1 text-[10px] font-bold tabular-nums',
+                'absolute left-1 top-1 rounded-xs px-1 text-[10px] font-bold tabular-nums',
                 index === slideIndex
-                  ? 'bg-ui-select text-ui-on-inverse'
+                  ? 'bg-ui-accent text-ui-on-accent'
                   : 'bg-ui-surface/85 text-ui-muted',
               )}
             >

@@ -104,11 +104,14 @@ const config: Config = {
       ui: ui.border,
       'ui-strong': ui.borderStrong,
       'ui-accent': ui.accent,
-      'ui-accent-strong': ui.accentStrong,
+      'ui-accent-hover': ui.accentHover,
+      'ui-accent-active': ui.accentActive,
       'ui-accent-soft': ui.accentSoft,
       'ui-accent-border': ui.accentBorder,
+      'ui-on-accent': ui.onAccent,
       'ui-select': ui.select,
       'ui-select-wash': ui.selectWash,
+      'ui-inverse-line': ui.borderInverse,
       'ui-warn': ui.warn,
       'ui-warn-bg': ui.warnBg,
       'ui-danger': ui.danger,
@@ -130,10 +133,9 @@ const config: Config = {
     borderRadius: {
       none: String(RADIUS),
       DEFAULT: px(uiRadius.sm),
-      sm: px(uiRadius.sm),
-      md: px(uiRadius.md),
-      lg: px(uiRadius.lg),
-      full: px(uiRadius.full),
+      ...(Object.fromEntries(
+        Object.entries(uiRadius).map(([key, value]) => [key, px(value)]),
+      ) as Record<string, string>),
     },
     borderWidth: {
       0: '0',
@@ -177,8 +179,8 @@ const config: Config = {
       tight: '-0.02em',
       normal: '0',
       /* Für Abschnittsüberschriften in der Oberfläche. */
-      wide: '0.04em',
-      wider: '0.06em',
+      wide: '0.02em',
+      wider: '0.09em',
       /* 0.12em ist die Label-Laufweite der CI — auf der Folie, nicht im Formular. */
       label: '0.12em',
     },
@@ -197,8 +199,8 @@ const config: Config = {
     extend: {
       keyframes: {
         'pop-in': {
-          '0%': { opacity: '0', transform: 'translate(-2px, -2px)' },
-          '100%': { opacity: '1', transform: 'translate(0, 0)' },
+          '0%': { opacity: '0', transform: 'translateY(4px) scale(0.98)' },
+          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
         },
         'fade-in': {
           '0%': { opacity: '0' },
