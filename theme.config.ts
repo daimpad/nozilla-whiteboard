@@ -1,258 +1,176 @@
 /**
- * theme.config.ts — Nozilla Corporate Identity (CI) single source of truth.
+ * theme.config.ts — nozilla Corporate Identity, eine Quelle der Wahrheit.
  * ---------------------------------------------------------------------------
- * Every colour, type size, radius, line weight, shadow and motion curve used by
- * the application is declared here. Nothing in `src/` is allowed to hard-code a
- * hex value, font stack, radius or stroke width — it must be read from this
- * file (directly, via the generated CSS custom properties, or via Tailwind,
- * which is itself generated from this file).
+ * Übernommen aus https://github.com/daimpad/nozilla-ci — `design-system.css`,
+ * `README.md` und `CLAUDE.md`. Die Token-Namen folgen dem CI-Vokabular
+ * (`--nz-signal`, `--nz-paper`, `--nz-ink`, `--nz-stroke-*`), damit ein Blick
+ * in beide Repos dieselben Begriffe zeigt.
  *
- * The file is intentionally dependency-free and plain-data so it can be
- * consumed by:
- *   - `tailwind.config.ts`   (build-time, via sucrase/jiti)
- *   - `src/theme/cssVars.ts` (runtime, injected as CSS custom properties)
- *   - `src/lib/export/*`     (SVG / PDF renderers, which cannot read the DOM)
+ * Nichts unter `src/` darf einen Hex-Wert, einen Schriftstapel, einen Radius
+ * oder eine Strichstärke hart schreiben — alles kommt von hier, direkt oder
+ * über die generierten CSS-Custom-Properties und Tailwind-Klassen.
  *
- * If the brand evolves, change it *here* and the whole app follows.
+ * Die drei Regeln, die dieses Werkzeug technisch erzwingt:
+ *   • Radius ist 0. Überall. Es gibt keinen anderen Wert.
+ *   • Schatten sind harte Versätze ohne Weichzeichner.
+ *   • Farbe hat genau drei Rollen: Papier, Tinte, Signal.
  */
 
 /* -------------------------------------------------------------------------- */
-/* Brand                                                                       */
+/* Marke                                                                       */
 /* -------------------------------------------------------------------------- */
 
 export const brand = {
-  name: 'Nozilla',
-  product: 'Nozilla Whiteboard',
-  tagline: 'Markdown decks. Freeform canvas. One identity.',
-  /** Logomark is drawn from primitives in `src/assets/logo.tsx` — no binary asset needed. */
-  logoAspect: 1,
+  name: 'nozilla',
+  product: 'nozilla Whiteboard',
+  motto: 'Gute digitale Dienste.',
+  contact: 'contact@nozilla.de',
+  ci: 'https://github.com/daimpad/nozilla-ci',
+  /** Die Wortmarke ist das einzige Logo — keine Bildmarke, kein Claim im Lockup. */
+  wordmark: {
+    light: '/brand/nozilla-logo.svg',
+    dark: '/brand/nozilla-logo-invers.svg',
+    mono: '/brand/nozilla-logo-mono.svg',
+  },
+  favicon: '/brand/favicon.svg',
+  socialPreview: '/brand/og-image.png',
 } as const;
 
 /* -------------------------------------------------------------------------- */
-/* Colour                                                                      */
+/* Farbe — genau drei Rollen                                                   */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Palette ramps. Index 500 is the canonical brand step for each hue; lighter
- * steps are surfaces/washes, darker steps are text/press states.
- */
 export const palette = {
-  /** Nozilla Cobalt — the primary brand hue. */
-  cobalt: {
-    50: '#EEF2FE',
-    100: '#DBE3FD',
-    200: '#B8C6FB',
-    300: '#8DA3F7',
-    400: '#5C79F0',
-    500: '#2A4BD8',
-    600: '#1F3CB8',
-    700: '#182F93',
-    800: '#132672',
-    900: '#0E1B52',
-  },
-  /** Nozilla Ember — the accent hue. Used sparingly for emphasis and CTAs. */
-  ember: {
-    50: '#FFF3EE',
-    100: '#FFE2D6',
-    200: '#FFC3AC',
-    300: '#FF9E7A',
-    400: '#FF7F4F',
-    500: '#F2600F',
-    600: '#CC4C09',
-    700: '#A33C08',
-    800: '#7A2D06',
-    900: '#521E04',
-  },
-  /** Nozilla Verdigris — the supporting hue for data, success and "positive". */
-  verdigris: {
-    50: '#E9F8F5',
-    100: '#CCEFE9',
-    200: '#99DFD3',
-    300: '#5FC9B7',
-    400: '#26AE99',
-    500: '#0E8F7C',
-    600: '#0B7263',
-    700: '#095A4E',
-    800: '#06423A',
-    900: '#042B26',
-  },
-  /** Signal hues — status only, never decorative. */
-  amber: {
-    50: '#FFF7E6',
-    100: '#FFEBBF',
-    200: '#FFD780',
-    300: '#FFC340',
-    400: '#F5A524',
-    500: '#D6870D',
-    600: '#AB6A0A',
-    700: '#7F4F08',
-    800: '#553505',
-    900: '#2C1B02',
-  },
-  coral: {
-    50: '#FEEDEE',
-    100: '#FCD5D7',
-    200: '#F8ABAF',
-    300: '#F27F85',
-    400: '#E5484D',
-    500: '#C9282E',
-    600: '#A31E23',
-    700: '#7C171B',
-    800: '#551013',
-    900: '#2E080A',
-  },
-  /** Neutral ramp — "Graphite". Cool-leaning to sit correctly beside Cobalt. */
-  graphite: {
-    0: '#FFFFFF',
-    25: '#FBFCFD',
-    50: '#F5F7FA',
-    100: '#ECEFF4',
-    200: '#DDE2EA',
-    300: '#C4CBD7',
-    400: '#9AA4B5',
-    500: '#6F7A8C',
-    600: '#515B6B',
-    700: '#3A4351',
-    800: '#232B36',
-    900: '#12161C',
-    950: '#0A0D12',
-  },
+  /** Signal — die Handlungsfarbe. Nur Buttons, CTAs, Marker, Highlights. */
+  signal: '#00FF9C',
+  signalStrong: '#00E88D',
+  signalSoft: '#B7FFE0',
+
+  /** Papier — warmes Creme. Der globale Untergrund. */
+  paper: '#FFFEE5',
+  paperAlt: '#FAF8D4',
+  paperDeep: '#F4F1C4',
+  white: '#FFFFFF',
+
+  /** Tinte — echtes Schwarz plus warme Fast-Schwarz-Töne für dunkle Flächen. */
+  ink: '#000000',
+  ink900: '#0C0C0A',
+  ink800: '#17160F',
+  ink700: '#201F16',
+  ink600: '#2C2B20',
+
+  /** Funktional — nur Status, nie Dekoration. */
+  warn: '#FF5F1F',
+  danger: '#E5484D',
+  info: '#3E7BFA',
+} as const;
+
+/** Tinte mit Deckkraft — die Abstufungen, die das CI-Dokument benutzt. */
+export const inkAlpha = {
+  70: 'rgba(0, 0, 0, 0.72)',
+  50: 'rgba(0, 0, 0, 0.50)',
+  20: 'rgba(0, 0, 0, 0.18)',
+} as const;
+
+/** Papier mit Deckkraft — dasselbe auf dunklem Grund. */
+export const paperAlpha = {
+  70: 'rgba(255, 254, 229, 0.64)',
+  50: 'rgba(255, 254, 229, 0.40)',
+  20: 'rgba(255, 254, 229, 0.18)',
 } as const;
 
 /**
- * Semantic tokens. Components consume *these*, not raw ramp steps, so that a
- * palette change never requires touching a component.
+ * Semantische Tokens. Komponenten greifen auf diese zu, nicht auf die Palette.
  */
 export const color = {
-  /* Surfaces */
-  canvas: palette.graphite[100],
-  surface: palette.graphite[0],
-  surfaceSubtle: palette.graphite[50],
-  surfaceSunken: palette.graphite[100],
-  surfaceInverse: palette.graphite[900],
-  overlay: 'rgba(18, 22, 28, 0.62)',
+  /* Flächen */
+  canvas: palette.paperDeep,
+  surface: palette.paper,
+  surfaceAlt: palette.paperAlt,
+  surfaceRaised: palette.white,
+  surfaceInverse: palette.ink,
+  overlay: 'rgba(0, 0, 0, 0.62)',
 
   /* Text */
-  ink: palette.graphite[900],
-  inkMuted: palette.graphite[600],
-  inkSubtle: palette.graphite[500],
-  inkInverse: palette.graphite[0],
-  inkOnBrand: palette.graphite[0],
+  ink: palette.ink,
+  inkMuted: inkAlpha[70],
+  inkSubtle: inkAlpha[50],
+  inkInverse: palette.paper,
+  inkOnSignal: palette.ink,
 
-  /* Lines */
-  border: palette.graphite[200],
-  borderStrong: palette.graphite[300],
-  borderInverse: palette.graphite[700],
-  grid: palette.graphite[200],
-  gridStrong: palette.graphite[300],
+  /* Linien — im CI immer Tinte, nie ein Grauton */
+  line: palette.ink,
+  lineSoft: inkAlpha[20],
+  grid: inkAlpha[20],
+  gridStrong: inkAlpha[50],
 
-  /* Brand */
-  primary: palette.cobalt[500],
-  primaryHover: palette.cobalt[600],
-  primaryActive: palette.cobalt[700],
-  primarySoft: palette.cobalt[50],
-  primaryBorder: palette.cobalt[200],
-
-  accent: palette.ember[500],
-  accentHover: palette.ember[600],
-  accentSoft: palette.ember[50],
-  accentBorder: palette.ember[200],
-
-  support: palette.verdigris[500],
-  supportSoft: palette.verdigris[50],
-  supportBorder: palette.verdigris[200],
+  /* Signal */
+  signal: palette.signal,
+  signalStrong: palette.signalStrong,
+  signalSoft: palette.signalSoft,
 
   /* Status */
-  info: palette.cobalt[500],
-  infoSoft: palette.cobalt[50],
-  success: palette.verdigris[500],
-  successSoft: palette.verdigris[50],
-  warning: palette.amber[400],
-  warningSoft: palette.amber[50],
-  danger: palette.coral[400],
-  dangerSoft: palette.coral[50],
+  warn: palette.warn,
+  warnBg: '#FFF0E8',
+  danger: palette.danger,
+  dangerBg: '#FDEBEC',
+  info: palette.info,
+  infoBg: '#ECF1FE',
 
-  /* Interaction */
-  focusRing: palette.cobalt[400],
-  selection: palette.cobalt[500],
-  selectionWash: 'rgba(42, 75, 216, 0.10)',
-  snapGuide: palette.ember[500],
+  /* Interaktion */
+  focus: palette.signalStrong,
+  selection: palette.ink,
+  selectionWash: 'rgba(0, 255, 156, 0.22)',
+  snapGuide: palette.signal,
 } as const;
 
 /**
- * The tones an on-canvas element may be tinted with. Every CI element inherits
- * one of these; there is no free-form colour picker by design.
+ * Die Flächenrollen, die ein Canvas-Element annehmen darf.
+ *
+ * Bewusst vier statt einer Akzentpalette: „Akzent-Paletten mit 5 Blautönen"
+ * stehen im CI ausdrücklich auf der Verbotsliste. Wer eine Fläche einfärben
+ * will, wählt eine Rolle — keinen Farbwert. Ein Farbwähler existiert nicht.
  */
 export const elementTones = {
-  neutral: {
-    label: 'Neutral',
-    fill: palette.graphite[0],
-    softFill: palette.graphite[50],
-    border: palette.graphite[200],
-    text: palette.graphite[900],
-    accentText: palette.graphite[600],
-    solidFill: palette.graphite[900],
-    solidText: palette.graphite[0],
+  paper: {
+    label: 'Papier',
+    hint: 'Standard — Papier mit Tintenkontur',
+    surface: palette.paper,
+    surfaceAlt: palette.paperAlt,
+    line: palette.ink,
+    text: palette.ink,
+    textMuted: inkAlpha[70],
+    accent: palette.ink,
   },
-  primary: {
-    label: 'Cobalt',
-    fill: palette.cobalt[50],
-    softFill: palette.cobalt[50],
-    border: palette.cobalt[200],
-    text: palette.cobalt[900],
-    accentText: palette.cobalt[600],
-    solidFill: palette.cobalt[500],
-    solidText: palette.graphite[0],
+  paperAlt: {
+    label: 'Papier getönt',
+    hint: 'Karten-Tönung, wenn zwei Flächen sich absetzen müssen',
+    surface: palette.paperAlt,
+    surfaceAlt: palette.paperDeep,
+    line: palette.ink,
+    text: palette.ink,
+    textMuted: inkAlpha[70],
+    accent: palette.ink,
   },
-  accent: {
-    label: 'Ember',
-    fill: palette.ember[50],
-    softFill: palette.ember[50],
-    border: palette.ember[200],
-    text: palette.ember[900],
-    accentText: palette.ember[600],
-    solidFill: palette.ember[500],
-    solidText: palette.graphite[0],
+  signal: {
+    label: 'Signal',
+    hint: 'Nur echte Handlungsaufforderungen — 5 % der Fläche',
+    surface: palette.signal,
+    surfaceAlt: palette.signalSoft,
+    line: palette.ink,
+    text: palette.ink,
+    textMuted: inkAlpha[70],
+    accent: palette.ink,
   },
-  support: {
-    label: 'Verdigris',
-    fill: palette.verdigris[50],
-    softFill: palette.verdigris[50],
-    border: palette.verdigris[200],
-    text: palette.verdigris[900],
-    accentText: palette.verdigris[600],
-    solidFill: palette.verdigris[500],
-    solidText: palette.graphite[0],
-  },
-  warning: {
-    label: 'Amber',
-    fill: palette.amber[50],
-    softFill: palette.amber[50],
-    border: palette.amber[200],
-    text: palette.amber[900],
-    accentText: palette.amber[600],
-    solidFill: palette.amber[400],
-    solidText: palette.graphite[900],
-  },
-  danger: {
-    label: 'Coral',
-    fill: palette.coral[50],
-    softFill: palette.coral[50],
-    border: palette.coral[200],
-    text: palette.coral[900],
-    accentText: palette.coral[600],
-    solidFill: palette.coral[400],
-    solidText: palette.graphite[0],
-  },
-  inverse: {
-    label: 'Graphite',
-    fill: palette.graphite[900],
-    softFill: palette.graphite[800],
-    border: palette.graphite[700],
-    text: palette.graphite[0],
-    accentText: palette.graphite[300],
-    solidFill: palette.graphite[900],
-    solidText: palette.graphite[0],
+  ink: {
+    label: 'Tinte',
+    hint: 'Invers — Tinte als Fläche, Papier als Schrift',
+    surface: palette.ink,
+    surfaceAlt: palette.ink800,
+    line: palette.paper,
+    text: palette.paper,
+    textMuted: paperAlpha[70],
+    accent: palette.signal,
   },
 } as const;
 
@@ -260,53 +178,45 @@ export type ToneName = keyof typeof elementTones;
 export const toneNames = Object.keys(elementTones) as ToneName[];
 
 /* -------------------------------------------------------------------------- */
-/* Typography                                                                  */
+/* Typografie — drei Schriften, klare Rollen                                   */
 /* -------------------------------------------------------------------------- */
 
 /**
- * Font stacks. The app is offline-only, so the stacks are built to degrade to
- * high-quality system faces when the licensed brand font is absent.
- *
- * To ship the licensed face, drop `NozillaSans-{400,500,600,700}.woff2` into
- * `public/fonts/` — `src/index.css` already declares the matching @font-face
- * rules and the family is first in the stack.
+ * Die Marken-Schriften liegen selbst gehostet unter `public/fonts/`
+ * (SIL Open Font License 1.1, siehe `public/fonts/OFL.txt`). Kein CDN, keine
+ * Netzabhängigkeit — dieselbe Entscheidung wie im CI-Repo.
  */
 export const fontFamily = {
-  display:
-    "'Nozilla Sans', 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-  body:
-    "'Nozilla Sans', 'Inter', 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-  mono:
-    "'Nozilla Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
+  display: "'Zilla Slab', Georgia, 'Times New Roman', serif",
+  body: "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+  mono: "'Space Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace",
 } as const;
 
-/**
- * The optional licensed brand face. Drop the listed files into `public/fonts/`
- * and they are picked up automatically at boot (`src/theme/fonts.ts`); when a
- * file is absent the browser simply falls through to the next family in the
- * stack, so the app never depends on a binary asset being present.
- */
 export const webfont = {
-  /**
-   * Flip to `true` once the files below are present in `public/fonts/`.
-   * Left off by default so a fresh checkout never requests a font that is not
-   * there — the CI stack falls back to the system faces instead.
-   */
-  enabled: false,
-  family: 'Nozilla Sans',
+  enabled: true,
   directory: 'fonts',
   faces: [
-    { weight: 400, style: 'normal', file: 'NozillaSans-Regular.woff2' },
-    { weight: 500, style: 'normal', file: 'NozillaSans-Medium.woff2' },
-    { weight: 600, style: 'normal', file: 'NozillaSans-SemiBold.woff2' },
-    { weight: 700, style: 'normal', file: 'NozillaSans-Bold.woff2' },
-    { weight: 400, style: 'italic', file: 'NozillaSans-Italic.woff2' },
+    { family: 'Zilla Slab', weight: 500, style: 'normal', file: 'ZillaSlab-Medium.ttf' },
+    { family: 'Zilla Slab', weight: 600, style: 'normal', file: 'ZillaSlab-SemiBold.ttf' },
+    { family: 'Zilla Slab', weight: 700, style: 'normal', file: 'ZillaSlab-Bold.ttf' },
+    { family: 'Inter', weight: 400, style: 'normal', file: 'Inter-Regular.ttf' },
+    { family: 'Inter', weight: 500, style: 'normal', file: 'Inter-Medium.ttf' },
+    { family: 'Inter', weight: 600, style: 'normal', file: 'Inter-SemiBold.ttf' },
+    { family: 'Inter', weight: 700, style: 'normal', file: 'Inter-Bold.ttf' },
+    { family: 'Space Mono', weight: 400, style: 'normal', file: 'SpaceMono-Regular.ttf' },
+    { family: 'Space Mono', weight: 700, style: 'normal', file: 'SpaceMono-Bold.ttf' },
   ],
 } as const;
 
-/** PDF has no web fonts; these are the metric-compatible core-14 substitutes. */
+/**
+ * PDF kennt keine Web-Fonts. Zilla Slab ist eine Slab-Serif, deshalb steht im
+ * Export Times (Serif) dafür — näher an der Marke als Helvetica. Der
+ * Zeilenumbruch ist zu diesem Zeitpunkt längst gegen die echten Bildschirm-
+ * Metriken gefallen, der Ersatz verschiebt also nichts, er zeichnet nur die
+ * Glyphen etwas anders.
+ */
 export const pdfFontFamily = {
-  display: 'helvetica',
+  display: 'times',
   body: 'helvetica',
   mono: 'courier',
 } as const;
@@ -319,213 +229,365 @@ export const fontWeight = {
 } as const;
 
 /**
- * Type scale — sizes are in *slide units* (the deck is authored at
- * `canvas.width` × `canvas.height` and scaled to fit), which keeps exported
- * SVG/PDF pixel-identical to the on-screen rendering.
+ * Die Typo-Hierarchie aus dem CI, in Folien-Einheiten.
+ *
+ * Display fährt die Kampagnen-Größen (56–128 px) mit Zeilenhöhe 0.95 und
+ * -0.02em Laufweite. Labels sind Space Mono, ALL-CAPS, 0.12em — deshalb trägt
+ * `overline` die Versalien-Kennzeichnung mit.
  */
 export const typeScale = {
-  display: { size: 64, lineHeight: 1.06, weight: fontWeight.bold, tracking: -0.022, family: 'display' },
-  h1: { size: 46, lineHeight: 1.1, weight: fontWeight.bold, tracking: -0.02, family: 'display' },
-  h2: { size: 34, lineHeight: 1.16, weight: fontWeight.semibold, tracking: -0.015, family: 'display' },
-  h3: { size: 25, lineHeight: 1.24, weight: fontWeight.semibold, tracking: -0.01, family: 'display' },
-  h4: { size: 20, lineHeight: 1.3, weight: fontWeight.semibold, tracking: -0.005, family: 'display' },
-  lead: { size: 22, lineHeight: 1.5, weight: fontWeight.regular, tracking: -0.005, family: 'body' },
-  body: { size: 18, lineHeight: 1.55, weight: fontWeight.regular, tracking: 0, family: 'body' },
-  small: { size: 15, lineHeight: 1.5, weight: fontWeight.regular, tracking: 0, family: 'body' },
-  caption: { size: 13, lineHeight: 1.4, weight: fontWeight.medium, tracking: 0.005, family: 'body' },
-  overline: { size: 12, lineHeight: 1.3, weight: fontWeight.bold, tracking: 0.09, family: 'body' },
-  code: { size: 15, lineHeight: 1.6, weight: fontWeight.regular, tracking: 0, family: 'mono' },
-  codeInline: { size: 15.5, lineHeight: 1.4, weight: fontWeight.medium, tracking: 0, family: 'mono' },
+  /* Kampagnen-Größen — Zilla Slab Bold, Zeilenhöhe 0.95, -0.02em */
+  display: {
+    size: 128,
+    lineHeight: 0.95,
+    weight: fontWeight.bold,
+    tracking: -0.02,
+    family: 'display',
+    caps: false,
+  },
+  headline: {
+    size: 88,
+    lineHeight: 0.95,
+    weight: fontWeight.bold,
+    tracking: -0.02,
+    family: 'display',
+    caps: false,
+  },
+  /* Die Hierarchie aus dem CI-Dokument */
+  h1: {
+    size: 56,
+    lineHeight: 1.0,
+    weight: fontWeight.bold,
+    tracking: -0.02,
+    family: 'display',
+    caps: false,
+  },
+  h2: {
+    size: 40,
+    lineHeight: 1.05,
+    weight: fontWeight.bold,
+    tracking: -0.02,
+    family: 'display',
+    caps: false,
+  },
+  h3: {
+    size: 28,
+    lineHeight: 1.15,
+    weight: fontWeight.bold,
+    tracking: -0.015,
+    family: 'display',
+    caps: false,
+  },
+  h4: {
+    size: 22,
+    lineHeight: 1.25,
+    weight: fontWeight.bold,
+    tracking: -0.01,
+    family: 'display',
+    caps: false,
+  },
+  lead: {
+    size: 22,
+    lineHeight: 1.4,
+    weight: fontWeight.regular,
+    tracking: 0,
+    family: 'body',
+    caps: false,
+  },
+  body: {
+    size: 17,
+    lineHeight: 1.55,
+    weight: fontWeight.regular,
+    tracking: 0,
+    family: 'body',
+    caps: false,
+  },
+  bodyStrong: {
+    size: 17,
+    lineHeight: 1.55,
+    weight: fontWeight.semibold,
+    tracking: 0,
+    family: 'body',
+    caps: false,
+  },
+  small: {
+    size: 14,
+    lineHeight: 1.55,
+    weight: fontWeight.regular,
+    tracking: 0,
+    family: 'body',
+    caps: false,
+  },
+  /* Labels sind Space Mono Bold, ALL-CAPS, 0.12em */
+  label: {
+    size: 12,
+    lineHeight: 1.2,
+    weight: fontWeight.bold,
+    tracking: 0.12,
+    family: 'mono',
+    caps: true,
+  },
+  labelSmall: {
+    size: 11,
+    lineHeight: 1.2,
+    weight: fontWeight.bold,
+    tracking: 0.12,
+    family: 'mono',
+    caps: true,
+  },
+  code: {
+    size: 14,
+    lineHeight: 1.55,
+    weight: fontWeight.regular,
+    tracking: 0,
+    family: 'mono',
+    caps: false,
+  },
+  codeInline: {
+    size: 15,
+    lineHeight: 1.4,
+    weight: fontWeight.regular,
+    tracking: 0,
+    family: 'mono',
+    caps: false,
+  },
 } as const;
 
 export type TypeStyleName = keyof typeof typeScale;
 
-/** Chrome (toolbars, panels) uses a compact, fixed UI scale — never the deck scale. */
+/** Die Anwendungsoberfläche selbst — feste, kompakte Größen. */
 export const uiType = {
-  label: { size: 12, lineHeight: 1.35, weight: fontWeight.semibold, tracking: 0.02 },
+  label: { size: 11, lineHeight: 1.2, weight: fontWeight.bold, tracking: 0.12 },
   body: { size: 13, lineHeight: 1.45, weight: fontWeight.regular, tracking: 0 },
-  title: { size: 15, lineHeight: 1.3, weight: fontWeight.semibold, tracking: -0.005 },
+  title: { size: 15, lineHeight: 1.25, weight: fontWeight.bold, tracking: -0.01 },
   mono: { size: 12, lineHeight: 1.5, weight: fontWeight.regular, tracking: 0 },
 } as const;
 
 /* -------------------------------------------------------------------------- */
-/* Form: radii, strokes, spacing, elevation                                    */
+/* Formensprache                                                               */
 /* -------------------------------------------------------------------------- */
 
-export const radius = {
-  none: 0,
-  xs: 4,
-  sm: 6,
-  md: 10,
-  lg: 16,
-  xl: 24,
-  '2xl': 32,
-  pill: 999,
-} as const;
+/**
+ * Der Eckenradius ist 0. Immer. Das ist keine Vorgabe, die man überschreiben
+ * könnte — es gibt schlicht keinen zweiten Wert im System.
+ */
+export const RADIUS = 0;
 
-/** CI line weights. Anything drawn on the canvas uses one of these. */
+/** Die vier Strichstärken des CI. Mehr gibt es nicht. */
 export const stroke = {
-  hairline: 1,
-  regular: 1.5,
-  medium: 2,
-  bold: 2.5,
+  hair: 1.5,
+  rule: 2,
+  strong: 3,
   heavy: 4,
 } as const;
 
-export const strokeNames = ['hairline', 'regular', 'medium', 'bold', 'heavy'] as const;
+export const strokeNames = ['hair', 'rule', 'strong', 'heavy'] as const;
 export type StrokeName = (typeof strokeNames)[number];
 
-/** 4px base grid. */
+/** 4px-Basisraster, wie im Design System. */
 export const space = {
   0: 0,
   1: 4,
   2: 8,
   3: 12,
   4: 16,
-  5: 20,
-  6: 24,
-  8: 32,
-  10: 40,
-  12: 48,
-  16: 64,
-  20: 80,
-  24: 96,
+  5: 24,
+  6: 32,
+  7: 48,
+  8: 64,
+  9: 96,
+  10: 128,
 } as const;
 
+/**
+ * Schatten sind harte Versätze — Fläche, kein Weichzeichner. Weil sie eine
+ * echte Fläche sind, lassen sie sich exakt nach SVG *und* PDF exportieren;
+ * ein weicher Schatten könnte das nicht.
+ */
+export const shadowOffset = {
+  none: 0,
+  sm: 3,
+  md: 6,
+  lg: 10,
+} as const;
+
+export const shadowNames = ['none', 'sm', 'md', 'lg'] as const;
+export type ShadowName = (typeof shadowNames)[number];
+
+/** Die CSS-Fassung derselben Schatten, für die Anwendungsoberfläche. */
 export const shadow = {
   none: 'none',
-  xs: '0 1px 2px rgba(18, 22, 28, 0.06)',
-  sm: '0 1px 3px rgba(18, 22, 28, 0.08), 0 1px 2px rgba(18, 22, 28, 0.04)',
-  md: '0 4px 10px rgba(18, 22, 28, 0.08), 0 1px 3px rgba(18, 22, 28, 0.05)',
-  lg: '0 12px 28px rgba(18, 22, 28, 0.12), 0 2px 6px rgba(18, 22, 28, 0.06)',
-  xl: '0 24px 56px rgba(18, 22, 28, 0.16), 0 4px 10px rgba(18, 22, 28, 0.06)',
-  focus: `0 0 0 3px rgba(42, 75, 216, 0.28)`,
+  sm: `${shadowOffset.sm}px ${shadowOffset.sm}px 0 0 ${palette.ink}`,
+  md: `${shadowOffset.md}px ${shadowOffset.md}px 0 0 ${palette.ink}`,
+  lg: `${shadowOffset.lg}px ${shadowOffset.lg}px 0 0 ${palette.ink}`,
+  signal: `${shadowOffset.md}px ${shadowOffset.md}px 0 0 ${palette.signal}`,
+  focus: `0 0 0 3px ${palette.signalStrong}`,
 } as const;
 
 /* -------------------------------------------------------------------------- */
-/* Motion                                                                      */
+/* Bewegung                                                                    */
 /* -------------------------------------------------------------------------- */
 
 export const motion = {
   duration: {
-    instant: 90,
-    fast: 160,
-    base: 240,
-    slow: 380,
-    slide: 460,
+    fast: 90,
+    base: 160,
+    slow: 260,
+    slide: 380,
   },
   easing: {
-    /** Standard CI ease — slightly overshoot-free, confident. */
-    standard: 'cubic-bezier(0.22, 0.61, 0.36, 1)',
-    entrance: 'cubic-bezier(0.16, 0.84, 0.44, 1)',
-    exit: 'cubic-bezier(0.55, 0, 0.85, 0.35)',
-    spring: 'cubic-bezier(0.34, 1.32, 0.64, 1)',
+    standard: 'cubic-bezier(.2, 0, 0, 1)',
+    entrance: 'cubic-bezier(.2, 0, 0, 1)',
+    exit: 'cubic-bezier(.4, 0, 1, 1)',
   },
-  /** Delay between successive element reveals when a step contains many items. */
-  stagger: 55,
+  /** Abstand zwischen aufeinanderfolgenden Einblendungen eines Schritts. */
+  stagger: 60,
 } as const;
 
 /* -------------------------------------------------------------------------- */
-/* Canvas / deck geometry                                                      */
+/* Folien-Geometrie                                                            */
 /* -------------------------------------------------------------------------- */
 
 export const canvas = {
-  /** Authoring resolution. 16:9. All element coordinates are in these units. */
+  /** Arbeitsauflösung, 16:9. Alle Element-Koordinaten sind diese Einheiten. */
   width: 1280,
   height: 720,
-  /** Safe area inset for flow content. */
+  /** Satzspiegel. Der Freiraum um die Wortmarke bestimmt das Maß. */
   margin: { top: 72, right: 88, bottom: 72, left: 88 },
-  /** Snap-to-grid step, and the dot spacing drawn behind the slide. */
   gridSize: 8,
-  gridMajorEvery: 5,
-  /** Distance (in slide units) at which smart alignment guides engage. */
+  gridMajorEvery: 4,
   snapThreshold: 6,
   minElementSize: 24,
   zoom: { min: 0.2, max: 3, step: 0.1 },
 } as const;
 
 /* -------------------------------------------------------------------------- */
-/* Element defaults — every placed element inherits from here                  */
+/* Element-Vorgaben                                                            */
 /* -------------------------------------------------------------------------- */
 
 export const elementDefaults = {
   text: {
-    width: 420,
-    height: 90,
-    tone: 'neutral' as ToneName,
-    typeStyle: 'h3' as TypeStyleName,
-    padding: space[3],
+    width: 520,
+    height: 96,
+    tone: 'paper' as ToneName,
+    typeStyle: 'h4' as TypeStyleName,
+    padding: space[4],
     align: 'left' as const,
   },
   markdown: {
-    width: 520,
-    height: 260,
-    tone: 'neutral' as ToneName,
-    padding: space[6],
-    radius: radius.lg,
-    strokeWeight: 'hairline' as StrokeName,
+    width: 560,
+    height: 280,
+    tone: 'paper' as ToneName,
+    padding: space[5],
+    strokeWeight: 'rule' as StrokeName,
   },
   card: {
-    width: 320,
-    height: 200,
-    tone: 'primary' as ToneName,
-    padding: space[6],
-    radius: radius.lg,
-    strokeWeight: 'hairline' as StrokeName,
+    width: 340,
+    height: 220,
+    tone: 'paper' as ToneName,
+    padding: space[5],
+    strokeWeight: 'rule' as StrokeName,
   },
   badge: {
-    width: 148,
+    width: 168,
     height: 40,
-    tone: 'primary' as ToneName,
-    radius: radius.pill,
-    strokeWeight: 'hairline' as StrokeName,
+    tone: 'signal' as ToneName,
+    strokeWeight: 'rule' as StrokeName,
   },
   icon: {
-    width: 72,
-    height: 72,
-    tone: 'primary' as ToneName,
-    strokeWeight: 'regular' as StrokeName,
+    width: 96,
+    height: 96,
+    tone: 'paper' as ToneName,
+    strokeWeight: 'heavy' as StrokeName,
   },
   shape: {
-    width: 240,
-    height: 160,
-    tone: 'primary' as ToneName,
-    radius: radius.md,
-    strokeWeight: 'regular' as StrokeName,
+    width: 260,
+    height: 180,
+    tone: 'paper' as ToneName,
+    strokeWeight: 'rule' as StrokeName,
   },
   connector: {
     width: 220,
     height: 0,
-    tone: 'neutral' as ToneName,
-    strokeWeight: 'medium' as StrokeName,
+    tone: 'paper' as ToneName,
+    strokeWeight: 'strong' as StrokeName,
   },
   image: {
-    width: 360,
-    height: 240,
-    tone: 'neutral' as ToneName,
-    radius: radius.md,
+    width: 400,
+    height: 260,
+    tone: 'paper' as ToneName,
+  },
+  wordmark: {
+    width: 320,
+    height: 80,
+    tone: 'paper' as ToneName,
   },
 } as const;
 
-/** The transitions a slide may declare in its metadata. */
-export const slideTransitions = ['none', 'fade', 'slide', 'push', 'zoom', 'rise'] as const;
+/* -------------------------------------------------------------------------- */
+/* Folien-Vokabular                                                            */
+/* -------------------------------------------------------------------------- */
+
+export const slideTransitions = ['none', 'cut', 'fade', 'slide', 'push'] as const;
 export type SlideTransition = (typeof slideTransitions)[number];
 
-/** The reveal animations an element may declare. */
-export const revealAnimations = ['fade', 'rise', 'zoom', 'slide-left', 'slide-right', 'draw'] as const;
+export const revealAnimations = [
+  'cut',
+  'fade',
+  'rise',
+  'slide-left',
+  'slide-right',
+  'wipe',
+] as const;
 export type RevealAnimation = (typeof revealAnimations)[number];
 
-/** Slide layout presets for flow (Markdown) content. */
-export const slideLayouts = ['title', 'default', 'section', 'split', 'quote', 'blank', 'canvas'] as const;
+export const slideLayouts = [
+  'title',
+  'default',
+  'section',
+  'split',
+  'quote',
+  'statement',
+  'blank',
+  'canvas',
+] as const;
 export type SlideLayout = (typeof slideLayouts)[number];
 
 /* -------------------------------------------------------------------------- */
-/* Aggregate export                                                            */
+/* Sprache & Ton — was das Werkzeug prüfen kann                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Wörter, die das CI ausdrücklich ausschließt. Der Editor markiert sie im
+ * Text, statt sie zu verbieten — die Entscheidung bleibt beim Menschen.
+ */
+export const forbiddenWords = [
+  'seamless',
+  'disruptive',
+  'disruptiv',
+  'synergy',
+  'synergie',
+  'empowern',
+  'orchestrieren',
+  'ganzheitlich',
+  'innovativ',
+  'state-of-the-art',
+  'best-in-class',
+  'leverage',
+] as const;
+
+/** Höchstzahl grüner Marker pro Absatz. */
+export const MAX_MARKERS_PER_PARAGRAPH = 3;
+
+/* -------------------------------------------------------------------------- */
+/* Sammel-Export                                                               */
 /* -------------------------------------------------------------------------- */
 
 export const theme = {
   brand,
   palette,
+  inkAlpha,
+  paperAlpha,
   color,
   elementTones,
   fontFamily,
@@ -534,10 +596,11 @@ export const theme = {
   fontWeight,
   typeScale,
   uiType,
-  radius,
+  RADIUS,
   stroke,
   space,
   shadow,
+  shadowOffset,
   motion,
   canvas,
   elementDefaults,

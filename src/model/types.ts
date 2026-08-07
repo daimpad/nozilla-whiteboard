@@ -1,11 +1,16 @@
 /**
- * The deck data model.
+ * Das Datenmodell.
  *
- * The whole application state is (deck + a little ephemeral UI state), and the
- * deck is losslessly serialisable to Markdown — see `src/lib/markdown`.
+ * Der ganze Anwendungszustand ist (Deck + etwas flüchtiger UI-Zustand), und das
+ * Deck lässt sich verlustfrei nach Markdown schreiben — siehe `lib/markdown`.
+ *
+ * Was hier *nicht* steht, ist so wichtig wie das, was drinsteht: kein
+ * Eckenradius, keine Farbe, keine Schriftgröße. Ein Element wählt eine Rolle
+ * aus der CI, keinen Wert.
  */
 import type {
   RevealAnimation,
+  ShadowName,
   SlideLayout,
   SlideTransition,
   StrokeName,
@@ -15,7 +20,7 @@ import type {
 import type { IconName } from '@/assets/icons';
 
 /* -------------------------------------------------------------------------- */
-/* Elements                                                                    */
+/* Elemente                                                                    */
 /* -------------------------------------------------------------------------- */
 
 export const elementKinds = [
@@ -27,17 +32,23 @@ export const elementKinds = [
   'shape',
   'connector',
   'image',
+  'wordmark',
 ] as const;
 export type ElementKind = (typeof elementKinds)[number];
 
-/** How an element's body is painted. */
-export const fillStyles = ['none', 'soft', 'solid', 'outline'] as const;
+/**
+ * Wie eine Fläche gemalt wird. Vier Zustände, weil das CI vier kennt:
+ * nackt, nur Kontur, nur Fläche, Fläche mit Kontur.
+ */
+export const fillStyles = ['none', 'outline', 'flat', 'framed'] as const;
 export type FillStyle = (typeof fillStyles)[number];
 
+/**
+ * Formen. Kein `rounded`, kein `pill` — abgerundete Ecken stehen im CI auf der
+ * Verbotsliste. Ellipsen sind erlaubt: das sind Kurven, keine weichen Ecken.
+ */
 export const shapeNames = [
   'rectangle',
-  'rounded',
-  'pill',
   'ellipse',
   'diamond',
   'triangle',
@@ -47,16 +58,17 @@ export const shapeNames = [
   'callout',
   'frame',
   'bracket',
+  'cross',
 ] as const;
 export type ShapeName = (typeof shapeNames)[number];
 
 export const connectorKinds = ['line', 'arrow', 'double-arrow', 'elbow'] as const;
 export type ConnectorKind = (typeof connectorKinds)[number];
 
-export const cardVariants = ['feature', 'stat', 'step', 'quote', 'callout'] as const;
+export const cardVariants = ['feature', 'stat', 'step', 'quote', 'note'] as const;
 export type CardVariant = (typeof cardVariants)[number];
 
-export const iconFrames = ['none', 'square', 'circle'] as const;
+export const iconFrames = ['none', 'box'] as const;
 export type IconFrame = (typeof iconFrames)[number];
 
 export const horizontalAligns = ['left', 'center', 'right'] as const;
@@ -65,14 +77,17 @@ export type HorizontalAlign = (typeof horizontalAligns)[number];
 export const verticalAligns = ['top', 'middle', 'bottom'] as const;
 export type VerticalAlign = (typeof verticalAligns)[number];
 
-/** Reveal choreography for an element inside its slide. */
+export const wordmarkVariants = ['auto', 'ink', 'paper', 'mono'] as const;
+export type WordmarkVariant = (typeof wordmarkVariants)[number];
+
+/** Choreografie: wann ein Element in der Präsentation erscheint. */
 export interface Reveal {
-  /** 0 = visible immediately with the slide; 1..n = revealed on the nth advance. */
+  /** 0 = sofort mit der Folie; 1..n = beim n-ten Weiterschalten. */
   step: number;
   animation: RevealAnimation;
 }
 
-/** Properties every canvas element shares. Coordinates are in slide units. */
+/** Was jedes Element auf der Fläche gemeinsam hat. Koordinaten in Folien-Einheiten. */
 export interface ElementBase {
   id: string;
   kind: ElementKind;
@@ -80,19 +95,20 @@ export interface ElementBase {
   y: number;
   w: number;
   h: number;
-  /** Degrees, clockwise, about the element centre. */
+  /** Grad, im Uhrzeigersinn, um die Elementmitte. */
   rotation: number;
-  /** Painting order within the slide; higher is nearer the viewer. */
+  /** Malreihenfolge innerhalb der Folie; höher liegt vorn. */
   z: number;
   tone: ToneName;
   fill: FillStyle;
   strokeWeight: StrokeName;
-  radius: number;
+  /** Harter Versatzschatten. Kein Weichzeichner — es gibt keinen. */
+  shadow: ShadowName;
   padding: number;
   opacity: number;
   locked: boolean;
   reveal?: Reveal;
-  /** Optional author-facing name, shown in the layers list. */
+  /** Optionaler Name für die Ebenenliste. */
   name?: string;
 }
 
@@ -113,7 +129,8 @@ export interface MarkdownElement extends ElementBase {
 export interface CardElement extends ElementBase {
   kind: 'card';
   variant: CardVariant;
-  eyebrow?: string;
+  /** Space-Mono-Label über der Überschrift, ALL-CAPS. */
+  label?: string;
   title: string;
   body: string;
   icon?: IconName;
@@ -147,10 +164,16 @@ export interface ConnectorElement extends ElementBase {
 
 export interface ImageElement extends ElementBase {
   kind: 'image';
-  /** A relative path resolved against the deck, or a `data:` URI. */
+  /** Pfad relativ zum Deck oder eine `data:`-URI. */
   src: string;
   alt: string;
   fit: 'cover' | 'contain';
+}
+
+/** Die Wortmarke als platzierbares Element — mit den Regeln des CI im Bauch. */
+export interface WordmarkElement extends ElementBase {
+  kind: 'wordmark';
+  variant: WordmarkVariant;
 }
 
 export type CanvasElement =
@@ -161,31 +184,39 @@ export type CanvasElement =
   | IconElement
   | ShapeElement
   | ConnectorElement
-  | ImageElement;
+  | ImageElement
+  | WordmarkElement;
 
 /* -------------------------------------------------------------------------- */
-/* Slides & deck                                                               */
+/* Folien & Deck                                                               */
 /* -------------------------------------------------------------------------- */
 
-export const slideBackgrounds = ['surface', 'subtle', 'inverse', 'brand', 'grid'] as const;
+export const slideBackgrounds = [
+  'paper',
+  'paper-alt',
+  'paper-deep',
+  'ink',
+  'signal',
+  'grid',
+] as const;
 export type SlideBackground = (typeof slideBackgrounds)[number];
 
 export interface SlideMeta {
   layout: SlideLayout;
   transition: SlideTransition;
   background: SlideBackground;
-  /** Presenter notes. Never rendered on the slide itself. */
+  /** Notizen für die vortragende Person. Nie auf der Folie. */
   notes?: string;
-  /** Hide the deck footer/page number on this slide. */
+  /** Fußzeile und Foliennummer auf dieser Folie ausblenden. */
   bare?: boolean;
 }
 
 export interface Slide {
   id: string;
   meta: SlideMeta;
-  /** Flow content, rendered inside the layout frame. */
+  /** Fließtext, im Satzspiegel des Layouts gesetzt. */
   markdown: string;
-  /** Freeform, absolutely positioned CI elements. */
+  /** Frei platzierte CI-Elemente. */
   elements: CanvasElement[];
 }
 
@@ -194,7 +225,7 @@ export interface DeckMeta {
   author?: string;
   date?: string;
   footer?: string;
-  /** Free-form extras preserved verbatim through a load/save round-trip. */
+  /** Unbekannte Frontmatter-Schlüssel überleben einen Lade-/Speicherzyklus. */
   extra?: Record<string, unknown>;
 }
 
@@ -204,20 +235,14 @@ export interface Deck {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Helpers                                                                     */
+/* Helfer                                                                      */
 /* -------------------------------------------------------------------------- */
-
-export function isTextual(
-  el: CanvasElement,
-): el is TextElement | MarkdownElement | CardElement | BadgeElement {
-  return el.kind === 'text' || el.kind === 'markdown' || el.kind === 'card' || el.kind === 'badge';
-}
 
 export function maxRevealStep(slide: Slide): number {
   return slide.elements.reduce((max, el) => Math.max(max, el.reveal?.step ?? 0), 0);
 }
 
-/** The heading a slide is known by in the overview and outline. */
+/** Der Titel, unter dem eine Folie in Übersicht und Filmstreifen läuft. */
 export function slideTitle(slide: Slide, index: number): string {
   const heading = slide.markdown.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/m);
   if (heading?.[1]) return stripInline(heading[1]);
@@ -236,17 +261,18 @@ export function slideTitle(slide: Slide, index: number): string {
 
   const firstLine = slide.markdown
     .split('\n')
-    .map((l) => l.trim())
+    .map((line) => line.trim())
     .find(Boolean);
   if (firstLine) return stripInline(firstLine).slice(0, 60);
 
-  return `Slide ${index + 1}`;
+  return `Folie ${index + 1}`;
 }
 
 function stripInline(input: string): string {
   return input
     .replace(/!\[[^\]]*]\([^)]*\)/g, '')
     .replace(/\[([^\]]*)]\([^)]*\)/g, '$1')
+    .replace(/==([^=]+)==/g, '$1')
     .replace(/[*_`~]/g, '')
     .trim();
 }

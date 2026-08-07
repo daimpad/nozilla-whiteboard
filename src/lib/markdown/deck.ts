@@ -49,7 +49,7 @@ export const META_TAG = 'nzl';
 export const DEFAULT_SLIDE_META: SlideMeta = {
   layout: 'default',
   transition: 'fade',
-  background: 'surface',
+  background: 'paper',
 };
 
 const DECK_META_KEYS = ['title', 'author', 'date', 'footer'] as const;
@@ -136,8 +136,7 @@ export function splitSlides(body: string): string[] {
       }
     }
 
-    const isDelimiter =
-      fence === null && !inComment && /^[ \t]{0,3}-{3,}[ \t]*$/.test(line);
+    const isDelimiter = fence === null && !inComment && /^[ \t]{0,3}-{3,}[ \t]*$/.test(line);
     const prevBlank = i === 0 || lines[i - 1].trim() === '';
 
     if (isDelimiter && prevBlank) {
@@ -300,8 +299,10 @@ function buildDeckFrontmatter(meta: DeckMeta): string | null {
 function buildSlideMetaBlock(slide: Slide): string | null {
   const data: Record<string, unknown> = {};
   if (slide.meta.layout !== DEFAULT_SLIDE_META.layout) data.layout = slide.meta.layout;
-  if (slide.meta.transition !== DEFAULT_SLIDE_META.transition) data.transition = slide.meta.transition;
-  if (slide.meta.background !== DEFAULT_SLIDE_META.background) data.background = slide.meta.background;
+  if (slide.meta.transition !== DEFAULT_SLIDE_META.transition)
+    data.transition = slide.meta.transition;
+  if (slide.meta.background !== DEFAULT_SLIDE_META.background)
+    data.background = slide.meta.background;
   if (slide.meta.bare) data.bare = true;
   if (slide.meta.notes?.trim()) data.notes = slide.meta.notes;
 

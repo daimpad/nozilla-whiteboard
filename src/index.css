@@ -3,18 +3,21 @@
 @tailwind utilities;
 
 /* ==========================================================================
-   Nozilla CI — global styles.
-   Every value below is a CSS custom property emitted from `theme.config.ts`
-   (see `src/theme/index.ts#cssVariables`). No literal brand values live here.
-   ========================================================================== */
+   nozilla Whiteboard — globale Stile.
 
-/* The optional licensed brand face is installed at runtime by
-   `src/theme/fonts.ts`, driven by `theme.config.ts#webfont`. Declaring it here
-   instead would make the build depend on binary files that may not be present. */
+   Jeder Wert unten ist eine CSS-Custom-Property, die aus `theme.config.ts`
+   kommt (siehe `src/theme/index.ts#cssVariables`). Hier steht kein einziger
+   Marken-Wert im Klartext.
+
+   Die Formensprache in einem Satz: scharfe Kanten, harte Versatzschatten,
+   kein Verlauf, kein Weichzeichner, kein Glas.
+   ========================================================================== */
 
 @layer base {
   * {
     box-sizing: border-box;
+    /* Es gibt keinen Radius. Auch nicht „nur ein bisschen". */
+    border-radius: 0;
   }
 
   html,
@@ -25,32 +28,27 @@
 
   body {
     margin: 0;
-    background: var(--nzl-color-canvas);
-    color: var(--nzl-color-ink);
-    font-family: var(--nzl-font-body);
+    background: var(--nz-color-canvas);
+    color: var(--nz-color-ink);
+    font-family: var(--nz-font-body);
     font-size: 13px;
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
     overscroll-behavior: none;
   }
 
   :focus-visible {
-    outline: 2px solid var(--nzl-color-focus-ring);
-    outline-offset: 2px;
-    border-radius: var(--nzl-radius-xs);
+    outline: var(--nz-stroke-strong) solid var(--nz-color-focus);
+    outline-offset: 1px;
   }
 
   ::selection {
-    background: var(--nzl-color-selection-wash);
+    background: var(--nz-color-signal);
+    color: var(--nz-color-ink);
   }
 
-  button {
-    font: inherit;
-    color: inherit;
-  }
-
+  button,
   input,
   textarea,
   select {
@@ -58,20 +56,18 @@
     color: inherit;
   }
 
-  /* Thin, CI-toned scrollbars for the app chrome. */
+  /* Scrollbalken: Tinte auf Papier, eckig. */
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--nzl-color-border-strong);
-    border: 3px solid transparent;
+    background: var(--nz-color-ink);
+    border: 4px solid transparent;
     background-clip: content-box;
-    border-radius: var(--nzl-radius-pill);
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--nzl-color-ink-subtle);
-    background-clip: content-box;
+    border-width: 3px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
@@ -79,165 +75,149 @@
 }
 
 @layer components {
-  /* ------------------------------------------------------------------ chrome */
+  /* ------------------------------------------------------------------ Chrome */
 
-  .nzl-panel {
-    background: var(--nzl-color-surface);
-    border: 1px solid var(--nzl-color-border);
-    border-radius: var(--nzl-radius-lg);
-    box-shadow: var(--nzl-shadow-sm);
+  .nz-panel {
+    background: var(--nz-color-surface);
+    border: var(--nz-stroke-rule) solid var(--nz-color-line);
+    box-shadow: var(--nz-shadow-md);
   }
 
-  .nzl-field {
+  .nz-field {
     width: 100%;
     padding: 6px 8px;
-    background: var(--nzl-color-surface);
-    border: 1px solid var(--nzl-color-border);
-    border-radius: var(--nzl-radius-sm);
+    background: var(--nz-color-surface);
+    border: var(--nz-stroke-rule) solid var(--nz-color-line);
     font-size: 12px;
-    transition: border-color var(--nzl-duration-fast) var(--nzl-ease-standard),
-      box-shadow var(--nzl-duration-fast) var(--nzl-ease-standard);
+    transition: box-shadow var(--nz-dur-fast) var(--nz-ease-standard);
   }
-  .nzl-field:hover {
-    border-color: var(--nzl-color-border-strong);
+  .nz-field:hover {
+    box-shadow: var(--nz-shadow-sm);
   }
-  .nzl-field:focus {
+  .nz-field:focus {
     outline: none;
-    border-color: var(--nzl-color-primary);
-    box-shadow: var(--nzl-shadow-focus);
+    box-shadow: var(--nz-shadow-signal);
   }
 
-  .nzl-label {
+  /* Labels sind Space Mono Bold, ALL-CAPS, 0.12em — überall. */
+  .nz-label {
     display: block;
+    font-family: var(--nz-font-mono);
     font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    color: var(--nzl-color-ink-subtle);
+    font-weight: 700;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    margin-bottom: 4px;
+    color: var(--nz-color-ink-muted);
+    margin-bottom: 5px;
   }
 
-  /* --------------------------------------------------------------- markdown */
+  /* ---------------------------------------------------------------- Markdown */
 
-  .nzl-prose {
-    color: var(--nzl-color-ink);
+  .nz-prose {
+    color: var(--nz-color-ink);
     font-size: 13px;
-    line-height: 1.6;
+    line-height: 1.55;
   }
-  .nzl-prose > * + * {
+  .nz-prose > * + * {
     margin-top: 0.7em;
   }
-  .nzl-prose h1,
-  .nzl-prose h2,
-  .nzl-prose h3 {
-    font-family: var(--nzl-font-display);
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    line-height: 1.25;
+  .nz-prose h1,
+  .nz-prose h2,
+  .nz-prose h3 {
+    font-family: var(--nz-font-display);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
   }
-  .nzl-prose h1 {
-    font-size: 1.4em;
+  .nz-prose h1 {
+    font-size: 1.5em;
   }
-  .nzl-prose h2 {
-    font-size: 1.2em;
+  .nz-prose h2 {
+    font-size: 1.25em;
   }
-  .nzl-prose h3 {
-    font-size: 1.05em;
+  .nz-prose h3 {
+    font-size: 1.1em;
   }
-  .nzl-prose ul,
-  .nzl-prose ol {
+  .nz-prose ul,
+  .nz-prose ol {
     padding-left: 1.25em;
   }
-  .nzl-prose ul {
-    list-style: disc;
+  .nz-prose ul {
+    list-style: square;
   }
-  .nzl-prose ol {
+  .nz-prose ol {
     list-style: decimal;
   }
-  .nzl-prose li + li {
-    margin-top: 0.25em;
-  }
-  .nzl-prose a {
-    color: var(--nzl-color-primary);
+  .nz-prose a {
+    color: inherit;
     text-decoration: underline;
     text-underline-offset: 2px;
   }
-  .nzl-prose code {
-    font-family: var(--nzl-font-mono);
+  .nz-prose code {
+    font-family: var(--nz-font-mono);
     font-size: 0.92em;
-    background: var(--nzl-color-surface-sunken);
+    background: var(--nz-color-surface-alt);
     padding: 0.1em 0.32em;
-    border-radius: var(--nzl-radius-xs);
   }
-  .nzl-prose pre {
-    background: var(--nzl-color-surface-sunken);
-    border: 1px solid var(--nzl-color-border);
-    border-radius: var(--nzl-radius-md);
-    padding: var(--nzl-space-3);
+  .nz-prose pre {
+    background: var(--nz-color-surface-alt);
+    border: var(--nz-stroke-rule) solid var(--nz-color-line);
+    padding: var(--nz-space-3);
     overflow-x: auto;
   }
-  .nzl-prose pre code {
+  .nz-prose pre code {
     background: none;
     padding: 0;
   }
-  .nzl-prose blockquote {
-    border-left: 3px solid var(--nzl-color-primary);
-    padding-left: var(--nzl-space-3);
-    color: var(--nzl-color-ink-muted);
-  }
-  .nzl-prose kbd {
-    font-family: var(--nzl-font-mono);
-    font-size: 0.85em;
-    background: var(--nzl-color-surface);
-    border: 1px solid var(--nzl-color-border);
-    border-bottom-width: 2px;
-    border-radius: var(--nzl-radius-xs);
-    padding: 0.1em 0.4em;
+  .nz-prose blockquote {
+    border-left: var(--nz-stroke-strong) solid var(--nz-color-ink);
+    padding-left: var(--nz-space-3);
   }
 
-  /* ----------------------------------------------------------------- canvas */
-
-  .nzl-stage {
-    background: var(--nzl-color-surface);
-    box-shadow: var(--nzl-shadow-lg);
-    border-radius: var(--nzl-radius-md);
+  /* Der grüne Marker — das Signature-Element. */
+  .nz-prose mark,
+  mark.g {
+    background: var(--nz-color-signal);
+    color: var(--nz-color-ink);
+    padding: 0 0.14em;
   }
 
-  .nzl-stage--present {
-    border-radius: 0;
+  /* ------------------------------------------------------------------ Fläche */
+
+  .nz-stage {
+    background: var(--nz-color-surface);
+    box-shadow: var(--nz-shadow-lg);
+  }
+
+  .nz-stage--present {
     box-shadow: none;
   }
 
-  /* Element hit areas sit above the SVG and carry the interaction affordances. */
-  .nzl-hit {
+  /* Die Trefferflächen liegen über der Zeichnung und tragen die Bedienung. */
+  .nz-hit {
     position: absolute;
     top: 0;
     left: 0;
     transform-origin: center center;
   }
-  .nzl-hit[data-locked='true'] {
+  .nz-hit[data-locked='true'] {
     cursor: not-allowed;
   }
 
-  .nzl-handle {
+  .nz-handle {
     position: absolute;
     width: 10px;
     height: 10px;
-    background: var(--nzl-color-surface);
-    border: 1.5px solid var(--nzl-color-selection);
-    border-radius: 2px;
-    box-shadow: var(--nzl-shadow-xs);
-  }
-  .nzl-handle--round {
-    border-radius: var(--nzl-radius-pill);
+    background: var(--nz-color-signal);
+    border: var(--nz-stroke-rule) solid var(--nz-color-ink);
   }
 }
 
 /* ==========================================================================
-   Motion
+   Bewegung — kurz, gerade, ohne Schnörkel
    ========================================================================== */
 
-@keyframes nzl-slide-in-fade {
+@keyframes nz-slide-in-fade {
   from {
     opacity: 0;
   }
@@ -245,17 +225,17 @@
     opacity: 1;
   }
 }
-@keyframes nzl-slide-in-slide {
+@keyframes nz-slide-in-slide {
   from {
     opacity: 0;
-    transform: translateX(4%);
+    transform: translateX(3%);
   }
   to {
     opacity: 1;
     transform: translateX(0);
   }
 }
-@keyframes nzl-slide-in-push {
+@keyframes nz-slide-in-push {
   from {
     transform: translateX(100%);
   }
@@ -263,48 +243,24 @@
     transform: translateX(0);
   }
 }
-@keyframes nzl-slide-in-zoom {
-  from {
-    opacity: 0;
-    transform: scale(0.965);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-@keyframes nzl-slide-in-rise {
-  from {
-    opacity: 0;
-    transform: translateY(2.2%);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
-.nzl-transition-fade {
-  animation: nzl-slide-in-fade var(--nzl-duration-slide) var(--nzl-ease-standard) both;
+.nz-transition-fade {
+  animation: nz-slide-in-fade var(--nz-dur-slide) var(--nz-ease-standard) both;
 }
-.nzl-transition-slide {
-  animation: nzl-slide-in-slide var(--nzl-duration-slide) var(--nzl-ease-entrance) both;
+.nz-transition-slide {
+  animation: nz-slide-in-slide var(--nz-dur-slide) var(--nz-ease-standard) both;
 }
-.nzl-transition-push {
-  animation: nzl-slide-in-push var(--nzl-duration-slide) var(--nzl-ease-entrance) both;
+.nz-transition-push {
+  animation: nz-slide-in-push var(--nz-dur-slide) var(--nz-ease-standard) both;
 }
-.nzl-transition-zoom {
-  animation: nzl-slide-in-zoom var(--nzl-duration-slide) var(--nzl-ease-entrance) both;
-}
-.nzl-transition-rise {
-  animation: nzl-slide-in-rise var(--nzl-duration-slide) var(--nzl-ease-entrance) both;
-}
-.nzl-transition-none {
+/* `cut` und `none` schneiden hart — das ist eine Entscheidung, kein Fehlen. */
+.nz-transition-cut,
+.nz-transition-none {
   animation: none;
 }
 
-/* Element reveals — applied to the <g> wrapping a single element. */
-@keyframes nzl-reveal-fade {
+/* Einblendungen einzelner Elemente. */
+@keyframes nz-reveal-fade {
   from {
     opacity: 0;
   }
@@ -312,81 +268,69 @@
     opacity: 1;
   }
 }
-@keyframes nzl-reveal-rise {
+@keyframes nz-reveal-rise {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
-@keyframes nzl-reveal-zoom {
+@keyframes nz-reveal-slide-left {
   from {
     opacity: 0;
-    transform: scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-@keyframes nzl-reveal-slide-left {
-  from {
-    opacity: 0;
-    transform: translateX(36px);
+    transform: translateX(32px);
   }
   to {
     opacity: 1;
     transform: translateX(0);
   }
 }
-@keyframes nzl-reveal-slide-right {
+@keyframes nz-reveal-slide-right {
   from {
     opacity: 0;
-    transform: translateX(-36px);
+    transform: translateX(-32px);
   }
   to {
     opacity: 1;
     transform: translateX(0);
   }
 }
-@keyframes nzl-reveal-draw {
+@keyframes nz-reveal-wipe {
   from {
-    opacity: 0;
     clip-path: inset(0 100% 0 0);
   }
   to {
-    opacity: 1;
     clip-path: inset(0 0 0 0);
   }
 }
 
-.nzl-reveal {
+.nz-reveal {
   transform-box: fill-box;
   transform-origin: center;
-  animation-duration: var(--nzl-duration-slow);
-  animation-timing-function: var(--nzl-ease-entrance);
+  animation-duration: var(--nz-dur-slow);
+  animation-timing-function: var(--nz-ease-standard);
   animation-fill-mode: both;
 }
-.nzl-reveal-fade {
-  animation-name: nzl-reveal-fade;
+.nz-reveal-cut {
+  animation: none;
 }
-.nzl-reveal-rise {
-  animation-name: nzl-reveal-rise;
+.nz-reveal-fade {
+  animation-name: nz-reveal-fade;
 }
-.nzl-reveal-zoom {
-  animation-name: nzl-reveal-zoom;
+.nz-reveal-rise {
+  animation-name: nz-reveal-rise;
 }
-.nzl-reveal-slide-left {
-  animation-name: nzl-reveal-slide-left;
+.nz-reveal-slide-left {
+  animation-name: nz-reveal-slide-left;
 }
-.nzl-reveal-slide-right {
-  animation-name: nzl-reveal-slide-right;
+.nz-reveal-slide-right {
+  animation-name: nz-reveal-slide-right;
 }
-.nzl-reveal-draw {
-  animation-name: nzl-reveal-draw;
+.nz-reveal-wipe {
+  animation-name: nz-reveal-wipe;
 }
 
 @media (prefers-reduced-motion: reduce) {

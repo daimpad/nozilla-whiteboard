@@ -28,7 +28,8 @@ export function useKeyboardShortcuts(): void {
       /* -------------------------------------------------- always available */
 
       if (event.key === 'Escape') {
-        if (store.overviewOpen) store.toggleOverview(false);
+        if (store.promptOpen) store.togglePrompt(false);
+        else if (store.overviewOpen) store.toggleOverview(false);
         else if (store.mode === 'present') store.setMode('edit');
         else if (store.selection.length > 0) store.clearSelection();
         else return;

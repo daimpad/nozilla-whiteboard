@@ -27,7 +27,7 @@ type Tab = 'elements' | 'icons';
 
 export function AssetSidebar() {
   const [tab, setTab] = useState<Tab>('elements');
-  const [tone, setTone] = useState<ToneName>('primary');
+  const [tone, setTone] = useState<ToneName>('paper');
   const [query, setQuery] = useState('');
   const insertPreset = useDeckStore((state) => state.insertPreset);
 
@@ -35,8 +35,7 @@ export function AssetSidebar() {
     const needle = query.trim().toLowerCase();
     if (!needle) return assetPresets;
     return assetPresets.filter(
-      (preset) =>
-        preset.label.toLowerCase().includes(needle) || preset.kind.includes(needle),
+      (preset) => preset.label.toLowerCase().includes(needle) || preset.kind.includes(needle),
     );
   }, [query]);
 
@@ -44,35 +43,43 @@ export function AssetSidebar() {
 
   return (
     <aside
-      className="flex h-full w-[268px] shrink-0 flex-col border-r border-border bg-surface"
+      className="flex h-full w-[268px] shrink-0 flex-col border-r border-line bg-surface"
       aria-label="Asset library"
     >
-      <div className="flex items-center gap-1 border-b border-border px-2 py-2">
-        <TabButton active={tab === 'elements'} onClick={() => setTab('elements')} icon="layers">
+      <div className="flex items-center gap-1 border-b border-line px-2 py-2">
+        <TabButton
+          active={tab === 'elements'}
+          onClick={() => setTab('elements')}
+          icon="layer-group"
+        >
           Elements
         </TabButton>
-        <TabButton active={tab === 'icons'} onClick={() => setTab('icons')} icon="sparkle">
+        <TabButton
+          active={tab === 'icons'}
+          onClick={() => setTab('icons')}
+          icon="wand-magic-sparkles"
+        >
           Icons
         </TabButton>
       </div>
 
-      <div className="border-b border-border p-2">
+      <div className="border-b border-line p-2">
         <div className="relative">
           <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-ink-subtle">
-            <Icon name="search" size={13} />
+            <Icon name="magnifying-glass" size={13} />
           </span>
           <input
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={tab === 'icons' ? 'Search icons' : 'Search elements'}
-            className="nzl-field pl-8"
+            className="nz-field pl-8"
             aria-label="Search the asset library"
           />
         </div>
 
         <div className="mt-2 flex items-center gap-1">
-          <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
+          <span className="mr-1 text-[11px] font-semibold uppercase tracking-label text-ink-subtle">
             Tone
           </span>
           {toneNames.map((name) => (
@@ -84,10 +91,13 @@ export function AssetSidebar() {
               aria-pressed={tone === name}
               onClick={() => setTone(name)}
               className={cx(
-                'h-5 w-5 rounded-pill border transition-transform duration-fast ease-spring',
-                tone === name ? 'scale-110 border-ink' : 'border-border hover:scale-105',
+                'h-5 w-5  border transition-transform duration-fast ease-standard',
+                tone === name ? 'scale-110 border-ink' : 'border-line hover:scale-105',
               )}
-              style={{ background: elementTones[name].solidFill }}
+              style={{
+                background: elementTones[name].surface,
+                boxShadow: `inset 0 0 0 2px ${elementTones[name].line}`,
+              }}
             />
           ))}
         </div>
@@ -108,7 +118,10 @@ export function AssetSidebar() {
                       preset={preset}
                       tone={tone}
                       onInsert={() =>
-                        insertPreset(preset.kind, { ...preset.patch, tone } as Partial<CanvasElement>)
+                        insertPreset(preset.kind, {
+                          ...preset.patch,
+                          tone,
+                        } as Partial<CanvasElement>)
                       }
                     />
                   ))}
@@ -121,7 +134,7 @@ export function AssetSidebar() {
         )}
       </div>
 
-      <p className="border-t border-border px-3 py-2 text-[11px] leading-snug text-ink-subtle">
+      <p className="border-t border-line px-3 py-2 text-[11px] leading-snug text-ink-subtle">
         Click to place at the centre of the slide. Everything inherits the CI tone, radii and line
         weights automatically.
       </p>
@@ -148,9 +161,9 @@ function TabButton({
       onClick={onClick}
       aria-pressed={active}
       className={cx(
-        'inline-flex h-7 flex-1 items-center justify-center gap-1.5 rounded-sm text-ui-body font-medium',
+        'inline-flex h-7 flex-1 items-center justify-center gap-1.5  text-ui-body font-medium',
         'transition-colors duration-fast ease-standard',
-        active ? 'bg-primary-soft text-primary' : 'text-ink-muted hover:bg-surface-sunken',
+        active ? 'bg-signal text-ink' : 'text-ink-muted hover:bg-paper-deep',
       )}
     >
       <Icon name={icon} size={14} />
@@ -188,13 +201,13 @@ const PresetTile = memo(function PresetTile({ preset, tone, onInsert }: PresetTi
       onClick={onInsert}
       title={preset.hint ?? `Add ${preset.label}`}
       className={cx(
-        'group flex flex-col items-stretch gap-1 rounded-md border border-border bg-surface p-1.5',
+        'group flex flex-col items-stretch gap-1  border border-line bg-surface p-1.5',
         'text-left transition-all duration-fast ease-standard',
         'hover:-translate-y-px hover:border-primary-border hover:shadow-md',
       )}
     >
       <span
-        className="flex h-[54px] items-center justify-center overflow-hidden rounded-sm bg-surface-subtle"
+        className="flex h-[54px] items-center justify-center overflow-hidden bg-surface-alt"
         aria-hidden="true"
       >
         <svg
@@ -252,10 +265,10 @@ function IconPalette({ tone, matches }: { tone: ToneName; matches: IconName[] | 
                   aria-label={`Add the ${name} icon`}
                   onClick={(event) => add(name, event.shiftKey ? 'square' : 'none')}
                   className={cx(
-                    'flex aspect-square items-center justify-center rounded-sm border border-transparent',
+                    'flex aspect-square items-center justify-center  border border-transparent',
                     'transition-colors duration-fast ease-standard hover:border-border hover:bg-surface-subtle',
                   )}
-                  style={{ color: elementTones[tone].accentText || ci.primary }}
+                  style={{ color: ci.ink }}
                 >
                   <Icon name={name} size={18} />
                 </button>

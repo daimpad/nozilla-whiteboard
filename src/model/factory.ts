@@ -1,17 +1,18 @@
 /**
- * Element construction and normalisation.
+ * Elemente bauen und einlesen.
  *
- * `createElement` is the *only* way an element enters the document, which is
- * what guarantees "every element placed on the canvas inherits default CI
- * styles automatically". `normalizeElement` is its forgiving twin: it repairs
- * hand-written YAML from a `.md` file back into a valid, fully-defaulted
- * element.
+ * `createElement` ist der einzige Weg, auf dem ein Element ins Dokument kommt.
+ * Genau das macht die Zusage „alles erbt automatisch die CI" strukturell statt
+ * zu einer Konvention, an die sich jemand erinnern muss.
+ *
+ * `normalizeElement` ist der nachsichtige Zwilling: es repariert von Hand
+ * geschriebenes YAML aus einer `.md` zu einem gültigen, vollständig
+ * vorbelegten Element — ein Tippfehler kostet einen Standardwert, nicht die
+ * ganze Datei.
  */
-import { canvas, elementDefaults, radius as radiusTokens, revealAnimations } from '@/theme';
-import type { RevealAnimation, StrokeName, ToneName, TypeStyleName } from '@/theme';
-import { typeScale } from '@/theme';
-import { elementTones } from '@/theme';
-import { iconNames, type IconName } from '@/assets/icons';
+import { canvas, elementDefaults, elementTones, revealAnimations, typeScale } from '@/theme';
+import type { RevealAnimation, ShadowName, StrokeName, ToneName, TypeStyleName } from '@/theme';
+import { isIconName, type IconName } from '@/assets/icons';
 import {
   cardVariants,
   connectorKinds,
@@ -21,6 +22,7 @@ import {
   iconFrames,
   shapeNames,
   verticalAligns,
+  wordmarkVariants,
   type CanvasElement,
   type ElementBase,
   type ElementKind,
@@ -29,14 +31,14 @@ import {
 
 let idCounter = 0;
 
-/** Short, stable, human-legible ids — they end up in the saved Markdown. */
+/** Kurze, stabile, lesbare Ids — sie landen in der gespeicherten Markdown-Datei. */
 export function createId(prefix = 'el'): string {
   idCounter += 1;
   const random = Math.random().toString(36).slice(2, 7);
   return `${prefix}-${idCounter.toString(36)}${random}`;
 }
 
-/** Reset the id counter — used by tests to get deterministic output. */
+/** Den Zähler zurücksetzen — für Tests mit erwartbarer Ausgabe. */
 export function __resetIdCounter(value = 0): void {
   idCounter = value;
 }
@@ -44,23 +46,25 @@ export function __resetIdCounter(value = 0): void {
 const defaultFill: Record<ElementKind, FillStyle> = {
   text: 'none',
   markdown: 'none',
-  card: 'soft',
-  badge: 'solid',
+  card: 'framed',
+  badge: 'framed',
   icon: 'none',
-  shape: 'soft',
+  shape: 'framed',
   connector: 'none',
-  image: 'none',
+  image: 'outline',
+  wordmark: 'none',
 };
 
-const defaultRadius: Record<ElementKind, number> = {
-  text: radiusTokens.md,
-  markdown: elementDefaults.markdown.radius,
-  card: elementDefaults.card.radius,
-  badge: elementDefaults.badge.radius,
-  icon: radiusTokens.lg,
-  shape: elementDefaults.shape.radius,
-  connector: 0,
-  image: elementDefaults.image.radius,
+const defaultShadow: Record<ElementKind, ShadowName> = {
+  text: 'none',
+  markdown: 'none',
+  card: 'md',
+  badge: 'sm',
+  icon: 'none',
+  shape: 'none',
+  connector: 'none',
+  image: 'md',
+  wordmark: 'none',
 };
 
 const defaultPadding: Record<ElementKind, number> = {
@@ -69,20 +73,22 @@ const defaultPadding: Record<ElementKind, number> = {
   card: elementDefaults.card.padding,
   badge: 16,
   icon: 12,
-  shape: 16,
+  shape: 20,
   connector: 0,
   image: 0,
+  wordmark: 0,
 };
 
 const defaultStroke: Record<ElementKind, StrokeName> = {
-  text: 'hairline',
+  text: 'hair',
   markdown: elementDefaults.markdown.strokeWeight,
   card: elementDefaults.card.strokeWeight,
   badge: elementDefaults.badge.strokeWeight,
   icon: elementDefaults.icon.strokeWeight,
   shape: elementDefaults.shape.strokeWeight,
   connector: elementDefaults.connector.strokeWeight,
-  image: 'hairline',
+  image: 'rule',
+  wordmark: 'hair',
 };
 
 const defaultSize: Record<ElementKind, { w: number; h: number }> = {
@@ -94,6 +100,7 @@ const defaultSize: Record<ElementKind, { w: number; h: number }> = {
   shape: { w: elementDefaults.shape.width, h: elementDefaults.shape.height },
   connector: { w: elementDefaults.connector.width, h: elementDefaults.connector.height },
   image: { w: elementDefaults.image.width, h: elementDefaults.image.height },
+  wordmark: { w: elementDefaults.wordmark.width, h: elementDefaults.wordmark.height },
 };
 
 const defaultTone: Record<ElementKind, ToneName> = {
@@ -105,6 +112,7 @@ const defaultTone: Record<ElementKind, ToneName> = {
   shape: elementDefaults.shape.tone,
   connector: elementDefaults.connector.tone,
   image: elementDefaults.image.tone,
+  wordmark: elementDefaults.wordmark.tone,
 };
 
 function baseFor(kind: ElementKind): ElementBase {
@@ -121,7 +129,7 @@ function baseFor(kind: ElementKind): ElementBase {
     tone: defaultTone[kind],
     fill: defaultFill[kind],
     strokeWeight: defaultStroke[kind],
-    radius: defaultRadius[kind],
+    shadow: defaultShadow[kind],
     padding: defaultPadding[kind],
     opacity: 1,
     locked: false,
@@ -131,8 +139,8 @@ function baseFor(kind: ElementKind): ElementBase {
 type ElementOf<K extends ElementKind> = Extract<CanvasElement, { kind: K }>;
 
 /**
- * Build a fully-formed, CI-defaulted element. `patch` may override anything,
- * but omitted properties always fall back to the CI defaults.
+ * Ein vollständiges, CI-vorbelegtes Element bauen. `patch` darf alles
+ * überschreiben — was fehlt, kommt aus der CI.
  */
 export function createElement<K extends ElementKind>(
   kind: K,
@@ -153,26 +161,31 @@ export function createElement<K extends ElementKind>(
       };
       break;
     case 'markdown':
-      element = { ...base, kind: 'markdown', markdown: '### Heading\n\nBody copy.', align: 'left' };
+      element = {
+        ...base,
+        kind: 'markdown',
+        markdown: '### Zwischentitel\n\nFließtext.',
+        align: 'left',
+      };
       break;
     case 'card':
       element = {
         ...base,
         kind: 'card',
         variant: 'feature',
-        title: 'Card title',
-        body: 'Short supporting sentence that explains the point.',
-        icon: 'sparkle',
+        title: 'Titel der Karte',
+        body: 'Ein Satz, der behauptet, was die Karte behauptet.',
+        icon: 'square-check',
       };
       break;
     case 'badge':
-      element = { ...base, kind: 'badge', text: 'Badge' };
+      element = { ...base, kind: 'badge', text: 'Label' };
       break;
     case 'icon':
-      element = { ...base, kind: 'icon', icon: 'sparkle', frame: 'none' };
+      element = { ...base, kind: 'icon', icon: 'square-check', frame: 'none' };
       break;
     case 'shape':
-      element = { ...base, kind: 'shape', shape: 'rounded' };
+      element = { ...base, kind: 'shape', shape: 'rectangle' };
       break;
     case 'connector':
       element = { ...base, kind: 'connector', connector: 'arrow', dashed: false };
@@ -180,15 +193,21 @@ export function createElement<K extends ElementKind>(
     case 'image':
       element = { ...base, kind: 'image', src: '', alt: '', fit: 'contain' };
       break;
+    case 'wordmark':
+      element = { ...base, kind: 'wordmark', variant: 'auto' };
+      break;
     default:
-      throw new Error(`Unknown element kind: ${String(kind)}`);
+      throw new Error(`Unbekannte Elementart: ${String(kind)}`);
   }
 
   return { ...element, ...patch } as ElementOf<K>;
 }
 
-/** Copy an element with a fresh id, nudged by `offset` slide units. */
-export function duplicateElement(element: CanvasElement, offset = canvas.gridSize * 3): CanvasElement {
+/** Ein Element mit frischer Id kopieren, um `offset` Folien-Einheiten versetzt. */
+export function duplicateElement(
+  element: CanvasElement,
+  offset = canvas.gridSize * 3,
+): CanvasElement {
   return {
     ...element,
     id: createId(element.kind),
@@ -198,15 +217,15 @@ export function duplicateElement(element: CanvasElement, offset = canvas.gridSiz
 }
 
 /* -------------------------------------------------------------------------- */
-/* Normalisation (parsing hand-written / saved YAML)                           */
+/* Einlesen                                                                    */
 /* -------------------------------------------------------------------------- */
 
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v);
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 function num(value: unknown, fallback: number): number {
-  const n = typeof value === 'string' ? Number(value) : value;
-  return typeof n === 'number' && Number.isFinite(n) ? n : fallback;
+  const parsed = typeof value === 'string' ? Number(value) : value;
+  return typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function str(value: unknown, fallback = ''): string {
@@ -224,17 +243,9 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback
 }
 
 function optionalIcon(value: unknown): IconName | undefined {
-  return typeof value === 'string' && (iconNames as string[]).includes(value)
-    ? (value as IconName)
-    : undefined;
+  return isIconName(value) ? value : undefined;
 }
 
-/**
- * Turn arbitrary parsed YAML into a valid element, or `null` if it is too
- * broken to be useful. Unknown keys are dropped; bad values fall back to CI
- * defaults rather than throwing, so a typo in a hand-edited deck degrades
- * gracefully instead of failing the whole file.
- */
 export function normalizeElement(raw: unknown, index = 0): CanvasElement | null {
   if (!isRecord(raw)) return null;
 
@@ -253,10 +264,10 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
     fill: oneOf(raw.fill, fillStyles, defaultFill[kind]),
     strokeWeight: oneOf(
       raw.strokeWeight ?? raw.stroke,
-      ['hairline', 'regular', 'medium', 'bold', 'heavy'] as const,
+      ['hair', 'rule', 'strong', 'heavy'] as const,
       defaultStroke[kind],
     ),
-    radius: num(raw.radius, defaultRadius[kind]),
+    shadow: oneOf(raw.shadow, ['none', 'sm', 'md', 'lg'] as const, defaultShadow[kind]),
     padding: num(raw.padding, defaultPadding[kind]),
     opacity: Math.min(1, Math.max(0, num(raw.opacity, 1))),
     locked: bool(raw.locked, false),
@@ -273,7 +284,7 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
         ...base,
         kind: 'text',
         text: str(raw.text),
-        typeStyle: oneOf(raw.typeStyle, Object.keys(typeScale) as TypeStyleName[], 'h3'),
+        typeStyle: oneOf(raw.typeStyle, Object.keys(typeScale) as TypeStyleName[], 'h4'),
         align: oneOf(raw.align, horizontalAligns, 'left'),
         valign: oneOf(raw.valign, verticalAligns, 'top'),
       };
@@ -289,7 +300,7 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
         ...base,
         kind: 'card',
         variant: oneOf(raw.variant, cardVariants, 'feature'),
-        eyebrow: typeof raw.eyebrow === 'string' ? raw.eyebrow : undefined,
+        label: typeof raw.label === 'string' ? raw.label : undefined,
         title: str(raw.title),
         body: str(raw.body),
         icon: optionalIcon(raw.icon),
@@ -300,18 +311,19 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
       return {
         ...base,
         kind: 'icon',
-        icon: optionalIcon(raw.icon) ?? 'sparkle',
+        icon: optionalIcon(raw.icon) ?? 'square-check',
         frame: oneOf(raw.frame, iconFrames, 'none'),
       };
     case 'shape':
       return {
         ...base,
         kind: 'shape',
-        shape: oneOf(raw.shape, shapeNames, 'rounded'),
+        shape: oneOf(raw.shape, shapeNames, 'rectangle'),
         label: typeof raw.label === 'string' ? raw.label : undefined,
-        labelStyle: typeof raw.labelStyle === 'string'
-          ? oneOf(raw.labelStyle, Object.keys(typeScale) as TypeStyleName[], 'body')
-          : undefined,
+        labelStyle:
+          typeof raw.labelStyle === 'string'
+            ? oneOf(raw.labelStyle, Object.keys(typeScale) as TypeStyleName[], 'body')
+            : undefined,
       };
     case 'connector':
       return {
@@ -329,6 +341,8 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
         alt: str(raw.alt),
         fit: oneOf(raw.fit, ['cover', 'contain'] as const, 'contain'),
       };
+    case 'wordmark':
+      return { ...base, kind: 'wordmark', variant: oneOf(raw.variant, wordmarkVariants, 'auto') };
     default:
       return null;
   }
@@ -345,13 +359,13 @@ function normalizeReveal(raw: unknown): { step: number; animation: RevealAnimati
 }
 
 /* -------------------------------------------------------------------------- */
-/* Serialisation support                                                       */
+/* Schreiben                                                                   */
 /* -------------------------------------------------------------------------- */
 
 /**
- * Strip every property that still equals its CI default, so saved Markdown
- * carries only what the author actually changed. Position and size are always
- * kept — they are the whole point of persisting the canvas.
+ * Alles weglassen, was noch dem CI-Standard entspricht. Die gespeicherte
+ * Markdown-Datei trägt dann nur, was jemand wirklich entschieden hat. Position
+ * und Größe bleiben immer stehen — sie sind der ganze Zweck der Übung.
  */
 export function minimizeElement(element: CanvasElement): Record<string, unknown> {
   const kind = element.kind;
@@ -373,7 +387,7 @@ export function minimizeElement(element: CanvasElement): Record<string, unknown>
   keepIfChanged('tone', element.tone, defaultTone[kind]);
   keepIfChanged('fill', element.fill, defaultFill[kind]);
   keepIfChanged('strokeWeight', element.strokeWeight, defaultStroke[kind]);
-  keepIfChanged('radius', round2(element.radius), defaultRadius[kind]);
+  keepIfChanged('shadow', element.shadow, defaultShadow[kind]);
   keepIfChanged('padding', round2(element.padding), defaultPadding[kind]);
   keepIfChanged('opacity', round2(element.opacity), 1);
   keepIfChanged('locked', element.locked, false);
@@ -385,7 +399,7 @@ export function minimizeElement(element: CanvasElement): Record<string, unknown>
   switch (element.kind) {
     case 'text':
       out.text = element.text;
-      keepIfChanged('typeStyle', element.typeStyle, 'h3');
+      keepIfChanged('typeStyle', element.typeStyle, 'h4');
       keepIfChanged('align', element.align, 'left');
       keepIfChanged('valign', element.valign, 'top');
       break;
@@ -395,7 +409,7 @@ export function minimizeElement(element: CanvasElement): Record<string, unknown>
       break;
     case 'card':
       keepIfChanged('variant', element.variant, 'feature');
-      if (element.eyebrow) out.eyebrow = element.eyebrow;
+      if (element.label) out.label = element.label;
       out.title = element.title;
       out.body = element.body;
       if (element.icon) out.icon = element.icon;
@@ -422,6 +436,9 @@ export function minimizeElement(element: CanvasElement): Record<string, unknown>
       out.src = element.src;
       if (element.alt) out.alt = element.alt;
       keepIfChanged('fit', element.fit, 'contain');
+      break;
+    case 'wordmark':
+      keepIfChanged('variant', element.variant, 'auto');
       break;
   }
 

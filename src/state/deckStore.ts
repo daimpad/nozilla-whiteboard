@@ -53,6 +53,7 @@ export interface EditorState {
   revealStep: number;
   overviewOpen: boolean;
   notesOpen: boolean;
+  promptOpen: boolean;
 
   /* Canvas */
   selection: string[];
@@ -67,7 +68,10 @@ export interface EditorState {
 
   /* --------------------------------------------------------------- actions */
   loadDeck: (deck: Deck, meta?: { fileName?: string; handle?: FileSystemFileHandle }) => void;
-  loadMarkdown: (source: string, meta?: { fileName?: string; handle?: FileSystemFileHandle }) => void;
+  loadMarkdown: (
+    source: string,
+    meta?: { fileName?: string; handle?: FileSystemFileHandle },
+  ) => void;
   newDeck: () => void;
   markSaved: (meta?: { fileName?: string; handle?: FileSystemFileHandle }) => void;
   setDeckMeta: (patch: Partial<DeckMeta>) => void;
@@ -80,6 +84,7 @@ export interface EditorState {
   setMode: (mode: EditorMode) => void;
   toggleOverview: (open?: boolean) => void;
   toggleNotes: (open?: boolean) => void;
+  togglePrompt: (open?: boolean) => void;
 
   addSlide: (at?: number, patch?: Partial<Slide>) => void;
   deleteSlide: (index?: number) => void;
@@ -143,7 +148,8 @@ export const useDeckStore = create<EditorState>()((set, get) => {
     dirty: true,
   });
 
-  const currentSlide = (state: EditorState): Slide | undefined => state.deck.slides[state.slideIndex];
+  const currentSlide = (state: EditorState): Slide | undefined =>
+    state.deck.slides[state.slideIndex];
 
   /** Replace the current slide via a producer, keeping everything else intact. */
   const mapSlide = (
@@ -186,6 +192,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
     revealStep: Infinity,
     overviewOpen: false,
     notesOpen: false,
+    promptOpen: false,
 
     selection: [],
     guides: [],
@@ -301,6 +308,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
 
     toggleOverview: (open) => set((state) => ({ overviewOpen: open ?? !state.overviewOpen })),
     toggleNotes: (open) => set((state) => ({ notesOpen: open ?? !state.notesOpen })),
+    togglePrompt: (open) => set((state) => ({ promptOpen: open ?? !state.promptOpen })),
 
     /* -------------------------------------------------------------- slides */
 
@@ -481,10 +489,13 @@ export const useDeckStore = create<EditorState>()((set, get) => {
         const targets = new Set(state.selection);
         const copies = slide.elements
           .filter((element) => targets.has(element.id))
-          .map((element, index) => ({
-            ...duplicateElement(element),
-            z: slide.elements.length + index,
-          }) as CanvasElement);
+          .map(
+            (element, index) =>
+              ({
+                ...duplicateElement(element),
+                z: slide.elements.length + index,
+              }) as CanvasElement,
+          );
         if (copies.length === 0) return {};
         return {
           ...history(state),
@@ -638,7 +649,9 @@ export const useDeckStore = create<EditorState>()((set, get) => {
         ...history(state),
         deck: withElements(state, (elements) =>
           elements.map((element) =>
-            state.selection.includes(element.id) ? ({ ...element, tone } as CanvasElement) : element,
+            state.selection.includes(element.id)
+              ? ({ ...element, tone } as CanvasElement)
+              : element,
           ),
         ),
       })),
@@ -683,17 +696,12 @@ export const useDeckStore = create<EditorState>()((set, get) => {
     /* -------------------------------------------------------------- canvas */
 
     setGuides: (guides) =>
-      set((state) =>
-        guides.length === 0 && state.guides.length === 0 ? {} : { guides },
-      ),
+      set((state) => (guides.length === 0 && state.guides.length === 0 ? {} : { guides })),
     setSnap: (patch) => set((state) => ({ snap: { ...state.snap, ...patch } })),
     toggleGrid: () => set((state) => ({ showGrid: !state.showGrid })),
     setZoom: (zoom) =>
       set({
-        zoom:
-          zoom === 'fit'
-            ? 'fit'
-            : Math.min(canvas.zoom.max, Math.max(canvas.zoom.min, zoom)),
+        zoom: zoom === 'fit' ? 'fit' : Math.min(canvas.zoom.max, Math.max(canvas.zoom.min, zoom)),
       }),
 
     /* ------------------------------------------------------------- history */

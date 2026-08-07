@@ -7,8 +7,8 @@
  * test: layout assertions then hold on any machine, with or without fonts.
  */
 if (typeof HTMLCanvasElement !== 'undefined') {
-  HTMLCanvasElement.prototype.getContext = (() => null) as unknown as
-    typeof HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = (() =>
+    null) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 }
 
 export {};

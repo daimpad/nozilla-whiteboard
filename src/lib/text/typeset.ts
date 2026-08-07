@@ -11,7 +11,7 @@
  * (`theme.config.ts`), so the two agree closely.
  */
 import type { Token, Tokens } from 'marked';
-import { color as ci, radius, stroke, typeScale } from '@/theme';
+import { color as ci, stroke, typeScale } from '@/theme';
 import type { TypeStyleName } from '@/theme';
 import { lexMarkdown } from '@/lib/markdown/render';
 import { baselineOffset, font, measureText, type FontSpec } from './measure';
@@ -28,8 +28,10 @@ export interface PositionedRun {
   color: string;
   underline?: boolean;
   strike?: boolean;
-  /** Inline code gets a subtle plate drawn behind it. */
+  /** Inline-Code bekommt eine getönte Platte. */
   plate?: boolean;
+  /** Grüner Marker hinter dem Wort — das Signature-Element der CI. */
+  mark?: boolean;
   width: number;
 }
 
@@ -40,10 +42,12 @@ export interface StyledRun {
   color: string;
   underline?: boolean;
   strike?: boolean;
-  /** Forces a line break before this run (from `<br>`). */
+  /** Erzwingt einen Umbruch vor diesem Lauf (aus `<br>`). */
   hardBreak?: boolean;
-  /** Inline code gets a subtle plate behind it. */
+  /** Inline-Code bekommt eine getönte Platte. */
   plate?: boolean;
+  /** Grüner Marker hinter dem Wort. */
+  mark?: boolean;
 }
 
 export type TypesetPrim =
@@ -80,21 +84,27 @@ export interface TypesetResult {
 export interface TypesetPalette {
   text: string;
   muted: string;
+  /** Die Farbe für Aufzählungszeichen, Regeln und den Zitatbalken. */
   accent: string;
   border: string;
   codeText: string;
   codeBackground: string;
   quoteBar: string;
+  /** Der grüne Marker. Immer Signal — er ist die Signatur, keine Dekoration. */
+  marker: string;
+  markerText: string;
 }
 
 export const defaultPalette: TypesetPalette = {
   text: ci.ink,
   muted: ci.inkMuted,
-  accent: ci.primary,
-  border: ci.border,
+  accent: ci.ink,
+  border: ci.line,
   codeText: ci.ink,
-  codeBackground: ci.surfaceSunken,
-  quoteBar: ci.primary,
+  codeBackground: ci.surfaceAlt,
+  quoteBar: ci.ink,
+  marker: ci.signal,
+  markerText: ci.inkOnSignal,
 };
 
 export interface TypesetOptions {
@@ -145,8 +155,9 @@ export function typesetText(
     tracking: style.tracking,
   });
   const lineHeight = style.size * scale * style.lineHeight;
+  const source = style.caps ? (text ?? '').toLocaleUpperCase('de-DE') : (text ?? '');
 
-  for (const paragraph of (text ?? '').split(/\n/)) {
+  for (const paragraph of source.split(/\n/)) {
     if (paragraph.trim() === '') {
       layout.advance(lineHeight * 0.5);
       continue;
@@ -305,10 +316,10 @@ class Layout {
           x: this.originX + indent,
           y: this.y,
           w: this.width - indent,
-          h: stroke.hairline,
+          h: stroke.rule,
           fill: this.palette.border,
         });
-        this.y += base * 0.9 + stroke.hairline;
+        this.y += base * 0.9 + stroke.rule;
         return;
       }
 
@@ -331,12 +342,7 @@ class Layout {
 
   /* ------------------------------------------------------------------ items */
 
-  private listItem(
-    item: Tokens.ListItem,
-    indent: number,
-    ordered: boolean,
-    counter: number,
-  ): void {
+  private listItem(item: Tokens.ListItem, indent: number, ordered: boolean, counter: number): void {
     const base = this.baseSize;
     const style = typeScale[this.baseStyle];
     const spec = font({
@@ -359,13 +365,12 @@ class Layout {
         y: boxY,
         w: boxSize,
         h: boxSize,
-        r: radius.xs * this.scale,
-        fill: item.checked ? this.palette.accent : 'transparent',
-        stroke: item.checked ? this.palette.accent : this.palette.border,
-        strokeWidth: stroke.regular,
+        fill: item.checked ? this.palette.marker : 'transparent',
+        stroke: this.palette.border,
+        strokeWidth: stroke.rule,
       });
       if (item.checked) {
-        const tick = font({ family: 'body', size: boxSize * 0.86, weight: 700 });
+        const tick = font({ family: 'body', size: boxSize * 0.8, weight: 700 });
         this.prims.push({
           t: 'text',
           x: this.originX + indent + boxSize * 0.19,
@@ -376,7 +381,7 @@ class Layout {
               dx: 0,
               text: '✓',
               font: tick,
-              color: ci.inkInverse,
+              color: this.palette.markerText,
               width: measureText('✓', tick),
             },
           ],
@@ -399,14 +404,14 @@ class Layout {
         runs: [{ dx: 0, text: label, font: markerFont, color: this.palette.muted, width: w }],
       });
     } else {
-      const r = base * 0.16;
+      // Quadrat, kein Punkt: die Formensprache kennt keine runden Ecken.
+      const size = base * 0.3;
       this.prims.push({
         t: 'rect',
-        x: this.originX + indent + base * 0.28,
-        y: top + lineHeight / 2 - r,
-        w: r * 2,
-        h: r * 2,
-        r,
+        x: this.originX + indent + base * 0.24,
+        y: top + lineHeight / 2 - size / 2,
+        w: size,
+        h: size,
         fill: this.palette.accent,
       });
     }
@@ -472,10 +477,9 @@ class Layout {
       y: top,
       w: boxWidth,
       h: boxHeight,
-      r: radius.md * this.scale,
       fill: this.palette.codeBackground,
       stroke: this.palette.border,
-      strokeWidth: stroke.hairline,
+      strokeWidth: stroke.hair,
     });
 
     let lineY = top + padding;
@@ -497,7 +501,7 @@ class Layout {
 
   private blockquote(token: Tokens.Blockquote, indent: number): void {
     const base = this.baseSize;
-    const barWidth = stroke.bold * this.scale;
+    const barWidth = stroke.strong * this.scale;
     const gutter = base * 0.9;
 
     this.gapBefore(base * 0.4);
@@ -514,7 +518,6 @@ class Layout {
       y: contentTop,
       w: barWidth,
       h: Math.max(base, this.y - contentTop),
-      r: barWidth / 2,
       fill: this.palette.quoteBar,
     });
 
@@ -546,7 +549,11 @@ class Layout {
       const rowTop = y;
 
       cells.forEach((cell, index) => {
-        const runs = flattenInline(cell.tokens ?? [], spec, bold ? this.palette.text : this.palette.muted);
+        const runs = flattenInline(
+          cell.tokens ?? [],
+          spec,
+          bold ? this.palette.text : this.palette.muted,
+        );
         const lines = wrapRuns(runs, colWidth - cellPadX * 2);
         rowHeight = Math.max(rowHeight, lines.length * lineHeight);
         lines.forEach((lineRuns, lineIndex) => {
@@ -565,9 +572,9 @@ class Layout {
       this.prims.push({
         t: 'rect',
         x: this.originX + indent,
-        y: y - stroke.hairline,
+        y: y - stroke.hair,
         w: boxWidth,
-        h: stroke.hairline,
+        h: stroke.hair,
         fill: this.palette.border,
       });
     };
@@ -613,16 +620,28 @@ class Layout {
       if (this.align === 'center') x += (available - lineWidth) / 2;
       else if (this.align === 'right') x += available - lineWidth;
 
+      // Flächen hinter dem Text: erst der grüne Marker, dann die Code-Platte.
+      // Beide sind echte Rechtecke ohne Radius — so exportieren sie exakt.
       for (const run of lineRuns) {
-        if (run.plate) {
-          const pad = run.font.size * 0.22;
+        if (run.mark) {
+          const padX = run.font.size * 0.16;
           this.prims.push({
             t: 'rect',
-            x: x + run.dx - pad,
+            x: x + run.dx - padX,
+            y: this.y + lineHeight / 2 - run.font.size * 0.66,
+            w: run.width + padX * 2,
+            h: run.font.size * 1.3,
+            fill: this.palette.marker,
+          });
+        }
+        if (run.plate) {
+          const padX = run.font.size * 0.22;
+          this.prims.push({
+            t: 'rect',
+            x: x + run.dx - padX,
             y: this.y + lineHeight / 2 - run.font.size * 0.72,
-            w: run.width + pad * 2,
+            w: run.width + padX * 2,
             h: run.font.size * 1.42,
-            r: radius.xs * this.scale,
             fill: this.palette.codeBackground,
           });
         }
@@ -669,7 +688,12 @@ export function flattenInline(
 ): StyledRun[] {
   const out: StyledRun[] = [];
 
-  const walk = (list: readonly Token[], spec: FontSpec, currentColor: string, deco: Partial<StyledRun>) => {
+  const walk = (
+    list: readonly Token[],
+    spec: FontSpec,
+    currentColor: string,
+    deco: Partial<StyledRun>,
+  ) => {
     for (const token of list) {
       const withTokens = token as Token & { tokens?: Token[]; text?: string };
       switch (token.type) {
@@ -682,15 +706,21 @@ export function flattenInline(
         case 'del':
           walk(withTokens.tokens ?? [], spec, currentColor, { ...deco, strike: true });
           break;
+        case 'mark':
+          // Der grüne Marker färbt nicht den Text, er legt eine Fläche darunter.
+          walk(withTokens.tokens ?? [], spec, currentColor, { ...deco, mark: true });
+          break;
         case 'link': {
+          // Kein eigenes Linkblau: die CI kennt drei Farbrollen, und Blau ist
+          // keine davon. Ein Link ist unterstrichene Tinte.
           const link = token as Tokens.Link;
           if (link.tokens?.length) {
-            walk(link.tokens, spec, ci.primary, { ...deco, underline: true });
+            walk(link.tokens, spec, currentColor, { ...deco, underline: true });
           } else {
             out.push({
               text: link.text ?? link.href,
               font: spec,
-              color: ci.primary,
+              color: currentColor,
               underline: true,
               ...deco,
             });
@@ -720,7 +750,7 @@ export function flattenInline(
           out.push({
             text: (token as Tokens.Image).text || '',
             font: { ...spec, italic: true },
-            color: ci.inkMuted,
+            color: currentColor,
             ...deco,
           });
           break;
@@ -730,7 +760,12 @@ export function flattenInline(
           if (withTokens.tokens?.length) {
             walk(withTokens.tokens, spec, currentColor, deco);
           } else if (withTokens.text) {
-            out.push({ text: decodeEntities(withTokens.text), font: spec, color: currentColor, ...deco });
+            out.push({
+              text: decodeEntities(withTokens.text),
+              font: spec,
+              color: currentColor,
+              ...deco,
+            });
           }
         }
       }
@@ -791,6 +826,7 @@ export function wrapRuns(runs: readonly StyledRun[], maxWidth: number): Position
       underline: run.underline,
       strike: run.strike,
       plate: run.plate,
+      mark: run.mark,
       width,
     });
     x += width;

@@ -83,8 +83,8 @@ describe('parseDeck', () => {
         '',
         '<!-- nzl',
         'layout: title',
-        'transition: rise',
-        'background: brand',
+        'transition: cut',
+        'background: ink',
         '-->',
         '',
         '# Hello',
@@ -99,8 +99,8 @@ describe('parseDeck', () => {
     expect(deck.slides).toHaveLength(1);
     expect(deck.slides[0].meta).toEqual({
       layout: 'title',
-      transition: 'rise',
-      background: 'brand',
+      transition: 'cut',
+      background: 'ink',
     });
     expect(deck.slides[0].markdown).toBe('# Hello');
   });
@@ -126,7 +126,7 @@ describe('parseDeck', () => {
     const [element] = deck.slides[0].elements;
     expect(element).toMatchObject({ id: 'b1', kind: 'badge', x: 88, y: 96, w: 160, h: 40 });
     // Untouched properties come from the CI defaults, not from the file.
-    expect(element).toMatchObject({ tone: 'primary', fill: 'solid', opacity: 1, rotation: 0 });
+    expect(element).toMatchObject({ tone: 'signal', fill: 'framed', opacity: 1, rotation: 0 });
   });
 
   it('survives a broken element instead of failing the file', () => {
@@ -160,7 +160,7 @@ describe('serializeDeck', () => {
       '',
       '<!-- nzl',
       'layout: title',
-      'background: brand',
+      'background: ink',
       'notes: Say something memorable.',
       'elements:',
       '  - id: badge-1',
@@ -169,7 +169,7 @@ describe('serializeDeck', () => {
       '    y: 96',
       '    w: 210',
       '    h: 40',
-      '    tone: inverse',
+      '    tone: ink',
       '    text: Markdown + Canvas',
       '    icon: sparkle',
       '  - id: card-1',

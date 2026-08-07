@@ -6,11 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { brand, canvas as canvasTokens } from '@/theme';
 import { openMarkdownFile } from '@/lib/export/download';
 import { exportMarkdown, exportPdf, exportSvg } from '@/lib/export';
-import {
-  selectCanRedo,
-  selectCanUndo,
-  useDeckStore,
-} from '@/state/deckStore';
+import { selectCanRedo, selectCanUndo, useDeckStore } from '@/state/deckStore';
 import { Button, Divider, IconButton, Segmented, cx } from '@/components/ui/controls';
 import { Icon } from '@/components/ui/Icon';
 import type { IconName } from '@/assets/icons';
@@ -37,6 +33,7 @@ export function TopBar() {
   const toggleGrid = useDeckStore((state) => state.toggleGrid);
   const setSnap = useDeckStore((state) => state.setSnap);
   const toggleOverview = useDeckStore((state) => state.toggleOverview);
+  const togglePrompt = useDeckStore((state) => state.togglePrompt);
   const setMode = useDeckStore((state) => state.setMode);
   const undo = useDeckStore((state) => state.undo);
   const redo = useDeckStore((state) => state.redo);
@@ -60,7 +57,7 @@ export function TopBar() {
   };
 
   return (
-    <header className="relative flex h-12 shrink-0 items-center gap-2 border-b border-border bg-surface px-3">
+    <header className="relative flex h-12 shrink-0 items-center gap-2 border-b border-line bg-surface px-3">
       <Logo className="mr-1" />
 
       <div className="flex min-w-0 flex-col leading-tight">
@@ -73,25 +70,34 @@ export function TopBar() {
 
       <Divider className="mx-1" />
 
-      <IconButton icon="document" label="New deck (⌘⇧N)" onClick={newDeck} />
+      <IconButton icon="file-lines" label="New deck (⌘⇧N)" onClick={newDeck} />
       <IconButton icon="folder" label="Open a Markdown deck (⌘O)" onClick={handleOpen} />
       <IconButton icon="download" label="Save Markdown (⌘S)" onClick={handleSave} />
       <ExportMenu busy={busy} setBusy={setBusy} />
 
       <Divider className="mx-1" />
 
-      <IconButton icon="refresh" label="Undo (⌘Z)" disabled={!canUndo} onClick={undo} className="-scale-x-100" />
-      <IconButton icon="refresh" label="Redo (⇧⌘Z)" disabled={!canRedo} onClick={redo} />
+      <IconButton
+        icon="rotate"
+        label="Undo (⌘Z)"
+        disabled={!canUndo}
+        onClick={undo}
+        className="-scale-x-100"
+      />
+      <IconButton icon="rotate" label="Redo (⇧⌘Z)" disabled={!canRedo} onClick={redo} />
 
       <Divider className="mx-1" />
 
       <IconButton icon="plus" label="Add a slide" onClick={() => addSlide()} />
       <IconButton
-        icon="grid"
-        label="Slide overview (⌘K)"
+        icon="table"
+        label="Folienübersicht (⌘K)"
         active={overviewOpen}
         onClick={() => toggleOverview()}
       />
+      <Button icon="wand-magic-sparkles" onClick={() => togglePrompt(true)}>
+        Prompt
+      </Button>
 
       <div className="ml-auto flex items-center gap-2">
         <span className="tabular-nums text-[11px] text-ink-subtle">
@@ -101,12 +107,12 @@ export function TopBar() {
         <Divider />
 
         <IconButton
-          icon="layers"
+          icon="layer-group"
           label="Snap to grid and guides"
           active={snap.grid || snap.smart}
           onClick={() => setSnap({ grid: !snap.grid, smart: !snap.smart })}
         />
-        <IconButton icon="chip" label="Show the grid" active={showGrid} onClick={toggleGrid} />
+        <IconButton icon="table" label="Show the grid" active={showGrid} onClick={toggleGrid} />
 
         <Segmented
           value={zoom === 'fit' ? 'fit' : 'custom'}
@@ -127,7 +133,7 @@ export function TopBar() {
       {busy ? (
         <span
           role="status"
-          className="pointer-events-none absolute left-1/2 top-14 z-toast -translate-x-1/2 rounded-pill bg-surface-inverse px-3 py-1 text-[11px] text-ink-inverse shadow-lg"
+          className="pointer-events-none absolute left-1/2 top-14 z-toast -translate-x-1/2 bg-surface-inverse px-3 py-1 text-[11px] text-ink-inverse shadow-lg"
         >
           {busy}…
         </span>
@@ -185,24 +191,24 @@ function ExportMenu({
       {open ? (
         <div
           className={cx(
-            'nzl-panel absolute left-0 top-9 z-popover w-64 animate-pop-in p-1 shadow-lg',
+            'nz-panel absolute left-0 top-9 z-popover w-64 animate-pop-in p-1 shadow-lg',
           )}
           role="menu"
         >
           <MenuItem
-            icon="document"
+            icon="file-lines"
             label="Markdown (deck + layout)"
             hint=".md — re-importable"
             onClick={() => run('Exporting Markdown', () => exportMarkdown(deck))}
           />
           <MenuItem
-            icon="box"
+            icon="square"
             label="SVG — current slide"
             hint={`${canvasTokens.width}×${canvasTokens.height} vectors`}
             onClick={() => run('Rendering SVG', () => exportSvg(deck, { slideIndex }))}
           />
           <MenuItem
-            icon="layers"
+            icon="layer-group"
             label="SVG — whole deck"
             hint="One file, slides stacked"
             onClick={() => run('Rendering SVG', () => exportSvg(deck))}
@@ -219,7 +225,7 @@ function ExportMenu({
             hint="Single page"
             onClick={() => run('Rendering PDF', () => exportPdf(deck, { slideIndex }))}
           />
-          <p className="border-t border-border px-2 py-1.5 text-[11px] text-ink-subtle">
+          <p className="border-t border-line px-2 py-1.5 text-[11px] text-ink-subtle">
             Exports render through the same pipeline as the canvas — {brand.name} CI included.
           </p>
         </div>
@@ -244,7 +250,7 @@ function MenuItem({
       type="button"
       role="menuitem"
       onClick={onClick}
-      className="flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-left transition-colors duration-fast hover:bg-surface-subtle"
+      className="flex w-full items-start gap-2 px-2 py-1.5 text-left transition-colors duration-fast hover:bg-surface-subtle"
     >
       <span className="mt-0.5 text-ink-subtle">
         <Icon name={icon} size={15} />

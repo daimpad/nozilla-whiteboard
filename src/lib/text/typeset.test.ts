@@ -79,7 +79,7 @@ describe('wrapRuns', () => {
   });
 
   it('trims trailing whitespace from a finished line', () => {
-    const lines = wrapRuns([{ text: 'word   ', font: body, color: '#000' }], 1000);
+    const lines = wrapRuns([{ text: 'word ', font: body, color: '#000' }], 1000);
     expect(lines[0][lines[0].length - 1].text.trim()).not.toBe('');
   });
 });

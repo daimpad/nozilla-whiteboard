@@ -31,14 +31,29 @@ const innerH = height - margin.top - margin.bottom;
 export function flowFrame(layout: SlideLayout): FlowFrame | null {
   switch (layout) {
     case 'title':
+      // Titel stehen links, nicht mittig: die CI setzt Kampagnensätze am
+      // Satzspiegel an, nicht in die Mitte.
+      return {
+        x: margin.left,
+        y: margin.top,
+        w: Math.round(innerW * 0.86),
+        h: innerH,
+        align: 'left',
+        valign: 'middle',
+        scale: 1,
+        baseStyle: 'lead',
+      };
+
+    case 'statement':
+      // Eine Aussage, groß. Für den einen Satz, der die Folie trägt.
       return {
         x: margin.left,
         y: margin.top,
         w: innerW,
         h: innerH,
-        align: 'center',
+        align: 'left',
         valign: 'middle',
-        scale: 1.08,
+        scale: 1,
         baseStyle: 'lead',
       };
 
@@ -68,11 +83,11 @@ export function flowFrame(layout: SlideLayout): FlowFrame | null {
 
     case 'quote':
       return {
-        x: Math.round(width * 0.16),
+        x: Math.round(width * 0.14),
         y: margin.top,
-        w: Math.round(width * 0.68),
+        w: Math.round(width * 0.72),
         h: innerH,
-        align: 'center',
+        align: 'left',
         valign: 'middle',
         scale: 1,
         baseStyle: 'lead',
@@ -99,17 +114,18 @@ export function flowFrame(layout: SlideLayout): FlowFrame | null {
 
 /** Where the deck footer and slide number sit. */
 export const footerFrame = {
-  y: height - margin.bottom + 30,
+  y: height - margin.bottom + 34,
   left: margin.left,
   right: width - margin.right,
 };
 
 export const layoutDescriptions: Record<SlideLayout, string> = {
-  title: 'Centred title slide',
-  default: 'Standard content slide',
-  section: 'Section divider',
-  split: 'Text on the left, canvas on the right',
-  quote: 'Centred pull quote',
-  blank: 'No flow content',
-  canvas: 'Freeform canvas only',
+  title: 'Titelfolie — Kampagnensatz am Satzspiegel',
+  default: 'Standardfolie — Fließtext im Satzspiegel',
+  section: 'Kapiteltrenner',
+  statement: 'Eine Aussage, groß',
+  split: 'Text links, Fläche rechts',
+  quote: 'Zitat',
+  blank: 'Ohne Fließtext',
+  canvas: 'Nur freie Fläche',
 };

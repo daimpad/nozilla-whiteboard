@@ -44,23 +44,15 @@ function SlideViewImpl({
 }: SlideViewProps) {
   const background = useMemo(() => backgroundStyle(slide.meta.background), [slide.meta.background]);
 
-  const backdrop = useMemo(
-    () => primsToSvgMarkup(buildSlideBackdrop(slide)),
-    [slide],
-  );
+  const backdrop = useMemo(() => primsToSvgMarkup(buildSlideBackdrop(slide)), [slide]);
 
   const footer = useMemo(
     () =>
-      chrome
-        ? primsToSvgMarkup(buildSlideChrome(slide, deck, { slideNumber, totalSlides }))
-        : '',
+      chrome ? primsToSvgMarkup(buildSlideChrome(slide, deck, { slideNumber, totalSlides })) : '',
     [chrome, slide, deck, slideNumber, totalSlides],
   );
 
-  const ordered = useMemo(
-    () => slide.elements.slice().sort((a, b) => a.z - b.z),
-    [slide.elements],
-  );
+  const ordered = useMemo(() => slide.elements.slice().sort((a, b) => a.z - b.z), [slide.elements]);
 
   return (
     <svg
@@ -118,7 +110,7 @@ const ElementLayer = memo(function ElementLayer({
   return (
     <g
       data-element-id={element.id}
-      className={animate ? `nzl-reveal nzl-reveal-${animation}` : undefined}
+      className={animate ? `nz-reveal nz-reveal-${animation}` : undefined}
       style={animate ? { animationDelay: `${index * motion.stagger}ms` } : undefined}
       dangerouslySetInnerHTML={{ __html: markup }}
     />

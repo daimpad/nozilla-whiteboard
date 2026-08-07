@@ -178,11 +178,14 @@ export function CanvasStage({ slide, deck, slideNumber, totalSlides }: CanvasSta
           const appliedDy = snapped.y - primary.y;
           setGuides(snapped.guides);
 
-          transformElements((element) => {
-            const original = gesture.originals.get(element.id);
-            if (!original || element.locked) return null;
-            return { x: original.x + appliedDx, y: original.y + appliedDy };
-          }, [...gesture.originals.keys()]);
+          transformElements(
+            (element) => {
+              const original = gesture.originals.get(element.id);
+              if (!original || element.locked) return null;
+              return { x: original.x + appliedDx, y: original.y + appliedDy };
+            },
+            [...gesture.originals.keys()],
+          );
           break;
         }
 
@@ -314,7 +317,7 @@ export function CanvasStage({ slide, deck, slideNumber, totalSlides }: CanvasSta
     >
       <div
         ref={surfaceRef}
-        className="nzl-stage relative shrink-0 touch-none select-none"
+        className="nz-stage relative shrink-0 touch-none select-none"
         style={surfaceStyle}
         onPointerDown={onSurfacePointerDown}
         onPointerMove={handlePointerMove}
@@ -341,7 +344,7 @@ export function CanvasStage({ slide, deck, slideNumber, totalSlides }: CanvasSta
               role="button"
               tabIndex={-1}
               aria-label={elementLabel(element)}
-              className="nzl-hit"
+              className="nz-hit"
               style={hitStyle(element, scale, selectionSet.has(element.id))}
               onPointerDown={(event) => onElementPointerDown(event, element)}
             />
@@ -451,7 +454,7 @@ function SelectionOverlay({
             height: element.h * scale,
             transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
             transformOrigin: 'center center',
-            outline: `${stroke.regular}px solid ${ci.selection}`,
+            outline: `${stroke.rule}px solid ${ci.selection}`,
             outlineOffset: 0,
           }}
         >
@@ -463,7 +466,7 @@ function SelectionOverlay({
                   type="button"
                   data-handle={handle}
                   aria-label={`Resize ${handle}`}
-                  className="nzl-handle pointer-events-auto"
+                  className="nz-handle pointer-events-auto"
                   style={handleStyle(handle, element, scale)}
                   onPointerDown={(event) => onResizeStart(event, element, handle)}
                 />
@@ -472,7 +475,7 @@ function SelectionOverlay({
                 type="button"
                 data-handle="rotate"
                 aria-label="Rotate"
-                className="nzl-handle nzl-handle--round pointer-events-auto"
+                className="nz-handle nz-handle--round pointer-events-auto"
                 style={{
                   left: (element.w * scale) / 2 - 5,
                   top: -26,
@@ -503,7 +506,7 @@ function GuideOverlay({ guides, scale }: { guides: Guide[]; scale: number }) {
               width: 1,
               height: (Math.max(guide.end, canvasTokens.height) - Math.min(guide.start, 0)) * scale,
               background: ci.snapGuide,
-              transition: `opacity ${motion.duration.instant}ms linear`,
+              transition: `opacity ${motion.duration.fast}ms linear`,
             }}
           />
         ) : (

@@ -136,8 +136,7 @@ export async function renderPdf(
     ),
   });
 
-  const suffix =
-    typeof options.slideIndex === 'number' ? `-slide-${options.slideIndex + 1}` : '';
+  const suffix = typeof options.slideIndex === 'number' ? `-slide-${options.slideIndex + 1}` : '';
   return {
     blob: doc.output('blob'),
     filename: options.filename ?? `${slugify(deck.meta.title)}${suffix}.pdf`,

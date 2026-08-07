@@ -1,39 +1,29 @@
 /**
- * CI shape geometry. Every shape is built in local element space (0,0)–(w,h)
- * so the same builder serves the on-canvas DOM renderer and both exporters.
+ * Die Geometrie der CI-Formen.
  *
- * Proportional details (notch depth, callout tail size, corner-bracket length)
- * are derived from the element box rather than hard-coded, so a shape stays
- * recognisably itself at any size.
+ * Jede Form entsteht im lokalen Elementraum (0,0)–(w,h), damit dieselbe
+ * Funktion den Canvas und beide Exporte bedient.
+ *
+ * Es gibt keinen Radius-Parameter. Das ist kein Versehen: „Keine runden Ecken
+ * — auch nicht nur ein bisschen" ist Regel 8 der CI. Eine Ellipse ist erlaubt,
+ * weil sie eine Kurve ist und keine weiche Ecke.
  */
-import { ellipseSegs, lineSegs, polySegs, rectSegs, type Seg } from './path';
+import { ellipseSegs, lineSegs, polySegs, type Seg } from './path';
 import type { ConnectorKind, ShapeName } from '@/model/types';
 
 export interface ShapeGeometry {
-  /** Segments that make up the body. */
   segs: Seg[];
-  /** Whether the body is a closed region (so it may be filled). */
+  /** Ob die Form eine geschlossene Fläche ist und damit gefüllt werden darf. */
   closed: boolean;
 }
 
-export function shapeGeometry(
-  shape: ShapeName,
-  w: number,
-  h: number,
-  radius: number,
-): ShapeGeometry {
+export function shapeGeometry(shape: ShapeName, w: number, h: number): ShapeGeometry {
   const W = Math.max(1, w);
   const H = Math.max(1, h);
 
   switch (shape) {
     case 'rectangle':
-      return { segs: rectSegs(0, 0, W, H, 0), closed: true };
-
-    case 'rounded':
-      return { segs: rectSegs(0, 0, W, H, radius), closed: true };
-
-    case 'pill':
-      return { segs: rectSegs(0, 0, W, H, Math.min(W, H) / 2), closed: true };
+      return { segs: polySegs([0, 0, W, 0, W, H, 0, H], true), closed: true };
 
     case 'ellipse':
       return { segs: ellipseSegs(W / 2, H / 2, W / 2, H / 2), closed: true };
@@ -53,55 +43,41 @@ export function shapeGeometry(
     }
 
     case 'chevron': {
-      const notch = Math.min(W * 0.25, H * 0.5);
+      const notch = Math.min(W * 0.22, H * 0.5);
+      return {
+        segs: polySegs([0, 0, W - notch, 0, W, H / 2, W - notch, H, 0, H, notch, H / 2], true),
+        closed: true,
+      };
+    }
+
+    case 'banner': {
+      const notch = Math.min(W * 0.14, H * 0.5);
+      return { segs: polySegs([0, 0, W, 0, W - notch, H / 2, W, H, 0, H], true), closed: true };
+    }
+
+    case 'callout': {
+      // Sprechblase mit scharfem Fuß — kein Radius, keine weiche Spitze.
+      const bodyH = Math.max(H * 0.78, H - 32);
+      const tailW = Math.min(W * 0.16, 40);
+      const tailX = Math.min(Math.max(24, W * 0.14), Math.max(24, W - tailW - 24));
       return {
         segs: polySegs(
-          [0, 0, W - notch, 0, W, H / 2, W - notch, H, 0, H, notch, H / 2],
+          [0, 0, W, 0, W, bodyH, tailX + tailW, bodyH, tailX, H, tailX, bodyH, 0, bodyH],
           true,
         ),
         closed: true,
       };
     }
 
-    case 'banner': {
-      const notch = Math.min(W * 0.16, H * 0.5);
-      return {
-        segs: polySegs([0, 0, W, 0, W - notch, H / 2, W, H, 0, H], true),
-        closed: true,
-      };
-    }
-
-    case 'callout': {
-      // Rounded body occupying the top ~82%, with a tail dropping from the
-      // lower-left quarter.
-      const bodyH = Math.max(H * 0.78, H - 28);
-      const r = Math.max(0, Math.min(radius, Math.min(W, bodyH) / 2));
-      const tailW = Math.min(W * 0.16, 34);
-      const tailX = Math.min(Math.max(r + 8, W * 0.16), W - r - tailW - 8);
-      const body = rectSegs(0, 0, W, bodyH, r);
-      // Splice the tail into the bottom edge: rebuild manually for a clean join.
-      return {
-        segs: [
-          ...body.slice(0, body.length - 1),
-          { c: 'M', x: tailX, y: bodyH },
-          { c: 'L', x: tailX, y: H },
-          { c: 'L', x: tailX + tailW, y: bodyH },
-          { c: 'Z' },
-        ],
-        closed: true,
-      };
-    }
-
     case 'frame': {
-      // Four corner brackets — a CI device for framing content or photos.
-      const arm = Math.min(W, H) * 0.28;
-      const r = Math.min(radius, arm);
+      // Vier Eckwinkel — das CI-Mittel, um etwas zu rahmen, ohne es zu umranden.
+      const arm = Math.min(W, H) * 0.3;
       return {
         segs: [
-          ...cornerBracket(0, 0, arm, r, 1, 1),
-          ...cornerBracket(W, 0, arm, r, -1, 1),
-          ...cornerBracket(W, H, arm, r, -1, -1),
-          ...cornerBracket(0, H, arm, r, 1, -1),
+          ...corner(0, 0, arm, 1, 1),
+          ...corner(W, 0, arm, -1, 1),
+          ...corner(W, H, arm, -1, -1),
+          ...corner(0, H, arm, 1, -1),
         ],
         closed: false,
       };
@@ -118,42 +94,73 @@ export function shapeGeometry(
         closed: false,
       };
 
+    case 'cross': {
+      const armW = W * 0.32;
+      const armH = H * 0.32;
+      const x0 = (W - armW) / 2;
+      const y0 = (H - armH) / 2;
+      return {
+        segs: polySegs(
+          [
+            x0,
+            0,
+            x0 + armW,
+            0,
+            x0 + armW,
+            y0,
+            W,
+            y0,
+            W,
+            y0 + armH,
+            x0 + armW,
+            y0 + armH,
+            x0 + armW,
+            H,
+            x0,
+            H,
+            x0,
+            y0 + armH,
+            0,
+            y0 + armH,
+            0,
+            y0,
+            x0,
+            y0,
+          ],
+          true,
+        ),
+        closed: true,
+      };
+    }
+
     default:
-      return { segs: rectSegs(0, 0, W, H, radius), closed: true };
+      return { segs: polySegs([0, 0, W, 0, W, H, 0, H], true), closed: true };
   }
 }
 
-function cornerBracket(
-  x: number,
-  y: number,
-  arm: number,
-  r: number,
-  sx: number,
-  sy: number,
-): Seg[] {
-  const k = r * 0.5523;
+/** Ein Eckwinkel: zwei gerade Arme, scharfe Ecke. */
+function corner(x: number, y: number, arm: number, sx: number, sy: number): Seg[] {
   return [
     { c: 'M', x: x + sx * arm, y },
-    { c: 'L', x: x + sx * r, y },
-    { c: 'C', x1: x + sx * (r - k), y1: y, x2: x, y2: y + sy * (r - k), x, y: y + sy * r },
+    { c: 'L', x, y },
     { c: 'L', x, y: y + sy * arm },
   ];
 }
 
 /* -------------------------------------------------------------------------- */
-/* Connectors                                                                  */
+/* Verbinder                                                                   */
 /* -------------------------------------------------------------------------- */
 
 export interface ConnectorGeometry {
-  /** The connector line itself. */
   segs: Seg[];
-  /** Closed, filled arrowheads. */
+  /** Geschlossene, gefüllte Spitzen. */
   heads: Seg[][];
 }
 
 /**
- * Connectors span the element box from its left-middle to its right-middle
- * (the box's rotation then aims it). `elbow` routes with a single right angle.
+ * Ein Verbinder spannt die Elementbox von links-oben nach rechts-unten auf;
+ * die Drehung des Elements richtet ihn dann aus. `elbow` läuft über einen
+ * rechten Winkel — passend zur Formensprache.
  */
 export function connectorGeometry(
   kind: ConnectorKind,
@@ -163,49 +170,49 @@ export function connectorGeometry(
 ): ConnectorGeometry {
   const W = Math.max(1, w);
   const H = h;
-  const headLen = Math.max(9, strokeWidth * 4.2);
-  const headHalf = Math.max(5, strokeWidth * 2.4);
+  const headLen = Math.max(12, strokeWidth * 4);
+  const headHalf = Math.max(6, strokeWidth * 2.2);
 
   if (kind === 'elbow') {
     const midX = W / 2;
-    const segs: Seg[] = [
-      { c: 'M', x: 0, y: 0 },
-      { c: 'L', x: midX, y: 0 },
-      { c: 'L', x: midX, y: H },
-      { c: 'L', x: W, y: H },
-    ];
     return {
-      segs: trimEnd(segs, headLen),
+      segs: trimEnd(
+        [
+          { c: 'M', x: 0, y: 0 },
+          { c: 'L', x: midX, y: 0 },
+          { c: 'L', x: midX, y: H },
+          { c: 'L', x: W, y: H },
+        ],
+        headLen,
+      ),
       heads: [arrowHead(W, H, 0, headLen, headHalf)],
     };
   }
 
-  const start = { x: 0, y: 0 };
-  const end = { x: W, y: H };
-  const angle = Math.atan2(end.y - start.y, end.x - start.x);
+  const angle = Math.atan2(H, W);
   const deg = (angle * 180) / Math.PI;
 
   const heads: Seg[][] = [];
-  let x1 = start.x;
-  let y1 = start.y;
-  let x2 = end.x;
-  let y2 = end.y;
+  let x1 = 0;
+  let y1 = 0;
+  let x2 = W;
+  let y2 = H;
 
   if (kind === 'arrow' || kind === 'double-arrow') {
-    heads.push(arrowHead(end.x, end.y, deg, headLen, headHalf));
-    x2 -= Math.cos(angle) * headLen * 0.82;
-    y2 -= Math.sin(angle) * headLen * 0.82;
+    heads.push(arrowHead(W, H, deg, headLen, headHalf));
+    x2 -= Math.cos(angle) * headLen * 0.9;
+    y2 -= Math.sin(angle) * headLen * 0.9;
   }
   if (kind === 'double-arrow') {
-    heads.push(arrowHead(start.x, start.y, deg + 180, headLen, headHalf));
-    x1 += Math.cos(angle) * headLen * 0.82;
-    y1 += Math.sin(angle) * headLen * 0.82;
+    heads.push(arrowHead(0, 0, deg + 180, headLen, headHalf));
+    x1 += Math.cos(angle) * headLen * 0.9;
+    y1 += Math.sin(angle) * headLen * 0.9;
   }
 
   return { segs: lineSegs(x1, y1, x2, y2), heads };
 }
 
-/** A closed triangular arrowhead with the tip at (x, y), pointing along `deg`. */
+/** Eine geschlossene, dreieckige Spitze mit Kopf bei (x, y) in Richtung `deg`. */
 export function arrowHead(
   x: number,
   y: number,
@@ -216,14 +223,14 @@ export function arrowHead(
   const rad = (deg * Math.PI) / 180;
   const cos = Math.cos(rad);
   const sin = Math.sin(rad);
-  const bx = x - cos * length;
-  const by = y - sin * length;
+  const baseX = x - cos * length;
+  const baseY = y - sin * length;
   const nx = -sin * halfWidth;
   const ny = cos * halfWidth;
-  return polySegs([x, y, bx + nx, by + ny, bx - nx, by - ny], true);
+  return polySegs([x, y, baseX + nx, baseY + ny, baseX - nx, baseY - ny], true);
 }
 
-/** Pull the final point of a polyline back along its last leg. */
+/** Den letzten Punkt eines Streckenzugs entlang seines letzten Schenkels zurückziehen. */
 function trimEnd(segs: Seg[], amount: number): Seg[] {
   if (segs.length < 2) return segs;
   const last = segs[segs.length - 1];
@@ -233,7 +240,7 @@ function trimEnd(segs: Seg[], amount: number): Seg[] {
   const dy = last.y - prev.y;
   const len = Math.hypot(dx, dy);
   if (len <= amount) return segs;
-  const t = (len - amount * 0.82) / len;
+  const t = (len - amount * 0.9) / len;
   const copy = segs.slice();
   copy[copy.length - 1] = { c: 'L', x: prev.x + dx * t, y: prev.y + dy * t };
   return copy;

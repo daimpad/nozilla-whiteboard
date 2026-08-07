@@ -23,8 +23,7 @@ export function useElementSize<T extends HTMLElement>(): [
     const measure = () => {
       const rect = node.getBoundingClientRect();
       setSize((previous) =>
-        Math.abs(previous.width - rect.width) < 0.5 &&
-        Math.abs(previous.height - rect.height) < 0.5
+        Math.abs(previous.width - rect.width) < 0.5 && Math.abs(previous.height - rect.height) < 0.5
           ? previous
           : { width: rect.width, height: rect.height },
       );

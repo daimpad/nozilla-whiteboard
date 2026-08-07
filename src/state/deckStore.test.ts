@@ -122,13 +122,28 @@ describe('elements', () => {
 
     store().select([a]);
     store().reorderSelection('front');
-    expect(elementsNow().slice().sort((x, y) => x.z - y.z).map((e) => e.id)).toEqual([b, c, a]);
+    expect(
+      elementsNow()
+        .slice()
+        .sort((x, y) => x.z - y.z)
+        .map((e) => e.id),
+    ).toEqual([b, c, a]);
 
     store().reorderSelection('backward');
-    expect(elementsNow().slice().sort((x, y) => x.z - y.z).map((e) => e.id)).toEqual([b, a, c]);
+    expect(
+      elementsNow()
+        .slice()
+        .sort((x, y) => x.z - y.z)
+        .map((e) => e.id),
+    ).toEqual([b, a, c]);
 
     store().reorderSelection('back');
-    expect(elementsNow().slice().sort((x, y) => x.z - y.z).map((e) => e.id)).toEqual([a, b, c]);
+    expect(
+      elementsNow()
+        .slice()
+        .sort((x, y) => x.z - y.z)
+        .map((e) => e.id),
+    ).toEqual([a, b, c]);
   });
 
   it('aligns a multi-selection to its own bounds', () => {
@@ -160,8 +175,8 @@ describe('elements', () => {
   it('sets and clears reveal steps', () => {
     const id = addShape();
     store().select([id]);
-    store().setRevealStep(2, 'zoom');
-    expect(elementsNow()[0].reveal).toEqual({ step: 2, animation: 'zoom' });
+    store().setRevealStep(2, 'wipe');
+    expect(elementsNow()[0].reveal).toEqual({ step: 2, animation: 'wipe' });
 
     store().setRevealStep(0);
     expect(elementsNow()[0].reveal).toBeUndefined();
@@ -261,17 +276,17 @@ describe('document lifecycle', () => {
   });
 
   it('survives a save/load cycle with the canvas intact', () => {
-    const id = addShape({ x: 123, y: 45, tone: 'accent', rotation: 15 });
+    const id = addShape({ x: 123, y: 45, tone: 'signal', rotation: 15 });
     store().select([id]);
-    store().setRevealStep(3, 'draw');
+    store().setRevealStep(3, 'wipe');
 
     const reloaded = parseDeck(serializeDeck(store().deck));
     expect(reloaded.slides[0].elements[0]).toMatchObject({
       x: 123,
       y: 45,
-      tone: 'accent',
+      tone: 'signal',
       rotation: 15,
-      reveal: { step: 3, animation: 'draw' },
+      reveal: { step: 3, animation: 'wipe' },
     });
   });
 });
