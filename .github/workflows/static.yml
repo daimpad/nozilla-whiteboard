@@ -1,4 +1,9 @@
-# Simple workflow for deploying static content to GitHub Pages
+# Builds the app and deploys the result to GitHub Pages.
+#
+# The repository is a Vite single-page app, not a hand-written static site:
+# `index.html` loads `/src/main.tsx`, so uploading the repository as-is would
+# serve raw TypeScript to the browser and the page would come up blank. The
+# build step below is what turns it into something a browser can run.
 name: Deploy static content to Pages
 
 on:
@@ -22,7 +27,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Single deploy job since we're just deploying
+  # Single build-and-deploy job.
   deploy:
     environment:
       name: github-pages
@@ -31,13 +36,31 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `npm run build` typechecks before bundling, so a type error stops the
+      # deployment rather than shipping a broken page.
+      - name: Build
+        run: npm run build
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
-          path: '.'
+          # `vite.config.ts` sets `base: './'`, so the build works unchanged
+          # from a project subpath such as /nozilla-whiteboard/.
+          path: 'dist'
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
