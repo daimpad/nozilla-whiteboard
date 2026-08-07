@@ -19,6 +19,7 @@ import { scenesToPdf, type PdfOptions } from './pdf';
 import { sceneToSvg, scenesToContactSheet } from './svg';
 import { embeddedFontCss, facesFor } from './fontFiles';
 import { outlineScenes } from './outline';
+import { deckToPptx, type PptxOptions } from './pptx';
 
 export * from './scene';
 export * from './svg';
@@ -27,6 +28,8 @@ export * from './images';
 export * from './download';
 export * from './fontFiles';
 export * from './outline';
+export * from './pptx';
+export * from './zip';
 
 /**
  * Wie die Schrift in eine exportierte Datei kommt.
@@ -57,6 +60,8 @@ export const textModeHints: Record<TextMode, string> = {
 };
 
 export const MARKDOWN_MIME = 'text/markdown';
+export const PPTX_MIME =
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 export const SVG_MIME = 'image/svg+xml';
 export const PDF_MIME = 'application/pdf';
 
@@ -212,4 +217,40 @@ export async function renderPdf(
     blob: doc.output('blob'),
     filename: options.filename ?? `${slugify(deck.meta.title)}${suffix}.pdf`,
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* PowerPoint                                                                  */
+/* -------------------------------------------------------------------------- */
+
+export interface PptxExportOptions extends Omit<PptxOptions, 'images'> {
+  filename?: string;
+  bare?: boolean;
+}
+
+/**
+ * Anders als SVG und PDF kennt dieser Weg keinen `TextMode`.
+ *
+ * Eine `.pptx` ist zum Weiterarbeiten da; Text in Konturen zu wandeln würde ihr
+ * genau das nehmen, wofür man sie öffnet. Wer ein unveränderliches Bild will,
+ * nimmt PDF — dort steht die Wahl.
+ */
+export async function exportPptx(deck: Deck, options: PptxExportOptions = {}): Promise<SaveResult> {
+  const { blob, filename } = await renderPptx(deck, options);
+  return { via: (downloadBlob(blob, filename), 'download') };
+}
+
+export async function renderPptx(
+  deck: Deck,
+  options: PptxExportOptions = {},
+): Promise<{ blob: Blob; filename: string }> {
+  const images = await resolveDeckImages(deck);
+  const blob = await deckToPptx(deck, {
+    ...options,
+    images,
+    chrome: options.bare ? false : options.chrome,
+    title: options.title ?? deck.meta.title,
+    author: options.author ?? deck.meta.author,
+  });
+  return { blob, filename: options.filename ?? `${slugify(deck.meta.title)}.pptx` };
 }

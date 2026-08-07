@@ -8,6 +8,7 @@ import { openMarkdownFile } from '@/lib/export/download';
 import {
   exportMarkdown,
   exportPdf,
+  exportPptx,
   exportSvg,
   textModeLabels,
   textModeHints,
@@ -243,6 +244,12 @@ function ExportMenu({
             onClick={() =>
               run('Rendering PDF', () => exportPdf(deck, { slideIndex, text: textMode }))
             }
+          />
+          <MenuItem
+            icon="table"
+            label="PowerPoint (.pptx)"
+            hint="Bearbeitbar — auch für Google Slides"
+            onClick={() => run('Baue PPTX', () => exportPptx(deck))}
           />
 
           <div className="border-t border-ui px-2 pb-1.5 pt-2">
