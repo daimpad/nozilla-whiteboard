@@ -1,0 +1,400 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Nozilla CI — global styles.
+   Every value below is a CSS custom property emitted from `theme.config.ts`
+   (see `src/theme/index.ts#cssVariables`). No literal brand values live here.
+   ========================================================================== */
+
+/* The optional licensed brand face is installed at runtime by
+   `src/theme/fonts.ts`, driven by `theme.config.ts#webfont`. Declaring it here
+   instead would make the build depend on binary files that may not be present. */
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--nzl-color-canvas);
+    color: var(--nzl-color-ink);
+    font-family: var(--nzl-font-body);
+    font-size: 13px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    overscroll-behavior: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--nzl-color-focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--nzl-radius-xs);
+  }
+
+  ::selection {
+    background: var(--nzl-color-selection-wash);
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* Thin, CI-toned scrollbars for the app chrome. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--nzl-color-border-strong);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: var(--nzl-radius-pill);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--nzl-color-ink-subtle);
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  /* ------------------------------------------------------------------ chrome */
+
+  .nzl-panel {
+    background: var(--nzl-color-surface);
+    border: 1px solid var(--nzl-color-border);
+    border-radius: var(--nzl-radius-lg);
+    box-shadow: var(--nzl-shadow-sm);
+  }
+
+  .nzl-field {
+    width: 100%;
+    padding: 6px 8px;
+    background: var(--nzl-color-surface);
+    border: 1px solid var(--nzl-color-border);
+    border-radius: var(--nzl-radius-sm);
+    font-size: 12px;
+    transition: border-color var(--nzl-duration-fast) var(--nzl-ease-standard),
+      box-shadow var(--nzl-duration-fast) var(--nzl-ease-standard);
+  }
+  .nzl-field:hover {
+    border-color: var(--nzl-color-border-strong);
+  }
+  .nzl-field:focus {
+    outline: none;
+    border-color: var(--nzl-color-primary);
+    box-shadow: var(--nzl-shadow-focus);
+  }
+
+  .nzl-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--nzl-color-ink-subtle);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  /* --------------------------------------------------------------- markdown */
+
+  .nzl-prose {
+    color: var(--nzl-color-ink);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .nzl-prose > * + * {
+    margin-top: 0.7em;
+  }
+  .nzl-prose h1,
+  .nzl-prose h2,
+  .nzl-prose h3 {
+    font-family: var(--nzl-font-display);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+  }
+  .nzl-prose h1 {
+    font-size: 1.4em;
+  }
+  .nzl-prose h2 {
+    font-size: 1.2em;
+  }
+  .nzl-prose h3 {
+    font-size: 1.05em;
+  }
+  .nzl-prose ul,
+  .nzl-prose ol {
+    padding-left: 1.25em;
+  }
+  .nzl-prose ul {
+    list-style: disc;
+  }
+  .nzl-prose ol {
+    list-style: decimal;
+  }
+  .nzl-prose li + li {
+    margin-top: 0.25em;
+  }
+  .nzl-prose a {
+    color: var(--nzl-color-primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .nzl-prose code {
+    font-family: var(--nzl-font-mono);
+    font-size: 0.92em;
+    background: var(--nzl-color-surface-sunken);
+    padding: 0.1em 0.32em;
+    border-radius: var(--nzl-radius-xs);
+  }
+  .nzl-prose pre {
+    background: var(--nzl-color-surface-sunken);
+    border: 1px solid var(--nzl-color-border);
+    border-radius: var(--nzl-radius-md);
+    padding: var(--nzl-space-3);
+    overflow-x: auto;
+  }
+  .nzl-prose pre code {
+    background: none;
+    padding: 0;
+  }
+  .nzl-prose blockquote {
+    border-left: 3px solid var(--nzl-color-primary);
+    padding-left: var(--nzl-space-3);
+    color: var(--nzl-color-ink-muted);
+  }
+  .nzl-prose kbd {
+    font-family: var(--nzl-font-mono);
+    font-size: 0.85em;
+    background: var(--nzl-color-surface);
+    border: 1px solid var(--nzl-color-border);
+    border-bottom-width: 2px;
+    border-radius: var(--nzl-radius-xs);
+    padding: 0.1em 0.4em;
+  }
+
+  /* ----------------------------------------------------------------- canvas */
+
+  .nzl-stage {
+    background: var(--nzl-color-surface);
+    box-shadow: var(--nzl-shadow-lg);
+    border-radius: var(--nzl-radius-md);
+  }
+
+  .nzl-stage--present {
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  /* Element hit areas sit above the SVG and carry the interaction affordances. */
+  .nzl-hit {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: center center;
+  }
+  .nzl-hit[data-locked='true'] {
+    cursor: not-allowed;
+  }
+
+  .nzl-handle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: var(--nzl-color-surface);
+    border: 1.5px solid var(--nzl-color-selection);
+    border-radius: 2px;
+    box-shadow: var(--nzl-shadow-xs);
+  }
+  .nzl-handle--round {
+    border-radius: var(--nzl-radius-pill);
+  }
+}
+
+/* ==========================================================================
+   Motion
+   ========================================================================== */
+
+@keyframes nzl-slide-in-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes nzl-slide-in-slide {
+  from {
+    opacity: 0;
+    transform: translateX(4%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes nzl-slide-in-push {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes nzl-slide-in-zoom {
+  from {
+    opacity: 0;
+    transform: scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes nzl-slide-in-rise {
+  from {
+    opacity: 0;
+    transform: translateY(2.2%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nzl-transition-fade {
+  animation: nzl-slide-in-fade var(--nzl-duration-slide) var(--nzl-ease-standard) both;
+}
+.nzl-transition-slide {
+  animation: nzl-slide-in-slide var(--nzl-duration-slide) var(--nzl-ease-entrance) both;
+}
+.nzl-transition-push {
+  animation: nzl-slide-in-push var(--nzl-duration-slide) var(--nzl-ease-entrance) both;
+}
+.nzl-transition-zoom {
+  animation: nzl-slide-in-zoom var(--nzl-duration-slide) var(--nzl-ease-entrance) both;
+}
+.nzl-transition-rise {
+  animation: nzl-slide-in-rise var(--nzl-duration-slide) var(--nzl-ease-entrance) both;
+}
+.nzl-transition-none {
+  animation: none;
+}
+
+/* Element reveals — applied to the <g> wrapping a single element. */
+@keyframes nzl-reveal-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes nzl-reveal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes nzl-reveal-zoom {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes nzl-reveal-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(36px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes nzl-reveal-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(-36px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes nzl-reveal-draw {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.nzl-reveal {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation-duration: var(--nzl-duration-slow);
+  animation-timing-function: var(--nzl-ease-entrance);
+  animation-fill-mode: both;
+}
+.nzl-reveal-fade {
+  animation-name: nzl-reveal-fade;
+}
+.nzl-reveal-rise {
+  animation-name: nzl-reveal-rise;
+}
+.nzl-reveal-zoom {
+  animation-name: nzl-reveal-zoom;
+}
+.nzl-reveal-slide-left {
+  animation-name: nzl-reveal-slide-left;
+}
+.nzl-reveal-slide-right {
+  animation-name: nzl-reveal-slide-right;
+}
+.nzl-reveal-draw {
+  animation-name: nzl-reveal-draw;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
