@@ -29,7 +29,7 @@ Sie sind so eingebaut, dass ein Verstoß gar nicht erst entstehen kann:
 | Schatten sind harte Versätze | Ein Schatten ist eine zweite, versetzte Fläche in Tinte. Es gibt keinen Weichzeichner — auch deshalb exportiert er exakt nach PDF. |
 | Farbe hat drei Rollen | Ein Element wählt eine Rolle (`paper`, `paperAlt`, `signal`, `ink`), keinen Farbwert. **Einen Farbwähler gibt es nicht.** |
 | Keine fremden Icons | Das Set sind die 462 Icons des CI-Repos, aus deren Geometrie generiert. |
-| Drei Schriften | Zilla Slab · Inter · Space Mono, selbst gehostet aus dem CI-Repo, als WOFF2 (630 kB statt 1875 kB als TTF). Labels werden automatisch in Versalien mit 0,12 em gesetzt. |
+| Drei Schriften | Zilla Slab · Inter · Space Mono, selbst gehostet aus dem CI-Repo. Auf dem Bildschirm als WOFF2, im Export eingebettet oder als Umriss — die Marken-Schrift steht in der Datei, nicht nur ihr Name. Labels werden automatisch in Versalien mit 0,12 em gesetzt. |
 | Grüner Marker | `==so==` im Markdown. Wird auf Fläche, in SVG und in PDF identisch gezeichnet. |
 
 Die Standard-Tailwind-Palette ist **ersetzt**, nicht erweitert: ein
@@ -86,6 +86,18 @@ Gedanke für Gedanke aufgeht. Übersicht mit `⌘K`, Filmstreifen immer sichtbar
 | **SVG** | Echte `<path>`/`<text>`-Vektoren — kein `foreignObject`, keine Rasterung |
 | **PDF** | Vektorseiten mit markierbarem, durchsuchbarem Text |
 
+Für SVG und PDF gibt es zwei Wege, wie die Schrift in die Datei kommt. Beide
+erzeugen dasselbe Bild; sie unterscheiden sich darin, was die Gegenseite
+können muss:
+
+| | Was passiert | Wofür |
+| --- | --- | --- |
+| **Schrift einbetten** (Vorgabe) | Die benutzten Schnitte liegen *in* der Datei — im PDF als eingebettete Teilmenge (nur die vorkommenden Zeichen), im SVG als `@font-face` mit Daten-URI. | Alles, was danach noch gelesen, durchsucht oder redigiert wird. |
+| **Text in Pfade** | Jede Glyphe wird zur Kontur. Danach steht in der Datei keine Schriftreferenz mehr. | Druckvorstufe, Illustrator, Inkscape — überall, wo eingebettete Schriften ignoriert werden. |
+
+Ein sechsseitiges Deck kostet als PDF mit eingebetteten Schriften rund 140 kB,
+als Umriss-PDF rund 950 kB. Der Umriss-Weg ist der teurere und der sicherere.
+
 **Prompt-Generator.** Ein Formular beschreibt den Auftrag, daraus entsteht ein
 Prompt, der ein Sprachmodell fertiges Deck-Markdown schreiben lässt. Die Antwort
 fügst du zurück ein und das Deck ist offen. Siehe [`PROMPT.md`](./PROMPT.md).
@@ -112,7 +124,7 @@ das Markup einsetzt, das der SVG-Export erzeugt** — der Editor ist damit
 buchstäblich WYSIWYG gegenüber dem Export. Es gibt keinen zweiten Renderer, der
 widersprechen könnte.
 
-Zwei Bausteine machen das möglich:
+Drei Bausteine machen das möglich:
 
 - **`src/lib/geometry/path.ts`** — eine normalisierte Segmentliste (Move /
   Linie / Kubik / Schließen) für alle Geometrie. Ellipsenbögen werden beim
@@ -120,6 +132,11 @@ Zwei Bausteine machen das möglich:
 - **`src/lib/text/typeset.ts`** — ein kleiner Markdown-Setzer, der mit der
   echten Schrift misst (Canvas `measureText`) und positionierte Textzeilen
   ausgibt. Nur deshalb ist exportierter Text *Text* und kein Bild.
+- **`src/lib/text/truetype.ts`** — ein kleiner TrueType-Leser: Zeichen →
+  Umriss, in derselben Segmentliste. Damit fällt auch Text in die eine
+  Zeichenstrecke, wenn er als Pfad exportiert werden soll. Wo ein Zeichen
+  steht, bestimmt weiter der Browser über `measureText` — nur so trägt der
+  Umriss dieselbe Unterschneidung wie der Bildschirm.
 
 ### Wo was liegt
 
@@ -140,8 +157,11 @@ src/
               snap.ts         Raster, Hilfslinien, Größenänderung
     text/     measure.ts      Schriftmaße (+ deterministischer Ersatz für Tests)
               typeset.ts      Markdown → gesetzter Text
+              truetype.ts     Zeichen → Umriss (glyf, cmap, composite)
     export/   scene.ts        Folie → Szene  ◄── die Drehscheibe
               svg.ts · pdf.ts Szene → Datei
+              fontFiles.ts    Schnitte beschaffen und kodieren
+              outline.ts      Textprimitiven → Pfadprimitiven
     prompt/   buildPrompt.ts  Der Prompt, aus dem laufenden Schema gebaut
   state/      deckStore.ts    Zustand, Aktionen, Verlauf
   components/ canvas · panels · chrome · present · ui
@@ -222,9 +242,11 @@ Die Wortmarke wird als **Pfad** übernommen, nicht als Bild — nur so landet si
 in SVG *und* PDF als echter Vektor, ohne dass der Export eine Datei nachladen
 muss.
 
-Die Schriften liegen im CI-Repo als TTF (dort werden sie auch für Druck und
-Office gebraucht) und werden beim Sync nach WOFF2 gewandelt: dieselben
-Konturen, 630 kB statt 1875 kB.
+Die Schriften kommen als TTF und werden beim Sync zusätzlich nach WOFF2
+gewandelt. Beide Formate werden gebraucht: der Browser lädt beim Start das
+WOFF2 (630 kB statt 1875 kB), der Export holt die TTFs nach — jsPDF bettet
+TrueType ein, und der Umriss-Leser braucht die unkomprimierte `glyf`-Tabelle.
+WOFF2 kann keiner von beiden lesen.
 
 ---
 

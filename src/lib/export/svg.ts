@@ -5,6 +5,13 @@
  * `<rect>`, `<ellipse>` and `<text>` elements — no `foreignObject`, no embedded
  * HTML, no rasterisation. It opens correctly in browsers *and* in vector
  * editors, and the text stays selectable and editable.
+ *
+ * Schriften: `<text>` allein nennt nur einen Namen, den die Gegenseite haben
+ * muss. Deshalb kann `fontCss` die benutzten Schnitte als `@font-face` mit
+ * Daten-URI *in die Datei* legen — dann trägt die Datei ihre Schrift selbst.
+ * Wer sie in einem Programm öffnet, das eingebettete Schriften ignoriert,
+ * nimmt statt dessen den Weg über Umrisse (`lib/export/outline.ts`); die
+ * Szene enthält danach gar keinen Text mehr, sondern Konturen.
  */
 import { brand, fontFamily } from '@/theme';
 import { round, segsToPath } from '@/lib/geometry/path';
@@ -13,6 +20,12 @@ import type { Scene, ScenePrim, SceneRun } from './scene';
 export interface SvgOptions {
   /** Pretty-print with newlines and indentation. */
   pretty?: boolean;
+  /**
+   * `@font-face`-Regeln, die in die Datei eingebettet werden — gebaut von
+   * `fontFiles.embeddedFontCss()`. Ohne sie nennt die Datei ihre Schriften nur
+   * beim Namen.
+   */
+  fontCss?: string;
 }
 
 export function sceneToSvg(scene: Scene, options: SvgOptions = {}): string {
@@ -29,14 +42,29 @@ export function sceneToSvg(scene: Scene, options: SvgOptions = {}): string {
       `role="img" aria-label="${escapeXml(scene.title)}">`,
     `${pad}<title>${escapeXml(scene.title)}</title>`,
     `${pad}<desc>Exported from ${escapeXml(brand.product)}</desc>`,
+    fontStyleBlock(options.fontCss, pad),
     body,
     '</svg>',
     '',
-  ].join(nl);
+  ]
+    .filter((line) => line !== '')
+    .join(nl);
+}
+
+/**
+ * Der Stilblock mit den eingebetteten Schriften.
+ *
+ * Er steht in einem CDATA-Abschnitt, weil Base64 zwar keine spitzen Klammern
+ * enthält, ein Stilblock in SVG aber grundsätzlich als Zeichendaten gilt —
+ * ohne CDATA hinge die Datei von der Nachsicht des Parsers ab.
+ */
+function fontStyleBlock(css: string | undefined, pad: string): string {
+  if (!css) return '';
+  return `${pad}<defs><style type="text/css"><![CDATA[\n${css}\n]]></style></defs>`;
 }
 
 /** Convenience: the whole deck as a vertical strip of slides in one SVG. */
-export function scenesToContactSheet(scenes: Scene[], gap = 24): string {
+export function scenesToContactSheet(scenes: Scene[], gap = 24, fontCss?: string): string {
   if (scenes.length === 0)
     return sceneToSvg({ width: 0, height: 0, background: '#fff', prims: [], title: 'Empty' });
   const width = scenes[0].width;
@@ -54,6 +82,7 @@ export function scenesToContactSheet(scenes: Scene[], gap = 24): string {
     '<?xml version="1.0" encoding="UTF-8"?>',
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
     `  <title>${escapeXml(scenes[0].title)}</title>`,
+    ...(fontCss ? [fontStyleBlock(fontCss, '  ')] : []),
     groups,
     '</svg>',
     '',
