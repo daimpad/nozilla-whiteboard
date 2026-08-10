@@ -155,11 +155,22 @@ const config: Config = {
         Object.entries(uiShadow).map(([key, value]) => [`ui-${key}`, value]),
       ) as Record<string, string>),
     },
+    /*
+     * Nur das Raster trägt die Zahlen. Die benannten CI-Stufen stehen daneben
+     * unter `ci-*`, weil sie sich sonst *überschreiben*: `space[8]` ist 64px,
+     * die achte Rasterstufe ist 32px — ein `h-8`-Knopf wurde damit doppelt so
+     * groß wie gebaut, und `top-9` schob ein Menü 96px statt 36px nach unten.
+     *
+     * Die beiden Sätze meinen auch Verschiedenes. Die Zahlen sind das
+     * Werkzeug-Raster; die CI-Stufen sind Folienmaße, und die liest der
+     * Szenen-Renderer ohnehin direkt aus `theme.config.ts`. Wer sie doch im
+     * DOM braucht, schreibt `p-ci-5` — und man sieht es der Klasse an.
+     */
     spacing: {
       px: '1px',
       ...gridSpacing,
       ...(Object.fromEntries(
-        Object.entries(space).map(([key, value]) => [key, px(value)]),
+        Object.entries(space).map(([key, value]) => [`ci-${key}`, px(value)]),
       ) as Record<string, string>),
     },
     fontSize: {

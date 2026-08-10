@@ -172,6 +172,23 @@ zurückgibt, ist eine Endlosschleife. `useShallow` benutzen.
 lautlos — `pl-7` ohne `7` im Spacing tut einfach nichts. Beim Ändern von
 `tailwind.config.ts` die Ausgabe ansehen.
 
+**Zwei Zahlenreihen im selben Namensraum überschreiben einander.** Das
+`spacing` trug erst das 4px-Raster und darüber die benannten CI-Stufen —
+und `space[8]` ist 64px, die achte Rasterstufe 32px. Jeder `h-8`-Knopf war
+doppelt so groß wie gebaut, `top-9` schob ein Menü 96px statt 36px nach
+unten. Es fiel monatelang nicht auf, weil _alles_ zu groß war und damit
+wieder stimmig aussah. Die CI-Stufen heißen jetzt `ci-*`; die Zahlen gehören
+dem Raster.
+
+**Der Setzer misst gegen die echte Schrift.** Ein `@font-face` allein lädt
+nichts — der Browser holt die Datei erst, wenn ein Zeichen sie braucht, und
+`document.fonts.ready` löst vorher auf. Wer dann misst, misst die
+Ersatzschrift, und die Wortpositionen bleiben falsch, auch nachdem die
+richtigen Glyphen da sind. `src/theme/fonts.ts` fordert deshalb jeden Schnitt
+mit `document.fonts.load()` an und zählt danach einen Zähler hoch, an dem die
+Fläche hängt — den Messpuffer zu leeren reicht nicht, ohne Zustandsänderung
+zeichnet React nicht neu.
+
 ---
 
 ## Git

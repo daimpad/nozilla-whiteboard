@@ -8,6 +8,7 @@
  */
 import { memo, useMemo } from 'react';
 import { canvas, motion } from '@/theme';
+import { useFontsVersion } from '@/hooks/useFonts';
 import {
   backgroundStyle,
   buildElementPrims,
@@ -42,14 +43,28 @@ function SlideViewImpl({
   chrome = true,
   className,
 }: SlideViewProps) {
+  /*
+     Der Satz hängt an den geladenen Schriften.
+
+     Gemessen wird gegen die echte Schrift; wer vor dem Laden misst, misst die
+     Ersatzschrift und setzt die Wörter falsch. `fonts` zählt hoch, sobald die
+     Schnitte da sind — dadurch fallen alle Merker unten und die Folie wird neu
+     gesetzt. Ohne das bleibt der erste, falsch gesetzte Satz stehen.
+  */
+  const fonts = useFontsVersion();
+
   const background = useMemo(() => backgroundStyle(slide.meta.background), [slide.meta.background]);
 
-  const backdrop = useMemo(() => primsToSvgMarkup(buildSlideBackdrop(slide)), [slide]);
+  // `fonts` steht bewusst in der Liste, obwohl der Rumpf es nicht liest: es ist
+  // der Schlüssel, der den Merker verfallen lässt. Gilt für alle drei hier.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const backdrop = useMemo(() => primsToSvgMarkup(buildSlideBackdrop(slide)), [slide, fonts]);
 
   const footer = useMemo(
     () =>
       chrome ? primsToSvgMarkup(buildSlideChrome(slide, deck, { slideNumber, totalSlides })) : '',
-    [chrome, slide, deck, slideNumber, totalSlides],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [chrome, slide, deck, slideNumber, totalSlides, fonts],
   );
 
   const ordered = useMemo(() => slide.elements.slice().sort((a, b) => a.z - b.z), [slide.elements]);
@@ -75,6 +90,7 @@ function SlideViewImpl({
             background={background}
             animate={animateReveals && step > 0 && step === revealStep}
             index={index}
+            fonts={fonts}
           />
         );
       })}
@@ -92,6 +108,8 @@ interface ElementLayerProps {
   background: BackgroundStyle;
   animate: boolean;
   index: number;
+  /** Zählt hoch, sobald die Schriften da sind — siehe `SlideViewImpl`. */
+  fonts: number;
 }
 
 const ElementLayer = memo(function ElementLayer({
@@ -99,10 +117,12 @@ const ElementLayer = memo(function ElementLayer({
   background,
   animate,
   index,
+  fonts,
 }: ElementLayerProps) {
   const markup = useMemo(
     () => primsToSvgMarkup(buildElementPrims(element, background)),
-    [element, background],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [element, background, fonts],
   );
 
   const animation = element.reveal?.animation ?? 'rise';
