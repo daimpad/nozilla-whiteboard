@@ -387,26 +387,6 @@ note(`${entries.length} Icons in ${categories.size} Kategorien`);
 
 console.log('Kern-Zeichen');
 
-/**
- * Acht Beschriftungen stehen in der Quelle ohne Umlaute.
- *
- * Das ist keine Schreibweise, sondern eine Einschränkung, die sich jemand
- * irgendwann auferlegt hat — und in einer Bibliothek liest sich „Rueckruf"
- * wie ein Fehler des Werkzeugs. Korrigiert wird nur, was hier ausdrücklich
- * steht: eine Regel „ue → ü" würde aus `Neuron` ein `Nüron` machen. Der
- * bessere Ort für die Reparatur ist die Quelle; bis dahin steht sie hier.
- */
-const LABEL_FIXES = {
-  Angriffsflaeche: 'Angriffsfläche',
-  Aufraeumen: 'Aufräumen',
-  'Pixel-Kaefer': 'Pixel-Käfer',
-  Rueckruf: 'Rückruf',
-  Stoerung: 'Störung',
-  Telefonhoerer: 'Telefonhörer',
-  Uebergabe: 'Übergabe',
-  Verschluesseln: 'Verschlüsseln',
-};
-
 /** Die Reihen des Kern-Sets. Der Name sagt, wohin ein Zeichen gehört. */
 const CORE_FAMILIES = [
   ['a11y-', 'accessibility'],
@@ -455,7 +435,7 @@ if (!existsSync(coreDir)) {
 
     coreEntries.push({
       name,
-      label: LABEL_FIXES[label] ?? label,
+      label,
       // Die Bedeutung pflegt der Katalog, das Kern-Set nicht. Lieber leer als
       // erfunden — die Suche greift ohnehin über Name und Beschriftung.
       meaning: '',
