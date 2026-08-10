@@ -1,8 +1,8 @@
 /**
  * GENERIERT — nicht von Hand bearbeiten.
  *
- * Quelle:  daimpad/nozilla-net · ci/assets/icon-*.svg
- * Neu bauen: node scripts/sync-ci.mjs --web <pfad/zum/nozilla-net>
+ * Quelle:  https://github.com/daimpad/nozilla-ci  ·  project/assets/icon-*.svg
+ * Neu bauen: node scripts/sync-ci.mjs [pfad/zum/nozilla-ci]
  *
  * Das Kern-Set: die Zeichen, die nozilla für sich gezeichnet hat, im selben
  * Dialekt wie der Katalog — 64 × 64, 4 px, square caps, miter joins, Signatur

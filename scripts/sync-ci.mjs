@@ -8,7 +8,7 @@
      public/fonts/                 Zilla Slab · Inter · Space Mono, WOFF2 + TTF (SIL OFL)
      public/brand/                 Wortmarke, Favicon, Social Preview
      src/assets/icons.generated.ts     462 Katalog-Icons, Dialekt A, als Primitive
-     src/assets/iconsCore.generated.ts  87 Kern-Zeichen aus dem Webseiten-Repo
+     src/assets/iconsCore.generated.ts  87 Kern-Zeichen, Dialekt A, als Primitive
 
    Warum generieren statt kopieren: die Icon-Geometrien liegen im CI-Repo als
    SVG-Fragmente. Dieses Projekt zeichnet dieselbe Geometrie in drei Ausgaben
@@ -41,24 +41,6 @@ const CI_ROOT =
     '/workspace/daimpad/nozilla-ci',
     '/workspace/nozilla-ci',
   ]);
-
-/**
- * Die zweite Quelle: das Webseiten-Repo.
- *
- * Es ist privat, deshalb ist es optional — ohne es läuft der Sync weiter und
- * lässt das Kern-Set stehen, statt es zu löschen. Deshalb liegt das Kern-Set
- * auch in einer eigenen Datei: eine fehlende Quelle darf keine 87 Zeichen
- * verschwinden lassen.
- */
-const WEB_ROOT =
-  argValue('--web') ??
-  process.env.NOZILLA_NET ??
-  firstExisting([join(ROOT, '..', 'nozilla-net'), '/workspace/nozilla-net']);
-
-function argValue(flag) {
-  const index = process.argv.indexOf(flag);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
 
 function firstExisting(candidates) {
   return candidates.find((path) => existsSync(path)) ?? candidates[0];
@@ -125,7 +107,29 @@ const FONT_FILES = [
 const LICENCE_FILES = ['OFL.txt'];
 
 console.log('nozilla CI-Sync');
-console.log(`  Quelle: ${CI_ROOT}\n`);
+console.log(`  Quelle: ${CI_ROOT}${sourceRevision(CI_ROOT)}\n`);
+
+/**
+ * Den Stand der Quelle mitschreiben.
+ *
+ * Ein veralteter Checkout sieht aus wie ein aktueller und hat schon einmal zu
+ * dem Schluss geführt, das CI-Repo hinke der Webseite hinterher — es hinkte
+ * der Checkout. Die Zeile kostet nichts und beantwortet die Frage, bevor sie
+ * gestellt wird.
+ */
+function sourceRevision(root) {
+  const head = join(root, '.git', 'HEAD');
+  if (!existsSync(head)) return '';
+  try {
+    const ref = readFileSync(head, 'utf8').trim();
+    const sha = ref.startsWith('ref: ')
+      ? readFileSync(join(root, '.git', ref.slice(5)), 'utf8').trim()
+      : ref;
+    return ` @ ${sha.slice(0, 7)}`;
+  } catch {
+    return '';
+  }
+}
 
 console.log('Schriften');
 const fontsOut = join(ROOT, 'public', 'fonts');
@@ -359,22 +363,26 @@ for (const icon of icons) {
 note(`${entries.length} Icons in ${categories.size} Kategorien`);
 
 /* -------------------------------------------------------------------------- */
-/* 5 · Kern-Zeichen aus der Webseite                                           */
+/* 5 · Kern-Zeichen                                                            */
 /* -------------------------------------------------------------------------- */
 
 /*
-   Zwei Sätze, zwei Herkünfte, zwei Dateien.
+   Zwei Sätze, eine Quelle, zwei Dateien.
 
-   Der Katalog oben sind 462 Font-Awesome-Nachbauten aus dem CI-Dokument. Das
-   Kern-Set hier sind die Zeichen, die nozilla für sich gezeichnet hat — die
-   Reihen `ai-`, `data-`, `ops-`, `proto-`, `sec-`, `team-`, `web-`, `ws-`,
-   `a11y-` und die Pixel-Reihe. Sie liegen nicht als Modul vor, sondern als
-   fertige SVG-Dateien, und sie tragen ihre deutsche Beschriftung im
-   `aria-label`.
+   Der Katalog oben sind 462 Font-Awesome-Nachbauten. Das Kern-Set hier sind
+   die Zeichen, die nozilla für sich gezeichnet hat — die Reihen `ai-`,
+   `data-`, `ops-`, `proto-`, `sec-`, `team-`, `web-`, `ws-`, `a11y-` und die
+   Pixel-Reihe. Beide stehen im CI-Repo, aber in verschiedener Form: der
+   Katalog als Modul, das Kern-Set als fertige SVG-Dateien mit deutscher
+   Beschriftung im `aria-label`.
+
+   Zwei Ausgabedateien, weil zwei Sätze: wer den Katalog neu baut, soll das
+   Kern-Set nicht anfassen und umgekehrt. Der Unterschied bliebe in einer
+   gemeinsamen Datei unsichtbar.
 
    26 Namen kommen in beiden Sätzen vor und meinen verschiedene Zeichnungen.
    Deshalb bekommt das Kern-Set das Präfix `core-`: `core-book` ist das Buch
-   der Webseite, `book` das aus dem Font-Awesome-Nachbau.
+   des Kern-Sets, `book` das aus dem Font-Awesome-Nachbau.
 */
 
 console.log('Kern-Zeichen');
@@ -413,15 +421,12 @@ const CORE_FAMILIES = [
   ['ws-', 'workshop'],
 ];
 
-const coreDir = join(WEB_ROOT, 'ci', 'assets');
+const coreDir = join(CI_ROOT, 'project', 'assets');
 const coreEntries = [];
 const coreSkipped = [];
 
 if (!existsSync(coreDir)) {
-  note(
-    `übersprungen — ${WEB_ROOT} nicht da. Das Kern-Set bleibt, wie es ist ` +
-      `(--web <pfad> oder NOZILLA_NET setzen, um es neu zu bauen).`,
-  );
+  note(`übersprungen — ${coreDir} nicht da. Das Kern-Set bleibt, wie es ist.`);
 } else {
   for (const file of readdirSync(coreDir)
     .filter((name) => /^icon-.*\.svg$/.test(name))
@@ -560,8 +565,8 @@ if (coreEntries.length > 0) {
   const coreFile = `/**
  * GENERIERT — nicht von Hand bearbeiten.
  *
- * Quelle:  daimpad/nozilla-net · ci/assets/icon-*.svg
- * Neu bauen: node scripts/sync-ci.mjs --web <pfad/zum/nozilla-net>
+ * Quelle:  https://github.com/daimpad/nozilla-ci  ·  project/assets/icon-*.svg
+ * Neu bauen: node scripts/sync-ci.mjs [pfad/zum/nozilla-ci]
  *
  * Das Kern-Set: die Zeichen, die nozilla für sich gezeichnet hat, im selben
  * Dialekt wie der Katalog — 64 × 64, 4 px, square caps, miter joins, Signatur

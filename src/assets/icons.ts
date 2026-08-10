@@ -2,16 +2,17 @@
  * Das nozilla-Icon-Set — zwei Sätze, ein Namensraum.
  *
  * **Der Katalog**, 462 Zeichen: die frei verfügbaren Font-Awesome-Icons, im
- * nozilla-Dialekt nachgebaut. Sie kommen aus dem CI-Dokument.
+ * nozilla-Dialekt nachgebaut.
  *
  * **Das Kern-Set**, 87 Zeichen mit dem Präfix `core-`: die Zeichen, die
  * nozilla für sich gezeichnet hat — Reihen für KI, Daten, Betrieb, Sicherheit,
- * Prototypen, Web, Workshop, Barrierefreiheit, Team, und eine Pixel-Reihe. Sie
- * kommen aus der Webseite, weil dort das Erscheinungsbild entschieden wird
- * (siehe CLAUDE.md).
+ * Prototypen, Web, Workshop, Barrierefreiheit, Team, und eine Pixel-Reihe.
+ *
+ * Beide kommen aus demselben CI-Repo, nur in verschiedener Form: der Katalog
+ * als Modul, das Kern-Set als fertige SVG-Dateien.
  *
  * Das Präfix ist nicht Kosmetik: 26 Namen kommen in beiden Sätzen vor und
- * zeigen verschiedene Zeichnungen. `core-book` ist das Buch der Webseite,
+ * zeigen verschiedene Zeichnungen. `core-book` ist das Buch des Kern-Sets,
  * `book` der Font-Awesome-Nachbau.
  *
  * Beide Sätze sprechen denselben Dialekt — 64 × 64, 4 px, square caps, miter
