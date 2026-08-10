@@ -11,7 +11,7 @@ Es kann nur eines herstellen — Material, das der
 [![CI](https://github.com/daimpad/nozilla-whiteboard/actions/workflows/ci.yml/badge.svg)](https://github.com/daimpad/nozilla-whiteboard/actions/workflows/ci.yml)
 [![Pages](https://github.com/daimpad/nozilla-whiteboard/actions/workflows/static.yml/badge.svg)](https://daimpad.github.io/nozilla-whiteboard/)
 ![Kein Server](https://img.shields.io/badge/Server-keiner-000000)
-![462 Icons](https://img.shields.io/badge/Icons-462-00FF9C?labelColor=000000)
+![549 Icons](https://img.shields.io/badge/Icons-549-00FF9C?labelColor=000000)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-000000)
 
 [**Ausprobieren**](https://daimpad.github.io/nozilla-whiteboard/) ·
@@ -53,7 +53,7 @@ Sie sind so eingebaut, dass ein Verstoß gar nicht erst entstehen kann:
 | Radius ist 0                 | Auf der Folie: `RADIUS = 0`, und Formen nehmen keinen Radius-Parameter entgegen. Die Werkzeugleisten dürfen runde Ecken haben — sie sind keine Folie (siehe unten).                                                                                            |
 | Schatten sind harte Versätze | Ein Schatten ist eine zweite, versetzte Fläche in Tinte. Es gibt keinen Weichzeichner — auch deshalb exportiert er exakt nach PDF.                                                                                                                             |
 | Farbe hat drei Rollen        | Ein Element wählt eine Rolle (`paper`, `signal`, `ink`), keinen Farbwert. **Einen Farbwähler gibt es nicht.**                                                                                                                                                  |
-| Keine fremden Icons          | Das Set sind die 462 Icons des CI-Repos, aus deren Geometrie generiert.                                                                                                                                                                                        |
+| Keine fremden Icons          | Das Set sind die 549 Icons des CI — 462 Font-Awesome-Nachbauten und 87 Kern-Zeichen —, aus deren Geometrie generiert.                                                                                                                                                                                        |
 | Drei Schriften               | Zilla Slab · Inter · Space Mono, selbst gehostet aus dem CI-Repo. Auf dem Bildschirm als WOFF2, im Export eingebettet oder als Umriss — die Marken-Schrift steht in der Datei, nicht nur ihr Name. Labels werden automatisch in Versalien mit 0,12 em gesetzt. |
 | Grüner Marker                | `==so==` im Markdown. Auf der Fläche, in SVG und PDF dieselbe Fläche unter dem Wort; in PPTX eine Texthervorhebung, damit er beim Umbruch am Wort bleibt.                                                                                                      |
 
@@ -96,7 +96,7 @@ Tabellen, Bilder — gesetzt in der CI-Hierarchie.
 
 ### Freie Fläche
 
-<img src="docs/assets/library.png" alt="Die Bausteinbibliothek mit den 462 CI-Icons und der Tonwert-Auswahl" width="330" align="right">
+<img src="docs/assets/library.png" alt="Die Bausteinbibliothek mit den 549 CI-Icons und der Tonwert-Auswahl" width="330" align="right">
 
 Ziehen, größer ziehen, drehen; Mehrfachauswahl per Shift oder
 Gummiband. Einrasten auf das 8er-Raster _und_ auf Hilfslinien: Kanten und
@@ -217,7 +217,7 @@ CLAUDE.md                     Arbeitsanweisung — Regeln und bekannte Fallen
 PROMPT.md                     Der Deck-Prompt, erklärt
 scripts/sync-ci.mjs           Holt Schriften, Marke und Icons aus dem CI-Repo
 src/
-  assets/     icons.ts        Fassade über dem generierten Set (462 Icons)
+  assets/     icons.ts        Fassade über beiden Sätzen (549 Icons)
               *.generated.ts  Erzeugt — nicht von Hand ändern
               presets.ts      Die Bausteine, die die Bibliothek anbietet
   model/      types.ts        Deck / Folie / Element
@@ -312,7 +312,8 @@ Er schreibt:
 
 - `public/fonts/` — Zilla Slab · Inter · Space Mono als WOFF2 (SIL OFL, siehe `OFL.txt`)
 - `public/brand/` — Wortmarke, Favicon, Social Preview
-- `src/assets/icons.generated.ts` — 462 Icons als Primitive
+- `src/assets/icons.generated.ts` — 462 Katalog-Icons als Primitive
+- `src/assets/iconsCore.generated.ts` — 87 Kern-Zeichen der Webseite
 - `src/assets/wordmark.generated.ts` — die Wortmarke als Vektorpfade
 
 Die Wortmarke wird als **Pfad** übernommen, nicht als Bild — nur so landet sie
@@ -364,7 +365,7 @@ Getestet wird, wo ein Fehler unsichtbar bliebe, bis er in einer Datei landet:
 der Folien-Trenner und der Rundlauf, der Pfad-Parser samt Bogen-Umwandlung,
 Raster und Größenänderung, Zeilenumbruch und Satz, der Szenenaufbau, der
 SVG-Schreiber, die PDF-Geometrie, der Verlauf des Zustands — und die
-CI-Konformität aller 462 Icons.
+CI-Konformität aller 549 Icons.
 
 `src/decks/welcome.md` ist zugleich Beispiel und Prüfstein.
 

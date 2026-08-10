@@ -7,7 +7,8 @@
 
      public/fonts/                 Zilla Slab · Inter · Space Mono, WOFF2 + TTF (SIL OFL)
      public/brand/                 Wortmarke, Favicon, Social Preview
-     src/assets/icons.generated.ts 462 Icons, Dialekt A, als Primitive
+     src/assets/icons.generated.ts     462 Katalog-Icons, Dialekt A, als Primitive
+     src/assets/iconsCore.generated.ts  87 Kern-Zeichen aus dem Webseiten-Repo
 
    Warum generieren statt kopieren: die Icon-Geometrien liegen im CI-Repo als
    SVG-Fragmente. Dieses Projekt zeichnet dieselbe Geometrie in drei Ausgaben
@@ -41,6 +42,24 @@ const CI_ROOT =
     '/workspace/nozilla-ci',
   ]);
 
+/**
+ * Die zweite Quelle: das Webseiten-Repo.
+ *
+ * Es ist privat, deshalb ist es optional — ohne es läuft der Sync weiter und
+ * lässt das Kern-Set stehen, statt es zu löschen. Deshalb liegt das Kern-Set
+ * auch in einer eigenen Datei: eine fehlende Quelle darf keine 87 Zeichen
+ * verschwinden lassen.
+ */
+const WEB_ROOT =
+  argValue('--web') ??
+  process.env.NOZILLA_NET ??
+  firstExisting([join(ROOT, '..', 'nozilla-net'), '/workspace/nozilla-net']);
+
+function argValue(flag) {
+  const index = process.argv.indexOf(flag);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
 function firstExisting(candidates) {
   return candidates.find((path) => existsSync(path)) ?? candidates[0];
 }
@@ -60,6 +79,18 @@ const note = (message) => console.log(`  ${message}`);
 /** Die einzigen beiden Farben, die in CI-Geometrie vorkommen dürfen. */
 const INK_HEX = '#000000';
 const SIGNAL_HEX = '#00FF9C';
+
+/**
+ * Alles, was in der Zeichnung „Tinte" heißt.
+ *
+ * `#000` ist dieselbe Farbe, nur kürzer notiert. `currentColor` ist die
+ * Farbe, die das Element von außen bekommt — und genau das ist die Tinte der
+ * Fläche, auf der das Zeichen sitzt. Ein Icon auf einer Tinte-Folie wird
+ * deshalb in Papier gezeichnet, ohne dass die Datei davon etwas wissen muss.
+ */
+function isInk(value) {
+  return value === INK_HEX || value === '#000' || value === 'currentColor';
+}
 
 /* -------------------------------------------------------------------------- */
 /* 1 · Schriften                                                               */
@@ -224,7 +255,7 @@ const SIGNATURE = { t: 'rect', x: 54, y: 54, w: 6, h: 6, fill: 'signal' };
  * fill, transform, stroke-width, stroke-dasharray, stroke) — deshalb reicht
  * ein Tokenizer; ein XML-Parser wäre hier nur Ballast.
  */
-function parseGeometry(name, markup) {
+function parseGeometry(name, markup, sink = problems) {
   const prims = [];
   const elementRe = /<(path|circle|ellipse|rect)\b([^>]*)\/?>/g;
 
@@ -238,13 +269,13 @@ function parseGeometry(name, markup) {
     const paint = {};
     if (attrs.fill && attrs.fill !== 'none') {
       if (attrs.fill === SIGNAL_HEX) paint.fill = 'signal';
-      else if (attrs.fill === INK_HEX) paint.fill = 'ink';
-      else problems.push(`Farbe außerhalb des CI: ${attrs.fill} in ${name}`);
+      else if (isInk(attrs.fill)) paint.fill = 'ink';
+      else sink.push(`Farbe außerhalb des CI: ${attrs.fill} in ${name}`);
     }
     if (attrs.stroke && attrs.stroke !== 'none') {
       if (attrs.stroke === SIGNAL_HEX) paint.stroke = 'signal';
-      else if (attrs.stroke !== INK_HEX) {
-        problems.push(`Strichfarbe außerhalb des CI: ${attrs.stroke} in ${name}`);
+      else if (!isInk(attrs.stroke)) {
+        sink.push(`Strichfarbe außerhalb des CI: ${attrs.stroke} in ${name}`);
       }
     }
     if (attrs['stroke-width']) paint.sw = Number(attrs['stroke-width']);
@@ -259,7 +290,7 @@ function parseGeometry(name, markup) {
       if (rotate) {
         paint.rotate = [Number(rotate[1]), Number(rotate[2]), Number(rotate[3])];
       } else {
-        problems.push(`Unbekannte Transformation in ${name}: ${attrs.transform}`);
+        sink.push(`Unbekannte Transformation in ${name}: ${attrs.transform}`);
       }
     }
 
@@ -281,7 +312,7 @@ function parseGeometry(name, markup) {
         });
         break;
       case 'rect':
-        if (attrs.rx || attrs.ry) problems.push(`Abgerundetes Rechteck verboten: ${name}`);
+        if (attrs.rx || attrs.ry) sink.push(`Abgerundetes Rechteck verboten: ${name}`);
         prims.push({
           t: 'rect',
           x: +attrs.x,
@@ -294,7 +325,7 @@ function parseGeometry(name, markup) {
     }
   }
 
-  if (prims.length === 0) problems.push(`Geometrie leer: ${name}`);
+  if (prims.length === 0) sink.push(`Geometrie leer: ${name}`);
   return prims;
 }
 
@@ -326,6 +357,119 @@ for (const icon of icons) {
 }
 
 note(`${entries.length} Icons in ${categories.size} Kategorien`);
+
+/* -------------------------------------------------------------------------- */
+/* 5 · Kern-Zeichen aus der Webseite                                           */
+/* -------------------------------------------------------------------------- */
+
+/*
+   Zwei Sätze, zwei Herkünfte, zwei Dateien.
+
+   Der Katalog oben sind 462 Font-Awesome-Nachbauten aus dem CI-Dokument. Das
+   Kern-Set hier sind die Zeichen, die nozilla für sich gezeichnet hat — die
+   Reihen `ai-`, `data-`, `ops-`, `proto-`, `sec-`, `team-`, `web-`, `ws-`,
+   `a11y-` und die Pixel-Reihe. Sie liegen nicht als Modul vor, sondern als
+   fertige SVG-Dateien, und sie tragen ihre deutsche Beschriftung im
+   `aria-label`.
+
+   26 Namen kommen in beiden Sätzen vor und meinen verschiedene Zeichnungen.
+   Deshalb bekommt das Kern-Set das Präfix `core-`: `core-book` ist das Buch
+   der Webseite, `book` das aus dem Font-Awesome-Nachbau.
+*/
+
+console.log('Kern-Zeichen');
+
+/**
+ * Acht Beschriftungen stehen in der Quelle ohne Umlaute.
+ *
+ * Das ist keine Schreibweise, sondern eine Einschränkung, die sich jemand
+ * irgendwann auferlegt hat — und in einer Bibliothek liest sich „Rueckruf"
+ * wie ein Fehler des Werkzeugs. Korrigiert wird nur, was hier ausdrücklich
+ * steht: eine Regel „ue → ü" würde aus `Neuron` ein `Nüron` machen. Der
+ * bessere Ort für die Reparatur ist die Quelle; bis dahin steht sie hier.
+ */
+const LABEL_FIXES = {
+  Angriffsflaeche: 'Angriffsfläche',
+  Aufraeumen: 'Aufräumen',
+  'Pixel-Kaefer': 'Pixel-Käfer',
+  Rueckruf: 'Rückruf',
+  Stoerung: 'Störung',
+  Telefonhoerer: 'Telefonhörer',
+  Uebergabe: 'Übergabe',
+  Verschluesseln: 'Verschlüsseln',
+};
+
+/** Die Reihen des Kern-Sets. Der Name sagt, wohin ein Zeichen gehört. */
+const CORE_FAMILIES = [
+  ['a11y-', 'accessibility'],
+  ['ai-', 'ki'],
+  ['data-', 'daten'],
+  ['ops-', 'betrieb'],
+  ['pixel-', 'pixel'],
+  ['proto-', 'prototyp'],
+  ['sec-', 'sicherheit'],
+  ['team-', 'team'],
+  ['web-', 'web'],
+  ['ws-', 'workshop'],
+];
+
+const coreDir = join(WEB_ROOT, 'ci', 'assets');
+const coreEntries = [];
+const coreSkipped = [];
+
+if (!existsSync(coreDir)) {
+  note(
+    `übersprungen — ${WEB_ROOT} nicht da. Das Kern-Set bleibt, wie es ist ` +
+      `(--web <pfad> oder NOZILLA_NET setzen, um es neu zu bauen).`,
+  );
+} else {
+  for (const file of readdirSync(coreDir)
+    .filter((name) => /^icon-.*\.svg$/.test(name))
+    .sort()) {
+    const svg = readFileSync(join(coreDir, file), 'utf8');
+    const short = file.replace(/^icon-/, '').replace(/\.svg$/, '');
+    const name = `core-${short}`;
+    const local = [];
+
+    if (!/viewBox="0 0 64 64"/.test(svg)) local.push('Raster ist nicht 64 × 64');
+    if (/stroke-line(?:cap|join)="round"/.test(svg)) local.push('Runde Enden verboten');
+    if (/gradient|filter=|blur|<text|<image|<use/i.test(svg)) {
+      local.push('Verlauf, Filter, Text oder Bild verboten');
+    }
+
+    const prims = parseGeometry(name, svg, local);
+    const label = /aria-label="([^"]+)"/.exec(svg)?.[1];
+    if (!label) local.push('keine Beschriftung (aria-label)');
+
+    if (local.length > 0) {
+      // Dieselbe Farbe steht in einem Pixel-Zeichen vierzig Mal. Einmal nennen
+      // reicht, sonst liest die Meldung niemand zu Ende.
+      coreSkipped.push(`${file}: ${[...new Set(local)].join('; ')}`);
+      continue;
+    }
+
+    coreEntries.push({
+      name,
+      label: LABEL_FIXES[label] ?? label,
+      // Die Bedeutung pflegt der Katalog, das Kern-Set nicht. Lieber leer als
+      // erfunden — die Suche greift ohnehin über Name und Beschriftung.
+      meaning: '',
+      category: CORE_FAMILIES.find(([prefix]) => short.startsWith(prefix))?.[1] ?? 'kern',
+      // Die Signatur steht in diesen Dateien schon drin; sie wird hier nicht
+      // noch einmal angehängt.
+      prims,
+    });
+  }
+
+  note(`${coreEntries.length} Kern-Zeichen aus ${coreDir}`);
+  if (coreSkipped.length > 0) {
+    // Kein Abbruch: ein Zeichen, das die CI-Regeln hier nicht erfüllt, bleibt
+    // draußen und wird benannt. Stillschweigend weglassen wäre schlimmer als
+    // gar nicht übernehmen.
+    note(`${coreSkipped.length} übersprungen:`);
+    for (const line of coreSkipped) note(`   · ${line}`);
+  }
+}
 
 /* -------------------------------------------------------------------------- */
 /* 4 · Schreiben                                                               */
@@ -410,5 +554,44 @@ note('→ src/assets/wordmark.generated.ts');
 const outFile = join(ROOT, 'src', 'assets', 'icons.generated.ts');
 writeFileSync(outFile, header + body + footer);
 note(`→ src/assets/icons.generated.ts (${((header + body + footer).length / 1024).toFixed(0)} kB)`);
+
+if (coreEntries.length > 0) {
+  const coreCategories = [...new Set(coreEntries.map((entry) => entry.category))].sort();
+  const coreFile = `/**
+ * GENERIERT — nicht von Hand bearbeiten.
+ *
+ * Quelle:  daimpad/nozilla-net · ci/assets/icon-*.svg
+ * Neu bauen: node scripts/sync-ci.mjs --web <pfad/zum/nozilla-net>
+ *
+ * Das Kern-Set: die Zeichen, die nozilla für sich gezeichnet hat, im selben
+ * Dialekt wie der Katalog — 64 × 64, 4 px, square caps, miter joins, Signatur
+ * unten rechts. Die Schlüssel tragen das Präfix \`core-\`, weil 26 Namen auch
+ * im Katalog vorkommen und dort etwas anderes zeigen.
+ */
+import type { IconPrim } from './iconTypes';
+
+export const coreIconCategories = ${JSON.stringify(coreCategories, null, 2).replace(/"/g, "'")} as const;
+
+export const coreIcons = {
+${coreEntries
+  .map(
+    (entry) =>
+      `  ${JSON.stringify(entry.name)}: { label: ${JSON.stringify(entry.label)}, meaning: ${JSON.stringify(
+        entry.meaning,
+      )}, category: ${JSON.stringify(entry.category)}, prims: [${entry.prims
+        .map((prim) => JSON.stringify(prim))
+        .join(', ')}] },`,
+  )
+  .join('\n')}
+} as const satisfies Record<
+  string,
+  { label: string; meaning: string; category: string; prims: IconPrim[] }
+>;
+
+export type CoreIconName = keyof typeof coreIcons;
+`;
+  writeFileSync(join(ROOT, 'src', 'assets', 'iconsCore.generated.ts'), coreFile);
+  note(`→ src/assets/iconsCore.generated.ts (${(coreFile.length / 1024).toFixed(0)} kB)`);
+}
 
 console.log('\n✓ CI-Sync abgeschlossen');

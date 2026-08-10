@@ -97,10 +97,19 @@ export const emptyBrief: DeckBrief = {
 /* -------------------------------------------------------------------------- */
 
 /**
- * 462 Icon-Namen sprengen jeden Prompt. Diese Auswahl deckt ab, was in Decks
+ * 549 Icon-Namen sprengen jeden Prompt. Diese Auswahl deckt ab, was in Decks
  * tatsächlich gebraucht wird; der Prompt sagt ausdrücklich, dass nur Namen aus
- * der Liste erlaubt sind. Jeder Name wird gegen das echte Set geprüft — eine
- * Umbenennung im CI-Repo fällt hier sofort auf.
+ * der Liste erlaubt sind.
+ *
+ * Die Liste wird **nicht** gegen das Set gefiltert, sondern dagegen geprüft
+ * (`missingSuggestedIcons`). Gefiltert hat sie sich jahrelang selbst — und
+ * damit auch den Test stillgelegt, der sie prüfen sollte: vier Namen standen
+ * hier, die es im Set nie gab, und niemand konnte es merken. Ein toter Name
+ * gehört ersetzt, nicht verschwiegen.
+ *
+ * Am Ende steht eine Handvoll aus dem Kern-Set (`core-*`). Es sind die
+ * Zeichen, die nozilla für die eigenen Themen gezeichnet hat und für die der
+ * Font-Awesome-Nachbau nichts Vergleichbares hat.
  */
 const SUGGESTED_ICONS = [
   'arrow-right',
@@ -142,9 +151,8 @@ const SUGGESTED_ICONS = [
   'comments',
   'envelope',
   'phone',
-  'gauge',
   'clock',
-  'calendar',
+  'calendar-days',
   'hourglass',
   'stopwatch',
   'code',
@@ -152,7 +160,7 @@ const SUGGESTED_ICONS = [
   'database',
   'server',
   'cloud',
-  'gear',
+  'gears',
   'sliders',
   'wrench',
   'lock',
@@ -179,8 +187,30 @@ const SUGGESTED_ICONS = [
   'leaf',
   'recycle',
   'truck',
-  'box',
-].filter((name) => (iconNames as string[]).includes(name));
+  'box-open',
+
+  /* Kern-Set der Webseite — nozillas eigene Themen. */
+  'core-ai-model',
+  'core-ai-prompt',
+  'core-ai-drift',
+  'core-data-pipe',
+  'core-data-cluster',
+  'core-ops-incident',
+  'core-ops-rollback',
+  'core-sec-key',
+  'core-sec-encrypt',
+  'core-a11y-contrast',
+  'core-team-review',
+  'core-team-handover',
+  'core-proto-loop',
+  'core-web-deploy',
+  'core-web-speed',
+  'core-ws-agenda',
+  'core-ws-vote',
+  'core-ws-timebox',
+  'core-legacy-crack',
+  'core-refactor',
+];
 
 /** Für Tests: Namen aus der Auswahl, die es im Set nicht (mehr) gibt. */
 export function missingSuggestedIcons(): string[] {
