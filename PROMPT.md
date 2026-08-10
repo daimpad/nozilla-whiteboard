@@ -144,12 +144,11 @@ layout:
   blank      Ohne Fließtext
   canvas     Nur freie Fläche
 
-background:  paper · paper-alt · paper-deep · ink · signal · grid
+background:  paper · ink · signal · grid
 transition:  none · cut · fade · slide · push
 
 tone — die Farbrolle einer Fläche:
   paper     Standard — Papier mit Tintenkontur
-  paperAlt  Karten-Tönung, wenn zwei Flächen sich absetzen müssen
   signal    Nur echte Handlungsaufforderungen — 5 % der Fläche
   ink       Invers — Tinte als Fläche, Papier als Schrift
 
@@ -177,19 +176,19 @@ shape:        rectangle · ellipse · diamond · triangle · hexagon · chevron 
 connector:    line · arrow · double-arrow · elbow
 
 typeStyle (nur für kind: text):
-  display     128 px
+  display     140 px
   headline    88 px
-  h1          56 px
-  h2          40 px
-  h3          28 px
-  h4          22 px
-  lead        22 px
-  body        17 px
-  bodyStrong  17 px
-  small       14 px
+  h1          68 px
+  h2          48 px
+  h3          34 px
+  h4          21 px
+  lead        21 px
+  body        16 px
+  bodyStrong  16 px
+  small       13 px
   label       12 px
   labelSmall  11 px
-  code        14 px
+  code        13 px
   codeInline  15 px
 
 reveal — Elemente nacheinander einblenden:
@@ -197,7 +196,7 @@ reveal — Elemente nacheinander einblenden:
   step 0 = sofort mit der Folie. animation: cut · fade · rise · slide-left · slide-right · wipe
 
 icon — nur Namen aus dieser Liste:
-arrow-right, arrow-up, arrow-down, check, square-check, xmark, plus, circle-info, triangle-exclamation, circle-question, lightbulb, bolt, rocket, flag, bullseye, compass, map, route, flask, microscope, chart-line, chart-simple, chart-pie, table, list-check, clipboard, file-lines, file-pdf, folder, book, newspaper, pen-to-square, users, user, handshake, comment, comments, envelope, phone, clock, hourglass, stopwatch, code, terminal, database, server, cloud, sliders, wrench, lock, shield-halved, key, eye, magnifying-glass, filter, money-bill, coins, cart-shopping, tag, star, heart, thumbs-up, layer-group, object-group, cube, puzzle-piece, link, share-nodes, building, globe, leaf, recycle, truck
+arrow-right, arrow-up, arrow-down, check, square-check, xmark, plus, circle-info, triangle-exclamation, circle-question, lightbulb, bolt, rocket, flag, bullseye, compass, map, route, flask, microscope, chart-line, chart-simple, chart-pie, table, list-check, clipboard, file-lines, file-pdf, folder, book, newspaper, pen-to-square, users, user, handshake, comment, comments, envelope, phone, clock, calendar-days, hourglass, stopwatch, code, terminal, database, server, cloud, gears, sliders, wrench, lock, shield-halved, key, eye, magnifying-glass, filter, money-bill, coins, cart-shopping, tag, star, heart, thumbs-up, layer-group, object-group, cube, puzzle-piece, link, share-nodes, building, globe, leaf, recycle, truck, box-open, core-ai-model, core-ai-prompt, core-ai-drift, core-data-pipe, core-data-cluster, core-ops-incident, core-ops-rollback, core-sec-key, core-sec-encrypt, core-a11y-contrast, core-team-review, core-team-handover, core-proto-loop, core-web-deploy, core-web-speed, core-ws-agenda, core-ws-vote, core-ws-timebox, core-legacy-crack, core-refactor
 
 ════════════════════════════════════════════════════════════════
 DIE CI — nicht verhandelbar

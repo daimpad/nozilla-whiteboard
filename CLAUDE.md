@@ -19,6 +19,7 @@ npm run test         # vitest
 npm run lint
 npm run format
 npm run sync:ci -- ../nozilla-ci    # Schriften, Marke, Icons aus dem CI-Repo
+npm run sync:ci -- ../nozilla-ci --web ../nozilla-net   # dazu die Kern-Zeichen
 ```
 
 ---
@@ -89,7 +90,29 @@ src/
 ```
 
 **Nicht von Hand ändern:** `src/assets/icons.generated.ts`,
-`src/assets/wordmark.generated.ts`. Sie kommen aus `npm run sync:ci`.
+`src/assets/iconsCore.generated.ts`, `src/assets/wordmark.generated.ts`. Sie
+kommen aus `npm run sync:ci`.
+
+---
+
+## Wo die CI herkommt — und wer recht hat
+
+Die CI steht an zwei Orten: im Dokument
+([daimpad/nozilla-ci](https://github.com/daimpad/nozilla-ci), von wo dieses
+Werkzeug synchronisiert) und in der Webseite
+([daimpad/nozilla-net](https://github.com/daimpad/nozilla-net), privat).
+
+**Bei Unterschieden gilt die Webseite.** Entschieden vom Auftraggeber am
+7. August 2026, für die Marken wie für die Zeichen; nachzulesen in
+`ci/UEBERNAHME.md` des Webseiten-Repos. Der Grund ist nicht Geschmack: die
+Webseite ist die Stelle, an der die Werte gegen echten Text laufen — zwei
+Sprachen, 205 Seiten, fünf Bildschirmbreiten, elf Prüfungen bei jedem Bauen.
+
+Praktisch heißt das: **das Dokument kann hinter der Webseite herhinken, und
+dann hinkt dieses Werkzeug mit.** Genau das war der Fall, als die
+Größenleiter und die Cremetöne hier nachgezogen wurden — das Dokument trug
+noch die alten Werte. Wer die CI anfasst, sieht deshalb zuerst in
+`nozilla-net/ci/design-system.css` nach, nicht nur in `nozilla-ci`.
 
 ---
 
@@ -152,7 +175,8 @@ ungesperrte Breite und zeichnet die gesperrte. Die Datei ist korrekt, der
 Renderer nicht. Wir sperren deshalb im PPTX nur negativ.
 
 **PDF kennt keinen Bogen-Operator.** Ellipsenbögen werden beim Einlesen zu
-Kubiken (`arcToCubics` in `path.ts`). Ohne das fehlen 462 Icons im PDF.
+Kubiken (`arcToCubics` in `path.ts`). Ohne das fehlt jedes Icon mit einem
+Bogen im PDF — und das sind die meisten.
 
 **`spc`, `sz`, `spcPts` sind Hundertstel Punkt. `marL`, `indent`, `w` sind
 EMU.** Eine Folien-Einheit ist 9525 EMU und ¾ Punkt. Wer das verwechselt,

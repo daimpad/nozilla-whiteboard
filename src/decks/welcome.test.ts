@@ -4,6 +4,7 @@ import { parseDeck, serializeDeck } from '@/lib/markdown/deck';
 import { buildSlideScene } from '@/lib/export/scene';
 import { sceneToSvg } from '@/lib/export/svg';
 import { maxRevealStep } from '@/model/types';
+import { toneNames } from '@/theme';
 
 /**
  * The deck that ships with the app is also the widest end-to-end fixture we
@@ -82,7 +83,9 @@ describe('the bundled welcome deck', () => {
   it('hält sich an die Farbrollen der CI', () => {
     const tones = new Set(deck.slides.flatMap((slide) => slide.elements.map((el) => el.tone)));
     for (const tone of tones) {
-      expect(['paper', 'paperAlt', 'signal', 'ink']).toContain(tone);
+      // Gegen `toneNames` statt gegen eine abgeschriebene Liste: fällt eine
+      // Rolle weg, soll dieser Test es merken und nicht stillhalten.
+      expect(toneNames).toContain(tone);
     }
   });
 });

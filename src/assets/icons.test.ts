@@ -20,8 +20,19 @@ import {
  */
 describe('das nozilla-Icon-Set', () => {
   it('ist vollständig und eindeutig', () => {
-    expect(iconNames.length).toBe(462);
+    // 462 Nachbauten aus dem Katalog, 87 Kern-Zeichen der Webseite.
+    expect(iconNames.filter((name) => name.startsWith('core-')).length).toBe(87);
+    expect(iconNames.length).toBe(549);
     expect(new Set(iconNames).size).toBe(iconNames.length);
+  });
+
+  it('hält die beiden Sätze auseinander, wo sie denselben Namen tragen', () => {
+    // 26 Namen kommen doppelt vor und zeigen verschiedene Zeichnungen. Das
+    // Präfix ist das Einzige, was sie trennt — geht es verloren, überschreibt
+    // ein Satz den anderen still.
+    expect(isIconName('book')).toBe(true);
+    expect(isIconName('core-book')).toBe(true);
+    expect(icons['core-book'].prims).not.toEqual(icons.book.prims);
   });
 
   it.each(iconNames)('%s zeichnet etwas', (name) => {

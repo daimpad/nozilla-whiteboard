@@ -191,14 +191,13 @@ export type CanvasElement =
 /* Folien & Deck                                                               */
 /* -------------------------------------------------------------------------- */
 
-export const slideBackgrounds = [
-  'paper',
-  'paper-alt',
-  'paper-deep',
-  'ink',
-  'signal',
-  'grid',
-] as const;
+/**
+ * `paper-alt` und `paper-deep` standen hier, solange es drei Cremetöne gab.
+ * Seit die CI einen führt, wären sie drei Einträge mit demselben Bild. Ein
+ * älteres Deck, das sie noch nennt, fällt beim Einlesen auf `paper` zurück —
+ * dasselbe Ergebnis, ohne die Auswahl, die keine war.
+ */
+export const slideBackgrounds = ['paper', 'ink', 'signal', 'grid'] as const;
 export type SlideBackground = (typeof slideBackgrounds)[number];
 
 export interface SlideMeta {
