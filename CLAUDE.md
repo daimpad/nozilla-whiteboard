@@ -19,7 +19,6 @@ npm run test         # vitest
 npm run lint
 npm run format
 npm run sync:ci -- ../nozilla-ci    # Schriften, Marke, Icons aus dem CI-Repo
-npm run sync:ci -- ../nozilla-ci --web ../nozilla-net   # dazu die Kern-Zeichen
 ```
 
 ---
@@ -109,10 +108,11 @@ Webseite ist die Stelle, an der die Werte gegen echten Text laufen — zwei
 Sprachen, 205 Seiten, fünf Bildschirmbreiten, elf Prüfungen bei jedem Bauen.
 
 Praktisch heißt das: **das Dokument kann hinter der Webseite herhinken, und
-dann hinkt dieses Werkzeug mit.** Genau das war der Fall, als die
-Größenleiter und die Cremetöne hier nachgezogen wurden — das Dokument trug
-noch die alten Werte. Wer die CI anfasst, sieht deshalb zuerst in
-`nozilla-net/ci/design-system.css` nach, nicht nur in `nozilla-ci`.
+dann hinkt dieses Werkzeug mit.** Zurzeit hinkt es nicht — die Übernahme vom
+7. August steht in `nozilla-ci` (Marken wie Zeichen), und dieses Werkzeug
+synchronisiert weiterhin aus genau dieser einen Quelle. Wer den Verdacht hat,
+dass etwas auseinandergelaufen ist, vergleicht `design-system.css` in beiden
+Repos, bevor er hier etwas ändert.
 
 ---
 
@@ -156,6 +156,13 @@ Bild.
 
 Jede davon hat Zeit gekostet. Sie stehen hier, damit sie es nicht noch einmal
 tun.
+
+**Ein veralteter Checkout sieht aus wie ein aktueller.** Im Arbeitsverzeichnis
+lagen zwei Klone des CI-Repos, einer davon Wochen alt. Der Vergleich mit der
+Webseite führte deshalb zu dem Schluss, das CI-Repo hinke hinterher — es hinkte
+der Klon. Der Sync schreibt jetzt den Stand seiner Quelle mit
+(`Quelle: … @ 513f017`); wer eine Behauptung über ein anderes Repo aufstellt,
+prüft vorher `git -C <pfad> log -1`.
 
 **Teilkonturen gehören in _einen_ Pfad.** Sonst füllt jede für sich, und der
 Ring wird zur Scheibe — im PDF (`doc.lines(..., null)` für alle bis auf den
