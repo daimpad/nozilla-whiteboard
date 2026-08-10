@@ -46,10 +46,23 @@ export const palette = {
   signalStrong: '#00E88D',
   signalSoft: '#B7FFE0',
 
-  /** Papier — warmes Creme. Der globale Untergrund. */
+  /**
+   * Papier — warmes Creme. Der globale Untergrund.
+   *
+   * Die drei Töne waren einmal drei: `#FFFEE5`, `#FAF8D4`, `#F4F1C4`. Am
+   * 7. August 2026 hat der Auftraggeber entschieden, dass bei Unterschieden
+   * zwischen CI-Dokument und Webseite die Webseite gilt — und die Webseite
+   * hat ein Creme. Der Grund steht in `ci/UEBERNAHME.md` des Relaunch-Repos
+   * und ist nachprüfbar: man sieht, dass da drei verschiedene Weiß
+   * nebeneinanderstehen, aber nicht, welches welches ist. Auf Papier wäre das
+   * anders; dieses Werkzeug zeichnet auf Bildschirme.
+   *
+   * Die Namen bleiben, weil das CI-Dokument sie behält und weil sie eine
+   * Rolle benennen, keinen Wert.
+   */
   paper: '#FFFEE5',
-  paperAlt: '#FAF8D4',
-  paperDeep: '#F4F1C4',
+  paperAlt: '#FFFEE5',
+  paperDeep: '#FFFEE5',
   white: '#FFFFFF',
 
   /** Tinte — echtes Schwarz plus warme Fast-Schwarz-Töne für dunkle Flächen. */
@@ -127,9 +140,15 @@ export const color = {
 /**
  * Die Flächenrollen, die ein Canvas-Element annehmen darf.
  *
- * Bewusst vier statt einer Akzentpalette: „Akzent-Paletten mit 5 Blautönen"
+ * Bewusst drei statt einer Akzentpalette: „Akzent-Paletten mit 5 Blautönen"
  * stehen im CI ausdrücklich auf der Verbotsliste. Wer eine Fläche einfärben
  * will, wählt eine Rolle — keinen Farbwert. Ein Farbwähler existiert nicht.
+ *
+ * Es waren einmal vier. „Papier getönt" hatte genau eine Aufgabe: sich vom
+ * Papier abzusetzen. Seit die drei Cremetöne einer sind (siehe `palette`),
+ * kann es das nicht mehr — es wäre ein Eintrag, der etwas verspricht, was
+ * er nicht hält. Ein Deck, das ihn noch nennt, fällt beim Einlesen auf
+ * `paper` zurück, und das ist genau das, was es dann auch war.
  */
 export const elementTones = {
   paper: {
@@ -137,16 +156,6 @@ export const elementTones = {
     hint: 'Standard — Papier mit Tintenkontur',
     surface: palette.paper,
     surfaceAlt: palette.paperAlt,
-    line: palette.ink,
-    text: palette.ink,
-    textMuted: inkAlpha[70],
-    accent: palette.ink,
-  },
-  paperAlt: {
-    label: 'Papier getönt',
-    hint: 'Karten-Tönung, wenn zwei Flächen sich absetzen müssen',
-    surface: palette.paperAlt,
-    surfaceAlt: palette.paperDeep,
     line: palette.ink,
     text: palette.ink,
     textMuted: inkAlpha[70],
@@ -354,16 +363,50 @@ export const fontWeight = {
 } as const;
 
 /**
+ * Die Größenleiter des CI — acht Stufen, und sonst gibt es keine.
+ *
+ * Sie steht hier für sich, weil sie das ist, was sich ändert. Am 7. August
+ * 2026 hat die Leiter der Webseite die des CI-Dokuments abgelöst; sieben der
+ * acht Stufen sind dabei gewandert. Wer die Leiter wieder nachzieht, ändert
+ * diese acht Zahlen und sonst nichts — die Hierarchie darunter liest von
+ * hier.
+ *
+ * Die neue Leiter ist unten enger und oben weiter, und das mit Absicht:
+ * Fließtext muss lesbar sein, Titel dürfen groß sein. Die alte war in beide
+ * Richtungen zahmer.
+ *
+ * `xl4` ist auf der Webseite ein `clamp(64px, 10vw, 140px)`. Eine Folie hat
+ * eine feste Breite, also nimmt sie den oberen Wert.
+ */
+export const textScale = {
+  xs: 12,
+  sm: 13,
+  base: 16,
+  lg: 21,
+  xl: 34,
+  xl2: 48,
+  xl3: 68,
+  xl4: 140,
+} as const;
+
+/**
  * Die Typo-Hierarchie aus dem CI, in Folien-Einheiten.
  *
- * Display fährt die Kampagnen-Größen (56–128 px) mit Zeilenhöhe 0.95 und
- * -0.02em Laufweite. Labels sind Space Mono, ALL-CAPS, 0.12em — deshalb trägt
+ * Die Zuordnung ist die des CI-Dokuments: `h1` ist `xl3`, `h2` ist `xl2`, und
+ * so weiter. Labels sind Space Mono, ALL-CAPS, 0.12em — deshalb trägt
  * `overline` die Versalien-Kennzeichnung mit.
+ *
+ * Drei Stufen sind keine CI-Marken, sondern gehören diesem Werkzeug, und sie
+ * stehen als nackte Zahl da, damit man sie von den Marken unterscheiden kann:
+ * die Kampagnengröße `headline` zwischen `xl3` und `xl4`, `labelSmall` für
+ * Fußzeile und Foliennummer — unterhalb der Leiter, weil die Leiter dort
+ * aufhört, wo eine Folie noch weitermuss —, und `codeInline`, das knapp unter
+ * dem Fließtext steht, weil Space Mono breiter baut als Inter.
  */
 export const typeScale = {
   /* Kampagnen-Größen — Zilla Slab Bold, Zeilenhöhe 0.95, -0.02em */
   display: {
-    size: 128,
+    size: textScale.xl4,
     lineHeight: 0.95,
     weight: fontWeight.bold,
     tracking: -0.02,
@@ -380,7 +423,7 @@ export const typeScale = {
   },
   /* Die Hierarchie aus dem CI-Dokument */
   h1: {
-    size: 56,
+    size: textScale.xl3,
     lineHeight: 1.0,
     weight: fontWeight.bold,
     tracking: -0.02,
@@ -388,7 +431,7 @@ export const typeScale = {
     caps: false,
   },
   h2: {
-    size: 40,
+    size: textScale.xl2,
     lineHeight: 1.05,
     weight: fontWeight.bold,
     tracking: -0.02,
@@ -396,7 +439,7 @@ export const typeScale = {
     caps: false,
   },
   h3: {
-    size: 28,
+    size: textScale.xl,
     lineHeight: 1.15,
     weight: fontWeight.bold,
     tracking: -0.015,
@@ -404,7 +447,7 @@ export const typeScale = {
     caps: false,
   },
   h4: {
-    size: 22,
+    size: textScale.lg,
     lineHeight: 1.25,
     weight: fontWeight.bold,
     tracking: -0.01,
@@ -412,7 +455,7 @@ export const typeScale = {
     caps: false,
   },
   lead: {
-    size: 22,
+    size: textScale.lg,
     lineHeight: 1.4,
     weight: fontWeight.regular,
     tracking: 0,
@@ -420,7 +463,7 @@ export const typeScale = {
     caps: false,
   },
   body: {
-    size: 17,
+    size: textScale.base,
     lineHeight: 1.55,
     weight: fontWeight.regular,
     tracking: 0,
@@ -428,7 +471,7 @@ export const typeScale = {
     caps: false,
   },
   bodyStrong: {
-    size: 17,
+    size: textScale.base,
     lineHeight: 1.55,
     weight: fontWeight.semibold,
     tracking: 0,
@@ -436,7 +479,7 @@ export const typeScale = {
     caps: false,
   },
   small: {
-    size: 14,
+    size: textScale.sm,
     lineHeight: 1.55,
     weight: fontWeight.regular,
     tracking: 0,
@@ -445,7 +488,7 @@ export const typeScale = {
   },
   /* Labels sind Space Mono Bold, ALL-CAPS, 0.12em */
   label: {
-    size: 12,
+    size: textScale.xs,
     lineHeight: 1.2,
     weight: fontWeight.bold,
     tracking: 0.12,
@@ -461,7 +504,7 @@ export const typeScale = {
     caps: true,
   },
   code: {
-    size: 14,
+    size: textScale.sm,
     lineHeight: 1.55,
     weight: fontWeight.regular,
     tracking: 0,

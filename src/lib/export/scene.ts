@@ -137,10 +137,6 @@ const PAPER_BASE = {
 
 export function backgroundStyle(background: SlideBackground): BackgroundStyle {
   switch (background) {
-    case 'paper-alt':
-      return { ...PAPER_BASE, fill: palette.paperAlt, codeBackground: palette.paperDeep };
-    case 'paper-deep':
-      return { ...PAPER_BASE, fill: palette.paperDeep, codeBackground: palette.paperAlt };
     case 'signal':
       return { ...PAPER_BASE, fill: palette.signal, codeBackground: palette.signalSoft };
     case 'grid':

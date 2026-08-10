@@ -635,6 +635,10 @@ class Layout {
           });
         }
         if (run.plate) {
+          // Die Kontur ist nicht Zierde, sondern das, was `code` im CI-Dokument
+          // trägt: Fläche *und* Haarlinie. Solange die Cremetöne verschieden
+          // waren, reichte die Fläche; seit es einen gibt, ist die Linie das
+          // Einzige, was ein Wort in Space Mono vom Papier abhebt.
           const padX = run.font.size * 0.22;
           this.prims.push({
             t: 'rect',
@@ -643,6 +647,8 @@ class Layout {
             w: run.width + padX * 2,
             h: run.font.size * 1.42,
             fill: this.palette.codeBackground,
+            stroke: this.palette.border,
+            strokeWidth: stroke.hair,
           });
         }
       }

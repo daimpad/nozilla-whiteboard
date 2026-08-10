@@ -144,12 +144,11 @@ layout:
   blank      Ohne Fließtext
   canvas     Nur freie Fläche
 
-background:  paper · paper-alt · paper-deep · ink · signal · grid
+background:  paper · ink · signal · grid
 transition:  none · cut · fade · slide · push
 
 tone — die Farbrolle einer Fläche:
   paper     Standard — Papier mit Tintenkontur
-  paperAlt  Karten-Tönung, wenn zwei Flächen sich absetzen müssen
   signal    Nur echte Handlungsaufforderungen — 5 % der Fläche
   ink       Invers — Tinte als Fläche, Papier als Schrift
 
@@ -177,19 +176,19 @@ shape:        rectangle · ellipse · diamond · triangle · hexagon · chevron 
 connector:    line · arrow · double-arrow · elbow
 
 typeStyle (nur für kind: text):
-  display     128 px
+  display     140 px
   headline    88 px
-  h1          56 px
-  h2          40 px
-  h3          28 px
-  h4          22 px
-  lead        22 px
-  body        17 px
-  bodyStrong  17 px
-  small       14 px
+  h1          68 px
+  h2          48 px
+  h3          34 px
+  h4          21 px
+  lead        21 px
+  body        16 px
+  bodyStrong  16 px
+  small       13 px
   label       12 px
   labelSmall  11 px
-  code        14 px
+  code        13 px
   codeInline  15 px
 
 reveal — Elemente nacheinander einblenden:
