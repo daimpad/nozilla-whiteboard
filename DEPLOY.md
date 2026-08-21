@@ -74,22 +74,53 @@ Plesk → Domains → `board.nozilla.net` → **Git** → *Repository hinzufüge
 
 Das Repository ist öffentlich, ein Zugangsschlüssel ist deshalb nicht nötig.
 
-### 3 · Webhook in GitHub eintragen
+Der Zweig `deploy` muss zu diesem Zeitpunkt schon bestehen, sonst findet Plesk
+ihn nicht. Er entsteht beim ersten Lauf des Workflows; falls die Auswahl leer
+bleibt, erst Schritt 5 machen und dann hierher zurück.
 
-Plesk zeigt nach dem Speichern eine **Webhook-URL**. Diese eintragen unter
-GitHub → Repository → *Settings* → *Webhooks* → *Add webhook*:
+### 3 · Die Webhook-URL aus Plesk holen
 
-* **Payload URL** — die URL aus Plesk
-* **Content type** — `application/json`
-* **Events** — nur `push`
+Sie steht nicht auf der Seite, auf der das Repository angelegt wird, sondern
+eine Ebene tiefer. Plesk erzeugt sie selbst, sie ist nicht zu erraten und für
+jedes Repository eine andere.
 
-Ab jetzt zieht Plesk bei jedem Bau von selbst.
+**Plesk → Domains → `board.nozilla.net` → Git →** das eben angelegte
+Repository auswählen **→ Repository-Einstellungen**
 
-### 4 · Den ersten Lauf auslösen
+Dort steht das Feld **Webhook-URL** mit einem Knopf zum Kopieren.
+
+> Läuft Plesk mit einem selbst ausgestellten Zertifikat, scheitert der Aufruf
+> über HTTPS am TLS-Handschlag, und GitHub meldet einen Fehler beim Zustellen.
+> In dem Fall in der kopierten Adresse `https://` durch `http://` ersetzen.
+> Mit einem Let's-Encrypt-Zertifikat aus Schritt 1 tritt das nicht auf.
+
+### 4 · Die URL in GitHub eintragen
+
+GitHub → Repository → *Settings* → *Webhooks* → **Add webhook**:
+
+| Feld | Wert |
+| --- | --- |
+| Payload URL | die Adresse aus Schritt 3 |
+| Content type | `application/json` |
+| Secret | leer lassen, Plesk prüft keins |
+| SSL verification | *Enable* |
+| Which events | **Just the push event** |
+| Active | angehakt |
+
+Nach dem Speichern zeigt GitHub unter *Recent Deliveries* den ersten Aufruf.
+Eine grüne Antwort heißt: Plesk hat den Anstoß bekommen. Eine rote nennt den
+Grund, meist einen Tippfehler in der Adresse oder das Zertifikat aus dem
+Kasten oben.
+
+### 5 · Den ersten Lauf auslösen
 
 Der Workflow läuft bei jedem Push nach `main`. Für den ersten Lauf ohne
 Änderung: GitHub → *Actions* → **Bereitstellen auf board.nozilla.net** →
 *Run workflow*.
+
+Geht der Webhook gar nicht, ist das kein Beinbruch: In Plesk steht neben dem
+Repository ein Knopf **Updates abrufen**, der dasselbe von Hand tut. Die
+Bereitstellung ist dann ein Klick statt automatisch.
 
 ---
 
@@ -178,3 +209,5 @@ kopiert. Dafür liegt hier ein privater Schlüssel in den Geheimnissen.
 | Schrift sieht falsch aus, Wörter kleben | WOFF2 wird mit falschem Typ ausgeliefert | `.htaccess` liegt nicht im Stamm, oder `AddType` ist verboten — beim Anbieter erfragen |
 | Nach einer Bereitstellung bleibt der alte Stand | `index.html` wurde zwischengespeichert | Kopfzeile prüfen (siehe oben), notfalls im Browser hart neu laden |
 | Der Zweig `deploy` bleibt leer | Der Workflow hat keine Schreibrechte | `permissions: contents: write` in `deploy.yml` |
+| GitHub meldet den Webhook rot | Plesk hängt an einem selbst ausgestellten Zertifikat | in der Adresse `https://` durch `http://` ersetzen, oder Let's Encrypt einrichten |
+| Push kommt an, Plesk zieht trotzdem nicht | Bereitstellung steht auf *Manuell* | in den Repository-Einstellungen auf *Automatisch* stellen |
