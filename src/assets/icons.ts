@@ -4,7 +4,7 @@
  * **Der Katalog**, 462 Zeichen: die frei verfügbaren Font-Awesome-Icons, im
  * nozilla-Dialekt nachgebaut.
  *
- * **Das Kern-Set**, 87 Zeichen mit dem Präfix `core-`: die Zeichen, die
+ * **Das Kern-Set**, 92 Zeichen mit dem Präfix `core-`: die Zeichen, die
  * nozilla für sich gezeichnet hat — Reihen für KI, Daten, Betrieb, Sicherheit,
  * Prototypen, Web, Workshop, Barrierefreiheit, Team, und eine Pixel-Reihe.
  *
@@ -26,7 +26,7 @@ import { generatedIcons, iconCategories } from './icons.generated';
 import { coreIconCategories, coreIcons } from './iconsCore.generated';
 import { ICON_GRID, ICON_STROKE, type IconPrim } from './iconTypes';
 
-export type { IconPrim } from './iconTypes';
+export type { IconPrim, IconPaintRole } from './iconTypes';
 
 /**
  * Erst das Kern-Set, dann der Katalog.

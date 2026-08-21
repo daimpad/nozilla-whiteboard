@@ -97,7 +97,7 @@ export const emptyBrief: DeckBrief = {
 /* -------------------------------------------------------------------------- */
 
 /**
- * 549 Icon-Namen sprengen jeden Prompt. Diese Auswahl deckt ab, was in Decks
+ * 554 Icon-Namen sprengen jeden Prompt. Diese Auswahl deckt ab, was in Decks
  * tatsächlich gebraucht wird; der Prompt sagt ausdrücklich, dass nur Namen aus
  * der Liste erlaubt sind.
  *
@@ -189,7 +189,7 @@ const SUGGESTED_ICONS = [
   'truck',
   'box-open',
 
-  /* Kern-Set der Webseite — nozillas eigene Themen. */
+  /* Kern-Set — nozillas eigene Themen. */
   'core-ai-model',
   'core-ai-prompt',
   'core-ai-drift',

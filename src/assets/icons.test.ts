@@ -20,9 +20,9 @@ import {
  */
 describe('das nozilla-Icon-Set', () => {
   it('ist vollständig und eindeutig', () => {
-    // 462 Nachbauten aus dem Katalog, 87 Kern-Zeichen der Webseite.
-    expect(iconNames.filter((name) => name.startsWith('core-')).length).toBe(87);
-    expect(iconNames.length).toBe(549);
+    // 462 Nachbauten aus dem Katalog, 92 Kern-Zeichen.
+    expect(iconNames.filter((name) => name.startsWith('core-')).length).toBe(92);
+    expect(iconNames.length).toBe(554);
     expect(new Set(iconNames).size).toBe(iconNames.length);
   });
 
@@ -62,10 +62,25 @@ describe('das nozilla-Icon-Set', () => {
   });
 
   it.each(iconNames)('%s benutzt nur CI-Farbrollen', (name) => {
+    // Vier Rollen, mehr gibt es nicht: Tinte und die drei Stufen der
+    // Grün-Rampe. Ein Hex-Wert an dieser Stelle wäre ein CI-Bruch.
+    const roles = ['ink', 'signal', 'signal-soft', 'signal-deep'];
     for (const prim of icons[name].prims as readonly IconPrim[]) {
-      if (prim.fill) expect(['ink', 'signal']).toContain(prim.fill);
-      if (prim.stroke) expect(['ink', 'signal']).toContain(prim.stroke);
+      if (prim.fill) expect(roles).toContain(prim.fill);
+      if (prim.stroke) expect(roles).toContain(prim.stroke);
     }
+  });
+
+  it('die Schattenstufen kommen nur in der Pixel-Reihe und ihren Nachbarn vor', () => {
+    // Sie sind Schattierung, keine Handlungsfarbe. Taucht eine in einem
+    // gewöhnlichen Strich-Zeichen auf, ist beim Übersetzen etwas verrutscht.
+    const shaded = iconNames.filter((name) =>
+      (icons[name].prims as readonly IconPrim[]).some(
+        (prim) => prim.fill === 'signal-soft' || prim.fill === 'signal-deep',
+      ),
+    );
+    expect(shaded.length).toBeGreaterThan(0);
+    for (const name of shaded) expect(name.startsWith('core-')).toBe(true);
   });
 
   it.each(iconNames)('%s trägt die Signatur des Sets', (name) => {

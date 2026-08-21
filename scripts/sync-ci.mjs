@@ -8,7 +8,7 @@
      public/fonts/                 Zilla Slab · Inter · Space Mono, WOFF2 + TTF (SIL OFL)
      public/brand/                 Wortmarke, Favicon, Social Preview
      src/assets/icons.generated.ts     462 Katalog-Icons, Dialekt A, als Primitive
-     src/assets/iconsCore.generated.ts  87 Kern-Zeichen, Dialekt A, als Primitive
+     src/assets/iconsCore.generated.ts  92 Kern-Zeichen, Dialekt A, als Primitive
 
    Warum generieren statt kopieren: die Icon-Geometrien liegen im CI-Repo als
    SVG-Fragmente. Dieses Projekt zeichnet dieselbe Geometrie in drei Ausgaben
@@ -58,8 +58,22 @@ if (!existsSync(join(CI_ROOT, 'scripts', 'icons'))) {
 const problems = [];
 const note = (message) => console.log(`  ${message}`);
 
-/** Die einzigen beiden Farben, die in CI-Geometrie vorkommen dürfen. */
+/** Die einzigen Farben, die in CI-Geometrie vorkommen dürfen. */
 const INK_HEX = '#000000';
+
+/**
+ * Die Grün-Rampe des CI, als Rolle statt als Wert.
+ *
+ * Drei Stufen: das Signal, die helle Tönung, der Schatten. Die beiden
+ * letzteren schattieren *innerhalb* einer Zeichnung — vor allem in der
+ * Pixel-Reihe, wo eine Katze aus drei Grüntönen besteht. Ohne sie fehlten dem
+ * Set fünf Zeichen.
+ */
+const GREEN_ROLES = {
+  '#00FF9C': 'signal',
+  '#B7FFE0': 'signal-soft',
+  '#00C075': 'signal-deep',
+};
 const SIGNAL_HEX = '#00FF9C';
 
 /**
@@ -272,12 +286,12 @@ function parseGeometry(name, markup, sink = problems) {
 
     const paint = {};
     if (attrs.fill && attrs.fill !== 'none') {
-      if (attrs.fill === SIGNAL_HEX) paint.fill = 'signal';
+      if (GREEN_ROLES[attrs.fill]) paint.fill = GREEN_ROLES[attrs.fill];
       else if (isInk(attrs.fill)) paint.fill = 'ink';
       else sink.push(`Farbe außerhalb des CI: ${attrs.fill} in ${name}`);
     }
     if (attrs.stroke && attrs.stroke !== 'none') {
-      if (attrs.stroke === SIGNAL_HEX) paint.stroke = 'signal';
+      if (GREEN_ROLES[attrs.stroke]) paint.stroke = GREEN_ROLES[attrs.stroke];
       else if (!isInk(attrs.stroke)) {
         sink.push(`Strichfarbe außerhalb des CI: ${attrs.stroke} in ${name}`);
       }
