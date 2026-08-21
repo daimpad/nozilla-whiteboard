@@ -22,7 +22,14 @@ import {
   strokeWidth as strokeWidthOf,
   typeScale,
 } from '@/theme';
-import { iconDef, iconGrid, iconStrokeGrid, type IconName, type IconPrim } from '@/assets/icons';
+import {
+  iconDef,
+  iconGrid,
+  iconStrokeGrid,
+  type IconName,
+  type IconPaintRole,
+  type IconPrim,
+} from '@/assets/icons';
 import { wordmark } from '@/assets/wordmark.generated';
 import {
   circleSegs,
@@ -951,7 +958,17 @@ export function iconScene(name: IconName | undefined, options: IconSceneOptions)
       ? matMultiply(base, matRotateAbout(prim.rotate[0], prim.rotate[1], prim.rotate[2]))
       : base;
     const filled = Boolean(prim.fill);
-    const color = (role: 'ink' | 'signal' | undefined) => (role === 'signal' ? signal : ink);
+    const color = (role: IconPaintRole | undefined) => {
+      if (role !== 'signal' && role !== 'signal-soft' && role !== 'signal-deep') return ink;
+      // Die Rampe folgt dem Signal. Steht das Zeichen auf einer Signal-Fläche,
+      // ist `signal` bereits zur Tinte umgeschlagen, damit es überhaupt sichtbar
+      // bleibt — dann fallen die Schattenstufen mit um. Ein halb umgefärbtes
+      // Pixelbild wäre schlimmer als ein einfarbiges.
+      if (signal !== palette.signal) return signal;
+      if (role === 'signal-soft') return palette.signalSoft;
+      if (role === 'signal-deep') return palette.signalDeep;
+      return signal;
+    };
 
     return {
       t: 'path',

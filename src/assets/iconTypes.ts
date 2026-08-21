@@ -6,8 +6,16 @@
  * Zeichnung in drei Ausgaben landet — Canvas, SVG-Export, PDF-Export.
  */
 
-/** Wo eine Fläche ihre Farbe herbekommt. */
-export type IconPaintRole = 'ink' | 'signal';
+/**
+ * Wo eine Fläche ihre Farbe herbekommt.
+ *
+ * `signal-soft` und `signal-deep` sind die beiden anderen Stufen der
+ * Grün-Rampe des CI. Sie schattieren innerhalb einer Zeichnung, vor allem in
+ * der Pixel-Reihe, und stehen nie für eine Handlung. Ohne sie fehlten dem Set
+ * fünf Zeichen, weil ihre Schattierung sich nicht in `ink` und `signal`
+ * ausdrücken lässt.
+ */
+export type IconPaintRole = 'ink' | 'signal' | 'signal-soft' | 'signal-deep';
 
 interface IconPaint {
   /** Fläche füllen statt stricheln. */

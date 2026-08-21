@@ -94,6 +94,30 @@ describe('scene building', () => {
     const turned = buildElementPrims(createElement('shape', { x: 0, y: 0, rotation: 30 }));
     expect(primsToSvgMarkup(straight)).not.toEqual(primsToSvgMarkup(turned));
   });
+
+  it('zeichnet die Grün-Rampe eines Pixelbilds in drei Stufen', () => {
+    const markup = primsToSvgMarkup(
+      buildElementPrims(createElement('icon', { icon: 'core-pixel-coffee', tone: 'paper' })),
+    );
+    expect(markup).toContain(palette.signal);
+    expect(markup).toContain(palette.signalSoft);
+    expect(markup).toContain(palette.signalDeep);
+  });
+
+  it('lässt die Rampe mit dem Signal umschlagen, wenn sie sonst verschwände', () => {
+    // Auf einer Signal-Kachel wird das Signal zur Tinte, damit das Zeichen
+    // überhaupt sichtbar bleibt. Die Schattenstufen müssen mit umschlagen —
+    // ein halb umgefärbtes Pixelbild wäre schlimmer als ein einfarbiges.
+    // `fill: 'flat'` ist die Kachel; ein blankes Zeichen (`none`) steht direkt
+    // auf der Folie und behält seine Rampe.
+    const markup = primsToSvgMarkup(
+      buildElementPrims(
+        createElement('icon', { icon: 'core-pixel-coffee', tone: 'signal', fill: 'flat' }),
+      ),
+    );
+    expect(markup).not.toContain(palette.signalSoft);
+    expect(markup).not.toContain(palette.signalDeep);
+  });
 });
 
 describe('elementPaint', () => {

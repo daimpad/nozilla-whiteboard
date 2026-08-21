@@ -45,6 +45,14 @@ export const palette = {
   signal: '#00FF9C',
   signalStrong: '#00E88D',
   signalSoft: '#B7FFE0',
+  /**
+   * Die dunkelste Stufe der Grün-Rampe. Sie schattiert *innerhalb* einer
+   * Zeichnung und ist keine Handlungsfarbe: sie gehört nie auf eine Fläche,
+   * nie auf einen Knopf, nie hinter ein Wort. `signalStrong` täte es dafür
+   * nicht, der Ton steht dem Signal zu nah — als Hover-Zustand richtig, als
+   * Schatten unsichtbar.
+   */
+  signalDeep: '#00C075',
 
   /**
    * Papier — warmes Creme. Der globale Untergrund.
@@ -121,6 +129,7 @@ export const color = {
   signal: palette.signal,
   signalStrong: palette.signalStrong,
   signalSoft: palette.signalSoft,
+  signalDeep: palette.signalDeep,
 
   /* Status */
   warn: palette.warn,
