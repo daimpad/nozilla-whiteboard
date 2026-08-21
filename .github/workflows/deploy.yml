@@ -1,0 +1,78 @@
+# ===========================================================================
+# board.nozilla.net — Bereitstellung auf netcup Webhosting
+#
+# Warum ein Zweig und kein Upload: Das Webhosting hat kein brauchbares Node,
+# es kann also nicht selbst bauen. Gebaut wird deshalb hier, und was dabei
+# herauskommt, landet als Inhalt im Zweig `deploy`. Plesk zieht diesen Zweig
+# und kopiert ihn in den Dokumentenstamm — Bereitstellung mit git, ohne dass
+# ein Schlüssel dieses Repository verlassen muss.
+#
+# Der Zweig enthält *nur* das Gebaute. Er hat keine gemeinsame Historie mit
+# `main` und wird bei jedem Lauf überschrieben; wer dort hineinschaut, sieht
+# genau das, was auf dem Server liegt.
+#
+# Die Einrichtung in Plesk steht in DEPLOY.md.
+# ===========================================================================
+name: Bereitstellen auf board.nozilla.net
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Zwei Läufe gleichzeitig würden sich beim Überschreiben des Zweigs ins
+# Gehege kommen. Der neuere gewinnt, der ältere wird abgebrochen.
+concurrency:
+  group: deploy-netcup
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  bauen-und-veroeffentlichen:
+    name: Bauen und in den Zweig deploy schreiben
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      # `npm run build` ist `tsc --noEmit && vite build`. Ein Typfehler hält
+      # die Bereitstellung damit auf, bevor irgendetwas den Server erreicht.
+      - name: Bauen
+        run: npm run build
+
+      # Woher stammt, was da liegt? Ohne diese Datei ist das auf dem Server
+      # nicht mehr zu beantworten.
+      - name: Herkunft mitschreiben
+        run: |
+          cat > dist/build.json <<JSON
+          {
+            "commit": "${GITHUB_SHA}",
+            "ref": "${GITHUB_REF_NAME}",
+            "run": "${GITHUB_RUN_ID}",
+            "gebaut": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          JSON
+
+      - name: In den Zweig deploy schreiben
+        run: |
+          set -e
+          cd dist
+          git init -q
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Bereitstellung aus ${GITHUB_SHA::7}"
+          git push --force -q \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            HEAD:deploy
+          echo "✓ Zweig deploy zeigt jetzt auf den Bau aus ${GITHUB_SHA::7}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

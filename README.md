@@ -348,6 +348,18 @@ Während du in einem Feld tippst, sind alle Tasten wirkungslos.
 
 ---
 
+## Bereitstellen
+
+Die App läuft unter **[board.nozilla.net](https://board.nozilla.net/)** auf
+netcup Webhosting. Gebaut wird in GitHub Actions, denn das Webhosting hat kein
+Node; was dabei herauskommt, landet im Zweig `deploy`, und Plesk zieht ihn in
+den Dokumentenstamm. Kein Schlüssel verlässt dafür dieses Repository.
+
+Die Einrichtung in Plesk, die Apache-Kopfzeilen und der Weg über SSH stehen in
+**[DEPLOY.md](./DEPLOY.md)**.
+
+---
+
 ## Entwicklung
 
 ```bash
