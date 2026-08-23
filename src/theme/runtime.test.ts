@@ -10,7 +10,13 @@ import {
   type BrandTheme,
 } from './index';
 import { nozillaTheme, tonesFromPalette } from './brandTheme';
-import { buildSlideScene } from '@/lib/export/scene';
+import {
+  backgroundStyle,
+  buildElementPrims,
+  buildSlideScene,
+  type ScenePrim,
+} from '@/lib/export/scene';
+import { createElement } from '@/model/factory';
 import { primsToSvgMarkup } from '@/lib/export/svg';
 import { PARTS } from '@/lib/export/pptxParts';
 import { parseDeck } from '@/lib/markdown/deck';
@@ -69,6 +75,12 @@ const probe: BrandTheme = {
     ...nozillaTheme.typeScale,
     h1: { ...nozillaTheme.typeScale.h1, size: 200 },
   },
+  // Eine eigene Marke: ein Balken statt eines Schriftzugs, ohne Akzent.
+  wordmark: {
+    viewBox: [0, 0, 100, 20] as const,
+    letters: 'M0 0 L100 0 L100 20 L0 20 Z',
+    period: '',
+  },
 };
 
 const deck = parseDeck(welcome);
@@ -113,6 +125,32 @@ describe('das Erscheinungsbild zur Laufzeit', () => {
     setActiveTheme('probe');
     setActiveTheme('nozilla');
     expect(slideMarkup()).toEqual(anfang);
+  });
+
+  it('zeichnet die Wortmarke des Erscheinungsbilds, nicht die von nozilla', () => {
+    // Der auffälligste Fehler, den dieses Werkzeug machen könnte: die Marke
+    // eines Kunden auf der Folie eines anderen.
+    //
+    // Verglichen werden die Primitive und nicht das Markup: der Pfad wird vor
+    // der Ausgabe in Folien-Koordinaten gerechnet, die Zeichenkette aus dem
+    // Erscheinungsbild steht dort also nie wörtlich.
+    registerTheme(probe);
+    const marke = () =>
+      buildElementPrims(createElement('wordmark', {}), backgroundStyle('paper')).filter(
+        (prim) => prim.t === 'path',
+      );
+
+    const vorher = marke();
+    expect(vorher).toHaveLength(2); // Buchstaben und Punkt
+    const buchstaben = vorher[0] as Extract<ScenePrim, { t: 'path' }>;
+
+    setActiveTheme('probe');
+    const nachher = marke();
+    // Der Prüfstein trägt einen Balken ohne Akzent: ein Pfad, vier Ecken.
+    expect(nachher).toHaveLength(1);
+    expect((nachher[0] as Extract<ScenePrim, { t: 'path' }>).segs.length).toBeLessThan(
+      buchstaben.segs.length,
+    );
   });
 
   it('reicht bis in die PPTX-Bausteine', () => {

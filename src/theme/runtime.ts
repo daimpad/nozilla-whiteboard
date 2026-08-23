@@ -86,6 +86,7 @@ export function setActiveTheme(id: string): boolean {
 function activate(theme: BrandTheme): void {
   current = theme;
   brand = theme.brand;
+  wordmark = theme.wordmark;
   palette = theme.palette;
   inkAlpha = theme.inkAlpha;
   paperAlpha = theme.paperAlpha;
@@ -107,6 +108,7 @@ function activate(theme: BrandTheme): void {
 /* -------------------------------------------------------------------------- */
 
 export let brand = current.brand;
+export let wordmark = current.wordmark;
 export let palette = current.palette;
 export let inkAlpha = current.inkAlpha;
 export let paperAlpha = current.paperAlpha;

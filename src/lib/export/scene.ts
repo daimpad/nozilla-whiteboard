@@ -18,6 +18,7 @@ import {
   elementTones,
   palette,
   paperAlpha,
+  wordmark,
   shadowSize,
   stroke as strokeTokens,
   strokeWidth as strokeWidthOf,
@@ -31,7 +32,6 @@ import {
   type IconPaintRole,
   type IconPrim,
 } from '@/assets/icons';
-import { wordmark } from '@/assets/wordmark.generated';
 import {
   circleSegs,
   ellipseSegs,
@@ -649,8 +649,24 @@ function elementTypesetPalette(paint: ElementPaint) {
 /* Wortmarke                                                                   */
 /* -------------------------------------------------------------------------- */
 
-const wordmarkLetters = parsePath(wordmark.letters);
-const wordmarkPeriod = parsePath(wordmark.period);
+/**
+ * Geparste Pfade, nach ihrer Zeichenkette gemerkt.
+ *
+ * Beim Laden zu parsen ginge nicht mehr: die Wortmarke gehört dem
+ * Erscheinungsbild und wechselt mit ihm. Bei jedem Bild neu zu parsen wäre
+ * Verschwendung — der Buchstabenpfad hat über hundert Segmente. Der Schlüssel
+ * ist der Pfad selbst, damit zwei Erscheinungsbilder sich nicht ins Gehege
+ * kommen.
+ */
+const parsedPaths = new Map<string, Seg[]>();
+function pathSegs(d: string): Seg[] {
+  let segs = parsedPaths.get(d);
+  if (!segs) {
+    segs = parsePath(d);
+    parsedPaths.set(d, segs);
+  }
+  return segs;
+}
 
 /**
  * Die Wortmarke als Vektor. Sie wird proportional eingepasst, nie verzerrt,
@@ -688,21 +704,24 @@ function wordmarkScene(
   const prims: ScenePrim[] = [
     {
       t: 'path',
-      segs: transformSegs(wordmarkLetters, place),
+      segs: transformSegs(pathSegs(wordmark.letters), place),
       closed: true,
       fill: letterColor,
       opacity: opacity === 1 ? undefined : opacity,
     },
   ];
 
-  // Der Punkt bleibt grün — außer in der einfarbigen Fassung.
-  prims.push({
-    t: 'path',
-    segs: transformSegs(wordmarkPeriod, place),
-    closed: true,
-    fill: element.variant === 'mono' ? letterColor : palette.signal,
-    opacity: opacity === 1 ? undefined : opacity,
-  });
+  // Der Akzent bleibt grün — außer in der einfarbigen Fassung. Eine Marke ohne
+  // Akzent lässt ihn leer, dann wird auch keiner gezeichnet.
+  if (wordmark.period) {
+    prims.push({
+      t: 'path',
+      segs: transformSegs(pathSegs(wordmark.period), place),
+      closed: true,
+      fill: element.variant === 'mono' ? letterColor : palette.signal,
+      opacity: opacity === 1 ? undefined : opacity,
+    });
+  }
 
   return prims;
 }
