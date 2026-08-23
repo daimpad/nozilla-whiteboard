@@ -17,6 +17,7 @@ import {
   color as ci,
   elementTones,
   palette,
+  paperAlpha,
   shadowSize,
   stroke as strokeTokens,
   strokeWidth as strokeWidthOf,
@@ -134,21 +135,30 @@ export interface BackgroundStyle {
   dots?: string;
 }
 
-const PAPER_BASE = {
-  ink: ci.ink,
-  muted: ci.inkMuted,
-  line: ci.line,
-  signal: palette.signal,
-  shadowColor: ci.ink,
-} as const;
+/**
+ * Die Grundzüge einer Papierfläche.
+ *
+ * Eine Funktion und keine Konstante: die Farben gehören dem gewählten
+ * Erscheinungsbild. Auf Modulebene ausgewertet, behielte jede Folie die
+ * Tinte, die beim Start des Werkzeugs galt.
+ */
+function paperBase() {
+  return {
+    ink: ci.ink,
+    muted: ci.inkMuted,
+    line: ci.line,
+    signal: palette.signal,
+    shadowColor: ci.ink,
+  } as const;
+}
 
 export function backgroundStyle(background: SlideBackground): BackgroundStyle {
   switch (background) {
     case 'signal':
-      return { ...PAPER_BASE, fill: palette.signal, codeBackground: palette.signalSoft };
+      return { ...paperBase(), fill: palette.signal, codeBackground: palette.signalSoft };
     case 'grid':
       return {
-        ...PAPER_BASE,
+        ...paperBase(),
         fill: palette.paper,
         codeBackground: palette.paperAlt,
         dots: ci.grid,
@@ -157,7 +167,7 @@ export function backgroundStyle(background: SlideBackground): BackgroundStyle {
       return {
         fill: palette.ink,
         ink: palette.paper,
-        muted: 'rgba(255, 254, 229, 0.64)',
+        muted: paperAlpha[70],
         line: palette.paper,
         signal: palette.signal,
         codeBackground: palette.ink800,
@@ -165,7 +175,7 @@ export function backgroundStyle(background: SlideBackground): BackgroundStyle {
       };
     case 'paper':
     default:
-      return { ...PAPER_BASE, fill: palette.paper, codeBackground: palette.paperAlt };
+      return { ...paperBase(), fill: palette.paper, codeBackground: palette.paperAlt };
   }
 }
 
