@@ -61,6 +61,35 @@ cremefarbener Editor um eine cremefarbene Folie macht beides unlesbar.
 eine Bedienfläche einen Marken-Ton benutzt. Der Test existiert, weil dieser
 Fehler schon zweimal gemacht wurde.
 
+### 3 · Die Marke ist wechselbar, das Werkzeug nicht
+
+Die linke Spalte der Tabelle gehört einem **Erscheinungsbild**, und davon kann
+es mehrere geben: nozilla plus je eines pro Kunde. Angemeldet wird in
+`src/themes/`, gewählt wird im Inspektor, gemerkt wird es im Frontmatter
+(`theme:`) — die Datei trägt ihre Zugehörigkeit mit.
+
+```
+theme.config.ts ──► brandTheme.ts ──► runtime.ts ──► theme/index.ts ──► alles
+ (die nozilla-CI)    (der Vertrag)     (die aktive     (die Fassade)
+                                        Belegung)
+```
+
+Ein Erscheinungsbild belegt Farben, Typo-Leiter, Schriften, Strichstärken,
+Schattenversätze, die **Wortmarke** (Pflicht) und das **Icon-Set** (ohne Angabe
+das von nozilla). Was strukturell ist — Radius 0, 1280 × 720, das 64er-Raster
+der Icons — bleibt; warum, steht im Kopf von `brandTheme.ts`.
+
+Die rechte Spalte wechselt nie mit. Auch die Icons haben deshalb zwei Wege:
+`Icon` zeichnet aus dem Werkzeug-Set (`ToolIconName`, eng typisiert),
+`BrandIcon` aus dem des Erscheinungsbilds. Ein Kunden-Set, dem `chevron-right`
+fehlt, darf keinen Knopf leeren.
+
+**Die Regel, die daran hängt: nichts darf einen CI-Wert beim Laden abgreifen.**
+`export let` in `runtime.ts` ist eine lebendige Bindung; ein
+`const PAPER = { ink: ci.ink }` auf Modulebene friert das Erscheinungsbild vom
+Start ein. `runtime.test.ts` prüft deshalb das Ergebnis eines Wechsels und nicht
+die Mechanik.
+
 ---
 
 ## Wo was liegt
@@ -72,7 +101,14 @@ README.md                     Für Menschen, die das Werkzeug benutzen
 PROMPT.md                     Der Deck-Prompt, erklärt
 scripts/sync-ci.mjs           Holt Schriften, Marke und Icons aus dem CI-Repo
 src/
-  assets/     *.generated.ts  ERZEUGT — nicht von Hand ändern
+  assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set
+              icons.ts        Das Set des gültigen Erscheinungsbilds
+              *.generated.ts  ERZEUGT — nicht von Hand ändern
+  theme/      brandTheme.ts   Was ein Erscheinungsbild ausmacht — und was nicht
+              runtime.ts      Welches gerade gilt (lebendige Bindungen)
+              index.ts        Die Fassade: Inhalt aus der Laufzeit, Werkzeug aus
+                              der Konfiguration
+  themes/     index.ts        Hier kommen die Erscheinungsbilder der Kunden an
   model/      types.ts        Deck / Folie / Element
               factory.ts      Der einzige Weg, auf dem ein Element entsteht
   lib/
@@ -210,6 +246,13 @@ doppelt so groß wie gebaut, `top-9` schob ein Menü 96px statt 36px nach
 unten. Es fiel monatelang nicht auf, weil _alles_ zu groß war und damit
 wieder stimmig aussah. Die CI-Stufen heißen jetzt `ci-*`; die Zahlen gehören
 dem Raster.
+
+**Das letzte Primitiv ist nicht immer die Signatur.** Für kleine Knöpfe wird
+der grüne 6 × 6-Punkt unten rechts weggelassen, und das hieß jahrelang
+`prims.slice(0, -1)` — richtig, solange jedes Zeichen aus dem nozilla-Set kam.
+Ein Kunden-Set trägt keine, und ein einstrichiges Zeichen verlor damit seinen
+einen Strich: die Bibliothek zeigte leere Kacheln. `withoutSignature()` prüft
+jetzt, ob das letzte Primitiv *die Signatur ist*.
 
 **Der Setzer misst gegen die echte Schrift.** Ein `@font-face` allein lädt
 nichts — der Browser holt die Datei erst, wenn ein Zeichen sie braucht, und

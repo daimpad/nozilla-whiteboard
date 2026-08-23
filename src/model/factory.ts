@@ -12,7 +12,7 @@
  */
 import { canvas, elementDefaults, elementTones, revealAnimations, typeScale } from '@/theme';
 import type { RevealAnimation, ShadowName, StrokeName, ToneName, TypeStyleName } from '@/theme';
-import { isIconName, type IconName } from '@/assets/icons';
+import type { IconName } from '@/assets/icons';
 import {
   cardVariants,
   connectorKinds,
@@ -242,8 +242,19 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback
     : fallback;
 }
 
+/**
+ * Ein Icon-Name wird übernommen, wie er dasteht — auch wenn das gerade gültige
+ * Set ihn nicht kennt.
+ *
+ * Früher prüfte das hier gegen die 554 nozilla-Namen und warf alles andere weg.
+ * Seit ein Erscheinungsbild sein eigenes Set mitbringt, wäre das eine stille
+ * Enteignung: ein Deck eines Kunden, das in einer Sitzung ohne dessen Set
+ * geöffnet und gespeichert wird, verlöre jedes Icon. Dieselbe Entscheidung wie
+ * bei `DeckMeta.theme` — den Wert behalten, die Lücke zeigen. Die Fläche
+ * zeichnet ein leeres Quadrat, der Inspektor schreibt „not in this set" daneben.
+ */
 function optionalIcon(value: unknown): IconName | undefined {
-  return isIconName(value) ? value : undefined;
+  return typeof value === 'string' && value ? value : undefined;
 }
 
 export function normalizeElement(raw: unknown, index = 0): CanvasElement | null {

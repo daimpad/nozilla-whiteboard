@@ -18,7 +18,7 @@ import {
 import { selectCanRedo, selectCanUndo, useDeckStore } from '@/state/deckStore';
 import { Button, Divider, IconButton, Segmented, cx } from '@/components/ui/controls';
 import { Icon } from '@/components/ui/Icon';
-import type { IconName } from '@/assets/icons';
+import type { ToolIconName } from '@/assets/icons';
 import { Logo } from '@/components/chrome/Logo';
 
 export function TopBar() {
@@ -286,7 +286,7 @@ function MenuItem({
   hint,
   onClick,
 }: {
-  icon: IconName;
+  icon: ToolIconName;
   label: string;
   hint?: string;
   onClick: () => void;

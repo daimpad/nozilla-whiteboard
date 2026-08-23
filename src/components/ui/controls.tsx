@@ -18,7 +18,7 @@ import {
   type SelectHTMLAttributes,
 } from 'react';
 import { Icon } from './Icon';
-import type { IconName } from '@/assets/icons';
+import type { ToolIconName } from '@/assets/icons';
 
 export function cx(...values: Array<string | false | null | undefined>): string {
   return values.filter(Boolean).join(' ');
@@ -32,8 +32,8 @@ type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
-  icon?: IconName;
-  trailingIcon?: IconName;
+  icon?: ToolIconName;
+  trailingIcon?: ToolIconName;
   active?: boolean;
 }
 
@@ -77,7 +77,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 /* -------------------------------------------------------------------------- */
 
 export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  icon: IconName;
+  icon: ToolIconName;
   label: string;
   active?: boolean;
   size?: number;
@@ -160,7 +160,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
 
 export interface SegmentedProps<T extends string> {
   value: T;
-  options: Array<{ value: T; label: string; icon?: IconName; title?: string }>;
+  options: Array<{ value: T; label: string; icon?: ToolIconName; title?: string }>;
   onChange: (value: T) => void;
   className?: string;
   compact?: boolean;

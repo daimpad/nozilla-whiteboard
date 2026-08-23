@@ -26,7 +26,7 @@ import {
   type TypeStyleName,
 } from '@/theme';
 import { layoutDescriptions } from '@/lib/layout/slideLayout';
-import { iconNames, type IconName } from '@/assets/icons';
+import { iconNames, isIconName, type IconName } from '@/assets/icons';
 import {
   cardVariants,
   connectorKinds,
@@ -40,6 +40,7 @@ import {
 } from '@/model/types';
 import { readFileAsDataUrl } from '@/lib/export/download';
 import { selectCurrentSlide, useDeckStore, useSelectedElements } from '@/state/deckStore';
+import { useThemeVersion } from '@/hooks/useTheme';
 import {
   Button,
   Divider,
@@ -49,7 +50,7 @@ import {
   Select,
   cx,
 } from '@/components/ui/controls';
-import { Icon } from '@/components/ui/Icon';
+import { BrandIcon, Icon } from '@/components/ui/Icon';
 
 type Tab = 'slide' | 'element' | 'deck';
 
@@ -202,6 +203,9 @@ function SlidePanel() {
  * löschen.
  */
 function ThemeField() {
+  // Die Liste steht im Verzeichnis, nicht im Zustand — der Zähler ist das
+  // Einzige, was React von einer Anmeldung erfährt.
+  useThemeVersion();
   const theme = useDeckStore((state) => state.deck.meta.theme);
   const setDeckMeta = useDeckStore((state) => state.setDeckMeta);
   const known = availableThemes();
@@ -782,6 +786,12 @@ function KindFields({ element, patch }: KindFieldsProps) {
 
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Die Auswahl steht im Set des gerade gültigen Erscheinungsbilds. Nennt das
+ * Element ein Zeichen, das dort nicht vorkommt, bleibt der Name in der Liste
+ * stehen und sagt es — genau wie bei einem unbekannten Erscheinungsbild. Ihn
+ * still gegen das erstbeste zu tauschen, hieße die Angabe zu verlieren.
+ */
 function IconField({
   value,
   onChange,
@@ -791,19 +801,23 @@ function IconField({
   onChange: (icon: IconName | undefined) => void;
   allowNone?: boolean;
 }) {
+  useThemeVersion();
+  const missing = value !== undefined && !isIconName(value);
+
   return (
-    <Field label="Icon">
+    <Field label="Icon" hint={missing ? `“${value}” is not in this theme's icon set.` : undefined}>
       <div className="flex items-center gap-2">
         <span className="flex h-8 w-8 items-center justify-center rounded-sm border border-ui bg-ui-subtle text-ui-ink">
-          {value ? <Icon name={value} size={17} /> : <span className="text-ui-faint">—</span>}
+          {value ? <BrandIcon name={value} size={17} /> : <span className="text-ui-faint">—</span>}
         </span>
         <Select
           className="flex-1"
           value={value ?? ''}
-          onChange={(event) => onChange((event.target.value || undefined) as IconName | undefined)}
+          onChange={(event) => onChange(event.target.value || undefined)}
           options={[
             ...(allowNone ? [{ value: '', label: 'None' }] : []),
-            ...iconNames.map((name) => ({ value: name, label: name })),
+            ...(missing ? [{ value, label: `${value} — not in this set` }] : []),
+            ...iconNames().map((name) => ({ value: name, label: name })),
           ]}
         />
       </div>

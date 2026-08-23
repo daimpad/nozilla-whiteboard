@@ -81,6 +81,34 @@ Auch Auswahlrahmen, Griffe und Hilfslinien laufen in derselben Schwarz-Familie.
 schlägt an, sobald eine Bedienfläche einen Marken-Ton benutzt — oder ein
 `ui`-Wert und ein Marken-Wert unbemerkt derselbe werden.
 
+### Mehr als eine Marke
+
+Die linke Spalte ist wechselbar. Ein **Erscheinungsbild** belegt Farben,
+Typo-Leiter, Schriften, Strichstärken, Schattenversätze, die Wortmarke und das
+Icon-Set; angelegt wird es in `src/themes/` (eine Datei je Kunde), gewählt im
+Inspektor unter *Brand theme*, gemerkt im Frontmatter:
+
+```md
+---
+title: Ablösung der Altplattform
+theme: musterkunde
+---
+```
+
+Damit trägt die `.md` ihre Zugehörigkeit mit — wer sie weitergibt, gibt die
+Marke mit. Ein Erscheinungsbild, das hier nicht angemeldet ist, wird nicht
+still ersetzt: der Eintrag bleibt stehen, und die Oberfläche sagt, dass sie ihn
+nicht kennt. Dasselbe gilt für ein Icon, das im gewählten Set fehlt — statt
+eines beliebigen Ersatzes steht dort ein durchgestrichenes Quadrat.
+
+Die rechte Spalte wechselt nie mit. Auch die Icons der Leisten kommen weiter
+aus dem nozilla-Set: das Werkzeug ist nicht das Werkstück.
+
+Was **nicht** wechselt, ist ebenso Absicht: Radius 0, harte Versatzschatten,
+1280 × 720, das 64er-Raster der Icons. Das sind keine Geschmacksfragen, sondern
+das, wofür dieses Werkzeug gebaut ist — wer runde Ecken zulässt, gibt die
+Garantie auf, dass hier nur konformes Material entstehen kann.
+
 ---
 
 ## Was das Werkzeug kann
@@ -217,9 +245,14 @@ CLAUDE.md                     Arbeitsanweisung — Regeln und bekannte Fallen
 PROMPT.md                     Der Deck-Prompt, erklärt
 scripts/sync-ci.mjs           Holt Schriften, Marke und Icons aus dem CI-Repo
 src/
-  assets/     icons.ts        Fassade über beiden Sätzen (554 Icons)
+  assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set (554 Icons)
+              icons.ts        Das Set des gültigen Erscheinungsbilds
               *.generated.ts  Erzeugt — nicht von Hand ändern
               presets.ts      Die Bausteine, die die Bibliothek anbietet
+  theme/      brandTheme.ts   Was ein Erscheinungsbild ausmacht — und was nicht
+              runtime.ts      Welches gerade gilt (lebendige Bindungen)
+              index.ts        Die Fassade über CI und Laufzeit
+  themes/     index.ts        Hier kommen die Erscheinungsbilder der Kunden an
   model/      types.ts        Deck / Folie / Element
               factory.ts      Der einzige Weg, auf dem ein Element entsteht
   lib/

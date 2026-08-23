@@ -40,3 +40,21 @@ export type IconPrim =
 export const ICON_GRID = 64;
 /** Die CI-Strichstärke in diesem Raster. */
 export const ICON_STROKE = 4;
+
+/**
+ * Die Signatur des nozilla-Sets: ein 6 × 6 großer Punkt unten rechts, in
+ * Signalgrün, als letztes Primitiv jedes Zeichens.
+ *
+ * Sie steht hier als Wert und nicht als Zahlenfolge in drei Dateien, weil drei
+ * Stellen sie brauchen: der Test, der sie einfordert, die Oberfläche, die sie in
+ * kleinen Knöpfen weglässt, und der Übersetzer, der sie anhängt. Sie gehört zum
+ * Set und nicht zum Dialekt — ein Kunden-Set darf ohne sie auskommen.
+ */
+export const ICON_SIGNATURE = {
+  t: 'rect',
+  x: 54,
+  y: 54,
+  w: 6,
+  h: 6,
+  fill: 'signal',
+} as const satisfies IconPrim;

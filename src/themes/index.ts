@@ -39,7 +39,7 @@
  * };
  * ```
  *
- * Drei Dinge, die dabei zählen:
+ * Vier Dinge, die dabei zählen:
  *
  * 1. **Die Töne aus der eigenen Palette mischen.** `tonesFromPalette()` tut
  *    das. Wer sie von Hand schreibt und eine Farbe vergisst, bekommt eine
@@ -56,6 +56,52 @@
  *    Sie ist Pflicht und hat keine Voreinstellung. Fehlte sie, trüge ein
  *    Kundendeck die Marke von nozilla, und das wäre der auffälligste Fehler,
  *    den dieses Werkzeug machen kann.
+ * 4. **Das Icon-Set ist wechselbar, aber nicht Pflicht.** Ohne Angabe zeichnet
+ *    ein Erscheinungsbild aus den 554 nozilla-Zeichen. Das ist Absicht: ein
+ *    Pfeil gehört keiner Marke, und eine leere Bibliothek wäre die schlechtere
+ *    Lage. Mitgeliefert wird dabei die 6 × 6 große Signatur unten rechts — eine
+ *    Erfindung des nozilla-Sets, die aber die Signalfarbe des gewählten
+ *    Erscheinungsbilds annimmt. Wer sie nicht will, bringt ein eigenes Set mit.
+ *
+ * ## Ein eigenes Icon-Set
+ *
+ * Ein Set *ersetzt*, es ergänzt nicht. Ein Zeichen ist Geometrie im Dialekt des
+ * Werkzeugs — 64 × 64, 4 px, square caps, miter joins — und keine Datei:
+ *
+ * ```ts
+ * icons: {
+ *   categories: ['marke', 'produkt'],
+ *   icons: {
+ *     siegel: {
+ *       label: 'Siegel',
+ *       meaning: 'Zertifikat, geprüft',
+ *       category: 'marke',
+ *       prims: [
+ *         { t: 'circle', cx: 32, cy: 28, r: 18 },
+ *         { t: 'path', d: 'M24 44 L20 58 L32 52 L44 58 L40 44' },
+ *       ],
+ *     },
+ *   },
+ * },
+ * ```
+ *
+ * Die Farbrollen eines Primitivs sind `ink` (Vorgabe) und die drei Stufen der
+ * Signalrampe; ein Hex-Wert ist an dieser Stelle ein CI-Bruch — er entkäme dem
+ * Erscheinungsbild.
+ *
+ * Wer die nozilla-Zeichen behalten und eigene dazulegen will, schreibt das hin:
+ *
+ * ```ts
+ * import { nozillaIcons } from '@/theme';
+ *
+ * icons: {
+ *   categories: [...nozillaIcons.categories, 'marke'],
+ *   icons: { ...nozillaIcons.icons, siegel: { ... } },
+ * },
+ * ```
+ *
+ * Stilles Zusammenlegen wäre bequemer und falsch: ein Kundendeck böte dann 554
+ * fremde Zeichen an, ohne dass jemand das entschieden hat.
  */
 import { registerTheme, type BrandTheme } from '@/theme';
 
