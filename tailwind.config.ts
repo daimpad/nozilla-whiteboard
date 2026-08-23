@@ -9,7 +9,6 @@ import {
   shadow,
   space,
   stroke,
-  ui,
   uiRadius,
   uiShadow,
   uiType,
@@ -31,6 +30,26 @@ import {
  * beim Lesen sofort heraus, `bg-ui-surface` in einem Export-Pfad ebenso.
  */
 const px = (n: number) => `${n}px`;
+
+/**
+ * Die Farben der Oberfläche stehen als CSS-Variable, nicht als Wert.
+ *
+ * Der Grund ist die Einstellung „Erscheinung" (`src/theme/surface.ts`): hell
+ * und dunkel tauschen zur Laufzeit die Belegung, und ein zur Bauzeit
+ * eingebackenes `#FFFFFF` ließe sich danach nicht mehr umstimmen. Geschrieben
+ * werden die Variablen von `applyThemeVariables()`.
+ *
+ * Die Marke bleibt ein Wert. Sie wechselt zwar auch — aber nicht im DOM: die
+ * Folie wird als SVG-Markup gezeichnet, und die zwei Marken-Klassen im ganzen
+ * Komponentenbaum stehen an Stellen, die kein Erscheinungsbild anfasst.
+ *
+ * `rgb(var(--x) / <alpha-value>)` statt `var(--x)`, weil Tailwind sonst keinen
+ * Deckkraft-Zusatz rechnen kann: `bg-ui-surface/85` verpuffte still, und die
+ * Leisten über der Folie verlören ihre Durchsicht. Farben, die schon eine
+ * Deckkraft tragen, gibt es als Kanal-Tripel nicht — die stehen direkt da.
+ */
+const uiVar = (name: string) => `rgb(var(--nz-ui-${name}-rgb) / <alpha-value>)`;
+const uiRaw = (name: string) => `var(--nz-ui-${name})`;
 
 /**
  * Das 4px-Raster der CI, in halben Schritten ausgerollt. Die benannten Stufen
@@ -91,33 +110,33 @@ const config: Config = {
       'line-soft': color.lineSoft,
 
       /* Die Werkzeug-Oberfläche — neutral, nie auf einer Folie. */
-      'ui-canvas': ui.canvas,
-      'ui-surface': ui.surface,
-      'ui-subtle': ui.surfaceSubtle,
-      'ui-sunken': ui.surfaceSunken,
-      'ui-inverse': ui.surfaceInverse,
-      'ui-overlay': ui.overlay,
-      'ui-ink': ui.ink,
-      'ui-muted': ui.inkMuted,
-      'ui-faint': ui.inkSubtle,
-      'ui-on-inverse': ui.inkInverse,
-      ui: ui.border,
-      'ui-strong': ui.borderStrong,
-      'ui-accent': ui.accent,
-      'ui-accent-hover': ui.accentHover,
-      'ui-accent-active': ui.accentActive,
-      'ui-accent-soft': ui.accentSoft,
-      'ui-accent-border': ui.accentBorder,
-      'ui-on-accent': ui.onAccent,
-      'ui-select': ui.select,
-      'ui-select-wash': ui.selectWash,
-      'ui-inverse-line': ui.borderInverse,
-      'ui-warn': ui.warn,
-      'ui-warn-bg': ui.warnBg,
-      'ui-danger': ui.danger,
-      'ui-danger-bg': ui.dangerBg,
-      'ui-info': ui.info,
-      'ui-info-bg': ui.infoBg,
+      'ui-canvas': uiVar('canvas'),
+      'ui-surface': uiVar('surface'),
+      'ui-subtle': uiVar('surface-subtle'),
+      'ui-sunken': uiVar('surface-sunken'),
+      'ui-inverse': uiVar('surface-inverse'),
+      'ui-overlay': uiRaw('overlay'),
+      'ui-ink': uiVar('ink'),
+      'ui-muted': uiVar('ink-muted'),
+      'ui-faint': uiVar('ink-subtle'),
+      'ui-on-inverse': uiVar('ink-inverse'),
+      ui: uiVar('border'),
+      'ui-strong': uiVar('border-strong'),
+      'ui-accent': uiVar('accent'),
+      'ui-accent-hover': uiVar('accent-hover'),
+      'ui-accent-active': uiVar('accent-active'),
+      'ui-accent-soft': uiVar('accent-soft'),
+      'ui-accent-border': uiVar('accent-border'),
+      'ui-on-accent': uiVar('on-accent'),
+      'ui-select': uiVar('select'),
+      'ui-select-wash': uiRaw('select-wash'),
+      'ui-inverse-line': uiVar('border-inverse'),
+      'ui-warn': uiVar('warn'),
+      'ui-warn-bg': uiVar('warn-bg'),
+      'ui-danger': uiVar('danger'),
+      'ui-danger-bg': uiVar('danger-bg'),
+      'ui-info': uiVar('info'),
+      'ui-info-bg': uiVar('info-bg'),
     },
     fontFamily: {
       display: [fontFamily.display],
@@ -151,8 +170,10 @@ const config: Config = {
     /* `shadow-md` = harter Marken-Versatz, `shadow-ui-md` = weiche Ebene. */
     boxShadow: {
       ...shadow,
+      // Auch die Schatten wechseln mit der Erscheinung: auf dunklem Grund
+      // trägt ein weicher Schatten nichts, dort muss er tiefer sein.
       ...(Object.fromEntries(
-        Object.entries(uiShadow).map(([key, value]) => [`ui-${key}`, value]),
+        Object.keys(uiShadow).map((key) => [`ui-${key}`, `var(--nz-ui-shadow-${key})`]),
       ) as Record<string, string>),
     },
     /*

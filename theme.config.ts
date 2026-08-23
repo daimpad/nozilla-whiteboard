@@ -286,6 +286,75 @@ export const ui = {
 } as const;
 
 /**
+ * Dieselbe Oberfläche bei Nacht.
+ *
+ * Kein zweites Regelwerk, sondern dieselbe Graphit-Leiter von unten gelesen:
+ * Weiß, sechs Graustufen, Schwarz — nur umgekehrt belegt. Auch hier leiht sich
+ * die Oberfläche **nichts** von der Marke; die einzige Farbe im Bild bleibt die
+ * auf der Folie, und auf dunklem Grund fällt sie sogar mehr auf.
+ *
+ * Der Akzent kippt mit. Bei Tag ist der Knopf, der die Hauptsache ist, dunkel;
+ * bei Nacht ist er hell. Bunt wird er in keinem der beiden Fälle.
+ *
+ * **Drei Werte kippen nicht:** `select`, `selectWash` und `grid`. Sie werden
+ * nicht in der Leiste gezeichnet, sondern *auf der Folie* — Auswahlrahmen,
+ * Aufziehrechteck, Rasterpunkte. Ein weißer Auswahlrahmen auf cremefarbenem
+ * Papier wäre unsichtbar, und die Folie weiß nichts davon, ob jemand das
+ * Werkzeug hell oder dunkel eingestellt hat.
+ */
+export const uiDark = {
+  ...ui,
+
+  canvas: graphite[950],
+  surface: graphite[900],
+  surfaceSubtle: graphite[800],
+  surfaceSunken: graphite[950],
+  surfaceInverse: graphite[50],
+  overlay: 'rgba(5, 7, 10, 0.72)',
+
+  ink: graphite[50],
+  inkMuted: graphite[400],
+  inkSubtle: graphite[500],
+  inkInverse: graphite[900],
+
+  border: graphite[700],
+  borderStrong: graphite[600],
+  borderInverse: graphite[300],
+
+  accent: graphite[50],
+  accentHover: graphite[0],
+  accentActive: graphite[200],
+  accentSoft: graphite[800],
+  accentBorder: graphite[600],
+  onAccent: graphite[900],
+
+  /* Status — dieselbe Aufgabe, auf dunklem Grund lesbar gemacht. */
+  warn: '#FFC65C',
+  warnBg: '#3A2E15',
+  danger: '#FF8A8E',
+  dangerBg: '#3A1F21',
+  info: graphite[300],
+  infoBg: graphite[800],
+} as const satisfies Record<keyof typeof ui, string>;
+
+/**
+ * Die Schatten der Nacht-Oberfläche.
+ *
+ * Auf dunklem Grund trägt ein Schatten kaum — was eine Fläche abhebt, ist die
+ * Kante. Die Versätze bleiben deshalb dieselben, nur tiefer und dazu ein
+ * heller Innenstrich, der die Oberkante zeichnet.
+ */
+export const uiShadowDark = {
+  none: 'none',
+  xs: '0 1px 2px rgba(0, 0, 0, 0.40)',
+  sm: '0 1px 3px rgba(0, 0, 0, 0.50), 0 1px 2px rgba(0, 0, 0, 0.30)',
+  md: '0 4px 10px rgba(0, 0, 0, 0.50), 0 1px 3px rgba(0, 0, 0, 0.35)',
+  lg: '0 12px 28px rgba(0, 0, 0, 0.58), 0 2px 6px rgba(0, 0, 0, 0.40)',
+  xl: '0 24px 56px rgba(0, 0, 0, 0.64), 0 4px 10px rgba(0, 0, 0, 0.40)',
+  focus: '0 0 0 3px rgba(245, 247, 250, 0.28)',
+} as const satisfies Record<keyof typeof uiShadow, string>;
+
+/**
  * Radien der Oberfläche. Auf der Folie ist der Radius 0 und bleibt es
  * (`RADIUS`) — ein Knopf in einer Werkzeugleiste ist aber kein Folienobjekt.
  */

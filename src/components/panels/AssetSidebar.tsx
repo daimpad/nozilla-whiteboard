@@ -23,6 +23,7 @@ import { useDeckStore } from '@/state/deckStore';
 import { useThemeVersion } from '@/hooks/useTheme';
 import { BrandIcon, Icon } from '@/components/ui/Icon';
 import { cx, SectionTitle } from '@/components/ui/controls';
+import { BuildLabel, SettingsMenu } from './SettingsMenu';
 
 type Tab = 'elements' | 'icons';
 
@@ -141,10 +142,16 @@ export function AssetSidebar() {
         )}
       </div>
 
-      <p className="border-t border-ui px-3 py-2 text-[11px] leading-snug text-ui-faint">
-        Click to place at the centre of the slide. Everything inherits the CI tone, radii and line
-        weights automatically.
-      </p>
+      {/*
+        Hier stand ein Hinweis, den man einmal liest und danach nie wieder —
+        und der seit dem rechtsbündigen Einsetzen auch nicht mehr stimmte. An
+        derselben Stelle steht jetzt, was man tatsächlich nachschlägt: welcher
+        Stand hier läuft, und daneben die Einstellungen.
+      */}
+      <div className="flex items-center justify-between gap-2 border-t border-ui px-2 py-1.5">
+        <BuildLabel />
+        <SettingsMenu />
+      </div>
     </aside>
   );
 }
@@ -215,8 +222,16 @@ const PresetTile = memo(function PresetTile({ preset, tone, onInsert }: PresetTi
         'hover:-translate-y-px hover:border-ui-accent-border hover:shadow-ui-md',
       )}
     >
+      {/*
+        Der Untergrund der Vorschau ist das Papier der Folie und nicht die
+        Fläche der Leiste: gezeigt wird, was gleich auf der Folie liegt, und
+        das liegt dort auf Papier. Bei dunkler Oberfläche ist der Unterschied
+        nicht mehr Geschmack — ein Element in Tinte auf grauer Leiste wäre
+        schwarz auf dunkelgrau und damit unsichtbar.
+      */}
       <span
-        className="flex h-[54px] items-center justify-center overflow-hidden bg-ui-subtle"
+        className="flex h-[54px] items-center justify-center overflow-hidden"
+        style={{ background: ci.surface }}
         aria-hidden="true"
       >
         <svg

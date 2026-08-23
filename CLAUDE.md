@@ -57,6 +57,12 @@ Die Oberfläche leiht sich **nichts** von der Marke, auch keinen Akzent: Weiß,
 sechs Graustufen, Schwarz. Der Grund steht in `theme.config.ts` — ein
 cremefarbener Editor um eine cremefarbene Folie macht beides unlesbar.
 
+Dieselbe Leiter gibt es von unten gelesen als `uiDark`: die Einstellung
+*Erscheinung* (Zahnrad unten links) schaltet die Leisten auf dunkel um. Sie
+gehört dem Arbeitsplatz und nicht dem Deck, bleibt deshalb im Browser und steht
+in keiner Datei. **Die Folie ändert sich dabei nie** — `surface.test.ts` prüft
+das am erzeugten Markup und nicht an der Zusicherung.
+
 `src/theme/theme.test.ts` liest die Komponenten-Quellen und schlägt an, wenn
 eine Bedienfläche einen Marken-Ton benutzt. Der Test existiert, weil dieser
 Fehler schon zweimal gemacht wurde.
@@ -112,6 +118,7 @@ src/
               *.generated.ts  ERZEUGT — nicht von Hand ändern
   theme/      brandTheme.ts   Was ein Erscheinungsbild ausmacht — und was nicht
               runtime.ts      Welches gerade gilt (lebendige Bindungen)
+              surface.ts      Hell oder dunkel — die Erscheinung des Werkzeugs
               index.ts        Die Fassade: Inhalt aus der Laufzeit, Werkzeug aus
                               der Konfiguration
   themes/     index.ts        Hier kommen die Erscheinungsbilder der Kunden an
@@ -267,6 +274,15 @@ gefunden, beim Nachsehen in der Datei. Der Name kommt jetzt aus
 Weg die Farbe nicht aus der Szene nimmt. SVG und PDF waren richtig, die `.pptx`
 grün. Der Test prüfte die Zeichenkette und bestätigte den Fehler. Er vergleicht
 jetzt gegen `palette.signal`.
+
+**`ui` als Wert zu lesen friert die helle Fassung ein.** Seit die Erscheinung
+des Werkzeugs umschaltbar ist, laufen die Leisten über CSS-Variablen. Eine
+Komponente, die `ui.surface` importiert, bekommt dagegen den Modulwert — und
+behält im dunklen Werkzeug eine weiße Fläche. Farben gehören über die
+Tailwind-Klassen bezogen. Die eine Ausnahme ist `CanvasStage`: Auswahlrahmen,
+Aufziehrechteck und Raster liegen *auf* der Folie und wechseln absichtlich
+nicht mit; ein weißer Rahmen auf cremefarbenem Papier wäre unsichtbar.
+`theme.test.ts` lässt genau diese drei durch.
 
 **Das letzte Primitiv ist nicht immer die Signatur.** Für kleine Knöpfe wird
 der grüne 6 × 6-Punkt unten rechts weggelassen, und das hieß jahrelang

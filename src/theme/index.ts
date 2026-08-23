@@ -45,6 +45,20 @@ export {
   themeVersion,
 } from './runtime';
 
+export {
+  activeUi,
+  activeUiShadow,
+  isSurfaceMode,
+  setSurfaceMode,
+  subscribeSurface,
+  surface,
+  surfaceMode,
+  surfaceModes,
+  surfaceVersion,
+  watchSystemSurface,
+} from './surface';
+export type { Surface, SurfaceMode } from './surface';
+
 export { wordmarkFromSvg } from './wordmark';
 export type { Wordmark } from './wordmark';
 
@@ -119,9 +133,7 @@ import {
   RADIUS,
   shadow,
   space,
-  ui,
   uiRadius,
-  uiShadow,
   canvas as canvasTokens,
   type ShadowName,
   type StrokeName,
@@ -131,6 +143,9 @@ import {
 // Wechselnde Werte: aus der Laufzeit, nicht aus der Konfiguration. Die
 // Helfer unten und `cssVariables()` lesen sie bei jedem Aufruf neu.
 import { color, elementTones, fontFamily, shadowOffset, stroke, typeScale } from './runtime';
+// Die Erscheinung des Werkzeugs — hell oder dunkel. Sie wechselt unabhängig
+// vom Erscheinungsbild der Folie; warum, steht in `surface.ts`.
+import { activeUi, activeUiShadow, surface } from './surface';
 
 /** Eine Flächenrolle auflösen; ohne Angabe gilt Papier. */
 export function tone(name: ToneName | undefined) {
@@ -188,13 +203,20 @@ export function cssVariables(): Record<string, string> {
   }
   // Die Oberfläche bekommt ein eigenes Präfix. Wer `--nz-ui-*` in einer
   // Export-Datei sieht, sieht sofort, dass dort etwas falsch abgebogen ist.
-  for (const [key, value] of Object.entries(ui)) {
+  //
+  // Neben dem Wert steht sein Kanal-Tripel: Tailwind braucht `r g b`, um
+  // `bg-ui-surface/85` überhaupt rechnen zu können. Farben, die schon eine
+  // Deckkraft tragen (`overlay`, `selectWash`), bekommen keins — ein zweites
+  // Alpha darüber wäre keine sinnvolle Angabe.
+  for (const [key, value] of Object.entries(activeUi())) {
     vars[`--nz-ui-${kebab(key)}`] = value;
+    const channels = rgbChannels(value);
+    if (channels) vars[`--nz-ui-${kebab(key)}-rgb`] = channels;
   }
   for (const [key, value] of Object.entries(uiRadius)) {
     vars[`--nz-ui-radius-${kebab(key)}`] = `${value}px`;
   }
-  for (const [key, value] of Object.entries(uiShadow)) {
+  for (const [key, value] of Object.entries(activeUiShadow())) {
     vars[`--nz-ui-shadow-${kebab(key)}`] = value;
   }
   for (const [key, value] of Object.entries(stroke)) {
@@ -233,12 +255,35 @@ export function cssVariables(): Record<string, string> {
   return vars;
 }
 
-/** Die CI-Variablen auf ein Dokument setzen. Mehrfach aufrufbar. */
+/**
+ * Die CI-Variablen auf ein Dokument setzen. Mehrfach aufrufbar.
+ *
+ * Dazu `color-scheme`: daran hängen die Dinge, die nicht uns gehören —
+ * Bildlaufleisten, Auswahlfelder, die Schrift in einem Datumsfeld. Ohne die
+ * Angabe bleibt eine dunkle Oberfläche an genau diesen Stellen hell und sieht
+ * halb fertig aus.
+ */
 export function applyThemeVariables(root: HTMLElement = document.documentElement): void {
   const vars = cssVariables();
   for (const [key, value] of Object.entries(vars)) {
     root.style.setProperty(key, value);
   }
+  root.style.colorScheme = surface();
+}
+
+/**
+ * `#RRGGBB` → `255 254 229`. Nur Vollfarben; alles andere gibt `null`.
+ *
+ * Tailwind setzt daraus `rgb(var(--x) / <alpha-value>)` zusammen. Ohne diesen
+ * Umweg verpufft jeder Deckkraft-Zusatz still — `bg-ui-surface/85` wäre dann
+ * einfach volle Deckung, und die Leisten über der Folie verlören ihre
+ * Durchsicht, ohne dass es einen Fehler gäbe.
+ */
+function rgbChannels(value: string): string | null {
+  const match = /^#([0-9a-f]{6})$/i.exec(value.trim());
+  if (!match) return null;
+  const n = Number.parseInt(match[1], 16);
+  return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`;
 }
 
 function kebab(input: string): string {

@@ -182,11 +182,19 @@ describe('elements', () => {
     expect(elementsNow()[0].reveal).toBeUndefined();
   });
 
-  it('cascades repeated insertions so they do not stack invisibly', () => {
+  it('setzt rechtsbündig am Satzspiegel ein und stapelt nach unten', () => {
+    // Die Mitte gehört dem Fließtext: er steht links und reicht bei den
+    // meisten Layouts bis dorthin. Wer eine Karte einsetzte, musste sie als
+    // Erstes wegziehen.
     store().insertPreset('shape');
     store().insertPreset('shape');
     const [first, second] = elementsNow();
-    expect(second.x).not.toBe(first.x);
+    const right = canvas.width - canvas.margin.right;
+
+    expect(first.x + first.w).toBe(right);
+    expect(second.x + second.w).toBe(right);
+    expect(second.y).toBeGreaterThan(first.y + first.h - 1);
+    expect(second.y + second.h).toBeLessThanOrEqual(canvas.height - canvas.margin.bottom);
   });
 });
 

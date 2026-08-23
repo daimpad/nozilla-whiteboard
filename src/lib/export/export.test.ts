@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { canvas, color, elementTones, palette, typeScale } from '@/theme';
 import { parseDeck } from '@/lib/markdown/deck';
+import { segsBounds, type Seg } from '@/lib/geometry/path';
 import { createElement } from '@/model/factory';
 import type { Deck } from '@/model/types';
 import { buildElementPrims, buildSlideScene, elementPaint, withAlpha } from './scene';
@@ -87,6 +88,48 @@ describe('scene building', () => {
 
     deck.slides[0].meta.bare = true;
     expect(primsToSvgMarkup(buildSlideScene(deck.slides[0], deck).prims)).not.toContain('INTERNAL');
+  });
+
+  it('setzt die Wortmarke klein unten rechts in die Fußzeile', () => {
+    // Die Signatur der Folie. Geprüft werden die Primitive und nicht das
+    // Markup: der Pfad wird vor der Ausgabe in Folien-Koordinaten gerechnet,
+    // die Zeichenkette aus dem Erscheinungsbild steht dort also nie wörtlich.
+    const deck = deckOf('---\nfooter: Internal\n---\n\n# S');
+    const chrome = buildSlideScene(deck.slides[0], deck, { slideNumber: 1, totalSlides: 3 }).prims;
+    const marke = chrome.filter((prim) => prim.t === 'path');
+
+    // Buchstaben und Akzent.
+    expect(marke).toHaveLength(2);
+
+    const kasten = segsBounds(marke.flatMap((prim) => (prim as { segs: Seg[] }).segs));
+    // Ganz rechts am Satzspiegel. Auf zwei Pixel genau, nicht auf null: die
+    // viewBox einer Marke darf ein Haar Luft um die Zeichnung tragen, und die
+    // Kante der Buchstaben liegt dann knapp innerhalb.
+    expect(kasten.x + kasten.w).toBeGreaterThan(canvas.width - canvas.margin.right - 2);
+    expect(kasten.x + kasten.w).toBeLessThanOrEqual(canvas.width - canvas.margin.right);
+    // … und ganz klein: eine Signatur, keine zweite Überschrift.
+    expect(kasten.h).toBeLessThan(typeScale.body.size);
+
+    // `bare` blendet auch sie aus — eine Folie ohne Fußzeile hat keine.
+    deck.slides[0].meta.bare = true;
+    expect(buildSlideScene(deck.slides[0], deck).prims.filter((p) => p.t === 'path')).toHaveLength(
+      0,
+    );
+  });
+
+  it('rückt die Foliennummer vor die Wortmarke', () => {
+    // Sonst lägen sie übereinander. Die Marke gehört an die Ecke, die Nummer
+    // ist eine Hilfe für den Vortrag.
+    const deck = deckOf('# S');
+    const chrome = buildSlideScene(deck.slides[0], deck, { slideNumber: 1, totalSlides: 3 }).prims;
+    const nummer = chrome.find((prim) => prim.t === 'text');
+    const marke = segsBounds(
+      chrome.filter((p) => p.t === 'path').flatMap((p) => (p as { segs: Seg[] }).segs),
+    );
+    expect(nummer).toBeDefined();
+    const rechts =
+      (nummer as { x: number }).x + (nummer as { runs: { width: number }[] }).runs[0].width;
+    expect(rechts).toBeLessThan(marke.x);
   });
 
   it('rotates geometry rather than leaving it axis-aligned', () => {

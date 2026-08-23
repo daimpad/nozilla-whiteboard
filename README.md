@@ -81,6 +81,12 @@ Auch Auswahlrahmen, Griffe und Hilfslinien laufen in derselben Schwarz-Familie.
 schlägt an, sobald eine Bedienfläche einen Marken-Ton benutzt — oder ein
 `ui`-Wert und ein Marken-Wert unbemerkt derselbe werden.
 
+Die Oberfläche gibt es hell und dunkel. Das Zahnrad unten links stellt es ein
+(*System*, *Hell*, *Dunkel*); daneben steht, welcher Stand gerade läuft. Die
+Einstellung gehört dem Arbeitsplatz, bleibt im Browser und steht in keiner
+Datei — **die Folie sieht in beiden Fällen gleich aus**, und ein Export erst
+recht.
+
 ### Mehr als eine Marke
 
 Die linke Spalte ist wechselbar. Ein **Erscheinungsbild** belegt Farben,
