@@ -95,6 +95,11 @@ theme: musterkunde
 ---
 ```
 
+Mitgeliefert wird einer: **Musterkunde**, ein erfundenes Haus für Muster und
+Proben. Orange statt Grün, Weiß statt Creme, Inter statt Zilla Slab, eine eigene
+Wortmarke und zwölf eigene Zeichen. Er ist zum Ansehen da und zum Abschreiben —
+eine Kundendatei kopiert ihn und ersetzt die Werte.
+
 Damit trägt die `.md` ihre Zugehörigkeit mit — wer sie weitergibt, gibt die
 Marke mit. Ein Erscheinungsbild, das hier nicht angemeldet ist, wird nicht
 still ersetzt: der Eintrag bleibt stehen, und die Oberfläche sagt, dass sie ihn
@@ -253,6 +258,7 @@ src/
               runtime.ts      Welches gerade gilt (lebendige Bindungen)
               index.ts        Die Fassade über CI und Laufzeit
   themes/     index.ts        Hier kommen die Erscheinungsbilder der Kunden an
+              musterkunde.ts  Die Vorlage: jede wechselbare Rolle einmal belegt
   model/      types.ts        Deck / Folie / Element
               factory.ts      Der einzige Weg, auf dem ein Element entsteht
   lib/

@@ -14,7 +14,9 @@
  * gegen die der Parser prüft.
  */
 import {
+  brand,
   canvas,
+  familyName,
   MAX_MARKERS_PER_PARAGRAPH,
   forbiddenWords,
   revealAnimations,
@@ -370,8 +372,8 @@ DIE CI — nicht verhandelbar
 FARBE hat genau drei Rollen. Du wählst nie einen Farbwert, nur eine Rolle.
   Papier  Untergrund, rund 60 % der Fläche
   Tinte   Schrift, Linien, Konturen, rund 35 %
-  Signal  Grün, nur echte Handlungsaufforderungen, höchstens 5 %
-Höchstens EIN Signal-Element pro Folie. Grün ist kein Dekor.
+  Signal  ${brand.name === 'nozilla' ? 'Grün' : 'Die Signalfarbe'}, nur echte Handlungsaufforderungen, höchstens 5 %
+Höchstens EIN Signal-Element pro Folie. Die Signalfarbe ist kein Dekor.
 
 FORM
   Radius 0. Immer. Es gibt keine runde Ecke.
@@ -379,10 +381,10 @@ FORM
   Keine Verläufe, keine Weichzeichner, kein Glas.
 
 TYPOGRAFIE
-  Überschriften: Zilla Slab Bold. Fließtext: Inter. Labels: Space Mono.
+  Überschriften: ${familyName('display')} Bold. Fließtext: ${familyName('body')}. Labels: ${familyName('mono')}.
   Labels werden automatisch in Versalien gesetzt — schreib sie normal.
 
-DER GRÜNE MARKER — das Signature-Element
+DER MARKER — das Signature-Element, in der Signalfarbe
   Schreibweise: \`==Wort==\`
   Höchstens ${MAX_MARKERS_PER_PARAGRAPH} pro Absatz, nur auf Schlüsselwörtern.
   Nie ein ganzer Satz, nie zwei Marker direkt hintereinander.
@@ -545,7 +547,7 @@ Prüfe vor der Ausgabe:
 □ Alle x/y/w/h liegen im Raster und innerhalb ${canvas.width} × ${canvas.height}.
 □ Keine zwei Elemente überlappen sich.
 □ Höchstens ein Signal-Element pro Folie.
-□ Höchstens ${MAX_MARKERS_PER_PARAGRAPH} grüne Marker pro Absatz.
+□ Höchstens ${MAX_MARKERS_PER_PARAGRAPH} Marker pro Absatz.
 □ Kein verbotenes Wort, kein Emoji, kein Ausrufezeichen.
 □ Alle \`icon:\`-Werte stammen aus der Liste oben.`,
   ]

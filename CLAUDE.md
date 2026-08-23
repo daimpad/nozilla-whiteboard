@@ -79,6 +79,12 @@ Schattenversätze, die **Wortmarke** (Pflicht) und das **Icon-Set** (ohne Angabe
 das von nozilla). Was strukturell ist — Radius 0, 1280 × 720, das 64er-Raster
 der Icons — bleibt; warum, steht im Kopf von `brandTheme.ts`.
 
+`src/themes/musterkunde.ts` ist die Vorlage und läuft mit: sie belegt jede
+Rolle einmal und ist der schnellste Weg zu einem echten Kunden. Farben werden
+dabei *einmal* genannt — `tonesFromPalette()` und `colorsFromPalette()` mischen
+die drei Tonrollen und die fünfundzwanzig semantischen Tokens daraus, und
+`brandTheme.test.ts` hält beide an `theme.config.ts`.
+
 Die rechte Spalte wechselt nie mit. Auch die Icons haben deshalb zwei Wege:
 `Icon` zeichnet aus dem Werkzeug-Set (`ToolIconName`, eng typisiert),
 `BrandIcon` aus dem des Erscheinungsbilds. Ein Kunden-Set, dem `chevron-right`
@@ -109,6 +115,7 @@ src/
               index.ts        Die Fassade: Inhalt aus der Laufzeit, Werkzeug aus
                               der Konfiguration
   themes/     index.ts        Hier kommen die Erscheinungsbilder der Kunden an
+              musterkunde.ts  Die Vorlage: jede wechselbare Rolle einmal belegt
   model/      types.ts        Deck / Folie / Element
               factory.ts      Der einzige Weg, auf dem ein Element entsteht
   lib/
@@ -246,6 +253,20 @@ doppelt so groß wie gebaut, `top-9` schob ein Menü 96px statt 36px nach
 unten. Es fiel monatelang nicht auf, weil _alles_ zu groß war und damit
 wieder stimmig aussah. Die CI-Stufen heißen jetzt `ci-*`; die Zahlen gehören
 dem Raster.
+
+**Eine Tabelle „Rolle → Wert" auf Modulebene ist eine eingefrorene CI.** Im
+PDF-Weg stand `{ display: 'Zilla Slab', body: 'Inter', mono: 'Space Mono' }`.
+Ein Erscheinungsbild mit anderer Auszeichnungsschrift fand seine Datei nicht,
+und der Export fiel still auf Helvetica zurück — kein Fehler, keine Warnung,
+nur eine andere Schrift. Gefunden hat es niemand: der Musterkunde hat es
+gefunden, beim Nachsehen in der Datei. Der Name kommt jetzt aus
+`familyName(rolle)`.
+
+**Ein Marker in Grün, den kein Test sah.** Der `==Marker==` wurde im PPTX als
+`<a:highlight><a:srgbClr val="00FF9C"/>` geschrieben — im Klartext, weil dieser
+Weg die Farbe nicht aus der Szene nimmt. SVG und PDF waren richtig, die `.pptx`
+grün. Der Test prüfte die Zeichenkette und bestätigte den Fehler. Er vergleicht
+jetzt gegen `palette.signal`.
 
 **Das letzte Primitiv ist nicht immer die Signatur.** Für kleine Knöpfe wird
 der grüne 6 × 6-Punkt unten rechts weggelassen, und das hieß jahrelang

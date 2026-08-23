@@ -206,7 +206,7 @@ FARBE hat genau drei Rollen. Du wählst nie einen Farbwert, nur eine Rolle.
   Papier  Untergrund, rund 60 % der Fläche
   Tinte   Schrift, Linien, Konturen, rund 35 %
   Signal  Grün, nur echte Handlungsaufforderungen, höchstens 5 %
-Höchstens EIN Signal-Element pro Folie. Grün ist kein Dekor.
+Höchstens EIN Signal-Element pro Folie. Die Signalfarbe ist kein Dekor.
 
 FORM
   Radius 0. Immer. Es gibt keine runde Ecke.
@@ -217,7 +217,7 @@ TYPOGRAFIE
   Überschriften: Zilla Slab Bold. Fließtext: Inter. Labels: Space Mono.
   Labels werden automatisch in Versalien gesetzt — schreib sie normal.
 
-DER GRÜNE MARKER — das Signature-Element
+DER MARKER — das Signature-Element, in der Signalfarbe
   Schreibweise: `==Wort==`
   Höchstens 3 pro Absatz, nur auf Schlüsselwörtern.
   Nie ein ganzer Satz, nie zwei Marker direkt hintereinander.
@@ -325,7 +325,7 @@ Prüfe vor der Ausgabe:
 □ Alle x/y/w/h liegen im Raster und innerhalb 1280 × 720.
 □ Keine zwei Elemente überlappen sich.
 □ Höchstens ein Signal-Element pro Folie.
-□ Höchstens 3 grüne Marker pro Absatz.
+□ Höchstens 3 Marker pro Absatz.
 □ Kein verbotenes Wort, kein Emoji, kein Ausrufezeichen.
 □ Alle `icon:`-Werte stammen aus der Liste oben.
 ```

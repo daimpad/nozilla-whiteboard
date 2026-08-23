@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { elementTones, palette, inkAlpha, paperAlpha } from '@theme';
-import { nozillaTheme, tonesFromPalette, tonesOutsidePalette } from './brandTheme';
+import { color, elementTones, palette, inkAlpha, paperAlpha } from '@theme';
+import {
+  colorsFromPalette,
+  nozillaTheme,
+  tonesFromPalette,
+  tonesOutsidePalette,
+} from './brandTheme';
 
 describe('der Vertrag eines Erscheinungsbilds', () => {
   it('mischt aus der nozilla-Palette genau deren Töne', () => {
@@ -9,6 +14,15 @@ describe('der Vertrag eines Erscheinungsbilds', () => {
     // nicht, legt jeder neue Kunde ein Erscheinungsbild an, das anders gebaut
     // ist als das, an dem es sich orientiert.
     expect(tonesFromPalette(palette, inkAlpha, paperAlpha)).toEqual(elementTones);
+  });
+
+  it('mischt aus der nozilla-Palette genau deren semantische Tokens', () => {
+    // Derselbe Riegel für die fünfundzwanzig `color`-Schlüssel. Er greift auch
+    // dort, wo ein Wert gerechnet und nicht nachgeschlagen wird: der Schleier
+    // über einem Dialog und die Auswahl-Wäsche sind Tinte und Signal mit
+    // Deckkraft, und das muss für jede Palette gelten und nicht nur für
+    // Schwarz auf Grün.
+    expect(colorsFromPalette(palette, inkAlpha)).toEqual(color);
   });
 
   it('lässt die nozilla-CI ihre eigene Prüfung bestehen', () => {

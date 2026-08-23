@@ -16,7 +16,7 @@
  * Farben und Positionen vorgibt, wäre eine zweite Quelle neben
  * `theme.config.ts` — und die erste, die auseinanderläuft.
  */
-import { fontFamily, palette } from '@/theme';
+import { familyName, palette } from '@/theme';
 
 export const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
 
@@ -32,14 +32,11 @@ const hex = (value: string) => value.replace('#', '').toUpperCase();
 /**
  * Der Familienname, den PowerPoint in der Schriftauswahl anzeigt.
  *
- * Aus dem CSS-Stapel der CI wird der erste Eintrag genommen und entkleidet:
- * `'Zilla Slab', Georgia, serif` → `Zilla Slab`. Die Ersatzschriften dahinter
- * sind eine Browser-Idee; PowerPoint kennt nur einen Namen pro Lauf.
+ * PowerPoint kennt nur einen Namen pro Lauf; die Ersatzschriften hinter dem
+ * CSS-Stapel sind eine Browser-Idee. Aufgelöst wird das im Erscheinungsbild —
+ * hier steht nur noch der Name, unter dem dieser Weg ihn kennt.
  */
-export function faceName(family: 'display' | 'body' | 'mono'): string {
-  const first = fontFamily[family].split(',')[0].trim();
-  return first.replace(/^['"]|['"]$/g, '');
-}
+export const faceName = familyName;
 
 /** Eine `.rels`-Datei aus fertigen `<Relationship/>`-Zeilen. */
 export function relationships(rels: readonly string[]): string {

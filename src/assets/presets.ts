@@ -46,9 +46,9 @@ export const assetPresets: AssetPreset[] = [
     'type',
     'text',
     { text: 'Gute digitale Dienste.', typeStyle: 'display', w: 1104, h: 260 },
-    'Zilla Slab Bold 128 — für den einen Satz',
+    'Die größte Stufe der Auszeichnungsschrift — für den einen Satz',
   ),
-  preset('text-headline', 'Headline 88', 'type', 'text', {
+  preset('text-headline', 'Headline', 'type', 'text', {
     text: 'Wir bauen wartbare Plattformen.',
     typeStyle: 'headline',
     w: 1000,
@@ -79,7 +79,7 @@ export const assetPresets: AssetPreset[] = [
     h: 100,
   }),
   preset('text-body', 'Fließtext', 'type', 'text', {
-    text: 'Fließtext in Inter, 17 Pixel, Zeilenhöhe 1,55.',
+    text: 'Fließtext in der Grundstufe, Zeilenhöhe 1,55.',
     typeStyle: 'body',
     w: 520,
     h: 90,
@@ -96,7 +96,7 @@ export const assetPresets: AssetPreset[] = [
     'type',
     'text',
     { text: 'Abschnitt', typeStyle: 'label', w: 300, h: 20 },
-    'Space Mono Bold, ALL-CAPS, 0.12em — wird automatisch gesetzt',
+    'Label-Schrift, ALL-CAPS, gesperrt — wird automatisch gesetzt',
   ),
   preset(
     'markdown-block',

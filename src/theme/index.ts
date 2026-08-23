@@ -54,7 +54,19 @@ export type { Wordmark } from './wordmark';
 export { nozillaIcons } from '@/assets/iconSet';
 export type { IconDef, IconSet } from '@/assets/iconSet';
 
+// Die Bausteine, aus denen eine Kundendatei ein Erscheinungsbild
+// zusammensetzt. Sie stehen in `brandTheme.ts`, weil dort auch die Grenze
+// steht, die sie einhalten.
+export {
+  colorsFromPalette,
+  nozillaTheme,
+  toneLabels,
+  tonesFromPalette,
+  tonesOutsidePalette,
+} from './brandTheme';
+
 export type {
+  AlphaSteps,
   BrandTheme,
   BrandInfo,
   ColorTokens,
@@ -143,6 +155,24 @@ export function shadowSize(name: ShadowName | undefined): number {
 /** Der konkrete Schriftstapel zu einer Familien-Rolle. */
 export function familyStack(family: 'display' | 'body' | 'mono'): string {
   return fontFamily[family];
+}
+
+/**
+ * Der Name der Schrift hinter einer Rolle — der erste Eintrag ihres Stapels,
+ * entkleidet: `'Zilla Slab', Georgia, serif` → `Zilla Slab`.
+ *
+ * Alles außerhalb des Browsers braucht diesen Namen und nicht den Stapel: der
+ * PDF-Export sucht damit die Datei, PowerPoint zeigt ihn in der
+ * Schriftauswahl. Die Ersatzschriften dahinter sind eine Browser-Idee.
+ *
+ * Er wird bei jedem Aufruf gelesen. Als Tabelle auf Modulebene hat er schon
+ * einmal Schaden angerichtet: `display` stand dort fest auf „Zilla Slab", und
+ * ein Erscheinungsbild mit anderer Auszeichnungsschrift fand seine Datei nicht
+ * — im PDF stand dann Helvetica, ohne dass jemand einen Fehler sah.
+ */
+export function familyName(family: 'display' | 'body' | 'mono'): string {
+  const first = fontFamily[family].split(',')[0].trim();
+  return first.replace(/^['"]|['"]$/g, '');
 }
 
 /**
