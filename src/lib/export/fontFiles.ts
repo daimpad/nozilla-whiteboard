@@ -16,16 +16,9 @@
  * beim Start — erst wenn jemand exportiert, und dann nur die Schnitte, die auf
  * den Folien wirklich vorkommen.
  */
-import { webfont, fontFamily } from '@/theme';
+import { webfont, familyName, fontFamily } from '@/theme';
 import type { FontFamilyKey, FontSpec } from '@/lib/text/measure';
 import { parseTrueType, type TrueTypeFont } from '@/lib/text/truetype';
-
-/** Welche Familie in `theme.config.ts` zu welcher Rolle gehört. */
-const FAMILY_NAMES: Record<FontFamilyKey, string> = {
-  display: 'Zilla Slab',
-  body: 'Inter',
-  mono: 'Space Mono',
-};
 
 export interface FaceRef {
   /** Rolle im Satzspiegel. */
@@ -48,7 +41,7 @@ export interface FaceRef {
  * sonst weicht er genau dort ab, wo niemand hinschaut.
  */
 export function resolveFace(spec: Pick<FontSpec, 'family' | 'weight'>): FaceRef | null {
-  const family = FAMILY_NAMES[spec.family];
+  const family = familyName(spec.family);
   const candidates = webfont.faces.filter(
     (face) => face.family === family && face.style === 'normal',
   );

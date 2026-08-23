@@ -211,6 +211,70 @@ export const nozillaTheme: BrandTheme = {
 /* -------------------------------------------------------------------------- */
 
 /**
+ * Die semantischen Tokens aus einer Palette mischen.
+ *
+ * `color` führt fünfundzwanzig Schlüssel, und zwanzig davon sind bloß eine
+ * Palettenfarbe unter einem Namen, der ihre Aufgabe nennt. Wer sie von Hand
+ * schreibt, trifft neunzehn und vergisst einen — und das Ergebnis ist die
+ * schlechteste Lage, die dieses Projekt kennt: fast richtig. Deshalb dieselbe
+ * Vorgehensweise wie bei den Tonrollen, und derselbe Test hält sie an
+ * `theme.config.ts`.
+ *
+ * Nicht abgeleitet wird, was keiner Marke gehört: die Hintergründe der
+ * Statusfarben. Sie sind Wäschen von Warn-, Fehler- und Hinweisfarbe, und die
+ * sind funktional — ein Kunde darf sie ändern, muss aber nicht.
+ */
+export function colorsFromPalette(palette: Palette, inkAlpha: AlphaSteps): ColorTokens {
+  return {
+    canvas: palette.paperDeep,
+    surface: palette.paper,
+    surfaceAlt: palette.paperAlt,
+    surfaceRaised: palette.white,
+    surfaceInverse: palette.ink,
+    overlay: withAlpha(palette.ink, 0.62),
+
+    ink: palette.ink,
+    inkMuted: inkAlpha[70],
+    inkSubtle: inkAlpha[50],
+    inkInverse: palette.paper,
+    inkOnSignal: palette.ink,
+
+    line: palette.ink,
+    lineSoft: inkAlpha[20],
+    grid: inkAlpha[20],
+    gridStrong: inkAlpha[50],
+
+    signal: palette.signal,
+    signalStrong: palette.signalStrong,
+    signalSoft: palette.signalSoft,
+    signalDeep: palette.signalDeep,
+
+    warn: palette.warn,
+    warnBg: nzColor.warnBg,
+    danger: palette.danger,
+    dangerBg: nzColor.dangerBg,
+    info: palette.info,
+    infoBg: nzColor.infoBg,
+
+    focus: palette.signalStrong,
+    selection: palette.ink,
+    selectionWash: withAlpha(palette.signal, 0.22),
+    snapGuide: palette.signal,
+  };
+}
+
+/**
+ * Eine Palettenfarbe mit Deckkraft. Nur `#RRGGBB` — eine Palette führt
+ * Vollfarben, die Abstufungen stehen in `inkAlpha` und `paperAlpha`.
+ */
+function withAlpha(hex: string, alpha: number): string {
+  const match = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!match) throw new Error(`Kein #RRGGBB: ${hex}`);
+  const value = Number.parseInt(match[1], 16);
+  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+}
+
+/**
  * Die Farbrollen aus einer Palette mischen.
  *
  * Wer ein Erscheinungsbild anlegt, soll Farben *einmal* nennen. Diese Funktion

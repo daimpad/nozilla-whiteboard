@@ -5,11 +5,18 @@
  * `tailwind.config.ts` sie zur Bauzeit liest. Alles Weitere gehört hierher:
  * eine Datei je Kunde, ein Aufruf in `registerThemes()`.
  *
+ * `musterkunde.ts` liegt schon hier und belegt jede wechselbare Rolle einmal —
+ * Farben, Wortmarke, Icons, Schriften. Der schnellste Weg zu einem echten
+ * Kunden ist, die Datei zu kopieren und die Werte zu ersetzen. Was unten steht,
+ * ist dieselbe Sache in kurz.
+ *
  * ## Ein Erscheinungsbild anlegen
  *
  * ```ts
  * // src/themes/musterkunde.ts
- * import { nozillaTheme, tonesFromPalette, wordmarkFromSvg, type BrandTheme } from '@/theme';
+ * import {
+ *   colorsFromPalette, nozillaTheme, tonesFromPalette, wordmarkFromSvg, type BrandTheme,
+ * } from '@/theme';
  * import logo from './musterkunde-logo.svg?raw';
  *
  * const palette = {
@@ -33,7 +40,7 @@
  *   palette,
  *   inkAlpha,
  *   paperAlpha,
- *   color: { ...nozillaTheme.color, signal: palette.signal, surface: palette.paper, ink: palette.ink, line: palette.ink },
+ *   color: colorsFromPalette(palette, inkAlpha),
  *   elementTones: tonesFromPalette(palette, inkAlpha, paperAlpha),
  *   wordmark: wordmarkFromSvg(logo, { letters: '#111111', accent: '#E4003A' }),
  * };
@@ -41,10 +48,11 @@
  *
  * Vier Dinge, die dabei zählen:
  *
- * 1. **Die Töne aus der eigenen Palette mischen.** `tonesFromPalette()` tut
- *    das. Wer sie von Hand schreibt und eine Farbe vergisst, bekommt eine
- *    Folie, die fast stimmt — `registerTheme()` weist das ab und sagt, welche
- *    Rolle daneben liegt.
+ * 1. **Farben einmal nennen.** `tonesFromPalette()` und `colorsFromPalette()`
+ *    mischen die drei Tonrollen und die fünfundzwanzig semantischen Tokens
+ *    daraus. Wer sie von Hand schreibt und eine vergisst, bekommt eine Folie,
+ *    die fast stimmt — `registerTheme()` weist das ab und sagt, welche Rolle
+ *    daneben liegt.
  * 2. **Schriften mitliefern.** Eigene Schnitte gehören nach `public/fonts/`
  *    und in `webfont.faces`; `fontFamily` nennt die Stapel. Ohne das setzt der
  *    Setzer weiter in Zilla Slab und Inter.
@@ -104,11 +112,10 @@
  * fremde Zeichen an, ohne dass jemand das entschieden hat.
  */
 import { registerTheme, type BrandTheme } from '@/theme';
+import { musterkunde } from './musterkunde';
 
 /** Ein Eintrag je Kunde. Die Reihenfolge ist die der Auswahl im Inspektor. */
-const clientThemes: BrandTheme[] = [
-  // musterkunde,
-];
+const clientThemes: BrandTheme[] = [musterkunde];
 
 /** Beim Start einmal aufrufen, bevor ein Deck sein Erscheinungsbild verlangt. */
 export function registerThemes(): void {

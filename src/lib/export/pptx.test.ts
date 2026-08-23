@@ -13,6 +13,7 @@
 import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
 import { parseDeck } from '@/lib/markdown/deck';
+import { palette } from '@/theme';
 import { deckToPptx, EMU, SLIDE_CX, SLIDE_CY } from './pptx';
 import { createZip, crc32, utf8 } from './zip';
 
@@ -238,7 +239,11 @@ describe('Folieninhalt', () => {
 
   it('setzt den grünen Marker als Texthervorhebung', () => {
     // Als Fläche darunter würde er beim Umbruch vom Wort abrutschen.
-    expect(slide1).toContain('<a:highlight><a:srgbClr val="00FF9C"/></a:highlight>');
+    // Die Farbe kommt aus dem Erscheinungsbild und stand hier einmal fest im
+    // Code — im SVG und im PDF war der Marker dann orange und in der .pptx grün.
+    expect(slide1).toContain(
+      `<a:highlight><a:srgbClr val="${palette.signal.slice(1).toUpperCase()}"/></a:highlight>`,
+    );
   });
 
   it('nennt die Marken-Schriften beim Namen', () => {

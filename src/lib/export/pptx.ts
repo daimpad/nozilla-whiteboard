@@ -19,7 +19,13 @@
  * fallen — ohne Rundung, ohne krumme Zahl. Eine Einheit ist damit ¾ Punkt,
  * dieselbe Umrechnung, die der PDF-Export benutzt.
  */
-import { brand, canvas as canvasTokens, strokeWidth as strokeWidthOf, typeScale } from '@/theme';
+import {
+  brand,
+  canvas as canvasTokens,
+  palette,
+  strokeWidth as strokeWidthOf,
+  typeScale,
+} from '@/theme';
 import { flowFrame, footerFrame } from '@/lib/layout/slideLayout';
 import { segsBounds, type Seg } from '@/lib/geometry/path';
 import type { StyledRun } from '@/lib/text/typeset';
@@ -756,6 +762,12 @@ function solidFill(color: string, opacity?: number): string {
   return `<a:solidFill><a:srgbClr val="${hex}">${alphaXml}</a:srgbClr></a:solidFill>`;
 }
 
+/** Eine Farbe als `<a:srgbClr>` — ohne Deckkraft, für Stellen, die keine kennen. */
+function srgb(color: string): string {
+  const parsed = parseColor(color);
+  return `<a:srgbClr val="${parsed ? toHex(parsed) : '000000'}"/>`;
+}
+
 function toHex(color: { r: number; g: number; b: number }): string {
   const part = (value: number) =>
     Math.max(0, Math.min(255, Math.round(value)))
@@ -944,10 +956,15 @@ function runXml(run: StyledRun, para: Paragraph, opacity?: number): string {
   }
 
   const parts: string[] = [solidFill(run.color, opacity)];
-  // Der grüne Marker der CI ist in PPTX eine Texthervorhebung — damit bleibt er
-  // am Wort kleben, auch wenn der Umbruch sich verschiebt. Eine Fläche darunter
+  // Der Marker der CI ist in PPTX eine Texthervorhebung — damit bleibt er am
+  // Wort kleben, auch wenn der Umbruch sich verschiebt. Eine Fläche darunter
   // täte das nicht.
-  if (run.mark) parts.push(`<a:highlight><a:srgbClr val="00FF9C"/></a:highlight>`);
+  //
+  // Die Farbe wird beim Schreiben gelesen und stand hier einmal als Grün im
+  // Klartext. Das fiel erst auf, als ein Kunde mit orangem Signal exportierte
+  // und in der .pptx grüne Marker standen — im SVG und im PDF nicht, weil die
+  // über die Szene laufen und nicht über diese Zeile.
+  if (run.mark) parts.push(`<a:highlight>${srgb(palette.signal)}</a:highlight>`);
   parts.push(`<a:latin typeface="${escapeXml(faceName(run.font.family))}"/>`);
   parts.push(`<a:cs typeface="${escapeXml(faceName(run.font.family))}"/>`);
 
