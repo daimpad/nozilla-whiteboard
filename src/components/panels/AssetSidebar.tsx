@@ -14,13 +14,14 @@ import {
   type AssetPreset,
   type PresetGroup,
 } from '@/assets/presets';
-import { iconsByCategory, searchIcons, type IconName } from '@/assets/icons';
+import { iconsByCategory, searchIcons, type IconName, type ToolIconName } from '@/assets/icons';
 import { buildElementPrims } from '@/lib/export/scene';
 import { primsToSvgMarkup } from '@/lib/export/svg';
 import { createElement } from '@/model/factory';
 import type { CanvasElement } from '@/model/types';
 import { useDeckStore } from '@/state/deckStore';
-import { Icon } from '@/components/ui/Icon';
+import { useThemeVersion } from '@/hooks/useTheme';
+import { BrandIcon, Icon } from '@/components/ui/Icon';
 import { cx, SectionTitle } from '@/components/ui/controls';
 
 type Tab = 'elements' | 'icons';
@@ -30,6 +31,7 @@ export function AssetSidebar() {
   const [tone, setTone] = useState<ToneName>('paper');
   const [query, setQuery] = useState('');
   const insertPreset = useDeckStore((state) => state.insertPreset);
+  const skin = useThemeVersion();
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -39,7 +41,10 @@ export function AssetSidebar() {
     );
   }, [query]);
 
-  const iconMatches = useMemo(() => (query ? searchIcons(query) : null), [query]);
+  // Gesucht wird im Set des Erscheinungsbilds — wechselt es, ist das Ergebnis
+  // ein anderes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const iconMatches = useMemo(() => (query ? searchIcons(query) : null), [query, skin]);
 
   return (
     <aside
@@ -154,7 +159,7 @@ function TabButton({
 }: {
   active: boolean;
   onClick: () => void;
-  icon: IconName;
+  icon: ToolIconName;
   children: React.ReactNode;
 }) {
   return (
@@ -181,6 +186,7 @@ interface PresetTileProps {
 }
 
 const PresetTile = memo(function PresetTile({ preset, tone, onInsert }: PresetTileProps) {
+  const skin = useThemeVersion();
   const markup = useMemo(() => {
     const element = createElement(preset.kind, {
       ...preset.patch,
@@ -193,7 +199,8 @@ const PresetTile = memo(function PresetTile({ preset, tone, onInsert }: PresetTi
       w: element.w,
       h: Math.max(element.h, 24),
     };
-  }, [preset, tone]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preset, tone, skin]);
 
   const pad = 10;
 
@@ -231,7 +238,11 @@ const PresetTile = memo(function PresetTile({ preset, tone, onInsert }: PresetTi
 
 function IconPalette({ tone, matches }: { tone: ToneName; matches: IconName[] | null }) {
   const insertPreset = useDeckStore((state) => state.insertPreset);
-  const groups = useMemo(() => iconsByCategory(), []);
+  const skin = useThemeVersion();
+  // Die Bibliothek gehört dem Erscheinungsbild: ein Wechsel tauscht die
+  // Rubriken mit aus, deshalb hängt der Merker am Zähler.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const groups = useMemo(() => iconsByCategory(), [skin]);
   const visible = matches ? new Set(matches) : null;
 
   const add = (name: IconName, frame: 'none' | 'square' | 'circle') => {
@@ -272,7 +283,7 @@ function IconPalette({ tone, matches }: { tone: ToneName; matches: IconName[] | 
                   )}
                   style={{ color: ci.ink }}
                 >
-                  <Icon name={name} size={18} />
+                  <BrandIcon name={name} size={18} />
                 </button>
               ))}
             </div>

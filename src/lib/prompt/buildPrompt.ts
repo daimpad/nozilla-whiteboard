@@ -28,6 +28,7 @@ import {
 } from '@/theme';
 import { layoutDescriptions } from '@/lib/layout/slideLayout';
 import { iconNames } from '@/assets/icons';
+import { nozillaIcons } from '@/theme';
 import {
   cardVariants,
   connectorKinds,
@@ -212,10 +213,32 @@ const SUGGESTED_ICONS = [
   'core-refactor',
 ];
 
-/** Für Tests: Namen aus der Auswahl, die es im Set nicht (mehr) gibt. */
+/** Für Tests: Namen aus der Auswahl, die es im nozilla-Set nicht (mehr) gibt. */
 export function missingSuggestedIcons(): string[] {
-  const known = new Set(iconNames as string[]);
+  const known = new Set(Object.keys(nozillaIcons.icons));
   return SUGGESTED_ICONS.filter((name) => !known.has(name));
+}
+
+/**
+ * Wie viele Namen der Prompt höchstens aufzählt. 554 sprengen ihn; bei rund
+ * 150 bleibt er lesbar.
+ */
+const PROMPT_ICON_LIMIT = 150;
+
+/**
+ * Die Namen, die im Prompt stehen dürfen.
+ *
+ * Die kuratierte Auswahl gilt für das nozilla-Set. Trägt ein Kunde ein eigenes
+ * Set, gehen die meisten dieser Namen ins Leere — dann zählt der Prompt lieber
+ * dessen eigene Zeichen auf als eine Liste, die zu nichts führt. Die Grenze
+ * liegt bei einem Fünftel: was darüber übrig bleibt, ist ein ergänztes Set und
+ * kein anderes.
+ */
+export function promptIcons(): string[] {
+  const known = new Set(iconNames());
+  const kept = SUGGESTED_ICONS.filter((name) => known.has(name));
+  if (kept.length >= SUGGESTED_ICONS.length / 5) return kept;
+  return iconNames().slice(0, PROMPT_ICON_LIMIT);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -338,7 +361,7 @@ reveal — Elemente nacheinander einblenden:
   step 0 = sofort mit der Folie. animation: ${list(revealAnimations)}
 
 icon — nur Namen aus dieser Liste:
-${SUGGESTED_ICONS.join(', ')}
+${promptIcons().join(', ')}
 
 ════════════════════════════════════════════════════════════════
 DIE CI — nicht verhandelbar

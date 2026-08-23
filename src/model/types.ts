@@ -17,6 +17,9 @@ import type {
   ToneName,
   TypeStyleName,
 } from '@/theme';
+// Der Name eines Zeichens ist eine freie Zeichenkette, seit ein
+// Erscheinungsbild sein eigenes Icon-Set mitbringen kann: ein Deck darf ein
+// Zeichen nennen, das hier gerade niemand zeichnen kann, ohne es zu verlieren.
 import type { IconName } from '@/assets/icons';
 
 /* -------------------------------------------------------------------------- */

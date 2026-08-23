@@ -1,87 +1,85 @@
 /**
- * Das nozilla-Icon-Set — zwei Sätze, ein Namensraum.
+ * Das Icon-Set des gerade gültigen Erscheinungsbilds.
  *
- * **Der Katalog**, 462 Zeichen: die frei verfügbaren Font-Awesome-Icons, im
- * nozilla-Dialekt nachgebaut.
+ * Was hier steht, wechselt mit dem Erscheinungsbild. Was in `iconSet.ts` steht,
+ * wechselt nicht: dort liegt das nozilla-Set als Wert und daneben das Set,
+ * aus dem die Werkzeug-Oberfläche zeichnet.
  *
- * **Das Kern-Set**, 92 Zeichen mit dem Präfix `core-`: die Zeichen, die
- * nozilla für sich gezeichnet hat — Reihen für KI, Daten, Betrieb, Sicherheit,
- * Prototypen, Web, Workshop, Barrierefreiheit, Team, und eine Pixel-Reihe.
+ * ## Warum hier fast alles eine Funktion ist
  *
- * Beide kommen aus demselben CI-Repo, nur in verschiedener Form: der Katalog
- * als Modul, das Kern-Set als fertige SVG-Dateien.
+ * `iconNames` war eine Konstante, und eine Konstante ist genau das, was ein
+ * wechselbares Set nicht sein darf — sie hielte die Liste des
+ * Erscheinungsbilds fest, das beim Start zufällig galt. Dieselbe Regel wie bei
+ * den Farben in `theme/runtime.ts`, nur strenger: eine Palette ist ein Objekt
+ * und kann eine lebendige Bindung sein, eine abgeleitete Liste nicht.
  *
- * Das Präfix ist nicht Kosmetik: 26 Namen kommen in beiden Sätzen vor und
- * zeigen verschiedene Zeichnungen. `core-book` ist das Buch des Kern-Sets,
- * `book` der Font-Awesome-Nachbau.
- *
- * Beide Sätze sprechen denselben Dialekt — 64 × 64, 4 px, square caps, miter
- * joins, Signatur unten rechts — und werden von `scripts/sync-ci.mjs` in
- * dieselben Primitive übersetzt. Ab hier unterscheidet sie nichts mehr.
- *
- * Gezeichnet wird nirgends hier — das macht die Szene (`lib/export/scene.ts`),
- * damit Canvas, SVG und PDF dieselbe Zeichnung sehen.
+ * Wer eine dieser Funktionen in einem `useMemo` aufruft, hängt `useThemeVersion()`
+ * mit in die Abhängigkeiten. Ohne das bleibt nach einem Wechsel die alte
+ * Bibliothek stehen.
  */
-import { generatedIcons, iconCategories } from './icons.generated';
-import { coreIconCategories, coreIcons } from './iconsCore.generated';
-import { ICON_GRID, ICON_STROKE, type IconPrim } from './iconTypes';
+import { iconSet } from '@/theme';
+import { missingIcon, type IconDef, type IconSet } from './iconSet';
 
-export type { IconPrim, IconPaintRole } from './iconTypes';
+export { iconGrid, iconStrokeGrid, missingIcon, toolIcon, withoutSignature } from './iconSet';
+export type { IconDef, IconPrim, IconPaintRole, IconSet, ToolIconName } from './iconSet';
 
 /**
- * Erst das Kern-Set, dann der Katalog.
+ * Der Name eines Zeichens — eine freie Zeichenkette, keine Aufzählung.
  *
- * Die Reihenfolge ist die der Bibliothek: wer ein Zeichen sucht, soll zuerst
- * die sehen, die für nozilla gezeichnet wurden, und danach den Nachbau.
+ * Sie war einmal die Vereinigung der 554 nozilla-Namen. Das ging, solange es
+ * ein Set gab. Jetzt darf ein Deck ein Zeichen nennen, das zum Set eines
+ * anderen Kunden gehört, und der Wert muss den Weg durch das Werkzeug
+ * überstehen, auch wenn hier gerade niemand ihn zeichnen kann — sonst
+ * verlöre ein falsch geöffnetes Deck beim Speichern seine Icons.
  *
- * `accessibility` steht in beiden Listen und bleibt eine Gruppe — wer ein
- * Zeichen für Barrierefreiheit sucht, will alle sehen, nicht zwei Rubriken
- * mit demselben Namen.
+ * Dieselbe Entscheidung wie bei `DeckMeta.theme`, und aus demselben Grund.
+ * Wer in der Oberfläche ein Zeichen wörtlich nennt, nimmt `ToolIconName` —
+ * das ist weiterhin eng.
  */
-export const iconCategoryNames = [...new Set<string>([...coreIconCategories, ...iconCategories])];
-export type IconCategory = (typeof coreIconCategories)[number] | (typeof iconCategories)[number];
+export type IconName = string;
 
-/**
- * Die gemeinsame Form. Sie steht hier und nicht in einer der beiden erzeugten
- * Dateien, weil erst die Vereinigung beider Kategorien-Listen den Typ ergibt,
- * den ein Icon aus *irgendeinem* der Sätze erfüllt.
- */
-export interface IconDef {
-  /** Deutsche Beschriftung — im Katalog gepflegt, im Kern-Set aus `aria-label`. */
-  label: string;
-  /** Wofür das Zeichen steht. Nur der Katalog führt sie. */
-  meaning: string;
-  category: IconCategory;
-  prims: readonly IconPrim[];
+/** Das Set, aus dem gerade gezeichnet wird. */
+export function activeIconSet(): IconSet {
+  return iconSet;
 }
 
-const allIcons: Record<string, IconDef> = { ...coreIcons, ...generatedIcons };
+export function icons(): Record<string, IconDef> {
+  return iconSet.icons;
+}
 
-export type IconName = keyof typeof coreIcons | keyof typeof generatedIcons;
+export function iconNames(): IconName[] {
+  return Object.keys(iconSet.icons);
+}
 
-/** Das Raster, auf dem alle Icons gezeichnet sind. */
-export const iconGrid = ICON_GRID;
-/** Die CI-Strichstärke in diesem Raster. */
-export const iconStrokeGrid = ICON_STROKE;
+export function iconCategoryNames(): readonly string[] {
+  return iconSet.categories;
+}
 
-export const icons = allIcons;
-export const iconNames = Object.keys(allIcons) as IconName[];
-
-const FALLBACK: IconName = 'square' in allIcons ? ('square' as IconName) : iconNames[0];
-
+/**
+ * Ein Zeichen nachschlagen. Ein unbekannter Name bekommt das Ersatzzeichen —
+ * ein durchgestrichenes Quadrat, damit die Lücke zu sehen ist.
+ */
 export function iconDef(name: IconName | undefined): IconDef {
-  return (name && allIcons[name]) || allIcons[FALLBACK];
+  return (name && iconSet.icons[name]) || missingIcon;
 }
 
+/**
+ * Kennt das gültige Set dieses Zeichen?
+ *
+ * Eine Prüfung zur Laufzeit, wo früher der Übersetzer entschied — und das ist
+ * die genauere Auskunft: ob ein Name gezeichnet werden kann, hängt am Set und
+ * nicht am Übersetzungszeitpunkt.
+ */
 export function isIconName(value: unknown): value is IconName {
-  return typeof value === 'string' && value in allIcons;
+  return typeof value === 'string' && value in iconSet.icons;
 }
 
 export function iconsByCategory(): Array<{ category: string; names: IconName[] }> {
-  return iconCategoryNames
+  const names = iconNames();
+  return iconSet.categories
     .map((category) => ({
       category,
-      names: iconNames.filter((name) => allIcons[name].category === category),
+      names: names.filter((name) => iconSet.icons[name].category === category),
     }))
     .filter((group) => group.names.length > 0);
 }
@@ -94,9 +92,9 @@ export function iconsByCategory(): Array<{ category: string; names: IconName[] }
  */
 export function searchIcons(query: string): IconName[] {
   const needle = query.trim().toLowerCase();
-  if (!needle) return iconNames;
-  return iconNames.filter((name) => {
-    const icon = allIcons[name];
+  if (!needle) return iconNames();
+  return iconNames().filter((name) => {
+    const icon = iconSet.icons[name];
     return (
       name.includes(needle) ||
       icon.label.toLowerCase().includes(needle) ||
@@ -107,6 +105,6 @@ export function searchIcons(query: string): IconName[] {
 }
 
 /** Die Primitive eines Icons, in Zeichenreihenfolge. */
-export function iconPrims(name: IconName | undefined): readonly IconPrim[] {
+export function iconPrims(name: IconName | undefined): IconDef['prims'] {
   return iconDef(name).prims;
 }

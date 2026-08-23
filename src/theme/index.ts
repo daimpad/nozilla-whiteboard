@@ -19,6 +19,7 @@
 export {
   brand,
   wordmark,
+  iconSet,
   palette,
   inkAlpha,
   paperAlpha,
@@ -46,6 +47,12 @@ export {
 
 export { wordmarkFromSvg } from './wordmark';
 export type { Wordmark } from './wordmark';
+
+// Ein Icon-Set ist eine Belegung des Erscheinungsbilds wie die Palette. Der
+// Typ steht bei den Zeichen, damit `brandTheme.ts` ein Blatt importiert und
+// nicht die Fassade — sonst liefe der Import im Kreis.
+export { nozillaIcons } from '@/assets/iconSet';
+export type { IconDef, IconSet } from '@/assets/iconSet';
 
 export type {
   BrandTheme,

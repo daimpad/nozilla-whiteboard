@@ -201,6 +201,25 @@ describe('serializeDeck', () => {
     expect(stable(second)).toEqual(stable(first));
   });
 
+  it('keeps an icon name that the active icon set does not know', () => {
+    // Ein Deck darf ein Zeichen aus dem Set eines anderen Kunden nennen.
+    // Würde es beim Einlesen verworfen, verlöre eine Sitzung ohne dieses Set
+    // beim ersten Speichern jedes Icon — genau wie bei einem unbekannten
+    // Erscheinungsbild bleibt der Wert stehen.
+    const source = [
+      '<!-- nzl',
+      'elements:',
+      '  - kind: icon',
+      '    x: 10',
+      '    y: 10',
+      '    icon: musterkunde-siegel',
+      '-->',
+    ].join('\n');
+
+    const deck = parseDeck(source);
+    expect(serializeDeck(deck)).toContain('icon: musterkunde-siegel');
+  });
+
   it('keeps a slide that has neither content nor metadata', () => {
     const deck = parseDeck('# One\n\n---\n\n# Two');
     deck.slides[1].markdown = '';

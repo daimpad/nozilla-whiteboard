@@ -10,6 +10,8 @@ import {
   type BrandTheme,
 } from './index';
 import { nozillaTheme, tonesFromPalette } from './brandTheme';
+import { iconNames, isIconName } from '@/assets/icons';
+import { nozillaIcons, type IconSet } from '@/assets/iconSet';
 import {
   backgroundStyle,
   buildElementPrims,
@@ -56,6 +58,27 @@ const probePaperAlpha = {
   20: 'rgba(16, 16, 16, 0.18)',
 };
 
+/**
+ * Ein eigenes Icon-Set: ein Zeichen, ein Dreieck, keine Signatur.
+ *
+ * Der Name `square-check` ist mit Absicht derselbe, den ein frisches
+ * Icon-Element trägt — so zeigt der Vergleich, dass nicht bloß auf das
+ * Ersatzzeichen gefallen wird, sondern wirklich ein anderes Set zeichnet. Die
+ * fehlende Signatur unten rechts belegt nebenbei, dass sie zum nozilla-Set
+ * gehört und nicht zum Dialekt.
+ */
+const probeIcons: IconSet = {
+  categories: ['prüfstein'],
+  icons: {
+    'square-check': {
+      label: 'Dreieck',
+      meaning: '',
+      category: 'prüfstein',
+      prims: [{ t: 'path', d: 'M8 8 L56 8 L56 56 Z' }],
+    },
+  },
+};
+
 const probe: BrandTheme = {
   ...nozillaTheme,
   id: 'probe',
@@ -75,6 +98,7 @@ const probe: BrandTheme = {
     ...nozillaTheme.typeScale,
     h1: { ...nozillaTheme.typeScale.h1, size: 200 },
   },
+  icons: probeIcons,
   // Eine eigene Marke: ein Balken statt eines Schriftzugs, ohne Akzent.
   wordmark: {
     viewBox: [0, 0, 100, 20] as const,
@@ -151,6 +175,47 @@ describe('das Erscheinungsbild zur Laufzeit', () => {
     expect((nachher[0] as Extract<ScenePrim, { t: 'path' }>).segs.length).toBeLessThan(
       buchstaben.segs.length,
     );
+  });
+
+  it('zeichnet die Icons des Erscheinungsbilds, nicht die von nozilla', () => {
+    // Wieder die Primitive und nicht das Markup — die Pfaddaten stehen nach der
+    // Umrechnung in Folien-Koordinaten nirgends mehr wörtlich.
+    registerTheme(probe);
+    const zeichen = () =>
+      buildElementPrims(createElement('icon', {}), backgroundStyle('paper')).filter(
+        (prim) => prim.t === 'path',
+      );
+
+    const vorher = zeichen();
+    // Das nozilla-Zeichen: mehrere Striche und die Signatur unten rechts.
+    expect(vorher.length).toBeGreaterThan(1);
+
+    setActiveTheme('probe');
+    const nachher = zeichen();
+    // Der Prüfstein: ein Dreieck, sonst nichts.
+    expect(nachher).toHaveLength(1);
+    expect(nachher).not.toEqual(vorher);
+  });
+
+  it('tauscht die Bibliothek mit', () => {
+    registerTheme(probe);
+    expect(iconNames().length).toBe(554);
+    expect(isIconName('rocket')).toBe(true);
+
+    setActiveTheme('probe');
+    expect(iconNames()).toEqual(['square-check']);
+    // Ein Name aus einem anderen Set ist hier keiner — die Oberfläche sagt es,
+    // statt ihn still zu ersetzen.
+    expect(isIconName('rocket')).toBe(false);
+  });
+
+  it('leiht das nozilla-Set, wenn ein Erscheinungsbild keines mitbringt', () => {
+    // Anders als bei der Wortmarke ist das kein Fehler: ein Pfeil gehört
+    // keiner Marke, und eine leere Bibliothek wäre die schlechtere Lage.
+    const ohne: BrandTheme = { ...probe, id: 'ohne-icons', icons: undefined };
+    registerTheme(ohne);
+    setActiveTheme('ohne-icons');
+    expect(iconNames().length).toBe(Object.keys(nozillaIcons.icons).length);
   });
 
   it('reicht bis in die PPTX-Bausteine', () => {

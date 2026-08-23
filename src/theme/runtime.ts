@@ -28,6 +28,7 @@
  * unlesbar, und ein kundenbunter erst recht. `ui`, `uiRadius`, `uiShadow` und
  * die Tailwind-Klassen daraus bleiben, wo sie sind.
  */
+import { nozillaIcons } from '@/assets/iconSet';
 import { nozillaTheme, tonesOutsidePalette, type BrandTheme, type ToneRole } from './brandTheme';
 
 /* -------------------------------------------------------------------------- */
@@ -56,6 +57,9 @@ export function registerTheme(theme: BrandTheme): void {
   registry.set(theme.id, theme);
   // Wer das gerade Sichtbare neu anmeldet, will es sehen.
   if (theme.id === current.id) activate(theme);
+  // Auch ein Zuwachs im Verzeichnis ist eine Änderung: die Auswahl im
+  // Inspektor führt auf, was angemeldet ist, und muss davon erfahren.
+  else announce();
 }
 
 export function availableThemes(): Array<{ id: string; label: string }> {
@@ -87,6 +91,7 @@ function activate(theme: BrandTheme): void {
   current = theme;
   brand = theme.brand;
   wordmark = theme.wordmark;
+  iconSet = theme.icons ?? nozillaIcons;
   palette = theme.palette;
   inkAlpha = theme.inkAlpha;
   paperAlpha = theme.paperAlpha;
@@ -109,6 +114,7 @@ function activate(theme: BrandTheme): void {
 
 export let brand = current.brand;
 export let wordmark = current.wordmark;
+export let iconSet = current.icons ?? nozillaIcons;
 export let palette = current.palette;
 export let inkAlpha = current.inkAlpha;
 export let paperAlpha = current.paperAlpha;

@@ -16,7 +16,8 @@
  * Der Radius ist 0, und Formen nehmen keinen entgegen. Ein Schatten ist eine
  * versetzte Fläche, das Szenen-Modell kennt keinen Weichzeichner. Die
  * Foliengröße ist 1280 × 720, weil jedes Layout dagegen gerechnet ist. Der
- * Icon-Dialekt ist 64 × 64 bei 4 px.
+ * Icon-Dialekt ist 64 × 64 bei 4 px — die *Zeichen* wechseln mit dem
+ * Erscheinungsbild, das Raster nicht.
  *
  * Das ist keine Bequemlichkeit, sondern der Kern: **dieses Werkzeug kann nur
  * konformes Material herstellen.** Wer runde Ecken zulässt, gibt genau die
@@ -31,6 +32,7 @@
  * eine halb belegte Palette fällt sonst erst auf, wenn jemand die eine Folie
  * baut, die den fehlenden Ton benutzt.
  */
+import { nozillaIcons, type IconSet } from '@/assets/iconSet';
 import { wordmark as nzWordmark } from '@/assets/wordmark.generated';
 import type { Wordmark } from './wordmark';
 import {
@@ -147,6 +149,22 @@ export interface BrandTheme {
    * auffälligste Fehler, den dieses Werkzeug machen könnte.
    */
   wordmark: Wordmark;
+  /**
+   * Die Piktogramme. Ohne Angabe gilt das nozilla-Set.
+   *
+   * Anders als die Wortmarke ist das keine Falle: ein Pfeil, ein Schloss, ein
+   * Zahnrad gehören keiner Marke, und ein Erscheinungsbild ohne eigenes Set
+   * wäre mit einer leeren Bibliothek schlechter bedient als mit einer
+   * fremden. Was mitkommt, ist die 6 × 6 große Signatur unten rechts — sie ist
+   * eine Erfindung des nozilla-Sets, nimmt aber die Signalfarbe des gewählten
+   * Erscheinungsbilds an. Wer sie nicht will, bringt ein eigenes Set mit.
+   *
+   * Ein Set *ersetzt*, es ergänzt nicht. Wer die 554 nozilla-Zeichen behalten
+   * und eigene dazulegen will, schreibt das hin — siehe `src/themes/index.ts`.
+   * Stilles Zusammenlegen hieße, dass ein Kundendeck fremde Zeichen anbietet,
+   * ohne dass jemand das entschieden hat.
+   */
+  icons?: IconSet;
   palette: Palette;
   inkAlpha: AlphaSteps;
   paperAlpha: AlphaSteps;
@@ -173,6 +191,7 @@ export const nozillaTheme: BrandTheme = {
   label: 'nozilla',
   brand: nzBrand,
   wordmark: nzWordmark,
+  icons: nozillaIcons,
   palette: nzPalette,
   inkAlpha: nzInkAlpha,
   paperAlpha: nzPaperAlpha,
