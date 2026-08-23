@@ -7,6 +7,7 @@
  */
 import { useMemo, useState } from 'react';
 import {
+  availableThemes,
   elementTones,
   revealAnimations,
   slideLayouts,
@@ -185,6 +186,54 @@ function SlidePanel() {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Erscheinungsbild                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Wem dieses Deck gehört.
+ *
+ * Der Wert steht im Frontmatter, nicht im Werkzeug: wer die `.md` weitergibt,
+ * gibt die Zugehörigkeit mit. Deshalb schreibt die Auswahl ins Deck, und das
+ * Aussehen folgt (`useDeckTheme`).
+ *
+ * Nennt ein Deck ein Erscheinungsbild, das dieses Werkzeug nicht kennt, steht
+ * es hier trotzdem — als Eintrag mit Hinweis. Es stillschweigend auf die
+ * Voreinstellung zu setzen, hieße die Zugehörigkeit beim ersten Speichern zu
+ * löschen.
+ */
+function ThemeField() {
+  const theme = useDeckStore((state) => state.deck.meta.theme);
+  const setDeckMeta = useDeckStore((state) => state.setDeckMeta);
+  const known = availableThemes();
+  const current = theme ?? 'nozilla';
+  const unknown = !known.some((entry) => entry.id === current);
+
+  const options = [
+    ...known.map((entry) => ({ value: entry.id, label: entry.label })),
+    ...(unknown ? [{ value: current, label: `${current} — not installed` }] : []),
+  ];
+
+  return (
+    <Field
+      label="Brand theme"
+      hint={
+        unknown
+          ? `“${current}” is not installed here. Drawn in the default; the deck keeps the entry.`
+          : known.length > 1
+            ? 'Stored in the frontmatter — the file carries which brand it belongs to.'
+            : 'Further themes are registered in src/themes/.'
+      }
+    >
+      <Select
+        value={current}
+        onChange={(event) => setDeckMeta({ theme: event.target.value })}
+        options={options}
+      />
+    </Field>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /* Deck                                                                        */
 /* -------------------------------------------------------------------------- */
 
@@ -229,6 +278,8 @@ function DeckPanel() {
           onChange={(event) => setDeckMeta({ footer: event.target.value })}
         />
       </Field>
+
+      <ThemeField />
 
       <dl className="rounded-md border border-ui bg-ui-subtle p-2 text-[11px] text-ui-muted">
         <div className="flex justify-between">

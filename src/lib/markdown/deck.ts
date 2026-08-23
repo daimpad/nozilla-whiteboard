@@ -52,7 +52,7 @@ export const DEFAULT_SLIDE_META: SlideMeta = {
   background: 'paper',
 };
 
-const DECK_META_KEYS = ['title', 'author', 'date', 'footer'] as const;
+const DECK_META_KEYS = ['title', 'author', 'date', 'footer', 'theme'] as const;
 
 /* -------------------------------------------------------------------------- */
 /* Parsing                                                                     */
@@ -218,6 +218,7 @@ function parseDeckMeta(frontmatter: string | null): DeckMeta {
   if (record.date instanceof Date) meta.date = record.date.toISOString().slice(0, 10);
   else if (typeof record.date === 'string') meta.date = record.date;
   if (typeof record.footer === 'string') meta.footer = record.footer;
+  if (typeof record.theme === 'string' && record.theme.trim()) meta.theme = record.theme.trim();
   if (Object.keys(extra).length > 0) meta.extra = extra;
 
   return meta;
@@ -291,6 +292,7 @@ function buildDeckFrontmatter(meta: DeckMeta): string | null {
   if (meta.author) data.author = meta.author;
   if (meta.date) data.date = meta.date;
   if (meta.footer) data.footer = meta.footer;
+  if (meta.theme) data.theme = meta.theme;
   if (meta.extra) Object.assign(data, meta.extra);
   if (Object.keys(data).length === 0) return null;
   return dumpYaml(data);

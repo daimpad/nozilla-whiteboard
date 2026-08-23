@@ -224,6 +224,16 @@ export interface DeckMeta {
   author?: string;
   date?: string;
   footer?: string;
+  /**
+   * Wessen Erscheinungsbild dieses Deck trägt.
+   *
+   * Steht im Frontmatter, damit die Datei es weiß und nicht das Werkzeug:
+   * wer eine `.md` weitergibt, gibt die Zugehörigkeit mit. Fehlt der
+   * Schlüssel, gilt `nozilla`; nennt er ein unbekanntes Erscheinungsbild,
+   * bleibt der Wert erhalten und die Oberfläche sagt es — stillschweigend im
+   * falschen Gewand zu zeichnen wäre schlimmer als ein Hinweis.
+   */
+  theme?: string;
   /** Unbekannte Frontmatter-Schlüssel überleben einen Lade-/Speicherzyklus. */
   extra?: Record<string, unknown>;
 }
