@@ -143,15 +143,22 @@ export function insertFrame(
   const right = width - margin.right;
   const bottom = height - margin.bottom;
   const gap = canvas.gridSize * 3;
-  const x = Math.max(margin.left, right - size.w);
 
-  const touching = existing.filter((rect) => rect.x < x + size.w && rect.x + rect.w > x);
-  const below = touching.reduce<number>(
-    (lowest, rect) => Math.max(lowest, rect.y + rect.h + gap),
-    margin.top,
-  );
+  // Wo in dieser Spalte der Stapel endet. Geprüft wird die Überlappung und
+  // nicht die rechte Kante, sonst schöbe ein breites Element, das quer bis in
+  // die Spalte reicht, den Stapel nicht.
+  const untenIn = (spaltenX: number) =>
+    existing
+      .filter((rect) => rect.x < spaltenX + size.w && rect.x + rect.w > spaltenX)
+      .reduce<number>((tiefstes, rect) => Math.max(tiefstes, rect.y + rect.h + gap), margin.top);
 
-  return { x, y: Math.max(margin.top, Math.min(below, bottom - size.h)) };
+  const ersteSpalte = Math.max(margin.left, right - size.w);
+  for (let x = ersteSpalte; x >= margin.left; x -= size.w + gap) {
+    const y = untenIn(x);
+    if (y + size.h <= bottom) return { x, y };
+  }
+
+  return { x: ersteSpalte, y: Math.max(margin.top, bottom - size.h) };
 }
 
 export const layoutDescriptions: Record<SlideLayout, string> = {

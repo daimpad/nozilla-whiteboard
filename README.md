@@ -106,6 +106,11 @@ Proben. Orange statt Grün, Weiß statt Creme, Inter statt Zilla Slab, eine eige
 Wortmarke und zwölf eigene Zeichen. Er ist zum Ansehen da und zum Abschreiben —
 eine Kundendatei kopiert ihn und ersetzt die Werte.
 
+Dazu gehört ein **Deck**, das ihm gehört: *Beispiel öffnen → Probenhaus*. Es ist
+kein Schaustück, sondern der Beleg — die Willkommensmappe gehört nozilla, und
+jeder von Hand gelegte Titel darin ist für *diese* Schrift ausgemessen. Ein Deck
+unter fremder Marke zeigt erst, ob die Vorlage trägt.
+
 Damit trägt die `.md` ihre Zugehörigkeit mit — wer sie weitergibt, gibt die
 Marke mit. Ein Erscheinungsbild, das hier nicht angemeldet ist, wird nicht
 still ersetzt: der Eintrag bleibt stehen, und die Oberfläche sagt, dass sie ihn

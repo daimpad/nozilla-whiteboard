@@ -66,9 +66,20 @@ function wahr(bedingung, was) {
 /* Der Server                                                                  */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * `npx` ist nur der Bote: es startet `vite` als eigenes Kind und reicht das
+ * Signal nicht weiter. Ein `server.kill()` erschlägt deshalb den Boten, und
+ * der Server läuft weiter — mit offenen Rohren, an denen Nodes Ereignisschleife
+ * hängenbleibt. Der Rauchtest lief so einmal durch, meldete neun von neun und
+ * beendete sich nie; in der CI stand der Schritt fast eine Stunde.
+ *
+ * Deshalb eine eigene Prozessgruppe (`detached`) und ein Signal an die ganze
+ * Gruppe (`-pid`).
+ */
 async function starteVorschau() {
   const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--host', '127.0.0.1'], {
     stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true,
   });
   server.stderr.on('data', (chunk) => process.stderr.write(chunk));
 
@@ -81,8 +92,16 @@ async function starteVorschau() {
     }
     await new Promise((fertig) => setTimeout(fertig, 500));
   }
-  server.kill();
+  beende(server);
   throw new Error(`vite preview antwortet nicht auf ${URL} — wurde vorher gebaut?`);
+}
+
+function beende(server) {
+  try {
+    process.kill(-server.pid, 'SIGTERM');
+  } catch {
+    // Schon tot, oder es gab nie eine Gruppe.
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -255,18 +274,28 @@ async function main() {
   });
 
   await browser.close();
-  server.kill();
+  beende(server);
 
   const gescheitert = ergebnisse.filter((e) => !e.ok);
   console.log(
     `\n${ergebnisse.length - gescheitert.length} von ${ergebnisse.length} Prüfungen bestanden.`,
   );
-  if (gescheitert.length > 0) {
-    for (const { name, error } of gescheitert)
-      console.error(`\n✗ ${name}\n${error?.stack ?? error}`);
-    process.exit(1);
+  for (const { name, error } of gescheitert) {
+    console.error(`\n✗ ${name}\n${error?.stack ?? error}`);
   }
+  // Ausdrücklich, nicht durch Auslaufen der Ereignisschleife: Playwright und
+  // die Rohre des Servers halten sie offen, und ein Rauchtest, der nur fast
+  // fertig wird, hält die ganze CI an.
+  process.exit(gescheitert.length > 0 ? 1 : 0);
 }
+
+// Die Notbremse. Ein Rauchtest, der klemmt, soll das nach fünf Minuten selbst
+// melden und nicht auf die Zeitgrenze der CI warten.
+const FRIST = 5 * 60 * 1000;
+setTimeout(() => {
+  console.error(`\nAbbruch: der Rauchtest kam in ${FRIST / 1000} Sekunden nicht durch.`);
+  process.exit(1);
+}, FRIST).unref();
 
 main().catch((error) => {
   console.error(error);

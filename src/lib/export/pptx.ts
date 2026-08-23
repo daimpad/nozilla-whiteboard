@@ -34,6 +34,7 @@ import { slideTitle } from '@/model/types';
 import {
   backgroundStyle,
   buildElementPrims,
+  footerMark,
   elementPaint,
   type BackgroundStyle,
   type ScenePrim,
@@ -282,9 +283,17 @@ function buildSlide(slide: Slide, deck: Deck, context: SlideContext): BuiltSlide
         ),
       );
     }
+    // Die Wortmarke kommt als Zeichnung aus der Szene — nur der Text der
+    // Fußzeile ist hier die Ausnahme, die Marke ist keine.
+    const mark = footerMark(bg.muted);
+    for (const prim of mark.prims) {
+      const shape = primToShape(prim, nextId, 0);
+      if (shape) shapes.push(shape);
+    }
+
     if (context.totalSlides > 0) {
       shapes.push(
-        slideNumberShape(nextId(), footer.right - 120, footer.y - 14, 120, 24, bg.muted, [
+        slideNumberShape(nextId(), mark.numberRight - 120, footer.y - 14, 120, 24, bg.muted, [
           context.slideNumber,
           context.totalSlides,
         ]),

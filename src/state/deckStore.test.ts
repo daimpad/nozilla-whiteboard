@@ -196,6 +196,23 @@ describe('elements', () => {
     expect(second.y).toBeGreaterThan(first.y + first.h - 1);
     expect(second.y + second.h).toBeLessThanOrEqual(canvas.height - canvas.margin.bottom);
   });
+
+  it('rückt eine Spalte nach links, wenn die rechte voll ist', () => {
+    // Vorher landete bei voller Spalte alles auf dem unteren Satzspiegel und
+    // damit aufeinander — sichtbar war nur das oberste. So legt auch niemand.
+    const bottom = canvas.height - canvas.margin.bottom;
+    for (let i = 0; i < 12; i += 1) store().insertPreset('card');
+    const karten = elementsNow();
+
+    const rechteSpalte = canvas.width - canvas.margin.right;
+    expect(karten.some((el) => el.x + el.w < rechteSpalte - 1)).toBe(true);
+
+    // Und keine liegt außerhalb des Satzspiegels.
+    for (const el of karten) {
+      expect(el.x).toBeGreaterThanOrEqual(canvas.margin.left);
+      expect(el.y + el.h).toBeLessThanOrEqual(bottom);
+    }
+  });
 });
 
 describe('presentation', () => {
