@@ -64,7 +64,9 @@ export function paletteOf(bg: BackgroundStyle): TextPalette {
   return { text: bg.ink, muted: bg.muted, accent: bg.signal };
 }
 
-const defaultPalette: TextPalette = { text: ci.ink, muted: ci.inkMuted, accent: ci.ink };
+function defaultPalette(): TextPalette {
+  return { text: ci.ink, muted: ci.inkMuted, accent: ci.ink };
+}
 
 /* -------------------------------------------------------------------------- */
 /* Markdown → Blöcke                                                           */
@@ -89,7 +91,7 @@ export interface BlockOptions {
 }
 
 export function markdownToBlocks(source: string, options: BlockOptions = {}): Block[] {
-  const palette = options.palette ?? defaultPalette;
+  const palette = options.palette ?? defaultPalette();
   const scale = options.scale ?? 1;
   const align = options.align ?? 'l';
   const baseStyle = options.baseStyle ?? 'body';
@@ -299,7 +301,7 @@ export function inlineToParagraph(
     weight: scaleStyle.weight,
     tracking: scaleStyle.tracking,
   });
-  const color = options.color ?? options.palette?.text ?? defaultPalette.text;
+  const color = options.color ?? options.palette?.text ?? defaultPalette().text;
   return {
     runs: capsIfNeeded(flattenInline(lexInline(text), base, color), scaleStyle.caps),
     level: 0,

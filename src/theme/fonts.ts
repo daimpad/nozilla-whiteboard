@@ -29,7 +29,7 @@
  *    falsch gesetzte Markup bleibt stehen. Deshalb der kleine Abonnenten-Satz
  *    unten, an dem die Fläche hängt.
  */
-import { fontFamily, webfont } from '@theme';
+import { fontFamily, webfont } from './runtime';
 import { resetMeasurementCache } from '@/lib/text/measure';
 
 const STYLE_ID = 'nz-webfonts';
@@ -69,10 +69,18 @@ function announce(): void {
 
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Die Schnitte des gerade gewählten Erscheinungsbilds einbinden.
+ *
+ * Mehrfach aufrufbar, und das ist keine Bequemlichkeit: ein Kunde bringt seine
+ * eigenen Schriften mit. Die alten `@font-face`-Regeln werden dabei ersetzt
+ * und nicht ergänzt — sonst blieben die Schnitte des vorigen Erscheinungsbilds
+ * im Dokument stehen und der Setzer könnte sie treffen.
+ */
 export function installWebfonts(base = import.meta.env.BASE_URL ?? '/'): void {
   if (!webfont.enabled) return;
   if (typeof document === 'undefined') return;
-  if (document.getElementById(STYLE_ID)) return;
+  document.getElementById(STYLE_ID)?.remove();
 
   const prefix = `${base.replace(/\/$/, '')}/${webfont.directory}`;
   const rules = webfont.faces

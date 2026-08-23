@@ -95,17 +95,20 @@ export interface TypesetPalette {
   markerText: string;
 }
 
-export const defaultPalette: TypesetPalette = {
-  text: ci.ink,
-  muted: ci.inkMuted,
-  accent: ci.ink,
-  border: ci.line,
-  codeText: ci.ink,
-  codeBackground: ci.surfaceAlt,
-  quoteBar: ci.ink,
-  marker: ci.signal,
-  markerText: ci.inkOnSignal,
-};
+/** Die Farben, mit denen gesetzt wird, wenn niemand andere nennt. */
+export function defaultPalette(): TypesetPalette {
+  return {
+    text: ci.ink,
+    muted: ci.inkMuted,
+    accent: ci.ink,
+    border: ci.line,
+    codeText: ci.ink,
+    codeBackground: ci.surfaceAlt,
+    quoteBar: ci.ink,
+    marker: ci.signal,
+    markerText: ci.inkOnSignal,
+  };
+}
 
 export interface TypesetOptions {
   /** Available width for the flow, in slide units. */
@@ -191,7 +194,7 @@ class Layout {
   private firstBlock = true;
 
   constructor(options: TypesetOptions) {
-    this.palette = { ...defaultPalette, ...options.palette };
+    this.palette = { ...defaultPalette(), ...options.palette };
     this.width = Math.max(1, options.width);
     this.scale = options.scale ?? 1;
     this.align = options.align ?? 'left';

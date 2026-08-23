@@ -118,16 +118,24 @@ function formatScheme(): string {
   );
 }
 
-const theme =
-  XML_DECL +
-  '<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="nozilla">' +
-  '<a:themeElements>' +
-  colourScheme() +
-  fontScheme() +
-  formatScheme() +
-  '</a:themeElements>' +
-  '<a:objectDefaults/><a:extraClrSchemeLst/>' +
-  '</a:theme>';
+/**
+ * Bewusst eine Funktion und keine Konstante: `colourScheme()` liest die
+ * Palette des gerade gewählten Erscheinungsbilds. Auf Modulebene ausgewertet,
+ * trüge jede .pptx die Farben des Erscheinungsbilds, das beim Start galt.
+ */
+function themeXml(): string {
+  return (
+    XML_DECL +
+    '<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="nozilla">' +
+    '<a:themeElements>' +
+    colourScheme() +
+    fontScheme() +
+    formatScheme() +
+    '</a:themeElements>' +
+    '<a:objectDefaults/><a:extraClrSchemeLst/>' +
+    '</a:theme>'
+  );
+}
 
 /* -------------------------------------------------------------------------- */
 /* Master und Layout                                                           */
@@ -169,17 +177,20 @@ const CLR_MAP =
   'accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" ' +
   'folHlink="folHlink"/>';
 
-const slideMaster =
-  XML_DECL +
-  `<p:sldMaster ${NS}>` +
-  `<p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="${hex(palette.paper)}"/></a:solidFill>` +
-  '<a:effectLst/></p:bgPr></p:bg>' +
-  emptyTree +
-  '</p:cSld>' +
-  CLR_MAP +
-  '<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>' +
-  txStyles() +
-  '</p:sldMaster>';
+function slideMasterXml(): string {
+  return (
+    XML_DECL +
+    `<p:sldMaster ${NS}>` +
+    `<p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="${hex(palette.paper)}"/></a:solidFill>` +
+    '<a:effectLst/></p:bgPr></p:bg>' +
+    emptyTree +
+    '</p:cSld>' +
+    CLR_MAP +
+    '<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>' +
+    txStyles() +
+    '</p:sldMaster>'
+  );
+}
 
 /**
  * Ein einziges, leeres Layout vom Typ `blank`.
@@ -188,51 +199,72 @@ const slideMaster =
  * mit Platzhaltern würde beim Öffnen fremde Rahmen einblenden, die niemand
  * bestellt hat.
  */
-const slideLayout =
-  XML_DECL +
-  `<p:sldLayout ${NS} type="blank" preserve="1">` +
-  '<p:cSld name="Leer">' +
-  emptyTree +
-  '</p:cSld>' +
-  '<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>' +
-  '</p:sldLayout>';
+function slideLayoutXml(): string {
+  return (
+    XML_DECL +
+    `<p:sldLayout ${NS} type="blank" preserve="1">` +
+    '<p:cSld name="Leer">' +
+    emptyTree +
+    '</p:cSld>' +
+    '<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>' +
+    '</p:sldLayout>'
+  );
+}
 
-const notesMaster =
-  XML_DECL +
-  `<p:notesMaster ${NS}>` +
-  '<p:cSld>' +
-  '<p:spTree>' +
-  '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>' +
-  '<p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/>' +
-  '<a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>' +
-  '<p:sp><p:nvSpPr><p:cNvPr id="2" name="Notizenplatzhalter"/>' +
-  '<p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>' +
-  '<p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr>' +
-  '<p:spPr><a:xfrm><a:off x="685800" y="4343400"/><a:ext cx="5486400" cy="4114800"/></a:xfrm>' +
-  '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>' +
-  '<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="de-DE"/></a:p></p:txBody>' +
-  '</p:sp>' +
-  '</p:spTree>' +
-  '</p:cSld>' +
-  CLR_MAP +
-  '<p:notesStyle>' +
-  Array.from(
-    { length: 9 },
-    (_, index) =>
-      `<a:lvl${index + 1}pPr marL="${index * 342900}" algn="l" rtl="0">` +
-      `<a:defRPr sz="1200"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill>` +
-      `<a:latin typeface="+mn-lt"/></a:defRPr></a:lvl${index + 1}pPr>`,
-  ).join('') +
-  '</p:notesStyle>' +
-  '</p:notesMaster>';
+function notesMasterXml(): string {
+  return (
+    XML_DECL +
+    `<p:notesMaster ${NS}>` +
+    '<p:cSld>' +
+    '<p:spTree>' +
+    '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>' +
+    '<p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/>' +
+    '<a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>' +
+    '<p:sp><p:nvSpPr><p:cNvPr id="2" name="Notizenplatzhalter"/>' +
+    '<p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>' +
+    '<p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr>' +
+    '<p:spPr><a:xfrm><a:off x="685800" y="4343400"/><a:ext cx="5486400" cy="4114800"/></a:xfrm>' +
+    '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>' +
+    '<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="de-DE"/></a:p></p:txBody>' +
+    '</p:sp>' +
+    '</p:spTree>' +
+    '</p:cSld>' +
+    CLR_MAP +
+    '<p:notesStyle>' +
+    Array.from(
+      { length: 9 },
+      (_, index) =>
+        `<a:lvl${index + 1}pPr marL="${index * 342900}" algn="l" rtl="0">` +
+        `<a:defRPr sz="1200"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill>` +
+        `<a:latin typeface="+mn-lt"/></a:defRPr></a:lvl${index + 1}pPr>`,
+    ).join('') +
+    '</p:notesStyle>' +
+    '</p:notesMaster>'
+  );
+}
 
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Die festen Teile eines PPTX-Pakets.
+ *
+ * Die vier oberen sind Getter, keine Werte. Sie tragen Farben und Schriften
+ * des Erscheinungsbilds, und das steht erst fest, wenn jemand exportiert —
+ * nicht, wenn das Modul geladen wird.
+ */
 export const PARTS = {
-  theme,
-  slideMaster,
-  slideLayout,
-  notesMaster,
+  get theme() {
+    return themeXml();
+  },
+  get slideMaster() {
+    return slideMasterXml();
+  },
+  get slideLayout() {
+    return slideLayoutXml();
+  },
+  get notesMaster() {
+    return notesMasterXml();
+  },
 
   rootRels: relationships([
     `<Relationship Id="rId1" Type="${REL}/officeDocument" Target="ppt/presentation.xml"/>`,

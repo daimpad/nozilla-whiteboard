@@ -1,8 +1,20 @@
 /**
- * Laufzeit-Zugriff auf die CI. Alles hier ist ein dünner, typisierter
- * Re-Export von `theme.config.ts` plus abgeleitete Helfer. Komponenten
- * importieren von hier — oder benutzen die Tailwind-Klassen, die aus derselben
- * Datei generiert werden.
+ * Laufzeit-Zugriff auf die CI. Komponenten importieren von hier — oder
+ * benutzen die Tailwind-Klassen, die aus derselben Quelle erzeugt werden.
+ *
+ * Die Fassade hat zwei Quellen, und der Unterschied ist der Kern des Aufbaus:
+ *
+ *   **Inhalt** kommt aus `runtime.ts`. Diese Werte gehören dem gerade
+ *   gewählten Erscheinungsbild und wechseln mit ihm. Es sind lebendige
+ *   Bindungen — wer sie beim Laden in eine Konstante schreibt, friert das
+ *   Erscheinungsbild vom Start ein.
+ *
+ *   **Werkzeug** kommt weiter aus `theme.config.ts`. `ui`, `uiRadius`,
+ *   `uiShadow`, `uiType` sind für jeden Kunden dieselben, und das ist
+ *   Absicht: die Leiste soll nicht mitfärben.
+ *
+ * Was strukturell ist — Radius, Foliengröße, Raster, Layouts, Übergänge —
+ * steht ebenfalls weiter in der Konfiguration. Warum, steht in `brandTheme.ts`.
  */
 export {
   brand,
@@ -12,19 +24,48 @@ export {
   color,
   elementTones,
   toneNames,
-  ui,
-  uiRadius,
-  uiShadow,
   fontFamily,
   webfont,
   pdfFontFamily,
-  fontWeight,
+  textScale,
   typeScale,
+  stroke,
+  shadowOffset,
+} from './runtime';
+
+export {
+  activeTheme,
+  availableThemes,
+  isThemeId,
+  registerTheme,
+  setActiveTheme,
+  subscribeTheme,
+  themeVersion,
+} from './runtime';
+
+export type {
+  BrandTheme,
+  BrandInfo,
+  ColorTokens,
+  ElementTone,
+  ElementTones,
+  FontFamilies,
+  Palette,
+  TextScale,
+  TypeScale,
+  TypeStyle,
+  Webfont,
+  WebfontFace,
+} from './brandTheme';
+
+export {
+  ui,
+  uiRadius,
+  uiShadow,
+  fontWeight,
   uiType,
   RADIUS,
-  stroke,
   strokeNames,
-  shadowOffset,
   shadowNames,
   space,
   shadow,
@@ -51,16 +92,10 @@ export type {
 } from '@theme';
 
 import {
-  color,
-  elementTones,
-  fontFamily,
   motion,
   RADIUS,
   shadow,
-  shadowOffset,
   space,
-  stroke,
-  typeScale,
   ui,
   uiRadius,
   uiShadow,
@@ -70,6 +105,9 @@ import {
   type ToneName,
   type TypeStyleName,
 } from '@theme';
+// Wechselnde Werte: aus der Laufzeit, nicht aus der Konfiguration. Die
+// Helfer unten und `cssVariables()` lesen sie bei jedem Aufruf neu.
+import { color, elementTones, fontFamily, shadowOffset, stroke, typeScale } from './runtime';
 
 /** Eine Flächenrolle auflösen; ohne Angabe gilt Papier. */
 export function tone(name: ToneName | undefined) {

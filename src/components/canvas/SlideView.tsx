@@ -9,6 +9,7 @@
 import { memo, useMemo } from 'react';
 import { canvas, motion } from '@/theme';
 import { useFontsVersion } from '@/hooks/useFonts';
+import { useThemeVersion } from '@/hooks/useTheme';
 import {
   backgroundStyle,
   buildElementPrims,
@@ -52,19 +53,29 @@ function SlideViewImpl({
      gesetzt. Ohne das bleibt der erste, falsch gesetzte Satz stehen.
   */
   const fonts = useFontsVersion();
+  // Ein Wechsel des Erscheinungsbilds ändert jede Farbe und jedes Maß der
+  // Szene. Ohne diesen Zähler bliebe das gemerkte Markup stehen.
+  const skin = useThemeVersion();
 
-  const background = useMemo(() => backgroundStyle(slide.meta.background), [slide.meta.background]);
+  // `skin` gehört in die Abhängigkeiten: der Untergrund trägt Tinte, Linie und
+  // Signal der Fläche. Ohne ihn behielt die Wortmarke ihre alte Farbe, während
+  // alles andere schon umgeschaltet hatte.
+  const background = useMemo(
+    () => backgroundStyle(slide.meta.background),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [slide.meta.background, skin],
+  );
 
   // `fonts` steht bewusst in der Liste, obwohl der Rumpf es nicht liest: es ist
   // der Schlüssel, der den Merker verfallen lässt. Gilt für alle drei hier.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const backdrop = useMemo(() => primsToSvgMarkup(buildSlideBackdrop(slide)), [slide, fonts]);
+  const backdrop = useMemo(() => primsToSvgMarkup(buildSlideBackdrop(slide)), [slide, fonts, skin]);
 
   const footer = useMemo(
     () =>
       chrome ? primsToSvgMarkup(buildSlideChrome(slide, deck, { slideNumber, totalSlides })) : '',
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chrome, slide, deck, slideNumber, totalSlides, fonts],
+    [chrome, slide, deck, slideNumber, totalSlides, fonts, skin],
   );
 
   const ordered = useMemo(() => slide.elements.slice().sort((a, b) => a.z - b.z), [slide.elements]);
@@ -91,6 +102,7 @@ function SlideViewImpl({
             animate={animateReveals && step > 0 && step === revealStep}
             index={index}
             fonts={fonts}
+            skin={skin}
           />
         );
       })}
@@ -110,6 +122,8 @@ interface ElementLayerProps {
   index: number;
   /** Zählt hoch, sobald die Schriften da sind — siehe `SlideViewImpl`. */
   fonts: number;
+  /** Zählt hoch, sobald ein anderes Erscheinungsbild gilt. */
+  skin: number;
 }
 
 const ElementLayer = memo(function ElementLayer({
@@ -118,11 +132,12 @@ const ElementLayer = memo(function ElementLayer({
   animate,
   index,
   fonts,
+  skin,
 }: ElementLayerProps) {
   const markup = useMemo(
     () => primsToSvgMarkup(buildElementPrims(element, background)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [element, background, fonts],
+    [element, background, fonts, skin],
   );
 
   const animation = element.reveal?.animation ?? 'rise';
