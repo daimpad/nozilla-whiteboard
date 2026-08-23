@@ -18,7 +18,7 @@ import { iconsByCategory, searchIcons, type IconName, type ToolIconName } from '
 import { buildElementPrims } from '@/lib/export/scene';
 import { primsToSvgMarkup } from '@/lib/export/svg';
 import { createElement } from '@/model/factory';
-import type { CanvasElement } from '@/model/types';
+import type { CanvasElement, IconFrame } from '@/model/types';
 import { useDeckStore } from '@/state/deckStore';
 import { useThemeVersion } from '@/hooks/useTheme';
 import { BrandIcon, Icon } from '@/components/ui/Icon';
@@ -259,7 +259,7 @@ function IconPalette({ tone, matches }: { tone: ToneName; matches: IconName[] | 
   const groups = useMemo(() => iconsByCategory(), [skin]);
   const visible = matches ? new Set(matches) : null;
 
-  const add = (name: IconName, frame: 'none' | 'square' | 'circle') => {
+  const add = (name: IconName, frame: IconFrame) => {
     insertPreset('icon', {
       icon: name,
       tone,
@@ -290,7 +290,7 @@ function IconPalette({ tone, matches }: { tone: ToneName; matches: IconName[] | 
                   type="button"
                   title={name}
                   aria-label={`Zeichen ${name} einsetzen`}
-                  onClick={(event) => add(name, event.shiftKey ? 'square' : 'none')}
+                  onClick={(event) => add(name, event.shiftKey ? 'box' : 'none')}
                   className={cx(
                     'flex aspect-square items-center justify-center rounded-sm border border-transparent',
                     'transition-colors duration-fast ease-standard hover:border-ui hover:bg-ui-subtle',

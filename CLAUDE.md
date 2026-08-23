@@ -124,6 +124,9 @@ src/
                               der Konfiguration
   themes/     index.ts        Hier kommen die Erscheinungsbilder der Kunden an
               musterkunde.ts  Die Vorlage: jede wechselbare Rolle einmal belegt
+  decks/      index.ts        Die mitgelieferten Decks
+              welcome.md      nozilla — jedes Layout, jede Elementart
+              musterkunde.md  Ein Deck unter fremder Marke, als Beleg
   model/      types.ts        Deck / Folie / Element
               factory.ts      Der einzige Weg, auf dem ein Element entsteht
   lib/
@@ -301,6 +304,14 @@ der grüne 6 × 6-Punkt unten rechts weggelassen, und das hieß jahrelang
 Ein Kunden-Set trägt keine, und ein einstrichiges Zeichen verlor damit seinen
 einen Strich: die Bibliothek zeigte leere Kacheln. `withoutSignature()` prüft
 jetzt, ob das letzte Primitiv *die Signatur ist*.
+
+**Der PPTX-Weg setzt seine Fußzeile selbst — und hatte die Marke nicht.** Der
+*Text* der Fußzeile ist die eine begründete Ausnahme von der Regel „Wer eine
+Ausgabe baut, wird Kunde der `Scene`". Als die kleine Wortmarke unten rechts
+dazukam, wurde sie nur in `buildSlideChrome()` gerechnet: Fläche, SVG und PDF
+trugen sie, die `.pptx` nicht. Kein Test schlug an, weil keiner die Marke im
+Paket suchte — gesehen hat es LibreOffice. Maß und Zeichnung stehen jetzt in
+`footerMark()`, und beide Wege rufen dieselbe Funktion.
 
 **Der Setzer misst gegen die echte Schrift.** Ein `@font-face` allein lädt
 nichts — der Browser holt die Datei erst, wenn ein Zeichen sie braucht, und

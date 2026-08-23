@@ -32,6 +32,7 @@ import {
   cardLabels,
   connectorLabels,
   fillLabels,
+  iconFrameLabels,
   labelOf,
   layoutLabels,
   revealLabels,
@@ -47,6 +48,7 @@ import {
   connectorKinds,
   fillStyles,
   horizontalAligns,
+  iconFrames,
   shapeNames,
   slideBackgrounds,
   verticalAligns,
@@ -708,11 +710,13 @@ function KindFields({ element, patch }: KindFieldsProps) {
             <Segmented
               value={element.frame}
               onChange={(frame) => patch({ frame } as Partial<CanvasElement>)}
-              options={[
-                { value: 'none' as const, label: 'Ohne' },
-                { value: 'square' as const, label: 'Kachel' },
-                { value: 'circle' as const, label: 'Kreis' },
-              ]}
+              // `none` und `box` — mehr kennt das Modell nicht. Hier standen
+              // einmal `square` und `circle`: der Inspektor bot zwei Rahmen an,
+              // die es nie gab, und die Auswahl tat schlicht nichts.
+              options={iconFrames.map((value) => ({
+                value,
+                label: labelOf(iconFrameLabels, value),
+              }))}
             />
           </Field>
         </>

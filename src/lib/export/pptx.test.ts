@@ -15,6 +15,8 @@ import { describe, expect, it } from 'vitest';
 import { parseDeck } from '@/lib/markdown/deck';
 import { palette } from '@/theme';
 import { deckToPptx, EMU, SLIDE_CX, SLIDE_CY } from './pptx';
+import { footerMark } from './scene';
+import { footerFrame } from '@/lib/layout/slideLayout';
 import { createZip, crc32, utf8 } from './zip';
 
 /* -------------------------------------------------------------------------- */
@@ -222,6 +224,30 @@ describe('Folieninhalt', () => {
     expect(slide1).toContain('<p:cNvSpPr txBox="1"/>');
     // Ein `p:ph` würde den Rahmen an das Layout binden.
     expect(slide1).not.toContain('<p:ph ');
+  });
+
+  it('trägt die Wortmarke der Fußzeile mit in die Folie', async () => {
+    // Der PPTX-Weg setzt seine Fußzeile selbst — der *Text* ist die begründete
+    // Ausnahme, die Marke war es nie. Als ihre Rechnung nur in der Szene
+    // stand, trugen Fläche, SVG und PDF die Marke und die `.pptx` nicht.
+    // Gefunden hat es niemand hier, sondern LibreOffice.
+    const mark = footerMark(palette.ink);
+    const links = (footerFrame.right - mark.w) * EMU;
+    const oben = (footerFrame.y - mark.h) * EMU;
+    const nahe = (xml: string) =>
+      [...xml.matchAll(/<a:off x="(-?\d+)" y="(-?\d+)"\/>/g)].filter(
+        ([, x, y]) => Math.abs(Number(x) - links) < 6 * EMU && Math.abs(Number(y) - oben) < 6 * EMU,
+      ).length;
+
+    expect(nahe(slide1)).toBeGreaterThan(0);
+
+    // Und eine nackte Folie trägt sie nicht — sonst prüfte die Zahl oben nur,
+    // dass irgendwo unten rechts etwas steht.
+    const nackt = parseDeck(['<!-- nzl', 'bare: true', '-->', '', '# Nackt'].join('\n'));
+    const nacktXml = (await readZip(await deckToPptx(nackt, { images: new Map() }))).get(
+      'ppt/slides/slide1.xml',
+    )!;
+    expect(nahe(nacktXml)).toBe(0);
   });
 
   it('lässt PowerPoint umbrechen, ohne die Schrift zu verkleinern', () => {

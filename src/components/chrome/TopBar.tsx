@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { brand, canvas as canvasTokens } from '@/theme';
 import { openMarkdownFile } from '@/lib/export/download';
+import { bundledDecks } from '@/decks';
 import {
   exportMarkdown,
   exportPdf,
@@ -80,6 +81,7 @@ export function TopBar() {
       <Divider className="mx-1" />
 
       <IconButton icon="file-lines" label="Neues Deck (⌘⇧N)" onClick={newDeck} />
+      <BeispielMenu />
       <IconButton icon="folder" label="Markdown-Deck öffnen (⌘O)" onClick={handleOpen} />
       <IconButton icon="download" label="Markdown sichern (⌘S)" onClick={handleSave} />
       <ExportMenu busy={busy} setBusy={setBusy} />
@@ -152,6 +154,63 @@ export function TopBar() {
 }
 
 /* -------------------------------------------------------------------------- */
+
+/**
+ * Die mitgelieferten Decks.
+ *
+ * Sie stehen nicht hinter „Neues Deck", weil das etwas anderes bedeutet: leer
+ * anfangen. Ein Beispiel zu öffnen heißt, etwas Fertiges anzusehen — und
+ * überschreibt, was gerade offen ist. Deshalb ein eigener Knopf und die
+ * Rückfrage, sobald noch Ungesichertes daliegt.
+ */
+function BeispielMenu() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const loadMarkdown = useDeckStore((state) => state.loadMarkdown);
+  const dirty = useDeckStore((state) => state.dirty);
+
+  useEffect(() => {
+    if (!open) return;
+    const zu = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', zu);
+    return () => document.removeEventListener('mousedown', zu);
+  }, [open]);
+
+  const oeffne = (deck: (typeof bundledDecks)[number]) => {
+    if (dirty && !confirm('Das offene Deck ist nicht gesichert. Trotzdem ersetzen?')) return;
+    loadMarkdown(deck.source, { fileName: deck.file });
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <IconButton
+        icon="book"
+        label="Beispiel öffnen"
+        active={open}
+        onClick={() => setOpen((value) => !value)}
+      />
+      {open ? (
+        <div
+          className="nz-panel absolute left-0 top-9 z-popover w-64 animate-pop-in p-1 shadow-ui-lg"
+          role="menu"
+        >
+          {bundledDecks.map((deck) => (
+            <MenuItem
+              key={deck.file}
+              icon="file-lines"
+              label={deck.label}
+              hint={deck.hint}
+              onClick={() => oeffne(deck)}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function ExportMenu({
   busy,

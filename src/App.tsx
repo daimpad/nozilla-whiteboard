@@ -5,7 +5,7 @@
  * whole window. Deck files and images can be dropped anywhere.
  */
 import { useCallback, useEffect, useState } from 'react';
-import welcomeDeck from '@/decks/welcome.md?raw';
+import { starterDeck } from '@/decks';
 import { readFileAsDataUrl, readDroppedFile } from '@/lib/export/download';
 import { createElement } from '@/model/factory';
 import { useDeckTheme } from '@/hooks/useDeckTheme';
@@ -48,7 +48,7 @@ export default function App() {
       loadDeck(session.deck, { fileName: session.fileName });
       if (session.slideIndex) useDeckStore.getState().goTo(session.slideIndex);
     } else {
-      loadMarkdown(welcomeDeck, { fileName: 'welcome.md' });
+      loadMarkdown(starterDeck.source, { fileName: starterDeck.file });
     }
     const stopAutosave = startAutosave();
     const stopGuard = guardUnsavedChanges();

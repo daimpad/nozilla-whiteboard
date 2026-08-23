@@ -293,21 +293,8 @@ export function buildSlideChrome(
     });
   }
 
-  // Die Wortmarke steht ganz außen rechts, die Foliennummer rückt davor. Die
-  // Marke gehört an die Ecke; die Nummer ist eine Hilfe für den Vortrag.
-  //
-  // Der Kasten ist genau so hoch wie die Zeichnung: die viewBox der Marke sitzt
-  // eng am Bild, also fällt ihre Unterkante mit der Grundlinie der Fußzeile
-  // zusammen. Eine Marke mit Unterlängen säße etwas hoch — nozillas und die
-  // des Musterkunden haben keine.
-  const mark = wordmarkSize(style.size * FOOTER_MARK);
-  out.push(
-    ...wordmarkPrims(
-      { x: footerFrame.right - mark.w, y: footerFrame.y - mark.h, w: mark.w, h: mark.h },
-      bg.muted,
-      palette.signal,
-    ),
-  );
+  const mark = footerMark(bg.muted);
+  out.push(...mark.prims);
 
   if (options.slideNumber) {
     const label = options.totalSlides
@@ -316,13 +303,50 @@ export function buildSlideChrome(
     const width = measureText(label, spec);
     out.push({
       t: 'text',
-      x: footerFrame.right - mark.w - style.size * 2 - width,
+      x: mark.numberRight - width,
       y: footerFrame.y,
       runs: [{ dx: 0, text: label, font: spec, color: bg.muted, width }],
     });
   }
 
   return out;
+}
+
+/**
+ * Die Wortmarke der Fußzeile — Maß, Zeichnung und der Platz davor.
+ *
+ * Sie steht ganz außen rechts, die Foliennummer rückt davor: die Marke gehört
+ * an die Ecke, die Nummer ist eine Hilfe für den Vortrag.
+ *
+ * Der Kasten ist genau so hoch wie die Zeichnung, denn die viewBox der Marke
+ * sitzt eng am Bild — ihre Unterkante fällt damit mit der Grundlinie der
+ * Fußzeile zusammen. Eine Marke mit Unterlängen säße etwas hoch; nozillas und
+ * die des Musterkunden haben keine.
+ *
+ * Dass das hier steht und nicht in `buildSlideChrome`, hat einen Grund: der
+ * PPTX-Weg setzt seine Fußzeile selbst — der *Text* ist dort die begründete
+ * Ausnahme — und braucht trotzdem dieselbe Marke an derselben Stelle. Als die
+ * Rechnung nur in der Szene stand, trugen Fläche, SVG und PDF die Marke und
+ * die `.pptx` nicht. Aufgefallen ist es erst in LibreOffice.
+ */
+export function footerMark(letterColor: string): {
+  w: number;
+  h: number;
+  prims: ScenePrim[];
+  /** Wo die Foliennummer rechts endet. */
+  numberRight: number;
+} {
+  const style = typeScale.labelSmall;
+  const size = wordmarkSize(style.size * FOOTER_MARK);
+  return {
+    ...size,
+    prims: wordmarkPrims(
+      { x: footerFrame.right - size.w, y: footerFrame.y - size.h, w: size.w, h: size.h },
+      letterColor,
+      palette.signal,
+    ),
+    numberRight: footerFrame.right - size.w - style.size * 2,
+  };
 }
 
 function gridDots(colorValue: string): ScenePrim[] {
@@ -552,7 +576,17 @@ export function buildElementPrims(
     }
 
     case 'icon': {
-      if (element.frame === 'box' || element.fill !== 'none') emitBody(boxSegs(), true);
+      if (element.fill !== 'none') {
+        emitBody(boxSegs(), true);
+      } else if (element.frame === 'box') {
+        // Der Kasten wurde über `paint.body` gemalt — und der ist bei
+        // `fill: none` leer. „Rahmen: Kasten" versprach damit einen Rahmen und
+        // lieferte nichts, solange niemand zusätzlich eine Füllung wählte.
+        emitPath(boxSegs(), true, {
+          stroke: paint.line,
+          strokeWidth: strokeWidthOf(element.strokeWeight),
+        });
+      }
       const inset = element.frame === 'box' ? element.padding : 0;
       const size = Math.max(8, Math.min(element.w, element.h) - inset * 2);
       out.push(
