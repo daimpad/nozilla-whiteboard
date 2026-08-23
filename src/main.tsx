@@ -3,7 +3,12 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { applyThemeVariables, subscribeTheme } from './theme';
 import { installWebfonts } from './theme/fonts';
+import { registerThemes } from './themes';
 import './index.css';
+
+// Die Erscheinungsbilder der Kunden anmelden, bevor ein Deck sein eigenes
+// verlangt — sonst fiele es beim ersten Bild auf die Voreinstellung zurück.
+registerThemes();
 
 // Die CI als CSS-Custom-Properties und die Marken-Schriften, vor dem ersten
 // Bild.

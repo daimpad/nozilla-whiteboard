@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import welcomeDeck from '@/decks/welcome.md?raw';
 import { readFileAsDataUrl, readDroppedFile } from '@/lib/export/download';
 import { createElement } from '@/model/factory';
+import { useDeckTheme } from '@/hooks/useDeckTheme';
 import { selectCurrentSlide, useDeckStore } from '@/state/deckStore';
 import { guardUnsavedChanges, loadSession, startAutosave } from '@/state/persistence';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
@@ -23,6 +24,9 @@ import { cx } from '@/components/ui/controls';
 import type { CanvasElement } from '@/model/types';
 
 export default function App() {
+  // Das Deck bestimmt das Erscheinungsbild, nicht umgekehrt.
+  useDeckTheme();
+
   const mode = useDeckStore((state) => state.mode);
   const overviewOpen = useDeckStore((state) => state.overviewOpen);
   const promptOpen = useDeckStore((state) => state.promptOpen);

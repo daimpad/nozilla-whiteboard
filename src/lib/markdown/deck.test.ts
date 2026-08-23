@@ -233,3 +233,31 @@ describe('serializeDeck', () => {
     expect(parseDeck(output).slides[0].meta.notes).toBe('watch out for --> this');
   });
 });
+
+describe('das Erscheinungsbild im Frontmatter', () => {
+  it('überlebt einen Lade- und Speicherzyklus', () => {
+    const source = ['---', 'title: Kundendeck', 'theme: musterkunde', '---', '', '# Eins', ''].join(
+      '\n',
+    );
+    const deck = parseDeck(source);
+    expect(deck.meta.theme).toBe('musterkunde');
+    expect(serializeDeck(deck)).toContain('theme: musterkunde');
+  });
+
+  it('bleibt leer, wenn keins genannt ist', () => {
+    const deck = parseDeck('# Ohne Frontmatter\n');
+    expect(deck.meta.theme).toBeUndefined();
+    // Ein Deck ohne Zugehörigkeit soll auch keine vortäuschen.
+    expect(serializeDeck(deck)).not.toContain('theme:');
+  });
+
+  it('nimmt einen unbekannten Namen mit, statt ihn zu verwerfen', () => {
+    // Ein Deck kann aus einer Installation kommen, die dieses Erscheinungsbild
+    // kennt. Es beim ersten Speichern zu löschen wäre Datenverlust.
+    const deck = parseDeck(
+      ['---', 'theme: gibt-es-hier-nicht', '---', '', '# Eins', ''].join('\n'),
+    );
+    expect(deck.meta.theme).toBe('gibt-es-hier-nicht');
+    expect(serializeDeck(deck)).toContain('theme: gibt-es-hier-nicht');
+  });
+});
