@@ -23,7 +23,7 @@ import { useDeckStore } from '@/state/deckStore';
 import { useThemeVersion } from '@/hooks/useTheme';
 import { BrandIcon, Icon } from '@/components/ui/Icon';
 import { cx, SectionTitle } from '@/components/ui/controls';
-import { BuildLabel, SettingsMenu } from './SettingsMenu';
+import { SettingsMenu } from './SettingsMenu';
 
 type Tab = 'elements' | 'icons';
 
@@ -50,7 +50,7 @@ export function AssetSidebar() {
   return (
     <aside
       className="flex h-full w-[268px] shrink-0 flex-col border-r border-ui bg-ui-surface"
-      aria-label="Asset library"
+      aria-label="Bausteinbibliothek"
     >
       <div className="flex items-center gap-1 border-b border-ui px-2 py-2">
         <TabButton
@@ -58,14 +58,14 @@ export function AssetSidebar() {
           onClick={() => setTab('elements')}
           icon="layer-group"
         >
-          Elements
+          Bausteine
         </TabButton>
         <TabButton
           active={tab === 'icons'}
           onClick={() => setTab('icons')}
           icon="wand-magic-sparkles"
         >
-          Icons
+          Zeichen
         </TabButton>
       </div>
 
@@ -78,22 +78,22 @@ export function AssetSidebar() {
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder={tab === 'icons' ? 'Search icons' : 'Search elements'}
+            placeholder={tab === 'icons' ? 'Zeichen suchen' : 'Bausteine suchen'}
             className="nz-field pl-8"
-            aria-label="Search the asset library"
+            aria-label="Bibliothek durchsuchen"
           />
         </div>
 
         <div className="mt-2 flex items-center gap-1">
           <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-ui-faint">
-            Tone
+            Ton
           </span>
           {toneNames.map((name) => (
             <button
               key={name}
               type="button"
               title={elementTones[name].label}
-              aria-label={`Use the ${elementTones[name].label} tone`}
+              aria-label={`Ton ${elementTones[name].label} wählen`}
               aria-pressed={tone === name}
               onClick={() => setTone(name)}
               className={cx(
@@ -143,13 +143,12 @@ export function AssetSidebar() {
       </div>
 
       {/*
-        Hier stand ein Hinweis, den man einmal liest und danach nie wieder —
-        und der seit dem rechtsbündigen Einsetzen auch nicht mehr stimmte. An
-        derselben Stelle steht jetzt, was man tatsächlich nachschlägt: welcher
-        Stand hier läuft, und daneben die Einstellungen.
+        Hier stand ein Hinweis, den man einmal liest und danach nie wieder.
+        Jetzt steht dort nur das Zahnrad: welcher Stand läuft, schlägt man
+        selten nach — und dann sucht man ihn in den Einstellungen und nicht
+        am Rand einer Bausteinliste.
       */}
-      <div className="flex items-center justify-between gap-2 border-t border-ui px-2 py-1.5">
-        <BuildLabel />
+      <div className="flex items-center justify-end border-t border-ui px-2 py-1.5">
         <SettingsMenu />
       </div>
     </aside>
@@ -215,7 +214,7 @@ const PresetTile = memo(function PresetTile({ preset, tone, onInsert }: PresetTi
     <button
       type="button"
       onClick={onInsert}
-      title={preset.hint ?? `Add ${preset.label}`}
+      title={preset.hint ?? `${preset.label} einsetzen`}
       className={cx(
         'group flex flex-col items-stretch gap-1 rounded-md border border-ui bg-ui-surface p-1.5',
         'text-left transition-all duration-fast ease-standard',
@@ -275,7 +274,7 @@ function IconPalette({ tone, matches }: { tone: ToneName; matches: IconName[] | 
     <>
       <div className="px-3 pt-3">
         <p className="text-[11px] leading-snug text-ui-faint">
-          Click for a plain glyph, ⇧-click for a tinted tile.
+          Klick setzt das nackte Zeichen, ⇧-Klick eine getönte Kachel.
         </p>
       </div>
       {groups.map((group) => {
@@ -290,7 +289,7 @@ function IconPalette({ tone, matches }: { tone: ToneName; matches: IconName[] | 
                   key={name}
                   type="button"
                   title={name}
-                  aria-label={`Add the ${name} icon`}
+                  aria-label={`Zeichen ${name} einsetzen`}
                   onClick={(event) => add(name, event.shiftKey ? 'square' : 'none')}
                   className={cx(
                     'flex aspect-square items-center justify-center rounded-sm border border-transparent',

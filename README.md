@@ -411,7 +411,8 @@ Die Einrichtung in Plesk, die Apache-Kopfzeilen und der Weg über SSH stehen in
 npm run dev        # Entwicklungsserver
 npm run build      # Typprüfung + Produktions-Build
 npm run preview    # Build ausliefern
-npm test           # rund 3 000 Tests
+npm test           # rund 3 600 Tests
+npm run test:ui    # Rauchtest der Oberfläche (nach `npm run build`)
 npm run lint
 npm run typecheck
 npm run format
@@ -423,6 +424,13 @@ der Folien-Trenner und der Rundlauf, der Pfad-Parser samt Bogen-Umwandlung,
 Raster und Größenänderung, Zeilenumbruch und Satz, der Szenenaufbau, der
 SVG-Schreiber, die PDF-Geometrie, der Verlauf des Zustands — und die
 CI-Konformität aller 554 Icons.
+
+Das prüft alles, was das Werkzeug **herstellt**. Ob man es **bedienen** kann,
+prüft `npm run test:ui`: Playwright klickt gegen `vite preview`, also gegen
+das gebaute Verzeichnis. Neun Handgriffe, jeder für einen Fehler, der einmal
+durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
+ihrem Kasten, eine Vorschau schwarz auf dunkelgrau. Beides läuft bei jedem
+Pull Request.
 
 `src/decks/welcome.md` ist zugleich Beispiel und Prüfstein.
 

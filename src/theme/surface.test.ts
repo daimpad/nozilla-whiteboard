@@ -15,6 +15,20 @@ import welcome from '@/decks/welcome.md?raw';
  */
 const deck = parseDeck(welcome);
 
+/** Kontrastverhältnis nach WCAG 2.1, aus zwei `#RRGGBB`. */
+function contrast(a: string, b: string): number {
+  const luminance = (hex: string) => {
+    const value = Number.parseInt(hex.slice(1), 16);
+    const channels = [(value >> 16) & 255, (value >> 8) & 255, value & 255].map((raw) => {
+      const c = raw / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  };
+  const [hell, dunkel] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hell + 0.05) / (dunkel + 0.05);
+}
+
 afterEach(() => {
   setSurfaceMode('system');
 });
@@ -81,6 +95,27 @@ describe('die Erscheinung des Werkzeugs', () => {
     for (const [key, value] of chrome) {
       if (value === '#FFFFFF') continue;
       expect(brand.has(value), `${key} = ${value}`).toBe(false);
+    }
+  });
+
+  it('hält den Kontrast der Schrift über der Schwelle — in beiden Fassungen', () => {
+    // WCAG verlangt 4,5 : 1 für Fließtext. `inkSubtle` lag bei 4,34 (hell) und
+    // 4,18 (dunkel) und verfehlte sie in *beiden* Fassungen — an 21 Stellen,
+    // durchweg Hinweiszeilen unter Feldern. Ein Hinweis, der fast lesbar ist,
+    // ist keiner.
+    //
+    // Die Zahl steht hier und nicht in einem Kommentar, weil eine Verschiebung
+    // der Graphit-Leiter sie sonst still unterschreiten würde.
+    const paare: Array<[string, string, string]> = [
+      ['hell ink', ui.ink, ui.surface],
+      ['hell inkMuted', ui.inkMuted, ui.surface],
+      ['hell inkSubtle', ui.inkSubtle, ui.surface],
+      ['dunkel ink', uiDark.ink, uiDark.surface],
+      ['dunkel inkMuted', uiDark.inkMuted, uiDark.surface],
+      ['dunkel inkSubtle', uiDark.inkSubtle, uiDark.surface],
+    ];
+    for (const [name, vorn, hinten] of paare) {
+      expect(contrast(vorn, hinten), name).toBeGreaterThanOrEqual(4.5);
     }
   });
 

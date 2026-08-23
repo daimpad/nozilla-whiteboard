@@ -16,6 +16,7 @@ TypeScript, Tailwind. Kein Server, keine Datenbank, kein Konto.
 npm run dev          # http://127.0.0.1:5173
 npm run build        # tsc --noEmit && vite build
 npm run test         # vitest
+npm run test:ui      # Rauchtest der Oberfläche (braucht ein Bauwerk)
 npm run lint
 npm run format
 npm run sync:ci -- ../nozilla-ci    # Schriften, Marke, Icons aus dem CI-Repo
@@ -170,6 +171,12 @@ Repos, bevor er hier etwas ändert.
 
 - **Kommentare auf Deutsch, in ganzen Sätzen.** Sie erklären _warum_, nicht
   _was_. Ein Kommentar, der den Code nacherzählt, gehört gelöscht.
+- **Die Oberfläche spricht Deutsch.** Beschriftungen, Titel, Platzhalter,
+  Hinweise. Fachwörter bleiben, wo sie auch auf Deutsch so heißen — Markdown,
+  Label, Layout, Badge, Export, Deck. Die *Werte* des Dateiformats bleiben
+  englisch (`layout: canvas` steht so in der `.md`); übersetzt wird nur, was
+  daneben angezeigt wird, und das steht in `src/lib/labels.ts`.
+  `language.test.ts` schlägt an, wenn ein englischer Satz zurückkommt.
 - **Keine erfundenen Werte.** Kein Hex, keine Schriftgröße, kein Radius im
   Code — alles kommt aus `theme.config.ts`. Die Tailwind-Palette ist
   **ersetzt**, nicht erweitert: ein `bg-blue-500` ist ein Fehler, kein
@@ -194,8 +201,12 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
 - **PPTX**: das ZIP im Test wieder aufmachen, jedes XML parsen, **jede benutzte
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
-- **Oberfläche**: mit Playwright gegen `vite preview` klicken; Chromium liegt
-  unter `/opt/pw-browsers/`.
+- **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
+  gegen das gebaute Verzeichnis. Neun Handgriffe, die je einen Fehler abbilden,
+  der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
+  `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
+  Fassung passt nicht zur Bibliothek, deshalb
+  `SMOKE_CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
 
 Wenn du eine Ausgabe änderst, sieh sie dir an. Nicht die Zusicherung — das
 Bild.

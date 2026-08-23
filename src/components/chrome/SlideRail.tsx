@@ -27,7 +27,7 @@ export function SlideRail() {
   return (
     <nav
       className="flex h-[104px] shrink-0 items-center gap-2 border-t border-ui bg-ui-surface px-2"
-      aria-label="Slides"
+      aria-label="Folien"
     >
       <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-2">
         {deck.slides.map((slide, index) => (
@@ -79,7 +79,7 @@ export function SlideRail() {
         ))}
       </div>
 
-      <IconButton icon="plus" label="Add a slide after this one" onClick={() => addSlide()} />
+      <IconButton icon="plus" label="Folie danach einfügen" onClick={() => addSlide()} />
     </nav>
   );
 }

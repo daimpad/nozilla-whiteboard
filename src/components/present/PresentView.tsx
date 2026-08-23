@@ -91,29 +91,29 @@ export function PresentView() {
         )}
       >
         <div className="pointer-events-auto flex items-center gap-1 rounded-md bg-ui-surface/95 px-2 py-1 shadow-ui-xl">
-          <IconButton icon="arrow-left" label="Previous" onClick={retreat} />
+          <IconButton icon="arrow-left" label="Zurück" onClick={retreat} />
           <span className="min-w-16 text-center tabular-nums text-[12px] text-ui-muted">
             {slideIndex + 1} / {deck.slides.length}
             {steps > 0 ? ` · ${Math.min(revealStep, steps)}/${steps}` : ''}
           </span>
-          <IconButton icon="arrow-right" label="Next" onClick={advance} />
+          <IconButton icon="arrow-right" label="Weiter" onClick={advance} />
         </div>
 
         <div className="pointer-events-auto flex items-center gap-1 rounded-md bg-ui-surface/95 px-2 py-1 shadow-ui-xl">
           <IconButton
             icon="list-check"
-            label="Presenter notes (N)"
+            label="Notizen für den Vortrag (N)"
             active={notesOpen}
             onClick={() => toggleNotes()}
           />
           <IconButton
             icon="table"
-            label="Overview (⌘K)"
+            label="Übersicht (⌘K)"
             onClick={() => useDeckStore.getState().toggleOverview(true)}
           />
           <IconButton
             icon="xmark"
-            label="Exit presentation (Esc)"
+            label="Präsentation verlassen (Esc)"
             onClick={() => setMode('edit')}
           />
         </div>
