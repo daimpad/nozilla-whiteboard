@@ -79,25 +79,25 @@ export function TopBar() {
 
       <Divider className="mx-1" />
 
-      <IconButton icon="file-lines" label="New deck (⌘⇧N)" onClick={newDeck} />
-      <IconButton icon="folder" label="Open a Markdown deck (⌘O)" onClick={handleOpen} />
-      <IconButton icon="download" label="Save Markdown (⌘S)" onClick={handleSave} />
+      <IconButton icon="file-lines" label="Neues Deck (⌘⇧N)" onClick={newDeck} />
+      <IconButton icon="folder" label="Markdown-Deck öffnen (⌘O)" onClick={handleOpen} />
+      <IconButton icon="download" label="Markdown sichern (⌘S)" onClick={handleSave} />
       <ExportMenu busy={busy} setBusy={setBusy} />
 
       <Divider className="mx-1" />
 
       <IconButton
         icon="rotate"
-        label="Undo (⌘Z)"
+        label="Rückgängig (⌘Z)"
         disabled={!canUndo}
         onClick={undo}
         className="-scale-x-100"
       />
-      <IconButton icon="rotate" label="Redo (⇧⌘Z)" disabled={!canRedo} onClick={redo} />
+      <IconButton icon="rotate" label="Wiederholen (⇧⌘Z)" disabled={!canRedo} onClick={redo} />
 
       <Divider className="mx-1" />
 
-      <IconButton icon="plus" label="Add a slide" onClick={() => addSlide()} />
+      <IconButton icon="plus" label="Folie hinzufügen" onClick={() => addSlide()} />
       <IconButton
         icon="table"
         label="Folienübersicht (⌘K)"
@@ -117,17 +117,17 @@ export function TopBar() {
 
         <IconButton
           icon="layer-group"
-          label="Snap to grid and guides"
+          label="An Raster und Hilfslinien einrasten"
           active={snap.grid || snap.smart}
           onClick={() => setSnap({ grid: !snap.grid, smart: !snap.smart })}
         />
-        <IconButton icon="table" label="Show the grid" active={showGrid} onClick={toggleGrid} />
+        <IconButton icon="table" label="Raster zeigen" active={showGrid} onClick={toggleGrid} />
 
         <Segmented
           value={zoom === 'fit' ? 'fit' : 'custom'}
           onChange={(value) => setZoom(value === 'fit' ? 'fit' : 1)}
           options={[
-            { value: 'fit', label: 'Fit' },
+            { value: 'fit', label: 'Passend' },
             { value: 'custom', label: '100%' },
           ]}
         />
@@ -135,7 +135,7 @@ export function TopBar() {
         <Divider />
 
         <Button variant="primary" icon="play" onClick={() => setMode('present')}>
-          Present
+          Vortragen
         </Button>
       </div>
 
@@ -209,40 +209,40 @@ function ExportMenu({
         >
           <MenuItem
             icon="file-lines"
-            label="Markdown (deck + layout)"
-            hint=".md — re-importable"
-            onClick={() => run('Exporting Markdown', () => exportMarkdown(deck))}
+            label="Markdown (Deck und Layout)"
+            hint=".md — wieder einlesbar"
+            onClick={() => run('Schreibe Markdown', () => exportMarkdown(deck))}
           />
           <MenuItem
             icon="square"
-            label="SVG — current slide"
+            label="SVG — diese Folie"
             hint={`${canvasTokens.width}×${canvasTokens.height} vectors`}
             onClick={() =>
-              run('Rendering SVG', () => exportSvg(deck, { slideIndex, text: textMode }))
+              run('Zeichne SVG', () => exportSvg(deck, { slideIndex, text: textMode }))
             }
           />
           <MenuItem
             icon="layer-group"
-            label="SVG — whole deck"
-            hint="One file, slides stacked"
-            onClick={() => run('Rendering SVG', () => exportSvg(deck, { text: textMode }))}
+            label="SVG — ganzes Deck"
+            hint="Eine Datei, Folien untereinander"
+            onClick={() => run('Zeichne SVG', () => exportSvg(deck, { text: textMode }))}
           />
           <MenuItem
             icon="book"
-            label="PDF — whole deck"
+            label="PDF — ganzes Deck"
             hint={
               textMode === 'embedded'
-                ? 'Vector pages, selectable text'
-                : 'Vector pages, text as paths'
+                ? 'Vektorseiten, Text bleibt markierbar'
+                : 'Vektorseiten, Text als Konturen'
             }
-            onClick={() => run('Rendering PDF', () => exportPdf(deck, { text: textMode }))}
+            onClick={() => run('Zeichne PDF', () => exportPdf(deck, { text: textMode }))}
           />
           <MenuItem
             icon="play"
-            label="PDF — current slide"
-            hint="Single page"
+            label="PDF — diese Folie"
+            hint="Eine Seite"
             onClick={() =>
-              run('Rendering PDF', () => exportPdf(deck, { slideIndex, text: textMode }))
+              run('Zeichne PDF', () => exportPdf(deck, { slideIndex, text: textMode }))
             }
           />
           <MenuItem
@@ -272,7 +272,8 @@ function ExportMenu({
           </div>
 
           <p className="border-t border-ui px-2 py-1.5 text-[11px] text-ui-faint">
-            Exports render through the same pipeline as the canvas — {brand.name} CI included.
+            Ein Export läuft durch dieselbe Strecke wie die Fläche — die CI von {brand.name}{' '}
+            inbegriffen.
           </p>
         </div>
       ) : null}

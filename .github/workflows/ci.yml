@@ -32,3 +32,15 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # Chromium holt sich Playwright selbst — die Fassung muss zur Bibliothek
+      # passen, deshalb nicht aus dem Abbild, sondern hier.
+      - name: Chromium holen
+        run: npx playwright install --with-deps chromium
+
+      # Die Unit-Tests prüfen, was das Werkzeug *herstellt*. Dieser Lauf prüft,
+      # ob man es *bedienen* kann — gegen `vite preview`, also gegen genau das
+      # Verzeichnis, das später bereitgestellt wird. Warum das nötig ist, steht
+      # im Kopf von `scripts/smoke.mjs`.
+      - name: Rauchtest der Oberfläche
+        run: npm run test:ui

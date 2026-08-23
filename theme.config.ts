@@ -245,10 +245,18 @@ export const ui = {
   surfaceInverse: graphite[900],
   overlay: 'rgba(18, 22, 28, 0.62)',
 
-  /* Schrift — neutrales Fast-Schwarz, nicht das harte Tinte-Schwarz der Marke */
+  /*
+     Schrift — neutrales Fast-Schwarz, nicht das harte Tinte-Schwarz der Marke.
+
+     Die beiden gedämpften Stufen standen eine Sprosse höher (600/500) und
+     lagen damit bei 6,9 und 4,3 gegen Weiß. Die zweite verfehlte die 4,5, die
+     WCAG für Fließtext verlangt — und `text-ui-faint` ist die meistbenutzte
+     gedämpfte Klasse des Werkzeugs, sie trägt die Hinweiszeilen unter den
+     Feldern. „Fast lesbar" ist bei einem Hinweis dasselbe wie „nicht da".
+  */
   ink: graphite[900],
-  inkMuted: graphite[600],
-  inkSubtle: graphite[500],
+  inkMuted: graphite[700],
+  inkSubtle: graphite[600],
   inkInverse: graphite[0],
 
   /* Linien — hier sind Graustufen richtig; auf der Folie wären sie es nicht */
@@ -312,9 +320,11 @@ export const uiDark = {
   surfaceInverse: graphite[50],
   overlay: 'rgba(5, 7, 10, 0.72)',
 
+  // Dieselbe Verschiebung von unten gelesen: eine Sprosse heller, damit auch
+  // hier beide Stufen über 4,5 liegen.
   ink: graphite[50],
-  inkMuted: graphite[400],
-  inkSubtle: graphite[500],
+  inkMuted: graphite[300],
+  inkSubtle: graphite[400],
   inkInverse: graphite[900],
 
   border: graphite[700],

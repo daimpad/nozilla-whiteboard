@@ -13,11 +13,6 @@ export const build = {
   built: __APP_BUILT__,
 } as const;
 
-/** Kurz, für die Fußzeile: `v1.0.0 · 1df0513`. */
-export function buildLabel(): string {
-  return `v${build.version} · ${build.commit}`;
-}
-
 /** Das Datum des Stands, deutsch und ohne Uhrzeit. */
 export function buildDate(): string {
   const date = new Date(build.built);

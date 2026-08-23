@@ -31,22 +31,22 @@ export function Overview() {
     <div
       className="absolute inset-0 z-modal flex flex-col bg-ui-canvas/95 backdrop-blur-sm"
       role="dialog"
-      aria-label="Slide overview"
+      aria-label="Folienübersicht"
     >
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-ui bg-ui-surface px-3">
-        <h2 className="text-ui-title font-semibold">Overview</h2>
+        <h2 className="text-ui-title font-semibold">Übersicht</h2>
         <span className="text-[11px] text-ui-faint">
           {deck.slides.length} slide{deck.slides.length === 1 ? '' : 's'}
         </span>
         <div className="ml-auto flex items-center gap-1">
           <IconButton
             icon="plus"
-            label="Add a slide"
+            label="Folie hinzufügen"
             onClick={() => addSlide(deck.slides.length)}
           />
           <IconButton
             icon="xmark"
-            label="Close overview (Esc)"
+            label="Übersicht schließen (Esc)"
             onClick={() => toggleOverview(false)}
           />
         </div>
@@ -99,7 +99,7 @@ export function Overview() {
               <div className="absolute right-1.5 top-1.5 flex gap-0.5 bg-ui-surface/90 p-0.5 opacity-0 shadow-ui-sm transition-opacity duration-fast group-hover:opacity-100 group-focus-within:opacity-100">
                 <IconButton
                   icon="arrow-left"
-                  label="Move earlier"
+                  label="Nach vorn schieben"
                   disabled={index === 0}
                   onClick={() => moveSlide(index, index - 1)}
                   className="h-6 w-6"
@@ -107,7 +107,7 @@ export function Overview() {
                 />
                 <IconButton
                   icon="arrow-right"
-                  label="Move later"
+                  label="Nach hinten schieben"
                   disabled={index === deck.slides.length - 1}
                   onClick={() => moveSlide(index, index + 1)}
                   className="h-6 w-6"
@@ -115,14 +115,14 @@ export function Overview() {
                 />
                 <IconButton
                   icon="plus"
-                  label="Duplicate slide"
+                  label="Folie duplizieren"
                   onClick={() => duplicateSlide(index)}
                   className="h-6 w-6"
                   size={13}
                 />
                 <IconButton
                   icon="xmark"
-                  label="Delete slide"
+                  label="Folie löschen"
                   tone="danger"
                   onClick={() => deleteSlide(index)}
                   className="h-6 w-6"

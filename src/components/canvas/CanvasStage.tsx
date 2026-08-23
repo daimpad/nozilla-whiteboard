@@ -12,6 +12,7 @@
  */
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { canvas as canvasTokens, motion, ui } from '@/theme';
+import { connectorLabels, labelOf, shapeLabels } from '@/lib/labels';
 import {
   computeSnap,
   normalizeRect,
@@ -477,7 +478,7 @@ function SelectionOverlay({
               <button
                 type="button"
                 data-handle="rotate"
-                aria-label="Rotate"
+                aria-label="Drehen"
                 className="nz-handle nz-handle--round pointer-events-auto"
                 style={{
                   left: (element.w * scale) / 2 - 5,
@@ -575,19 +576,19 @@ function elementLabel(element: CanvasElement): string {
     case 'text':
       return element.text.slice(0, 40) || 'Text';
     case 'card':
-      return element.title || 'Card';
+      return element.title || 'Karte';
     case 'badge':
       return element.text || 'Badge';
     case 'icon':
-      return `${element.icon} icon`;
+      return `Zeichen ${element.icon}`;
     case 'shape':
-      return element.label || `${element.shape} shape`;
+      return element.label || labelOf(shapeLabels, element.shape);
     case 'connector':
-      return `${element.connector} connector`;
+      return labelOf(connectorLabels, element.connector);
     case 'image':
-      return element.alt || 'Image';
+      return element.alt || 'Bild';
     default:
-      return 'Markdown block';
+      return 'Markdown-Block';
   }
 }
 

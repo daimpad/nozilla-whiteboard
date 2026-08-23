@@ -10,7 +10,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { setSurfaceMode, surfaceModes, type SurfaceMode } from '@/theme';
-import { build, buildDate, buildLabel } from '@/lib/version';
+import { build, buildDate } from '@/lib/version';
 import { useSurface } from '@/hooks/useSurface';
 import { Icon } from '@/components/ui/Icon';
 import { cx, IconButton, SectionTitle } from '@/components/ui/controls';
@@ -108,14 +108,5 @@ function Row({ term, value }: { term: string; value: string }) {
       <dt>{term}</dt>
       <dd className="font-mono text-ui-ink">{value}</dd>
     </div>
-  );
-}
-
-/** Der Stand, kurz — für die Fußzeile der Bibliothek. */
-export function BuildLabel() {
-  return (
-    <span className="font-mono text-[11px] text-ui-faint" title={`Stand vom ${buildDate()}`}>
-      {buildLabel()}
-    </span>
   );
 }
