@@ -89,6 +89,29 @@ describe('Marke und Werkzeug sind getrennt', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('friert die Oberfläche nicht auf die helle Fassung ein', () => {
+    // `ui` ist ein Modulwert und trägt die *helle* Belegung. Seit die
+    // Erscheinung des Werkzeugs umschaltbar ist, friert jede Komponente, die
+    // `ui.surface` als Wert liest, genau diese Fassung ein — im dunklen
+    // Werkzeug bliebe dort eine weiße Fläche stehen. Farben gehören über
+    // Tailwind-Klassen und damit über CSS-Variablen bezogen.
+    //
+    // `CanvasStage` ist die Ausnahme, und zwar mit Grund: Auswahlrahmen,
+    // Aufziehrechteck und Raster liegen *auf* der Folie und wechseln deshalb
+    // nicht mit. Genau diese drei Werte darf sie lesen.
+    const ON_SLIDE = new Set(['select', 'selectWash', 'grid']);
+    const offenders: string[] = [];
+
+    for (const file of sourceFiles(COMPONENT_ROOT)) {
+      const source = code(readFileSync(file, 'utf8'));
+      if (!/from '@\/theme'/.test(source)) continue;
+      for (const match of source.matchAll(/\bui\.([A-Za-z]+)/g)) {
+        if (!ON_SLIDE.has(match[1])) offenders.push(`${file.split('/').pop()}: ui.${match[1]}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
   it('hält die beiden Farbsätze vollständig auseinander', () => {
     // Zwei Werte dürfen zusammenfallen, ohne dass etwas herübergereicht wurde:
     // reines Weiß ist Weiß, und ein Fehler-Rot ist ein Fehler-Rot. Beides sind

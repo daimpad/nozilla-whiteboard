@@ -119,6 +119,41 @@ export const footerFrame = {
   right: width - margin.right,
 };
 
+/**
+ * Wo ein neu eingefügtes Element landet.
+ *
+ * Es landete lange in der Mitte der Folie — und damit bei fast jedem Layout
+ * mitten im Fließtext, denn der steht links und reicht bis in die Mitte. Wer
+ * eine Karte einsetzte, musste sie als Erstes wegziehen.
+ *
+ * Jetzt wird **rechtsbündig am Satzspiegel** eingesetzt und untereinander
+ * gestapelt: das ist die Spalte, die die Layouts für frei gelegtes Material
+ * frei lassen. Gestapelt wird unter allem, was diese Spalte schon berührt —
+ * geprüft wird die Überlappung und nicht die rechte Kante, sonst schöbe ein
+ * breites Element, das quer bis in die Spalte reicht, den Stapel nicht.
+ *
+ * Ist die Spalte voll, sitzt das Element auf dem unteren Satzspiegel auf. Es
+ * überdeckt dann etwas — aber es ist zu sehen und steht dort, wo man es
+ * sucht. Oben wieder anzufangen hieße, es unter der Überschrift zu verstecken.
+ */
+export function insertFrame(
+  existing: readonly { x: number; y: number; w: number; h: number }[],
+  size: { w: number; h: number },
+): { x: number; y: number } {
+  const right = width - margin.right;
+  const bottom = height - margin.bottom;
+  const gap = canvas.gridSize * 3;
+  const x = Math.max(margin.left, right - size.w);
+
+  const touching = existing.filter((rect) => rect.x < x + size.w && rect.x + rect.w > x);
+  const below = touching.reduce<number>(
+    (lowest, rect) => Math.max(lowest, rect.y + rect.h + gap),
+    margin.top,
+  );
+
+  return { x, y: Math.max(margin.top, Math.min(below, bottom - size.h)) };
+}
+
 export const layoutDescriptions: Record<SlideLayout, string> = {
   title: 'Titelfolie — Kampagnensatz am Satzspiegel',
   default: 'Standardfolie — Fließtext im Satzspiegel',

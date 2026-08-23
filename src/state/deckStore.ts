@@ -12,6 +12,7 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { canvas } from '@/theme';
+import { insertFrame } from '@/lib/layout/slideLayout';
 import type { RevealAnimation, ToneName } from '@/theme';
 import {
   createEmptySlide,
@@ -427,15 +428,10 @@ export const useDeckStore = create<EditorState>()((set, get) => {
       const state = get();
       const slide = currentSlide(state);
       const element = createElement(kind, patch as never);
-      // Cascade repeated insertions so they do not stack invisibly.
-      const sameKind = slide?.elements.filter((existing) => existing.kind === kind).length ?? 0;
-      const offset = (sameKind % 6) * canvas.gridSize * 3;
-      const placed = clampToSlide({
-        x: element.x + offset,
-        y: element.y + offset,
-        w: element.w,
-        h: element.h,
-      });
+      // Rechtsbündig am Satzspiegel und unter das, was dort schon steht —
+      // die Mitte gehört dem Fließtext. Warum, steht in `insertFrame()`.
+      const spot = insertFrame(slide?.elements ?? [], element);
+      const placed = clampToSlide({ ...spot, w: element.w, h: element.h });
       state.addElement({ ...element, x: placed.x, y: placed.y } as CanvasElement);
     },
 

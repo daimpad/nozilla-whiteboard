@@ -256,7 +256,16 @@ function flowPalette(bg: BackgroundStyle) {
   };
 }
 
-/** Fußzeile und Foliennummer — Space Mono, ALL-CAPS, wie die CI es für Labels will. */
+/**
+ * Wie hoch die Wortmarke in der Fußzeile steht.
+ *
+ * Klein genug, dass sie eine Signatur bleibt und keine zweite Überschrift —
+ * gerechnet aus der Labelgröße, damit sie mit der Typo-Leiter eines
+ * Erscheinungsbilds mitwandert statt als feste Zahl danebenzustehen.
+ */
+const FOOTER_MARK = 1.4;
+
+/** Fußzeile, Wortmarke und Foliennummer — Space Mono, ALL-CAPS, wie die CI es für Labels will. */
 export function buildSlideChrome(
   slide: Slide,
   deck: Deck,
@@ -284,6 +293,22 @@ export function buildSlideChrome(
     });
   }
 
+  // Die Wortmarke steht ganz außen rechts, die Foliennummer rückt davor. Die
+  // Marke gehört an die Ecke; die Nummer ist eine Hilfe für den Vortrag.
+  //
+  // Der Kasten ist genau so hoch wie die Zeichnung: die viewBox der Marke sitzt
+  // eng am Bild, also fällt ihre Unterkante mit der Grundlinie der Fußzeile
+  // zusammen. Eine Marke mit Unterlängen säße etwas hoch — nozillas und die
+  // des Musterkunden haben keine.
+  const mark = wordmarkSize(style.size * FOOTER_MARK);
+  out.push(
+    ...wordmarkPrims(
+      { x: footerFrame.right - mark.w, y: footerFrame.y - mark.h, w: mark.w, h: mark.h },
+      bg.muted,
+      palette.signal,
+    ),
+  );
+
   if (options.slideNumber) {
     const label = options.totalSlides
       ? `${options.slideNumber} / ${options.totalSlides}`
@@ -291,7 +316,7 @@ export function buildSlideChrome(
     const width = measureText(label, spec);
     out.push({
       t: 'text',
-      x: footerFrame.right - width,
+      x: footerFrame.right - mark.w - style.size * 2 - width,
       y: footerFrame.y,
       runs: [{ dx: 0, text: label, font: spec, color: bg.muted, width }],
     });
@@ -673,33 +698,29 @@ function pathSegs(d: string): Seg[] {
  * nie gedreht, nie umgefärbt und bekommt keinen Schatten — das sind vier der
  * Logo-Regeln des CI, und sie stehen hier als Code, nicht als Bitte.
  */
-function wordmarkScene(
-  element: Extract<CanvasElement, { kind: 'wordmark' }>,
-  paint: ElementPaint,
-  bg: BackgroundStyle,
-  matrix: Mat,
-  opacity: number,
+/**
+ * Die Wortmarke als zwei Pfade, in einen Kasten gesetzt.
+ *
+ * Steht hier und nicht zweimal, weil sie an zwei Stellen gebraucht wird: als
+ * platzierbares Element und klein in der Folienfußzeile. Die Geometrie ist
+ * dieselbe, nur die Farben und der Kasten unterscheiden sich.
+ *
+ * Gedreht wird nie — „Was wir nie tun: drehen."
+ */
+function wordmarkPrims(
+  box: { x: number; y: number; w: number; h: number },
+  letterColor: string,
+  accentColor: string | null,
+  opacity = 1,
 ): ScenePrim[] {
   const [vx, vy, vw, vh] = wordmark.viewBox;
-  const scale = Math.min(element.w / vw, element.h / vh);
-  const dx = (element.w - vw * scale) / 2;
-  const dy = (element.h - vh * scale) / 2;
-
-  // Drehung wird bewusst ignoriert: „Was wir nie tun — drehen."
+  const scale = Math.min(box.w / vw, box.h / vh);
+  const dx = (box.w - vw * scale) / 2;
+  const dy = (box.h - vh * scale) / 2;
   const place = matMultiply(
-    matMultiply(matTranslate(element.x, element.y), matTranslate(dx, dy)),
+    matMultiply(matTranslate(box.x, box.y), matTranslate(dx, dy)),
     matMultiply(matScale(scale), matTranslate(-vx, -vy)),
   );
-  void matrix;
-
-  const letterColor =
-    element.variant === 'ink'
-      ? palette.ink
-      : element.variant === 'paper'
-        ? palette.paper
-        : element.variant === 'mono'
-          ? paint.ink
-          : bg.ink;
 
   const prims: ScenePrim[] = [
     {
@@ -711,19 +732,49 @@ function wordmarkScene(
     },
   ];
 
-  // Der Akzent bleibt grün — außer in der einfarbigen Fassung. Eine Marke ohne
-  // Akzent lässt ihn leer, dann wird auch keiner gezeichnet.
-  if (wordmark.period) {
+  // Eine Marke ohne Akzent lässt ihn leer, dann wird auch keiner gezeichnet.
+  if (wordmark.period && accentColor) {
     prims.push({
       t: 'path',
       segs: transformSegs(pathSegs(wordmark.period), place),
       closed: true,
-      fill: element.variant === 'mono' ? letterColor : palette.signal,
+      fill: accentColor,
       opacity: opacity === 1 ? undefined : opacity,
     });
   }
 
   return prims;
+}
+
+/** Die Maße der Wortmarke bei einer gegebenen Höhe. */
+function wordmarkSize(height: number): { w: number; h: number } {
+  const [, , vw, vh] = wordmark.viewBox;
+  return { w: (vw / vh) * height, h: height };
+}
+
+function wordmarkScene(
+  element: Extract<CanvasElement, { kind: 'wordmark' }>,
+  paint: ElementPaint,
+  bg: BackgroundStyle,
+  matrix: Mat,
+  opacity: number,
+): ScenePrim[] {
+  // Drehung wird bewusst ignoriert: „Was wir nie tun — drehen."
+  void matrix;
+
+  const letterColor =
+    element.variant === 'ink'
+      ? palette.ink
+      : element.variant === 'paper'
+        ? palette.paper
+        : element.variant === 'mono'
+          ? paint.ink
+          : bg.ink;
+
+  // Der Akzent bleibt in der Signalfarbe — außer in der einfarbigen Fassung.
+  const accent = element.variant === 'mono' ? letterColor : palette.signal;
+
+  return wordmarkPrims(element, letterColor, accent, opacity);
 }
 
 /* -------------------------------------------------------------------------- */

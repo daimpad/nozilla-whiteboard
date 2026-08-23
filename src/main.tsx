@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
-import { applyThemeVariables, subscribeTheme } from './theme';
+import { applyThemeVariables, subscribeSurface, subscribeTheme, watchSystemSurface } from './theme';
 import { installWebfonts } from './theme/fonts';
 import { registerThemes } from './themes';
 import './index.css';
@@ -22,6 +22,13 @@ subscribeTheme(() => {
   applyThemeVariables();
   installWebfonts();
 });
+
+// Die Erscheinung des Werkzeugs — hell oder dunkel — steht ebenfalls in den
+// Variablen auf `:root`. Sie hat mit dem Erscheinungsbild der Folie nichts zu
+// tun und wird deshalb getrennt beobachtet; `watchSystemSurface()` hört dazu
+// auf die Einstellung des Betriebssystems.
+subscribeSurface(() => applyThemeVariables());
+watchSystemSurface();
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Root container #root is missing from index.html');
