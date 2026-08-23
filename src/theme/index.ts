@@ -18,6 +18,7 @@
  */
 export {
   brand,
+  wordmark,
   palette,
   inkAlpha,
   paperAlpha,
@@ -42,6 +43,9 @@ export {
   subscribeTheme,
   themeVersion,
 } from './runtime';
+
+export { wordmarkFromSvg } from './wordmark';
+export type { Wordmark } from './wordmark';
 
 export type {
   BrandTheme,

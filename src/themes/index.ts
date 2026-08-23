@@ -9,7 +9,8 @@
  *
  * ```ts
  * // src/themes/musterkunde.ts
- * import { nozillaTheme, tonesFromPalette, type BrandTheme } from '@/theme';
+ * import { nozillaTheme, tonesFromPalette, wordmarkFromSvg, type BrandTheme } from '@/theme';
+ * import logo from './musterkunde-logo.svg?raw';
  *
  * const palette = {
  *   ...nozillaTheme.palette,
@@ -34,6 +35,7 @@
  *   paperAlpha,
  *   color: { ...nozillaTheme.color, signal: palette.signal, surface: palette.paper, ink: palette.ink, line: palette.ink },
  *   elementTones: tonesFromPalette(palette, inkAlpha, paperAlpha),
+ *   wordmark: wordmarkFromSvg(logo, { letters: '#111111', accent: '#E4003A' }),
  * };
  * ```
  *
@@ -46,10 +48,14 @@
  * 2. **Schriften mitliefern.** Eigene Schnitte gehören nach `public/fonts/`
  *    und in `webfont.faces`; `fontFamily` nennt die Stapel. Ohne das setzt der
  *    Setzer weiter in Zilla Slab und Inter.
- * 3. **Die Wortmarke ist Geometrie**, kein Bild — sie kommt aus
- *    `wordmark.generated.ts` und ist noch nicht je Erscheinungsbild
- *    umschaltbar. Bis dahin trägt jedes Deck die nozilla-Wortmarke, wenn ein
- *    Wortmarken-Element darauf liegt.
+ * 3. **Die Wortmarke ist Geometrie**, kein Bild. `wordmarkFromSvg()` liest sie
+ *    aus einer SVG-Datei; die Zuordnung geht über die Füllfarben, nicht über
+ *    die Reihenfolge der Pfade. Eine Marke ohne Akzent am Wortende lässt
+ *    `accent` weg — dann wird auch keiner gezeichnet.
+ *
+ *    Sie ist Pflicht und hat keine Voreinstellung. Fehlte sie, trüge ein
+ *    Kundendeck die Marke von nozilla, und das wäre der auffälligste Fehler,
+ *    den dieses Werkzeug machen kann.
  */
 import { registerTheme, type BrandTheme } from '@/theme';
 

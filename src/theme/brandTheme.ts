@@ -31,6 +31,8 @@
  * eine halb belegte Palette fällt sonst erst auf, wenn jemand die eine Folie
  * baut, die den fehlenden Ton benutzt.
  */
+import { wordmark as nzWordmark } from '@/assets/wordmark.generated';
+import type { Wordmark } from './wordmark';
 import {
   brand as nzBrand,
   inkAlpha as nzInkAlpha,
@@ -139,6 +141,12 @@ export interface BrandTheme {
   /** Was in der Auswahl steht. */
   label: string;
   brand: BrandInfo;
+  /**
+   * Die Wortmarke als Pfad. Pflicht, und mit Absicht keine Voreinstellung:
+   * fehlte sie, zeichnete ein Kundendeck die Marke von nozilla — der
+   * auffälligste Fehler, den dieses Werkzeug machen könnte.
+   */
+  wordmark: Wordmark;
   palette: Palette;
   inkAlpha: AlphaSteps;
   paperAlpha: AlphaSteps;
@@ -164,6 +172,7 @@ export const nozillaTheme: BrandTheme = {
   id: 'nozilla',
   label: 'nozilla',
   brand: nzBrand,
+  wordmark: nzWordmark,
   palette: nzPalette,
   inkAlpha: nzInkAlpha,
   paperAlpha: nzPaperAlpha,
