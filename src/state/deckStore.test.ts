@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { canvas } from '@/theme';
+import { insertColumnWidth } from '@/lib/layout/slideLayout';
 import { createElement } from '@/model/factory';
 import { parseDeck, serializeDeck } from '@/lib/markdown/deck';
 import { createStarterDeck, useDeckStore } from './deckStore';
@@ -182,64 +183,72 @@ describe('elements', () => {
     expect(elementsNow()[0].reveal).toBeUndefined();
   });
 
-  it('setzt rechtsbündig am Satzspiegel ein und stapelt nach unten', () => {
+  it('setzt alles an dieselbe Linie und stapelt nach unten', () => {
     // Die Mitte gehört dem Fließtext: er steht links und reicht bei den
     // meisten Layouts bis dorthin. Wer eine Karte einsetzte, musste sie als
     // Erstes wegziehen.
     store().insertPreset('shape');
     store().insertPreset('shape');
     const [first, second] = elementsNow();
-    const right = canvas.width - canvas.margin.right;
+    const linie = canvas.width - canvas.margin.right - insertColumnWidth;
 
-    expect(first.x + first.w).toBe(right);
-    expect(second.x + second.w).toBe(right);
+    expect(first.x).toBe(linie);
+    expect(second.x).toBe(linie);
     expect(second.y).toBeGreaterThan(first.y + first.h - 1);
     expect(second.y + second.h).toBeLessThanOrEqual(canvas.height - canvas.margin.bottom);
   });
 
-  it('legt den Text eines eingesetzten Labels an die rechte Kante', () => {
-    // Der Kasten saß schon am Satzspiegel, der Text darin aber links — und ein
-    // Label ist nichts als sein Text. Vier davon sahen aus, als schwebten sie
-    // mitten auf der Folie, und jedes musste von Hand hinübergezogen werden.
+  it('legt jede Textstufe an dieselbe Linie, egal wie breit der Baustein war', () => {
+    // Das war der eigentliche Fehler: solange jeder Baustein seine eigene
+    // Breite mitbrachte, bekam jeder auch seine eigene Kante — eine Headline
+    // begann bei 192, ein Zwischentitel bei 552, ein Label bei 892.
+    // Untereinander ergab das keine Linie, sondern eine Treppe.
+    store().insertPreset('text', { typeStyle: 'headline', text: 'Wir bauen.', w: 1000, h: 180 });
+    store().insertPreset('text', { typeStyle: 'h2', text: 'Zwischentitel', w: 640, h: 60 });
     store().insertPreset('text', { typeStyle: 'label', text: 'Abschnitt', w: 300, h: 20 });
-    const [label] = elementsNow();
-    expect(label.kind === 'text' && label.align).toBe('right');
-    expect(label.x + label.w).toBe(canvas.width - canvas.margin.right);
+
+    const linie = canvas.width - canvas.margin.right - insertColumnWidth;
+    for (const element of elementsNow()) {
+      expect(element.x, element.id).toBe(linie);
+      expect(element.w, element.id).toBe(insertColumnWidth);
+    }
   });
 
-  it('lässt einen Kampagnensatz links stehen', () => {
-    // Er füllt den ganzen Satzspiegel, es blieb also keine Spalte übrig. Dass
-    // Kampagnensätze links ansetzen, ist keine Einstellung, sondern die CI.
+  it('misst die Höhe im schmaleren Kasten nach', () => {
+    // Ein schmalerer Kasten bricht den Text öfter um. Bliebe die Höhe aus dem
+    // Baustein stehen, ragte das nächste Element ins vorige hinein — genau das
+    // war beim ersten Versuch zu sehen.
     store().insertPreset('text', {
-      typeStyle: 'display',
-      text: 'Gute digitale Dienste.',
-      w: 1104,
-      h: 260,
+      typeStyle: 'body',
+      text: 'Ein Satz, der in einem schmaleren Kasten mehrfach umbrechen muss und deshalb höher wird, als der Baustein es vorsah.',
+      w: 1000,
+      h: 30,
     });
-    const [satz] = elementsNow();
-    expect(satz.x).toBe(canvas.margin.left);
-    expect(satz.kind === 'text' && satz.align).toBe('left');
+    const [lang] = elementsNow();
+    expect(lang.h).toBeGreaterThan(30);
+
+    store().insertPreset('text', { typeStyle: 'label', text: 'Danach', w: 300, h: 20 });
+    const [erst, dann] = elementsNow();
+    // In derselben Spalte, und ohne ins vorige hineinzuragen.
+    expect(dann.x).toBe(erst.x);
+    expect(dann.y).toBeGreaterThanOrEqual(erst.y + erst.h);
   });
 
-  it('lässt eine ausdrücklich gewünschte Ausrichtung in Ruhe', () => {
-    store().insertPreset('text', {
-      typeStyle: 'label',
-      text: 'Abschnitt',
-      w: 300,
-      h: 20,
-      align: 'center',
-    });
-    const [label] = elementsNow();
-    expect(label.kind === 'text' && label.align).toBe('center');
+  it('lässt einem Baustein mit eigenem Maß sein Maß', () => {
+    // Ein Zeichen ist quadratisch, ein Bild hat ein Seitenverhältnis. Sie auf
+    // Spaltenbreite zu ziehen hieße, dem Baustein seine Proportion zu nehmen —
+    // sie fangen nur an derselben Linie an.
+    store().insertPreset('icon', { icon: 'rocket', w: 88, h: 88 });
+    const [zeichen] = elementsNow();
+    expect(zeichen.w).toBe(88);
+    expect(zeichen.h).toBe(88);
+    expect(zeichen.x).toBe(canvas.width - canvas.margin.right - insertColumnWidth);
   });
 
-  it('rührt die Ausrichtung nicht an, wo eine Fläche gezeichnet wird', () => {
-    // Eine Karte trägt einen sichtbaren Rahmen; ihre Kante *ist* zu sehen, und
-    // ihr Text soll darin bleiben, wo der Baustein ihn vorsieht.
-    store().insertPreset('card');
-    const [karte] = elementsNow();
-    expect(karte.x + karte.w).toBe(canvas.width - canvas.margin.right);
-    expect('align' in karte ? karte.align : 'left').toBe('left');
+  it('lässt nichts über den rechten Satzspiegel hinauslaufen', () => {
+    store().insertPreset('shape', { w: 9999, h: 100 });
+    const [breit] = elementsNow();
+    expect(breit.x + breit.w).toBeLessThanOrEqual(canvas.width - canvas.margin.right);
   });
 
   it('legt Eingefügtes auf der neuen Folie an dieselbe Stelle', () => {

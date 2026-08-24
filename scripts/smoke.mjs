@@ -231,21 +231,21 @@ async function main() {
     await seite.waitForTimeout(300);
   });
 
-  await pruefe('ein Baustein landet rechtsbündig am Satzspiegel', async () => {
+  await pruefe('ein Baustein landet an der Einsetzlinie', async () => {
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
     await seite.waitForTimeout(500);
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
     await seite.waitForTimeout(500);
 
-    const [x, , breite] = await masse(seite);
-    // 1280 − 88 = 1192, der rechte Satzspiegel.
-    gleich(x + breite, 1192, 'rechte Kante des eingesetzten Elements');
+    const [x] = await masse(seite);
+    // 1192 − 530 = 662: die rechte Spalte, 48 % des Satzspiegels breit.
+    gleich(x, 662, 'linke Kante des eingesetzten Elements');
   });
 
-  await pruefe('ein Label schmiegt sich mit seinem Text an den Satzspiegel', async () => {
-    // Geprüft wird das Bild, nicht das Feld: der *Kasten* saß immer schon am
-    // rechten Satzspiegel, der Text darin aber links — und ein Label ist
-    // nichts als sein Text. Es sah aus, als schwebte es mitten auf der Folie.
+  await pruefe('ein Label steht mit seinem Text auf derselben Linie', async () => {
+    // Geprüft wird das Bild, nicht das Feld. Solange jeder Baustein seine
+    // eigene Breite mitbrachte, bekam jeder auch seine eigene Kante — und
+    // untereinander ergab das keine Linie, sondern eine Treppe.
     await seite.locator('aside button').filter({ hasText: 'Label' }).first().click();
     await seite.waitForTimeout(600);
 
@@ -261,14 +261,13 @@ async function main() {
         /ABSCHNITT/i.test(el.textContent ?? ''),
       );
       if (!knoten) return null;
-      const kasten = knoten.getBBox();
-      return Math.round(kasten.x + kasten.width);
+      return Math.round(knoten.getBBox().x);
     });
 
     wahr(kante !== null, 'kein Label-Text auf der Folie gefunden');
-    // 1280 − 88 = 1192. Ein paar Einheiten Spiel für die Seitenlage der
-    // letzten Glyphe; vorher lagen hier rund 200 daneben.
-    wahr(Math.abs(kante - 1192) <= 6, `rechte Kante des Label-Textes: ${kante} statt 1192`);
+    // Dieselbe Linie wie die Karte darüber. Ein paar Einheiten Spiel für die
+    // Seitenlage der ersten Glyphe.
+    wahr(Math.abs(kante - 662) <= 6, `linke Kante des Label-Textes: ${kante} statt 662`);
   });
 
   await pruefe('eine Karte reist über die Zwischenablage auf die nächste Folie', async () => {
@@ -316,7 +315,7 @@ async function main() {
     const [x, y, breite, hoehe] = await masse(seite);
     // 200 × 100 sind 2 : 1, und 420 ist die Breite eines eingesetzten Bildes.
     gleich(`${breite} × ${hoehe}`, '420 × 210', 'Maß des eingefügten Bildes');
-    gleich(`${x} / ${y}`, '772 / 72', 'Ort des eingefügten Bildes');
+    gleich(`${x} / ${y}`, '662 / 72', 'Ort des eingefügten Bildes');
   });
 
   console.log('\nErscheinungsbild und Erscheinung:');

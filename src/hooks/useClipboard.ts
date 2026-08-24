@@ -109,9 +109,9 @@ export function useClipboard(): void {
 }
 
 /**
- * Bilder landen dort, wo alles Eingesetzte landet — rechtsbündig am
- * Satzspiegel und untereinander. Sie kommen ohne eigene Koordinaten, also gibt
- * es nichts zu erhalten.
+ * Bilder landen dort, wo alles Eingesetzte landet — an der Einsetzlinie und
+ * untereinander. Sie kommen ohne eigene Koordinaten, also gibt es nichts zu
+ * erhalten.
  */
 async function einfuegenAlsBilder(dateien: readonly File[]): Promise<void> {
   for (const datei of dateien) {

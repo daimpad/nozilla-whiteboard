@@ -148,6 +148,14 @@ Mitten der Nachbarn, Folienränder, Satzspiegel. `Alt` hält das Raster an.
 Duplizieren, löschen, stapeln, ausrichten, verteilen, sperren. Rückgängig und
 Wiederholen mit Gesten-Bewusstsein — ein Zug ist ein Schritt, nicht sechzig.
 
+**Eingesetzt wird an einer Linie.** Jeder Baustein aus der Bibliothek landet in
+der rechten Spalte — 48 % des Satzspiegels, dieselbe Teilung wie im
+`split`-Layout — und stapelt sich unter das, was dort schon steht. Fließender
+Inhalt bekommt die Spaltenbreite und wird darin neu ausgemessen; was ein eigenes
+Maß hat, behält es und beginnt nur an derselben Kante. Ist die Spalte voll, geht
+es eine Spalte weiter nach links. Nichts muss hinterher an seinen Platz gezogen
+werden.
+
 **Die Zwischenablage** trägt beides: ein Bildschirmfoto mit `⌘V` wird ein Bild,
 und `⌘C` / `⌘X` nehmen ausgewählte Elemente mit — auf eine andere Folie, in ein
 zweites Fenster, in jeden Editor. Was dabei in der Zwischenablage liegt, ist
