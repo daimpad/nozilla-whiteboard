@@ -120,63 +120,70 @@ export const footerFrame = {
 };
 
 /**
+ * Die Spalte, in der Eingesetztes landet — und ihre Breite.
+ *
+ * Sie ist **fest** und nicht aus der Breite des Bausteins gerechnet. Das ist
+ * der ganze Punkt: solange jeder Baustein seine eigene Breite mitbrachte,
+ * bekam jeder auch seine eigene Kante — eine Überschrift begann bei 192, ein
+ * Zwischentitel bei 552, ein Label bei 892. Untereinander ergab das keine
+ * Linie, sondern eine Treppe, und man sah der Folie an, dass niemand sie
+ * gelegt hatte.
+ *
+ * 48 % des Satzspiegels, rechts angeschlagen — dasselbe Verhältnis, das das
+ * `split`-Layout seiner linken Spalte gibt. Die zweite Spalte liegt eine
+ * Spaltenbreite weiter links und passt gerade noch in den Satzspiegel.
+ */
+export const insertColumnWidth = Math.round(innerW * 0.48);
+
+export function insertColumns(): number[] {
+  const gap = canvas.gridSize * 3;
+  const out: number[] = [];
+  for (
+    let x = width - margin.right - insertColumnWidth;
+    x >= margin.left;
+    x -= insertColumnWidth + gap
+  ) {
+    out.push(x);
+  }
+  return out;
+}
+
+/**
  * Wo ein neu eingefügtes Element landet.
  *
  * Es landete lange in der Mitte der Folie — und damit bei fast jedem Layout
  * mitten im Fließtext, denn der steht links und reicht bis in die Mitte. Wer
  * eine Karte einsetzte, musste sie als Erstes wegziehen.
  *
- * Jetzt wird **rechtsbündig am Satzspiegel** eingesetzt und untereinander
- * gestapelt: das ist die Spalte, die die Layouts für frei gelegtes Material
- * frei lassen. Gestapelt wird unter allem, was diese Spalte schon berührt —
- * geprüft wird die Überlappung und nicht die rechte Kante, sonst schöbe ein
- * breites Element, das quer bis in die Spalte reicht, den Stapel nicht.
+ * Jetzt wird **in der rechten Spalte** eingesetzt und untereinander gestapelt.
+ * Gestapelt wird unter allem, was die Spalte schon berührt — geprüft wird die
+ * Überlappung und nicht eine Kante, sonst schöbe ein breites Element, das quer
+ * bis in die Spalte reicht, den Stapel nicht.
  *
- * Ist die Spalte voll, sitzt das Element auf dem unteren Satzspiegel auf. Es
- * überdeckt dann etwas — aber es ist zu sehen und steht dort, wo man es
- * sucht. Oben wieder anzufangen hieße, es unter der Überschrift zu verstecken.
+ * Ist die Spalte voll, geht es eine Spalte weiter nach links. Ist auch links
+ * kein Platz, sitzt das Element auf dem unteren Satzspiegel auf: es überdeckt
+ * dann etwas, aber es ist zu sehen und steht dort, wo man es sucht. Oben
+ * wieder anzufangen hieße, es unter der Überschrift zu verstecken.
  */
 export function insertFrame(
   existing: readonly { x: number; y: number; w: number; h: number }[],
   size: { w: number; h: number },
 ): { x: number; y: number } {
-  const right = width - margin.right;
   const bottom = height - margin.bottom;
   const gap = canvas.gridSize * 3;
 
-  // Wo in dieser Spalte der Stapel endet. Geprüft wird die Überlappung und
-  // nicht die rechte Kante, sonst schöbe ein breites Element, das quer bis in
-  // die Spalte reicht, den Stapel nicht.
   const untenIn = (spaltenX: number) =>
     existing
-      .filter((rect) => rect.x < spaltenX + size.w && rect.x + rect.w > spaltenX)
+      .filter((rect) => rect.x < spaltenX + insertColumnWidth && rect.x + rect.w > spaltenX)
       .reduce<number>((tiefstes, rect) => Math.max(tiefstes, rect.y + rect.h + gap), margin.top);
 
-  const ersteSpalte = Math.max(margin.left, right - size.w);
-  for (let x = ersteSpalte; x >= margin.left; x -= size.w + gap) {
+  const spalten = insertColumns();
+  for (const x of spalten) {
     const y = untenIn(x);
     if (y + size.h <= bottom) return { x, y };
   }
 
-  return { x: ersteSpalte, y: Math.max(margin.top, bottom - size.h) };
-}
-
-/**
- * Ob der Text eines eingesetzten Elements an der rechten Kante stehen soll.
- *
- * `insertFrame()` legt den *Kasten* an den Satzspiegel — der Text darin stand
- * aber weiter links, und ein Label ist nichts als sein Text. Vier Labels
- * untereinander sahen deshalb aus, als schwebten sie mitten auf der Folie,
- * obwohl jede Kante stimmte; wer eines einsetzte, zog es als Erstes nach
- * rechts. Genau diesen Griff nimmt das hier ab.
- *
- * Ein Element, das den ganzen Satzspiegel füllt, bleibt unberührt: ein
- * Kampagnensatz steht links, und das ist keine Einstellung, sondern die CI.
- * Erkennbar ist er daran, dass für ihn keine Spalte übrig blieb — sein Kasten
- * beginnt am linken Rand.
- */
-export function insertAlign(x: number): 'left' | 'right' {
-  return x > margin.left ? 'right' : 'left';
+  return { x: spalten[0], y: Math.max(margin.top, bottom - size.h) };
 }
 
 export const layoutDescriptions: Record<SlideLayout, string> = {

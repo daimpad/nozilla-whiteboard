@@ -12,7 +12,8 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { canvas } from '@/theme';
-import { insertAlign, insertFrame } from '@/lib/layout/slideLayout';
+import { insertColumnWidth, insertFrame } from '@/lib/layout/slideLayout';
+import { typesetMarkdown, typesetText } from '@/lib/text/typeset';
 import type { RevealAnimation, ToneName } from '@/theme';
 import {
   createEmptySlide,
@@ -141,6 +142,39 @@ export function createStarterDeck(): Deck {
     meta: { title: 'Untitled deck' },
     slides: [createEmptySlide({ meta: { ...DEFAULT_SLIDE_META, layout: 'title' } })],
   };
+}
+
+/**
+ * Wie breit und wie hoch ein eingesetzter Baustein wird.
+ *
+ * Fließender Inhalt — Text und Markdown — bekommt die **Spaltenbreite**, und
+ * seine Höhe wird danach gemessen. Beides gehört zusammen: ein schmalerer
+ * Kasten bricht den Text öfter um, und die Höhe aus dem Baustein stimmt dann
+ * nicht mehr. Wer sie stehen ließe, bekäme einen Stapel, in dem das nächste
+ * Element ins vorige hineinragt — genau das war beim ersten Versuch zu sehen.
+ *
+ * Alles andere behält sein Maß: ein Zeichen ist quadratisch, ein Bild hat ein
+ * Seitenverhältnis, und eine Karte auf Spaltenbreite zu ziehen hieße, dem
+ * Baustein seine Proportion zu nehmen. Sie fangen trotzdem an derselben Linie
+ * an — das besorgt `insertFrame()`.
+ *
+ * Breiter als die Spalte wird nichts: sonst liefe ein Baustein über den
+ * rechten Satzspiegel hinaus, und der ist keine Empfehlung.
+ */
+function spalteFuer(element: CanvasElement): { w: number; h: number } {
+  if (element.kind === 'text' || element.kind === 'markdown') {
+    const innen = element.fill === 'none' ? 0 : element.padding;
+    const breite = Math.max(8, insertColumnWidth - innen * 2);
+    const gesetzt =
+      element.kind === 'text'
+        ? typesetText(element.text, element.typeStyle, { width: breite })
+        : typesetMarkdown(element.markdown, { width: breite });
+    return {
+      w: insertColumnWidth,
+      h: Math.max(16, Math.round(gesetzt.height + innen * 2)),
+    };
+  }
+  return { w: Math.min(element.w, insertColumnWidth), h: element.h };
 }
 
 export const useDeckStore = create<EditorState>()((set, get) => {
@@ -432,18 +466,10 @@ export const useDeckStore = create<EditorState>()((set, get) => {
       const element = createElement(kind, patch as never);
       // Rechtsbündig am Satzspiegel und unter das, was dort schon steht —
       // die Mitte gehört dem Fließtext. Warum, steht in `insertFrame()`.
-      const spot = insertFrame(slide?.elements ?? [], element);
-      const placed = clampToSlide({ ...spot, w: element.w, h: element.h });
-
-      // Ein Textelement ist nichts als sein Text: steht der links im Kasten,
-      // hilft die rechte Kante des Kastens niemandem. Alles andere zeichnet
-      // eine Fläche, deren Kante man sieht, und bleibt, wie es gedacht war.
-      const align =
-        element.kind === 'text' && !('align' in (patch ?? {}))
-          ? { align: insertAlign(placed.x) }
-          : null;
-
-      state.addElement({ ...element, x: placed.x, y: placed.y, ...align } as CanvasElement);
+      const kasten = spalteFuer(element);
+      const spot = insertFrame(slide?.elements ?? [], kasten);
+      const placed = clampToSlide({ ...spot, ...kasten });
+      state.addElement({ ...element, ...kasten, x: placed.x, y: placed.y } as CanvasElement);
     },
 
     /**
