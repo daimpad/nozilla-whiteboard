@@ -54,9 +54,14 @@ export function relationships(rels: readonly string[]): string {
 
 /**
  * Das Farbschema bildet die CI ab, so weit das Schema es zulässt: `dk1` ist
- * Tinte, `lt1` Papier, `accent1` das Signalgrün. Die übrigen Akzente wiederholen
- * die drei Rollen, statt Farben zu erfinden — die Marke hat keine fünf Akzente,
- * und eine Palette, die welche anbietet, lädt zum Verstoß ein.
+ * Tinte, `lt1` Papier, `lt2` das reine Weiß, `accent1` das Signalgrün. Die
+ * übrigen Akzente wiederholen diese Rollen, statt Farben zu erfinden — die
+ * Marke hat keine fünf Akzente, und eine Palette, die welche anbietet, lädt zum
+ * Verstoß ein.
+ *
+ * `lt2` trug bis eben `paperAlt` und war damit ein zweites Mal dasselbe Creme:
+ * seit die drei Cremetöne einer sind, stand hier eine Farbe doppelt. Jetzt
+ * steht dort die Farbe, die ein Deck als Ton `white` auch wirklich benutzt.
  */
 function colourScheme(): string {
   const entry = (name: string, value: string) =>
@@ -66,7 +71,7 @@ function colourScheme(): string {
     `<a:dk1><a:sysClr val="windowText" lastClr="${hex(palette.ink)}"/></a:dk1>` +
     `<a:lt1><a:sysClr val="window" lastClr="${hex(palette.paper)}"/></a:lt1>` +
     entry('dk2', palette.ink800) +
-    entry('lt2', palette.paperAlt) +
+    entry('lt2', palette.white) +
     entry('accent1', palette.signal) +
     entry('accent2', palette.signalStrong) +
     entry('accent3', palette.signalSoft) +

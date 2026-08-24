@@ -161,6 +161,24 @@ export function insertFrame(
   return { x: ersteSpalte, y: Math.max(margin.top, bottom - size.h) };
 }
 
+/**
+ * Ob der Text eines eingesetzten Elements an der rechten Kante stehen soll.
+ *
+ * `insertFrame()` legt den *Kasten* an den Satzspiegel — der Text darin stand
+ * aber weiter links, und ein Label ist nichts als sein Text. Vier Labels
+ * untereinander sahen deshalb aus, als schwebten sie mitten auf der Folie,
+ * obwohl jede Kante stimmte; wer eines einsetzte, zog es als Erstes nach
+ * rechts. Genau diesen Griff nimmt das hier ab.
+ *
+ * Ein Element, das den ganzen Satzspiegel füllt, bleibt unberührt: ein
+ * Kampagnensatz steht links, und das ist keine Einstellung, sondern die CI.
+ * Erkennbar ist er daran, dass für ihn keine Spalte übrig blieb — sein Kasten
+ * beginnt am linken Rand.
+ */
+export function insertAlign(x: number): 'left' | 'right' {
+  return x > margin.left ? 'right' : 'left';
+}
+
 export const layoutDescriptions: Record<SlideLayout, string> = {
   title: 'Titelfolie — Kampagnensatz am Satzspiegel',
   default: 'Standardfolie — Fließtext im Satzspiegel',

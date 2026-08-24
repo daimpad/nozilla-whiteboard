@@ -242,6 +242,35 @@ async function main() {
     gleich(x + breite, 1192, 'rechte Kante des eingesetzten Elements');
   });
 
+  await pruefe('ein Label schmiegt sich mit seinem Text an den Satzspiegel', async () => {
+    // Geprüft wird das Bild, nicht das Feld: der *Kasten* saß immer schon am
+    // rechten Satzspiegel, der Text darin aber links — und ein Label ist
+    // nichts als sein Text. Es sah aus, als schwebte es mitten auf der Folie.
+    await seite.locator('aside button').filter({ hasText: 'Label' }).first().click();
+    await seite.waitForTimeout(600);
+
+    const kante = await seite.evaluate(() => {
+      let folie = null;
+      for (const svg of document.querySelectorAll('svg')) {
+        const box = svg.getBoundingClientRect();
+        if (!folie || box.width * box.height > folie.flaeche) {
+          folie = { flaeche: box.width * box.height, svg };
+        }
+      }
+      const knoten = [...folie.svg.querySelectorAll('text')].find((el) =>
+        /ABSCHNITT/i.test(el.textContent ?? ''),
+      );
+      if (!knoten) return null;
+      const kasten = knoten.getBBox();
+      return Math.round(kasten.x + kasten.width);
+    });
+
+    wahr(kante !== null, 'kein Label-Text auf der Folie gefunden');
+    // 1280 − 88 = 1192. Ein paar Einheiten Spiel für die Seitenlage der
+    // letzten Glyphe; vorher lagen hier rund 200 daneben.
+    wahr(Math.abs(kante - 1192) <= 6, `rechte Kante des Label-Textes: ${kante} statt 1192`);
+  });
+
   await pruefe('eine Karte reist über die Zwischenablage auf die nächste Folie', async () => {
     // Für ein Werkzeug, das sich Whiteboard nennt, war ⌘V die auffälligste
     // Lücke: eine Datei *fallen zu lassen* ging, sie *einzufügen* nicht.

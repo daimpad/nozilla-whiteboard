@@ -49,7 +49,7 @@
  * Vier Dinge, die dabei zählen:
  *
  * 1. **Farben einmal nennen.** `tonesFromPalette()` und `colorsFromPalette()`
- *    mischen die drei Tonrollen und die fünfundzwanzig semantischen Tokens
+ *    mischen die vier Tonrollen und die fünfundzwanzig semantischen Tokens
  *    daraus. Wer sie von Hand schreibt und eine vergisst, bekommt eine Folie,
  *    die fast stimmt — `registerTheme()` weist das ab und sagt, welche Rolle
  *    daneben liegt.

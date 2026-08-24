@@ -197,6 +197,51 @@ describe('elements', () => {
     expect(second.y + second.h).toBeLessThanOrEqual(canvas.height - canvas.margin.bottom);
   });
 
+  it('legt den Text eines eingesetzten Labels an die rechte Kante', () => {
+    // Der Kasten saß schon am Satzspiegel, der Text darin aber links — und ein
+    // Label ist nichts als sein Text. Vier davon sahen aus, als schwebten sie
+    // mitten auf der Folie, und jedes musste von Hand hinübergezogen werden.
+    store().insertPreset('text', { typeStyle: 'label', text: 'Abschnitt', w: 300, h: 20 });
+    const [label] = elementsNow();
+    expect(label.kind === 'text' && label.align).toBe('right');
+    expect(label.x + label.w).toBe(canvas.width - canvas.margin.right);
+  });
+
+  it('lässt einen Kampagnensatz links stehen', () => {
+    // Er füllt den ganzen Satzspiegel, es blieb also keine Spalte übrig. Dass
+    // Kampagnensätze links ansetzen, ist keine Einstellung, sondern die CI.
+    store().insertPreset('text', {
+      typeStyle: 'display',
+      text: 'Gute digitale Dienste.',
+      w: 1104,
+      h: 260,
+    });
+    const [satz] = elementsNow();
+    expect(satz.x).toBe(canvas.margin.left);
+    expect(satz.kind === 'text' && satz.align).toBe('left');
+  });
+
+  it('lässt eine ausdrücklich gewünschte Ausrichtung in Ruhe', () => {
+    store().insertPreset('text', {
+      typeStyle: 'label',
+      text: 'Abschnitt',
+      w: 300,
+      h: 20,
+      align: 'center',
+    });
+    const [label] = elementsNow();
+    expect(label.kind === 'text' && label.align).toBe('center');
+  });
+
+  it('rührt die Ausrichtung nicht an, wo eine Fläche gezeichnet wird', () => {
+    // Eine Karte trägt einen sichtbaren Rahmen; ihre Kante *ist* zu sehen, und
+    // ihr Text soll darin bleiben, wo der Baustein ihn vorsieht.
+    store().insertPreset('card');
+    const [karte] = elementsNow();
+    expect(karte.x + karte.w).toBe(canvas.width - canvas.margin.right);
+    expect('align' in karte ? karte.align : 'left').toBe('left');
+  });
+
   it('legt Eingefügtes auf der neuen Folie an dieselbe Stelle', () => {
     // Der Sinn des Kopierens zwischen zwei Folien: dieselbe Karte an
     // derselben Stelle. Rückte sie dabei, wäre jede zweite Folie krumm.

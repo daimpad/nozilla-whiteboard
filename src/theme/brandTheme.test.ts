@@ -6,6 +6,7 @@ import {
   tonesFromPalette,
   tonesOutsidePalette,
 } from './brandTheme';
+import { musterkunde } from '@/themes/musterkunde';
 
 describe('der Vertrag eines Erscheinungsbilds', () => {
   it('mischt aus der nozilla-Palette genau deren Töne', () => {
@@ -23,6 +24,24 @@ describe('der Vertrag eines Erscheinungsbilds', () => {
     // Deckkraft, und das muss für jede Palette gelten und nicht nur für
     // Schwarz auf Grün.
     expect(colorsFromPalette(palette, inkAlpha)).toEqual(color);
+  });
+
+  it('gibt jedem Erscheinungsbild einen Ton, der wirklich weiß ist', () => {
+    // Der vierte Ton hat eine Vorgeschichte: „Papier getönt" wurde gestrichen,
+    // weil er sich nach dem Zusammenfallen der drei Cremetöne nicht mehr vom
+    // Papier absetzen konnte. `white` nimmt die Aufgabe wieder auf — und darf
+    // sie nicht auf dieselbe Weise verfehlen.
+    expect(elementTones.white.surface).toBe(palette.white);
+    expect(elementTones.white.surface).not.toBe(elementTones.paper.surface);
+
+    // Und zwar für jede Palette, nicht nur für die eigene: ein Kunde mit
+    // weißem Papier bekäme sonst zwei Töne, die dasselbe tun.
+    const gemischt = tonesFromPalette(
+      musterkunde.palette,
+      musterkunde.inkAlpha,
+      musterkunde.paperAlpha,
+    );
+    expect(gemischt.white.surface).toBe(musterkunde.palette.white);
   });
 
   it('lässt die nozilla-CI ihre eigene Prüfung bestehen', () => {

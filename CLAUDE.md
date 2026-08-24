@@ -89,7 +89,7 @@ der Icons — bleibt; warum, steht im Kopf von `brandTheme.ts`.
 `src/themes/musterkunde.ts` ist die Vorlage und läuft mit: sie belegt jede
 Rolle einmal und ist der schnellste Weg zu einem echten Kunden. Farben werden
 dabei *einmal* genannt — `tonesFromPalette()` und `colorsFromPalette()` mischen
-die drei Tonrollen und die fünfundzwanzig semantischen Tokens daraus, und
+die vier Tonrollen und die fünfundzwanzig semantischen Tokens daraus, und
 `brandTheme.test.ts` hält beide an `theme.config.ts`.
 
 Die rechte Spalte wechselt nie mit. Auch die Icons haben deshalb zwei Wege:
