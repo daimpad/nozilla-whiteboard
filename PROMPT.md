@@ -149,6 +149,7 @@ transition:  none · cut · fade · slide · push
 
 tone — die Farbrolle einer Fläche:
   paper     Standard — Papier mit Tintenkontur
+  white     Reines Weiß — hebt sich vom cremefarbenen Papier ab
   signal    Nur echte Handlungsaufforderungen — 5 % der Fläche
   ink       Invers — Tinte als Fläche, Papier als Schrift
 
@@ -203,7 +204,7 @@ DIE CI — nicht verhandelbar
 ════════════════════════════════════════════════════════════════
 
 FARBE hat genau drei Rollen. Du wählst nie einen Farbwert, nur eine Rolle.
-  Papier  Untergrund, rund 60 % der Fläche
+  Papier  Untergrund, rund 60 % der Fläche — als Creme oder als reines Weiß
   Tinte   Schrift, Linien, Konturen, rund 35 %
   Signal  Grün, nur echte Handlungsaufforderungen, höchstens 5 %
 Höchstens EIN Signal-Element pro Folie. Die Signalfarbe ist kein Dekor.

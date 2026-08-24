@@ -370,7 +370,7 @@ DIE CI — nicht verhandelbar
 ════════════════════════════════════════════════════════════════
 
 FARBE hat genau drei Rollen. Du wählst nie einen Farbwert, nur eine Rolle.
-  Papier  Untergrund, rund 60 % der Fläche
+  Papier  Untergrund, rund 60 % der Fläche — als Creme oder als reines Weiß
   Tinte   Schrift, Linien, Konturen, rund 35 %
   Signal  ${brand.name === 'nozilla' ? 'Grün' : 'Die Signalfarbe'}, nur echte Handlungsaufforderungen, höchstens 5 %
 Höchstens EIN Signal-Element pro Folie. Die Signalfarbe ist kein Dekor.

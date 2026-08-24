@@ -149,15 +149,21 @@ export const color = {
 /**
  * Die Flächenrollen, die ein Canvas-Element annehmen darf.
  *
- * Bewusst drei statt einer Akzentpalette: „Akzent-Paletten mit 5 Blautönen"
- * stehen im CI ausdrücklich auf der Verbotsliste. Wer eine Fläche einfärben
- * will, wählt eine Rolle — keinen Farbwert. Ein Farbwähler existiert nicht.
+ * Bewusst eine Handvoll Rollen statt einer Akzentpalette: „Akzent-Paletten mit
+ * 5 Blautönen" stehen im CI ausdrücklich auf der Verbotsliste. Wer eine Fläche
+ * einfärben will, wählt eine Rolle — keinen Farbwert. Ein Farbwähler existiert
+ * nicht.
  *
- * Es waren einmal vier. „Papier getönt" hatte genau eine Aufgabe: sich vom
- * Papier abzusetzen. Seit die drei Cremetöne einer sind (siehe `palette`),
- * kann es das nicht mehr — es wäre ein Eintrag, der etwas verspricht, was
- * er nicht hält. Ein Deck, das ihn noch nennt, fällt beim Einlesen auf
- * `paper` zurück, und das ist genau das, was es dann auch war.
+ * Die Zahl war schon einmal vier. „Papier getönt" hatte genau eine Aufgabe:
+ * sich vom Papier abzusetzen. Seit die drei Cremetöne einer sind (siehe
+ * `palette`), konnte es das nicht mehr, und ein Eintrag, der etwas verspricht,
+ * was er nicht hält, gehört gelöscht. Ein Deck, das ihn noch nennt, fällt beim
+ * Einlesen auf `paper` zurück, und das ist genau das, was es dann auch war.
+ *
+ * `white` nimmt diese Aufgabe wieder auf — und kann sie halten, denn reines
+ * Weiß *ist* vom Creme zu unterscheiden. Es ist keine neue Farbe: `palette.
+ * white` steht schon länger in der Palette und trägt bereits `surfaceRaised`.
+ * Neu ist nur, dass eine Folie es benennen darf.
  */
 export const elementTones = {
   paper: {
@@ -165,6 +171,16 @@ export const elementTones = {
     hint: 'Standard — Papier mit Tintenkontur',
     surface: palette.paper,
     surfaceAlt: palette.paperAlt,
+    line: palette.ink,
+    text: palette.ink,
+    textMuted: inkAlpha[70],
+    accent: palette.ink,
+  },
+  white: {
+    label: 'Weiß',
+    hint: 'Reines Weiß — hebt sich vom cremefarbenen Papier ab',
+    surface: palette.white,
+    surfaceAlt: palette.white,
     line: palette.ink,
     text: palette.ink,
     textMuted: inkAlpha[70],

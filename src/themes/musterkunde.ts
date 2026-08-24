@@ -24,7 +24,7 @@
  * ## Was hier *nicht* anders ist
  *
  * Radius 0, harte Versatzschatten, 1280 × 720, das 64er-Raster der Icons, die
- * drei Tonrollen. Das ist keine Nachlässigkeit — es ist die Grenze, die
+ * vier Tonrollen. Das ist keine Nachlässigkeit — es ist die Grenze, die
  * `theme/brandTheme.ts` zieht. Wer sie verschieben will, verschiebt sie nicht
  * in einer Kundendatei.
  */

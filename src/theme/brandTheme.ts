@@ -278,7 +278,7 @@ function withAlpha(hex: string, alpha: number): string {
  * Die Farbrollen aus einer Palette mischen.
  *
  * Wer ein Erscheinungsbild anlegt, soll Farben *einmal* nennen. Diese Funktion
- * setzt daraus die drei Tonrollen zusammen, und zwar nach demselben Muster wie
+ * setzt daraus die vier Tonrollen zusammen, und zwar nach demselben Muster wie
  * die nozilla-CI: Papier trägt Tinte, Signal trägt Tinte, Tinte trägt Papier
  * und setzt den Akzent auf Signal.
  *
@@ -297,6 +297,15 @@ export function tonesFromPalette(
       ...labels.paper,
       surface: palette.paper,
       surfaceAlt: palette.paperAlt,
+      line: palette.ink,
+      text: palette.ink,
+      textMuted: inkAlpha[70],
+      accent: palette.ink,
+    },
+    white: {
+      ...labels.white,
+      surface: palette.white,
+      surfaceAlt: palette.white,
       line: palette.ink,
       text: palette.ink,
       textMuted: inkAlpha[70],
@@ -323,9 +332,10 @@ export function tonesFromPalette(
   };
 }
 
-/** Die Beschriftungen der drei Rollen. Ein Kunde darf sie anders nennen. */
+/** Die Beschriftungen der vier Rollen. Ein Kunde darf sie anders nennen. */
 export const toneLabels: Record<ToneRole, { label: string; hint: string }> = {
   paper: { label: nzTones.paper.label, hint: nzTones.paper.hint },
+  white: { label: nzTones.white.label, hint: nzTones.white.hint },
   signal: { label: nzTones.signal.label, hint: nzTones.signal.hint },
   ink: { label: nzTones.ink.label, hint: nzTones.ink.hint },
 };

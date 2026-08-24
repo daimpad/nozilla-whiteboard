@@ -12,7 +12,7 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { canvas } from '@/theme';
-import { insertFrame } from '@/lib/layout/slideLayout';
+import { insertAlign, insertFrame } from '@/lib/layout/slideLayout';
 import type { RevealAnimation, ToneName } from '@/theme';
 import {
   createEmptySlide,
@@ -434,7 +434,16 @@ export const useDeckStore = create<EditorState>()((set, get) => {
       // die Mitte gehört dem Fließtext. Warum, steht in `insertFrame()`.
       const spot = insertFrame(slide?.elements ?? [], element);
       const placed = clampToSlide({ ...spot, w: element.w, h: element.h });
-      state.addElement({ ...element, x: placed.x, y: placed.y } as CanvasElement);
+
+      // Ein Textelement ist nichts als sein Text: steht der links im Kasten,
+      // hilft die rechte Kante des Kastens niemandem. Alles andere zeichnet
+      // eine Fläche, deren Kante man sieht, und bleibt, wie es gedacht war.
+      const align =
+        element.kind === 'text' && !('align' in (patch ?? {}))
+          ? { align: insertAlign(placed.x) }
+          : null;
+
+      state.addElement({ ...element, x: placed.x, y: placed.y, ...align } as CanvasElement);
     },
 
     /**
