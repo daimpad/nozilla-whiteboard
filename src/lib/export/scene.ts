@@ -46,7 +46,7 @@ import {
   type Seg,
 } from '@/lib/geometry/path';
 import { connectorGeometry, shapeGeometry } from '@/lib/geometry/shapes';
-import { flowFrame, footerFrame } from '@/lib/layout/slideLayout';
+import { flowFrame, flowOffsetY, footerFrame } from '@/lib/layout/slideLayout';
 import { font, measureText, type FontSpec } from '@/lib/text/measure';
 import { typesetMarkdown, typesetText, type TypesetResult } from '@/lib/text/typeset';
 import type { CanvasElement, CardElement, Deck, Slide, SlideBackground } from '@/model/types';
@@ -232,11 +232,7 @@ export function buildSlideBackdrop(slide: Slide, options: SceneOptions = {}): Sc
       palette: flowPalette(bg),
     });
 
-    let dy = frame.y;
-    if (frame.valign === 'middle') dy = frame.y + Math.max(0, (frame.h - result.height) / 2);
-    else if (frame.valign === 'bottom') dy = frame.y + Math.max(0, frame.h - result.height);
-
-    prims.push(...typesetToScene(result, frame.x, dy));
+    prims.push(...typesetToScene(result, frame.x, flowOffsetY(frame, result.height)));
   }
 
   return prims;

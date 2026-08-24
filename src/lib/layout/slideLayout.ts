@@ -6,6 +6,7 @@
  * they are absolutely positioned — which is exactly the hybrid the tool is for.
  */
 import { canvas } from '@/theme';
+import { typesetMarkdown } from '@/lib/text/typeset';
 import type { SlideLayout, TypeStyleName } from '@/theme';
 
 export interface FlowFrame {
@@ -120,32 +121,74 @@ export const footerFrame = {
 };
 
 /**
- * Die Spalte, in der Eingesetztes landet — und ihre Breite.
+ * Die Spalten, in denen Eingesetztes landet — und ihre Breite.
  *
- * Sie ist **fest** und nicht aus der Breite des Bausteins gerechnet. Das ist
+ * Sie sind **fest** und nicht aus der Breite des Bausteins gerechnet. Das ist
  * der ganze Punkt: solange jeder Baustein seine eigene Breite mitbrachte,
  * bekam jeder auch seine eigene Kante — eine Überschrift begann bei 192, ein
  * Zwischentitel bei 552, ein Label bei 892. Untereinander ergab das keine
  * Linie, sondern eine Treppe, und man sah der Folie an, dass niemand sie
  * gelegt hatte.
  *
- * 48 % des Satzspiegels, rechts angeschlagen — dasselbe Verhältnis, das das
- * `split`-Layout seiner linken Spalte gibt. Die zweite Spalte liegt eine
- * Spaltenbreite weiter links und passt gerade noch in den Satzspiegel.
+ * 48 % des Satzspiegels — dasselbe Verhältnis, das das `split`-Layout seiner
+ * linken Spalte gibt. Zwei davon passen nebeneinander, die erste am linken
+ * Satzspiegel, die zweite am rechten.
+ *
+ * Gefüllt wird **von links**. Das war zwischendurch andersherum, aus einem
+ * guten Grund: eingesetztes Material landete sonst mitten im Fließtext. Der
+ * Grund ist geblieben, die Lösung nicht — der Fließtext zählt jetzt selbst als
+ * besetzte Fläche (`flowBounds()`), und dann kann die erste Spalte dort
+ * stehen, wo man zu lesen anfängt.
  */
 export const insertColumnWidth = Math.round(innerW * 0.48);
 
 export function insertColumns(): number[] {
-  const gap = canvas.gridSize * 3;
-  const out: number[] = [];
-  for (
-    let x = width - margin.right - insertColumnWidth;
-    x >= margin.left;
-    x -= insertColumnWidth + gap
-  ) {
-    out.push(x);
-  }
-  return out;
+  const right = width - margin.right;
+  const anzahl = Math.max(1, Math.floor(innerW / insertColumnWidth));
+  if (anzahl === 1) return [margin.left];
+  const luecke = (right - margin.left - anzahl * insertColumnWidth) / (anzahl - 1);
+  return Array.from({ length: anzahl }, (_, i) =>
+    Math.round(margin.left + i * (insertColumnWidth + luecke)),
+  );
+}
+
+/**
+ * Wo der Fließtext senkrecht ansetzt.
+ *
+ * Steht hier und nicht in `scene.ts`, weil zwei Stellen dieselbe Zahl
+ * brauchen: die Szene, um den Text zu zeichnen, und das Einsetzen, um ihn
+ * nicht zu überdecken. Zwei Rechnungen wären zwei Wahrheiten.
+ */
+export function flowOffsetY(frame: FlowFrame, contentHeight: number): number {
+  if (frame.valign === 'middle') return frame.y + Math.max(0, (frame.h - contentHeight) / 2);
+  if (frame.valign === 'bottom') return frame.y + Math.max(0, frame.h - contentHeight);
+  return frame.y;
+}
+
+/**
+ * Der Kasten, den der Fließtext einer Folie wirklich einnimmt.
+ *
+ * Nicht der Satzspiegel des Layouts — der reicht bei den meisten Layouts über
+ * die ganze Folie —, sondern die gesetzte Höhe des Markdowns darin. Wer
+ * darunter einsetzt, überdeckt nichts; wer den ganzen Rahmen meidet, fände
+ * unter einer zweizeiligen Überschrift keinen Platz mehr.
+ *
+ * Gibt `null` zurück, wenn die Folie keinen Fließtext trägt — bei `canvas` und
+ * `blank` gehört die Fläche ohnehin dem frei Gelegten.
+ */
+export function flowBounds(
+  layout: SlideLayout,
+  markdown: string,
+): { x: number; y: number; w: number; h: number } | null {
+  const frame = flowFrame(layout);
+  if (!frame || !markdown.trim()) return null;
+  const gesetzt = typesetMarkdown(markdown, {
+    width: frame.w,
+    scale: frame.scale,
+    align: frame.align,
+    baseStyle: frame.baseStyle,
+  });
+  return { x: frame.x, y: flowOffsetY(frame, gesetzt.height), w: frame.w, h: gesetzt.height };
 }
 
 /**
@@ -168,22 +211,37 @@ export function insertColumns(): number[] {
 export function insertFrame(
   existing: readonly { x: number; y: number; w: number; h: number }[],
   size: { w: number; h: number },
+  weich: readonly { x: number; y: number; w: number; h: number }[] = [],
 ): { x: number; y: number } {
   const bottom = height - margin.bottom;
   const gap = canvas.gridSize * 3;
-
-  const untenIn = (spaltenX: number) =>
-    existing
-      .filter((rect) => rect.x < spaltenX + insertColumnWidth && rect.x + rect.w > spaltenX)
-      .reduce<number>((tiefstes, rect) => Math.max(tiefstes, rect.y + rect.h + gap), margin.top);
-
   const spalten = insertColumns();
-  for (const x of spalten) {
-    const y = untenIn(x);
-    if (y + size.h <= bottom) return { x, y };
-  }
 
-  return { x: spalten[0], y: Math.max(margin.top, bottom - size.h) };
+  const untenIn =
+    (hindernisse: readonly { x: number; y: number; w: number; h: number }[]) =>
+    (spaltenX: number) =>
+      hindernisse
+        .filter((rect) => rect.x < spaltenX + insertColumnWidth && rect.x + rect.w > spaltenX)
+        .reduce<number>((tiefstes, rect) => Math.max(tiefstes, rect.y + rect.h + gap), margin.top);
+
+  const versuch = (hindernisse: readonly { x: number; y: number; w: number; h: number }[]) => {
+    const unten = untenIn(hindernisse);
+    for (const x of spalten) {
+      const y = unten(x);
+      if (y + size.h <= bottom) return { x, y };
+    }
+    return null;
+  };
+
+  // `weich` ist der Fließtext: gemieden, solange irgendwo Platz ist. Ihn hart
+  // zu behandeln wäre schlimmer als ihn zu überdecken — auf einer Titelfolie
+  // mit großem, mittig stehendem Satz bliebe sonst nirgends Raum, und alles
+  // Eingesetzte landete auf demselben Notplatz am unteren Satzspiegel,
+  // übereinander und nicht mehr auseinanderzuhalten.
+  return (
+    versuch([...existing, ...weich]) ??
+    versuch(existing) ?? { x: spalten[0], y: Math.max(margin.top, bottom - size.h) }
+  );
 }
 
 export const layoutDescriptions: Record<SlideLayout, string> = {

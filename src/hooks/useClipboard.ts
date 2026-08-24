@@ -20,7 +20,7 @@
 import { useEffect } from 'react';
 import { elementsToSnippet, snippetToElements } from '@/lib/clipboard';
 import { imageElementFromFile } from '@/lib/imageElement';
-import { insertFrame } from '@/lib/layout/slideLayout';
+import { flowBounds, insertFrame } from '@/lib/layout/slideLayout';
 import { selectCurrentSlide, useDeckStore } from '@/state/deckStore';
 import { isTypingTarget } from '@/hooks/useKeyboardShortcuts';
 
@@ -118,7 +118,8 @@ async function einfuegenAlsBilder(dateien: readonly File[]): Promise<void> {
     const element = await imageElementFromFile(datei);
     const state = useDeckStore.getState();
     const slide = selectCurrentSlide(state);
-    const spot = insertFrame(slide?.elements ?? [], element);
+    const text = slide ? flowBounds(slide.meta.layout, slide.markdown) : null;
+    const spot = insertFrame(slide?.elements ?? [], element, text ? [text] : []);
     state.addElement({ ...element, x: spot.x, y: spot.y });
   }
 }
