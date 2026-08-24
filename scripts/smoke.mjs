@@ -238,8 +238,9 @@ async function main() {
     await seite.waitForTimeout(500);
 
     const [x] = await masse(seite);
-    // 1192 − 530 = 662: die rechte Spalte, 48 % des Satzspiegels breit.
-    gleich(x, 662, 'linke Kante des eingesetzten Elements');
+    // Der linke Satzspiegel: dort fängt man zu lesen an, und dort fängt auch
+    // alles Eingesetzte an. Die Spalte ist 48 % des Satzspiegels breit.
+    gleich(x, 88, 'linke Kante des eingesetzten Elements');
   });
 
   await pruefe('ein Label steht mit seinem Text auf derselben Linie', async () => {
@@ -267,7 +268,7 @@ async function main() {
     wahr(kante !== null, 'kein Label-Text auf der Folie gefunden');
     // Dieselbe Linie wie die Karte darüber. Ein paar Einheiten Spiel für die
     // Seitenlage der ersten Glyphe.
-    wahr(Math.abs(kante - 662) <= 6, `linke Kante des Label-Textes: ${kante} statt 662`);
+    wahr(Math.abs(kante - 88) <= 6, `linke Kante des Label-Textes: ${kante} statt 88`);
   });
 
   await pruefe('eine Karte reist über die Zwischenablage auf die nächste Folie', async () => {
@@ -315,7 +316,7 @@ async function main() {
     const [x, y, breite, hoehe] = await masse(seite);
     // 200 × 100 sind 2 : 1, und 420 ist die Breite eines eingesetzten Bildes.
     gleich(`${breite} × ${hoehe}`, '420 × 210', 'Maß des eingefügten Bildes');
-    gleich(`${x} / ${y}`, '662 / 72', 'Ort des eingefügten Bildes');
+    gleich(`${x} / ${y}`, '88 / 72', 'Ort des eingefügten Bildes');
   });
 
   console.log('\nErscheinungsbild und Erscheinung:');

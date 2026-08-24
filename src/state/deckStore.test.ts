@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { canvas } from '@/theme';
-import { insertColumnWidth } from '@/lib/layout/slideLayout';
+import { flowBounds, insertColumnWidth } from '@/lib/layout/slideLayout';
 import { createElement } from '@/model/factory';
 import { parseDeck, serializeDeck } from '@/lib/markdown/deck';
 import { createStarterDeck, useDeckStore } from './deckStore';
@@ -15,6 +15,9 @@ const addShape = (patch: Partial<CanvasElement> = {}) => {
 };
 
 const elementsNow = () => store().deck.slides[store().slideIndex].elements;
+
+/** Ein Satz, der einen Satzspiegel füllt. */
+const LANG = Array.from({ length: 12 }, () => 'Ein Satz, der etwas behauptet.').join(' ');
 
 beforeEach(() => {
   useDeckStore.setState({
@@ -190,7 +193,7 @@ describe('elements', () => {
     store().insertPreset('shape');
     store().insertPreset('shape');
     const [first, second] = elementsNow();
-    const linie = canvas.width - canvas.margin.right - insertColumnWidth;
+    const linie = canvas.margin.left;
 
     expect(first.x).toBe(linie);
     expect(second.x).toBe(linie);
@@ -207,7 +210,7 @@ describe('elements', () => {
     store().insertPreset('text', { typeStyle: 'h2', text: 'Zwischentitel', w: 640, h: 60 });
     store().insertPreset('text', { typeStyle: 'label', text: 'Abschnitt', w: 300, h: 20 });
 
-    const linie = canvas.width - canvas.margin.right - insertColumnWidth;
+    const linie = canvas.margin.left;
     for (const element of elementsNow()) {
       expect(element.x, element.id).toBe(linie);
       expect(element.w, element.id).toBe(insertColumnWidth);
@@ -242,7 +245,47 @@ describe('elements', () => {
     const [zeichen] = elementsNow();
     expect(zeichen.w).toBe(88);
     expect(zeichen.h).toBe(88);
-    expect(zeichen.x).toBe(canvas.width - canvas.margin.right - insertColumnWidth);
+    expect(zeichen.x).toBe(canvas.margin.left);
+  });
+
+  it('meidet den Fließtext, solange Platz ist', () => {
+    // Der Grund, aus dem früher überhaupt rechts eingesetzt wurde: sonst liegt
+    // das erste Element mitten in der Überschrift.
+    useDeckStore.setState((state) => ({
+      deck: {
+        ...state.deck,
+        slides: state.deck.slides.map((slide, i) =>
+          i === 0 ? { ...slide, markdown: '# Eine Überschrift\n\nUnd ein Satz darunter.' } : slide,
+        ),
+      },
+    }));
+    const text = flowBounds(store().deck.slides[0].meta.layout, store().deck.slides[0].markdown);
+    expect(text).not.toBeNull();
+
+    store().insertPreset('text', { typeStyle: 'label', text: 'Abschnitt', w: 300, h: 20 });
+    const [gelegt] = elementsNow();
+    expect(gelegt.y).toBeGreaterThanOrEqual(text!.y + text!.h);
+  });
+
+  it('überdeckt den Fließtext lieber, als alles auf einen Notplatz zu legen', () => {
+    // Hart behandelt hätte der Fließtext einer Titelfolie keinen Platz mehr
+    // übrig gelassen — und dann läge jede Karte auf demselben Fleck am unteren
+    // Satzspiegel, übereinander und nicht auseinanderzuhalten.
+    useDeckStore.setState((state) => ({
+      deck: {
+        ...state.deck,
+        slides: state.deck.slides.map((slide, i) =>
+          i === 0
+            ? { ...slide, meta: { ...slide.meta, layout: 'statement' as const }, markdown: LANG }
+            : slide,
+        ),
+      },
+    }));
+
+    store().insertPreset('card');
+    store().insertPreset('card');
+    const [erst, dann] = elementsNow();
+    expect(`${dann.x} / ${dann.y}`).not.toBe(`${erst.x} / ${erst.y}`);
   });
 
   it('lässt nichts über den rechten Satzspiegel hinauslaufen', () => {

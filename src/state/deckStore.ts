@@ -12,7 +12,7 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { canvas } from '@/theme';
-import { insertColumnWidth, insertFrame } from '@/lib/layout/slideLayout';
+import { flowBounds, insertColumnWidth, insertFrame } from '@/lib/layout/slideLayout';
 import { typesetMarkdown, typesetText } from '@/lib/text/typeset';
 import type { RevealAnimation, ToneName } from '@/theme';
 import {
@@ -467,7 +467,11 @@ export const useDeckStore = create<EditorState>()((set, get) => {
       // Rechtsbündig am Satzspiegel und unter das, was dort schon steht —
       // die Mitte gehört dem Fließtext. Warum, steht in `insertFrame()`.
       const kasten = spalteFuer(element);
-      const spot = insertFrame(slide?.elements ?? [], kasten);
+      // Der Fließtext zählt als besetzte Fläche mit. Sonst läge das erste
+      // eingesetzte Element mitten in der Überschrift — der Grund, aus dem
+      // früher überhaupt rechts eingesetzt wurde.
+      const text = slide ? flowBounds(slide.meta.layout, slide.markdown) : null;
+      const spot = insertFrame(slide?.elements ?? [], kasten, text ? [text] : []);
       const placed = clampToSlide({ ...spot, ...kasten });
       state.addElement({ ...element, ...kasten, x: placed.x, y: placed.y } as CanvasElement);
     },
