@@ -246,10 +246,10 @@ function ThemeField() {
       label="Erscheinungsbild"
       hint={
         unknown
-          ? `“${current}” is not installed here. Drawn in the default; the deck keeps the entry.`
+          ? `„${current}" ist hier nicht angemeldet. Gezeichnet wird im Standard; der Eintrag bleibt in der Datei stehen.`
           : known.length > 1
-            ? 'Stored in the frontmatter — the file carries which brand it belongs to.'
-            : 'Further themes are registered in src/themes/.'
+            ? 'Steht im Frontmatter — die Datei trägt ihre Zugehörigkeit mit.'
+            : 'Weitere Erscheinungsbilder werden in src/themes/ angemeldet.'
       }
     >
       <Select

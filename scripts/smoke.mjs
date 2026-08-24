@@ -19,8 +19,11 @@
  *
  * ## Was er prüft
  *
- * Geladen, gezeichnet, umgeschaltet, eingesetzt, exportiert — und dabei kein
- * Fehler in der Konsole. Geprüft wird gegen `vite preview`, also gegen das
+ * Geladen, gezeichnet, umgeschaltet, eingesetzt, vorgetragen, exportiert — und
+ * dabei kein Fehler in der Konsole. Der Vortrag steht dabei nicht aus
+ * Vollständigkeit in der Liste: er ist der einzige Bildschirm, den das Publikum
+ * sieht, und war der letzte, den niemand prüfte — er blieb englisch, während
+ * neun Prüfungen grün waren. Geprüft wird gegen `vite preview`, also gegen das
  * gebaute Verzeichnis und nicht gegen den Entwicklungsserver: bereitgestellt
  * wird das Gebaute.
  *
@@ -249,6 +252,63 @@ async function main() {
     wahr(hell, 'keine Bausteinvorschau gefunden');
     const [r, g, b] = hell.match(/\d+/g).map(Number);
     wahr(r + g + b > 600, `Vorschau-Untergrund zu dunkel: ${hell}`);
+  });
+
+  console.log('\nVortrag:');
+
+  // Der Bildschirm, den nicht der Benutzer sieht, sondern sein Publikum — und
+  // der einzige, den bis zuletzt niemand geprüft hat. Er blieb deshalb
+  // englisch, während neun Prüfungen grün waren.
+  await pruefe('die Vortragsansicht nimmt die ganze Fläche ein', async () => {
+    await seite.getByRole('button', { name: 'Vortragen', exact: true }).click();
+    await seite.waitForTimeout(900);
+
+    const folie = await seite.evaluate(FOLIE);
+    wahr(folie, 'keine Folie im Vortrag');
+    // Im Vortrag ist die Folie größer als im Bearbeiten — sonst wurde nicht
+    // umgeschaltet, sondern nur ein Fenster darübergelegt.
+    wahr(folie.flaeche > 700_000, `die Folie füllt nicht: ${Math.round(folie.flaeche)} px²`);
+    wahr(
+      !(await seite.getByRole('button', { name: 'Export', exact: true }).count()),
+      'die Kopfleiste steht noch da',
+    );
+  });
+
+  await pruefe('weiterblättern bringt die nächste Folie', async () => {
+    const vorher = (await seite.evaluate(FOLIE)).markup;
+    await seite.keyboard.press('ArrowRight');
+    await seite.waitForTimeout(900);
+    wahr((await seite.evaluate(FOLIE)).markup !== vorher, 'die Folie blieb stehen');
+  });
+
+  await pruefe('die Notizen kommen auf Deutsch', async () => {
+    // Hier stand „Notes ·" und „No notes for this slide." — beides in einem
+    // Ausdruck, und beides deshalb am Sprachtest vorbei.
+    wahr(
+      !(await seite.getByRole('button', { name: 'Export', exact: true }).count()),
+      'nicht mehr im Vortrag — diese Prüfung sagt sonst nichts über die Notizkarte',
+    );
+    await seite.keyboard.press('n');
+    await seite.waitForTimeout(600);
+    const karte = await seite.evaluate(() => {
+      const el = [...document.querySelectorAll('aside')].find((node) =>
+        /Notiz|Notes/i.test(node.textContent ?? ''),
+      );
+      return el?.textContent ?? null;
+    });
+    wahr(karte, 'keine Notizkarte im Vortrag');
+    wahr(!/\bNotes\b|No notes/i.test(karte), `die Notizkarte ist englisch: ${karte.slice(0, 60)}`);
+    await seite.keyboard.press('n');
+    await seite.waitForTimeout(400);
+  });
+
+  await pruefe('Esc führt zurück an die Arbeit', async () => {
+    await seite.keyboard.press('Escape');
+    await seite.waitForTimeout(900);
+    wahr(
+      await seite.getByRole('button', { name: 'Export', exact: true }).count(),
+      'die Kopfleiste kam nicht zurück',
+    );
   });
 
   console.log('\nExport:');

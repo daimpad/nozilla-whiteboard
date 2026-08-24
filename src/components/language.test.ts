@@ -117,20 +117,51 @@ function ohneKommentare(source: string): string {
 }
 
 /**
- * Was der Mensch sieht: Werte von `label`, `title`, `placeholder`,
- * `aria-label`, `hint` — und Textknoten im Markup.
+ * Was der Mensch sieht — und zwar auf vier Wegen, weil eine Beschriftung auf
+ * vier Weisen im Code stehen kann.
+ *
+ * Das Sieb kannte lange nur die ersten anderthalb. Es war grün, während die
+ * ganze Vortragsansicht englisch blieb: „→ / Space advance · ← back", „Notes ·"
+ * und „No notes for this slide." Keine dieser drei ist ein Attribut, und keine
+ * ist ein reiner Textknoten. Ein Wächter, der nur die bequemen Fälle prüft,
+ * bewacht den Eingang und lässt die Hintertür offen.
  */
 function sichtbareTexte(source: string): string[] {
   const out: string[] = [];
+
+  // 1 · Als Attribut: label="…" oder label={'…'}.
   for (const match of source.matchAll(
-    /(?:label|title|placeholder|aria-label|hint)=(?:"([^"]{2,})"|\{'([^']{2,})'\})/g,
+    /(?:label|title|placeholder|aria-label|hint|alt)=(?:"([^"]{2,})"|\{'([^']{2,})'\})/g,
   )) {
     out.push(match[1] ?? match[2]);
   }
-  // Textknoten: eine Zeile zwischen > und < ohne Klammern und ohne Code.
-  for (const match of source.matchAll(/>\s*([A-Za-zÄÖÜäöü][^<>{}\n]{3,80})\s*</g)) {
-    out.push(match[1]);
+
+  // 2 · Als Eigenschaft eines Objekts: `{ value: 'fit', label: 'Passend' }`.
+  // So ist jede Beschriftung eines `Segmented` geschrieben — ein ganzer
+  // Bautyp, den das Sieb nie zu Gesicht bekam.
+  for (const match of source.matchAll(
+    /\b(?:label|title|placeholder|hint|alt):\s*(?:'([^']{2,})'|"([^"]{2,})")/g,
+  )) {
+    out.push(match[1] ?? match[2]);
   }
+
+  // 3 · Als Textknoten. Er endet nicht nur an `<`, sondern auch an `{`: in
+  // „Notizen · {slideTitle(…)}" steht das deutsche Wort vor einem Ausdruck.
+  // Und er fängt nicht immer mit einem Buchstaben an — die Hilfszeile beginnt
+  // mit einem Pfeil.
+  for (const match of source.matchAll(/>\s*([^<>{}\n][^<>{}\n]{3,90})\s*[<{]/g)) {
+    if (/[A-Za-zÄÖÜäöü]/.test(match[1])) out.push(match[1]);
+  }
+
+  // 4 · Als Zeichenkette in einem Ausdruck: `{… || 'No notes for this slide.'}`
+  // oder `{copied ? 'Kopiert' : 'Kopieren'}`. Hier wird nur gewertet, was wie
+  // ein *Satz* aussieht — mindestens zwei durch Leerzeichen getrennte Wörter.
+  // Sonst geriete jeder Klassenname und jeder Schlüssel ins Sieb.
+  for (const match of source.matchAll(/'([^'\n]{4,120})'|"([^"\n]{4,120})"|`([^`\n]{4,120})`/g)) {
+    const text = (match[1] ?? match[2] ?? match[3]).replace(/\$\{[^}]*\}/g, ' ');
+    if (/\S\s+\S/.test(text) && /[A-Za-zÄÖÜäöü]/.test(text)) out.push(text);
+  }
+
   return out.map((text) => text.trim()).filter(Boolean);
 }
 
@@ -174,5 +205,50 @@ describe('die Oberfläche spricht Deutsch', () => {
     // hereinfallen.
     expect(istEnglisch('Was soll passieren, wenn das Deck durch ist?')).toBe(false);
     expect(istEnglisch('Text')).toBe(false);
+  });
+
+  it('findet eine Beschriftung in allen vier Schreibweisen', () => {
+    // Das Sieb *vor* dem Urteil. `istEnglisch` war nie das Problem — die drei
+    // Zeichenketten der Vortragsansicht kamen bei ihm nie an. Jede Zeile hier
+    // steht für eine Schreibweise, die einmal durchgerutscht ist.
+    const quelle = [
+      '<IconButton label="Als Attribut" />',
+      "const opts = [{ value: 'fit', label: 'Als Eigenschaft' }];",
+      '<h3>Als Textknoten vor einem Ausdruck · {titel(folie)}</h3>',
+      '<p>→ / Auch wenn ein Pfeil davorsteht</p>',
+      "<p>{notiz || 'Als Rückfall in einem Ausdruck.'}</p>",
+      "<p>{kopiert ? 'Erster Zweig hier' : 'Zweiter Zweig hier'}</p>",
+      '<Field hint={`Als Vorlage mit ${wert} darin.`} />',
+    ].join('\n');
+
+    const gefunden = sichtbareTexte(quelle);
+    for (const erwartet of [
+      'Als Attribut',
+      'Als Eigenschaft',
+      'Als Textknoten vor einem Ausdruck ·',
+      '→ / Auch wenn ein Pfeil davorsteht',
+      'Als Rückfall in einem Ausdruck.',
+      'Erster Zweig hier',
+      'Zweiter Zweig hier',
+    ]) {
+      expect(gefunden, erwartet).toContain(erwartet);
+    }
+    expect(gefunden.some((text) => text.startsWith('Als Vorlage mit'))).toBe(true);
+  });
+
+  it('lässt Klassennamen und Schlüssel in Ruhe', () => {
+    // Das vierte Sieb sieht *jede* Zeichenkette an. Ohne die Bedingung „zwei
+    // durch Leerzeichen getrennte Wörter" fiele jeder Klassenstapel hinein —
+    // und `body` steht in der Substantivliste, also gälte `text-body` als
+    // englische Beschriftung.
+    const quelle = [
+      "cx('flex items-end justify-between p-4', 'text-ui-body')",
+      "document.querySelector('body')",
+      "if (mode === 'slide') return null;",
+    ].join('\n');
+
+    for (const text of sichtbareTexte(quelle)) {
+      expect(istEnglisch(text), text).toBe(false);
+    }
   });
 });
