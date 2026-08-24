@@ -97,6 +97,8 @@ export interface EditorState {
   addElement: (element: CanvasElement, options?: { select?: boolean }) => void;
   addElements: (elements: CanvasElement[]) => void;
   insertPreset: (kind: ElementKind, patch?: Partial<CanvasElement>) => void;
+  /** Elemente aus der Zwischenablage auf die aktuelle Folie legen. */
+  pasteElements: (elements: readonly CanvasElement[], options?: { offset?: boolean }) => void;
   updateElement: (id: string, patch: Partial<CanvasElement>) => void;
   updateElements: (ids: readonly string[], patch: Partial<CanvasElement>) => void;
   transformElements: (
@@ -433,6 +435,29 @@ export const useDeckStore = create<EditorState>()((set, get) => {
       const spot = insertFrame(slide?.elements ?? [], element);
       const placed = clampToSlide({ ...spot, w: element.w, h: element.h });
       state.addElement({ ...element, x: placed.x, y: placed.y } as CanvasElement);
+    },
+
+    /**
+     * Eingefügt wird dort, wo es herkam — das ist der Sinn des Kopierens
+     * zwischen zwei Folien: dieselbe Karte an derselben Stelle.
+     *
+     * Nur wenn auf *dieselbe* Folie eingefügt wird, rückt die Kopie um denselben
+     * Betrag weiter wie beim Duplizieren. Sonst läge sie genau auf dem Original
+     * und der Benutzer sähe nichts geschehen.
+     */
+    pasteElements: (incoming, options) => {
+      if (incoming.length === 0) return;
+      const versatz = options?.offset ? canvas.gridSize * 3 : 0;
+      const gelegt = incoming.map((element) => {
+        const spot = clampToSlide({
+          x: element.x + versatz,
+          y: element.y + versatz,
+          w: element.w,
+          h: element.h,
+        });
+        return { ...element, x: spot.x, y: spot.y } as CanvasElement;
+      });
+      get().addElements(gelegt);
     },
 
     updateElement: (id, patch) => get().updateElements([id], patch),

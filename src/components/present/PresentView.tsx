@@ -1,9 +1,13 @@
 /**
- * Presentation mode.
+ * Die Vortragsansicht.
  *
- * The slide fills the viewport, transitions play on every change, and elements
- * with a reveal step above zero appear one advance at a time. Controls fade
- * away until the pointer moves.
+ * Die Folie füllt den Bildschirm, bei jedem Wechsel läuft der Übergang, und
+ * Elemente mit einem `reveal`-Schritt über null kommen einzeln dazu. Die
+ * Bedienknöpfe blenden sich aus, bis der Zeiger sich rührt.
+ *
+ * Das ist der einzige Bildschirm, den nicht der Benutzer sieht, sondern sein
+ * Publikum. Er war deshalb auch der letzte, der noch englisch war — der
+ * Sprachtest sah die Zeichenketten nicht, weil sie in Ausdrücken standen.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { canvas, motion } from '@/theme';
@@ -123,10 +127,10 @@ export function PresentView() {
       {notesOpen ? (
         <aside className="pointer-events-auto absolute right-4 top-4 w-80 rounded-lg bg-ui-surface p-3 shadow-ui-xl">
           <h3 className="mb-1 text-ui-label font-bold uppercase tracking-wide text-ui-faint">
-            Notes · {slideTitle(slide, slideIndex)}
+            Notizen · {slideTitle(slide, slideIndex)}
           </h3>
           <p className="whitespace-pre-wrap text-ui-body text-ui-muted">
-            {slide.meta.notes?.trim() || 'No notes for this slide.'}
+            {slide.meta.notes?.trim() || 'Für diese Folie ist nichts notiert.'}
           </p>
         </aside>
       ) : null}
@@ -139,7 +143,7 @@ export function PresentView() {
         )}
       >
         <p className="rounded-pill bg-ui-surface/90 px-3 py-1 text-[11px] text-ui-muted">
-          → / Space advance · ← back · F fullscreen · Esc exit
+          → / Leertaste weiter · ← zurück · F Vollbild · Esc verlassen
         </p>
       </div>
     </div>

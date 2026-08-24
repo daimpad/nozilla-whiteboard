@@ -148,6 +148,14 @@ Mitten der Nachbarn, Folienränder, Satzspiegel. `Alt` hält das Raster an.
 Duplizieren, löschen, stapeln, ausrichten, verteilen, sperren. Rückgängig und
 Wiederholen mit Gesten-Bewusstsein — ein Zug ist ein Schritt, nicht sechzig.
 
+**Die Zwischenablage** trägt beides: ein Bildschirmfoto mit `⌘V` wird ein Bild,
+und `⌘C` / `⌘X` nehmen ausgewählte Elemente mit — auf eine andere Folie, in ein
+zweites Fenster, in jeden Editor. Was dabei in der Zwischenablage liegt, ist
+kein eigenes Format, sondern der `<!-- nzl -->`-Block, der auch in der `.md`
+stünde: lesbar, einfügbar, und von denselben Prüfungen gedeckt. Auf einer
+anderen Folie behält das Eingefügte seinen Ort — das ist der Sinn der Sache;
+nur auf derselben Folie rückt die Kopie beiseite.
+
 ### Präsentation
 
 `P` startet, `Esc` beendet, `F` Vollbild, `N` Notizen.

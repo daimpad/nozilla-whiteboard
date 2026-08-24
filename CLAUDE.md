@@ -313,6 +313,24 @@ trugen sie, die `.pptx` nicht. Kein Test schlug an, weil keiner die Marke im
 Paket suchte — gesehen hat es LibreOffice. Maß und Zeichnung stehen jetzt in
 `footerMark()`, und beide Wege rufen dieselbe Funktion.
 
+**Ein Sprachtest, der nur Attribute liest, bewacht die Vordertür.** Er las
+`label="…"` und reine Textknoten — und war grün, während die *ganze*
+Vortragsansicht englisch blieb. Drei Schreibweisen fehlten ihm, und in allen
+dreien stand eine der Zeichenketten: in einem Ausdruck
+(`{notiz || 'No notes …'}`), als Eigenschaft eines Objekts
+(`{ value: 'fit', label: 'Passend' }` — so ist jedes `Segmented` geschrieben),
+und als Textknoten *vor* einem Ausdruck (`Notes · {slideTitle(…)}`, denn der
+alte Ausdruck endete nur an `<`). Danach fielen noch zwei durch, die das Sieb
+sehr wohl sah: „Nothing selected." und „Embed a file" — dort war nicht das
+Sieb zu eng, sondern das *Urteil* zu milde.
+
+**Ein Gegentest, der nicht baut, prüft den vorigen Stand.** Beim Gegenprüfen
+wurde eine Zeile in `App.tsx` auskommentiert; damit war ein Import ungenutzt,
+`tsc --noEmit` brach ab, `vite build` lief nie, und `dist/` blieb unberührt.
+Der Rauchtest meldete fünfzehn von fünfzehn — über den Code *vor* der
+Sabotage. `pruefeStand()` in `scripts/smoke.mjs` vergleicht jetzt die
+Änderungszeiten und bricht ab, bevor eine solche Zahl entsteht.
+
 **Der Setzer misst gegen die echte Schrift.** Ein `@font-face` allein lädt
 nichts — der Browser holt die Datei erst, wenn ein Zeichen sie braucht, und
 `document.fonts.ready` löst vorher auf. Wer dann misst, misst die

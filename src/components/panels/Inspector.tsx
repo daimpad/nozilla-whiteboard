@@ -246,10 +246,10 @@ function ThemeField() {
       label="Erscheinungsbild"
       hint={
         unknown
-          ? `“${current}” is not installed here. Drawn in the default; the deck keeps the entry.`
+          ? `„${current}" ist hier nicht angemeldet. Gezeichnet wird im Standard; der Eintrag bleibt in der Datei stehen.`
           : known.length > 1
-            ? 'Stored in the frontmatter — the file carries which brand it belongs to.'
-            : 'Further themes are registered in src/themes/.'
+            ? 'Steht im Frontmatter — die Datei trägt ihre Zugehörigkeit mit.'
+            : 'Weitere Erscheinungsbilder werden in src/themes/ angemeldet.'
       }
     >
       <Select
@@ -349,7 +349,7 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
     return (
       <div className="p-6 text-center text-ui-body text-ui-faint">
         <Icon name="table" size={22} className="mx-auto mb-2 opacity-50" />
-        Nothing selected.
+        Nichts ausgewählt.
         <br />
         Wähle ein Element auf der Fläche oder setze eines aus der Bibliothek ein.
       </div>
@@ -802,7 +802,7 @@ function KindFields({ element, patch }: KindFieldsProps) {
               input.click();
             }}
           >
-            Embed a file
+            Datei einbetten
           </Button>
           <Field label="Alternativtext">
             <input

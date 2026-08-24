@@ -11,7 +11,11 @@ import { exportMarkdown } from '@/lib/export';
 import { openMarkdownFile } from '@/lib/export/download';
 import { useDeckStore } from '@/state/deckStore';
 
-const isTypingTarget = (target: EventTarget | null): boolean => {
+/**
+ * Ob der Zeiger gerade in einem Feld steht. Auch die Zwischenablage fragt
+ * danach: ein ⌘V im Notizfeld soll Text einfügen und keine Folienelemente.
+ */
+export const isTypingTarget = (target: EventTarget | null): boolean => {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;
   const tag = target.tagName;

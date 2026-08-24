@@ -6,12 +6,14 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { starterDeck } from '@/decks';
-import { readFileAsDataUrl, readDroppedFile } from '@/lib/export/download';
-import { createElement } from '@/model/factory';
+import { readDroppedFile } from '@/lib/export/download';
+import { imageElementFromFile } from '@/lib/imageElement';
+import { insertFrame } from '@/lib/layout/slideLayout';
 import { useDeckTheme } from '@/hooks/useDeckTheme';
 import { selectCurrentSlide, useDeckStore } from '@/state/deckStore';
 import { guardUnsavedChanges, loadSession, startAutosave } from '@/state/persistence';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useClipboard } from '@/hooks/useClipboard';
 import { CanvasStage } from '@/components/canvas/CanvasStage';
 import { AssetSidebar } from '@/components/panels/AssetSidebar';
 import { Inspector } from '@/components/panels/Inspector';
@@ -21,7 +23,6 @@ import { TopBar } from '@/components/chrome/TopBar';
 import { SlideRail } from '@/components/chrome/SlideRail';
 import { PresentView } from '@/components/present/PresentView';
 import { cx } from '@/components/ui/controls';
-import type { CanvasElement } from '@/model/types';
 
 export default function App() {
   // Das Deck bestimmt das Erscheinungsbild, nicht umgekehrt.
@@ -40,6 +41,7 @@ export default function App() {
   const [dropping, setDropping] = useState(false);
 
   useKeyboardShortcuts();
+  useClipboard();
 
   /* --------------------------------------------------------------- startup */
   useEffect(() => {
@@ -75,27 +77,12 @@ export default function App() {
       }
 
       if (file.type.startsWith('image/')) {
-        const src = await readFileAsDataUrl(file);
-        const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-          const element = new Image();
-          element.onload = () => resolve(element);
-          element.onerror = reject;
-          element.src = src;
-        }).catch(() => null);
-
-        const ratio =
-          image && image.naturalWidth > 0 ? image.naturalHeight / image.naturalWidth : 0.5625;
-        const width = 420;
-        addElement(
-          createElement('image', {
-            src,
-            alt: file.name.replace(/\.[^.]+$/, ''),
-            w: width,
-            h: Math.round(width * ratio),
-            x: 120,
-            y: 120,
-          }) as CanvasElement,
-        );
+        // Dieselbe Rechnung wie beim Einfügen aus der Zwischenablage, und der
+        // Platz kommt von derselben Stelle wie bei jedem Baustein.
+        const element = await imageElementFromFile(file);
+        const slide = useDeckStore.getState().deck.slides[useDeckStore.getState().slideIndex];
+        const spot = insertFrame(slide?.elements ?? [], element);
+        addElement({ ...element, x: spot.x, y: spot.y });
       }
     },
     [addElement, loadMarkdown],

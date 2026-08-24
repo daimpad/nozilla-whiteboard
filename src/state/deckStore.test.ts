@@ -197,6 +197,40 @@ describe('elements', () => {
     expect(second.y + second.h).toBeLessThanOrEqual(canvas.height - canvas.margin.bottom);
   });
 
+  it('legt Eingefügtes auf der neuen Folie an dieselbe Stelle', () => {
+    // Der Sinn des Kopierens zwischen zwei Folien: dieselbe Karte an
+    // derselben Stelle. Rückte sie dabei, wäre jede zweite Folie krumm.
+    const quelle = createElement('card', { x: 700, y: 96, w: 492, h: 168 }) as CanvasElement;
+    store().addSlide();
+    store().pasteElements([quelle]);
+
+    const [gelegt] = elementsNow();
+    expect([gelegt.x, gelegt.y]).toEqual([700, 96]);
+    expect(store().selection).toEqual([gelegt.id]);
+  });
+
+  it('versetzt eine Kopie, die auf dieselbe Folie zurückkommt', () => {
+    // Sonst läge sie genau auf dem Original, und man sähe nichts geschehen.
+    const quelle = createElement('card', { x: 700, y: 96, w: 492, h: 168 }) as CanvasElement;
+    store().addElement(quelle);
+    store().pasteElements([{ ...quelle, id: 'kopie' } as CanvasElement], { offset: true });
+
+    const kopie = elementsNow().find((element) => element.id === 'kopie');
+    expect(kopie?.x).toBeGreaterThan(quelle.x);
+    expect(kopie?.y).toBeGreaterThan(quelle.y);
+  });
+
+  it('lässt Eingefügtes nicht aus der Folie fallen und ist rückgängig zu machen', () => {
+    const weit = createElement('card', { x: 4000, y: 4000, w: 200, h: 100 }) as CanvasElement;
+    store().pasteElements([weit]);
+    const [gelegt] = elementsNow();
+    expect(gelegt.x).toBeLessThan(canvas.width);
+    expect(gelegt.y).toBeLessThan(canvas.height);
+
+    store().undo();
+    expect(elementsNow()).toHaveLength(0);
+  });
+
   it('rückt eine Spalte nach links, wenn die rechte voll ist', () => {
     // Vorher landete bei voller Spalte alles auf dem unteren Satzspiegel und
     // damit aufeinander — sichtbar war nur das oberste. So legt auch niemand.
