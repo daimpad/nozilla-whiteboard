@@ -349,7 +349,7 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
     return (
       <div className="p-6 text-center text-ui-body text-ui-faint">
         <Icon name="table" size={22} className="mx-auto mb-2 opacity-50" />
-        Nothing selected.
+        Nichts ausgewählt.
         <br />
         Wähle ein Element auf der Fläche oder setze eines aus der Bibliothek ein.
       </div>
@@ -802,7 +802,7 @@ function KindFields({ element, patch }: KindFieldsProps) {
               input.click();
             }}
           >
-            Embed a file
+            Datei einbetten
           </Button>
           <Field label="Alternativtext">
             <input

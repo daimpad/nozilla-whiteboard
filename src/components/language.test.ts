@@ -64,6 +64,17 @@ const SUBSTANTIV = new Set(
     'weight',
     'line',
     'body',
+    // Nachgetragen, weil sie durchgekommen sind: „Nothing selected." und
+    // „Embed a file" standen sichtbar im Inspektor, und das Sieb *sah* sie —
+    // nur hielt sie das Urteil für harmlos, weil keines ihrer Wörter in einer
+    // der beiden Listen stand.
+    'nothing',
+    'selected',
+    'none',
+    'embed',
+    'file',
+    'files',
+    'image',
   ].map((word) => word.toLowerCase()),
 );
 
@@ -100,6 +111,11 @@ const ERLAUBT = new Set(
     'ci',
     'esc',
     'system',
+    // „a" verurteilt für sich genommen nichts — es rettet aber auch nichts.
+    // Ohne diesen Eintrag entkam „Embed a file", weil der unbestimmte Artikel
+    // in keiner Liste stand und die Bedingung „jedes Wort" damit scheiterte.
+    // Als Funktionswort wäre es zu scharf: es käme ein „Variante a" vor.
+    'a',
   ].map((word) => word.toLowerCase()),
 );
 
@@ -205,6 +221,15 @@ describe('die Oberfläche spricht Deutsch', () => {
     // hereinfallen.
     expect(istEnglisch('Was soll passieren, wenn das Deck durch ist?')).toBe(false);
     expect(istEnglisch('Text')).toBe(false);
+    // Die zwei, die das Urteil durchließ, obwohl das Sieb sie hatte.
+    expect(istEnglisch('Nothing selected.')).toBe(true);
+    expect(istEnglisch('Embed a file')).toBe(true);
+    // Und die deutschen Beschriftungen daneben bleiben deutsch.
+    expect(istEnglisch('Nichts ausgewählt.')).toBe(false);
+    expect(istEnglisch('Datei einbetten')).toBe(false);
+    expect(istEnglisch('Eine Seite')).toBe(false);
+    expect(istEnglisch('Ziel danach')).toBe(false);
+    expect(istEnglisch('Prompt ·')).toBe(false);
   });
 
   it('findet eine Beschriftung in allen vier Schreibweisen', () => {

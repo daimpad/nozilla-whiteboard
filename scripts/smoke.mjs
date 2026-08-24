@@ -35,6 +35,8 @@
  * Steht schon eines bereit, sagt man es über `SMOKE_CHROMIUM`.
  */
 import { spawn } from 'node:child_process';
+import { readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { chromium } from 'playwright';
 
 const PORT = 4173;
@@ -63,6 +65,17 @@ function gleich(ist, soll, was) {
 
 function wahr(bedingung, was) {
   if (!bedingung) throw new Error(was);
+}
+
+/** Die vier Zahlenfelder des Inspektors: x, y, Breite, Höhe. */
+async function masse(seite) {
+  await seite.getByRole('button', { name: 'Element', exact: true }).click();
+  await seite.waitForTimeout(300);
+  return seite.evaluate(() =>
+    [...document.querySelectorAll('aside[aria-label="Inspektor"] input')]
+      .slice(0, 4)
+      .map((el) => Number(el.value)),
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -123,15 +136,52 @@ const FOLIE = () => {
   return groesstes;
 };
 
+/**
+ * Geprüft wird das gebaute Verzeichnis — und genau daran hängt eine Falle, in
+ * die dieser Rauchtest schon getappt ist.
+ *
+ * Beim Gegenprüfen einer Prüfung wurde eine Zeile in `App.tsx` auskommentiert.
+ * Damit war ein Import ungenutzt, `tsc` brach ab, `vite build` lief nie — und
+ * `dist/` blieb, wie es war. Der Rauchtest meldete fünfzehn von fünfzehn und
+ * bestätigte damit den Stand *vor* der Änderung. Eine grüne Zahl, die nichts
+ * über den Code aussagt, ist schlimmer als eine rote.
+ */
+function pruefeStand() {
+  const juengstes = (dir) =>
+    readdirSync(dir, { withFileTypes: true }).reduce((neuestes, eintrag) => {
+      const pfad = join(dir, eintrag.name);
+      const zeit = eintrag.isDirectory() ? juengstes(pfad) : statSync(pfad).mtimeMs;
+      return Math.max(neuestes, zeit);
+    }, 0);
+
+  let gebaut;
+  try {
+    gebaut = juengstes('dist');
+  } catch {
+    throw new Error('Es gibt kein dist/ — erst `npm run build`.');
+  }
+  const geschrieben = Math.max(juengstes('src'), statSync('theme.config.ts').mtimeMs);
+  if (geschrieben > gebaut) {
+    throw new Error(
+      'dist/ ist älter als src/ — der Rauchtest liefe gegen den vorigen Stand. Erst `npm run build`.',
+    );
+  }
+}
+
 async function main() {
+  pruefeStand();
   const server = await starteVorschau();
   const browser = await chromium.launch({
     executablePath: process.env.SMOKE_CHROMIUM || undefined,
     args: ['--no-sandbox'],
   });
-  const seite = await (
-    await browser.newContext({ viewport: { width: 1500, height: 940 }, acceptDownloads: true })
-  ).newPage();
+  const kontext = await browser.newContext({
+    viewport: { width: 1500, height: 940 },
+    acceptDownloads: true,
+  });
+  // Ohne diese beiden fällt jedes ⌘C und ⌘V still aus.
+  await kontext.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const seite = await kontext.newPage();
 
   // Der Dateiauswahl-Dialog des Browsers lässt sich nicht fernsteuern; ohne ihn
   // fällt das Werkzeug auf den gewöhnlichen Download zurück.
@@ -187,17 +237,57 @@ async function main() {
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
     await seite.waitForTimeout(500);
 
-    await seite.getByRole('button', { name: 'Element', exact: true }).click();
-    await seite.waitForTimeout(300);
-    const werte = await seite.evaluate(() => {
-      const zahlen = [...document.querySelectorAll('aside[aria-label="Inspektor"] input')]
-        .map((el) => el.value)
-        .slice(0, 4);
-      return zahlen.map(Number);
-    });
-    const [x, , breite] = werte;
+    const [x, , breite] = await masse(seite);
     // 1280 − 88 = 1192, der rechte Satzspiegel.
     gleich(x + breite, 1192, 'rechte Kante des eingesetzten Elements');
+  });
+
+  await pruefe('eine Karte reist über die Zwischenablage auf die nächste Folie', async () => {
+    // Für ein Werkzeug, das sich Whiteboard nennt, war ⌘V die auffälligste
+    // Lücke: eine Datei *fallen zu lassen* ging, sie *einzufügen* nicht.
+    const [x, y] = await masse(seite);
+    await seite.keyboard.press('Control+c');
+    await seite.waitForTimeout(400);
+
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(600);
+    await seite.keyboard.press('Control+v');
+    await seite.waitForTimeout(900);
+
+    const [x2, y2] = await masse(seite);
+    // Auf einer *anderen* Folie behält die Kopie ihren Ort — das ist der Sinn
+    // des Kopierens zwischen zwei Folien.
+    gleich(`${x2} / ${y2}`, `${x} / ${y}`, 'Ort der eingefügten Karte');
+  });
+
+  await pruefe('ein Bildschirmfoto aus der Zwischenablage wird ein Bild', async () => {
+    // Ein echtes ⌘V mit einem Bild lässt sich fernab einer Tastatur nicht
+    // auslösen — die Zwischenablage des Betriebssystems steht hier nicht zur
+    // Verfügung. Das Ereignis wird deshalb von Hand geschickt. Bewiesen ist
+    // damit alles außer der Taste selbst: dass der Zuhörer hängt, dass die
+    // Datei gelesen wird, dass das Seitenverhältnis stimmt und dass das Bild
+    // am Satzspiegel landet.
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+
+    await seite.evaluate(async () => {
+      const flaeche = document.createElement('canvas');
+      flaeche.width = 200;
+      flaeche.height = 100;
+      flaeche.getContext('2d').fillRect(0, 0, 200, 100);
+      const blob = await new Promise((fertig) => flaeche.toBlob(fertig, 'image/png'));
+      const daten = new DataTransfer();
+      daten.items.add(new File([blob], 'Bildschirmfoto.png', { type: 'image/png' }));
+      document.dispatchEvent(
+        new ClipboardEvent('paste', { clipboardData: daten, bubbles: true, cancelable: true }),
+      );
+    });
+    await seite.waitForTimeout(1200);
+
+    const [x, y, breite, hoehe] = await masse(seite);
+    // 200 × 100 sind 2 : 1, und 420 ist die Breite eines eingesetzten Bildes.
+    gleich(`${breite} × ${hoehe}`, '420 × 210', 'Maß des eingefügten Bildes');
+    gleich(`${x} / ${y}`, '772 / 72', 'Ort des eingefügten Bildes');
   });
 
   console.log('\nErscheinungsbild und Erscheinung:');
