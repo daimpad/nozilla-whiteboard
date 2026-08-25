@@ -137,7 +137,9 @@ src/
               truetype.ts     Zeichen → Umriss (glyf, cmap, composite)
     export/   scene.ts        Folie → Szene  ◄── die Drehscheibe
               svg.ts pdf.ts   Szene → Datei
+              png.ts          Szene → Bild (über das SVG, mit Umrissen)
               pptx*.ts zip.ts Szene + Modell → PowerPoint
+    presenterChannel.ts       Was die beiden Vortragsfenster einander sagen
   state/      deckStore.ts    Zustand, Aktionen, Verlauf
   components/ canvas · panels · chrome · present · ui
 ```
@@ -339,6 +341,15 @@ ihrem Kasten, und die Punkte des zweiten Diagramms mitten im ersten. Flächen
 innerhalb eines Elements gehören als geschlossener Pfad emittiert; `rect`
 bleibt dem Folien-Beiwerk vorbehalten, das ohnehin in Folien-Koordinaten
 rechnet.
+
+**Ein zweites Fenster mit demselben Store überschreibt die Sitzung des
+ersten.** Die Referentenansicht läuft unter `?referent=1` in derselben
+Anwendung, und die Abzweigung steht deshalb in `main.tsx` und nicht in `App`:
+`App` lädt beim Start das gemerkte Deck und schaltet die Selbstsicherung ein.
+Ein zweites Fenster, das dasselbe täte, schriebe seinen Stand über den des
+ersten — mitten im Vortrag, und ohne dass etwas davon zu sehen wäre. Das
+Vortragsfenster hat deshalb keinen Store: es bekommt sein Deck als Markdown
+über den `BroadcastChannel` und liest es für sich.
 
 **Der Setzer misst gegen die echte Schrift.** Ein `@font-face` allein lädt
 nichts — der Browser holt die Datei erst, wenn ein Zeichen sie braucht, und

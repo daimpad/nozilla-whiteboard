@@ -194,12 +194,17 @@ const config: Config = {
         Object.entries(space).map(([key, value]) => [`ci-${key}`, px(value)]),
       ) as Record<string, string>),
     },
-    fontSize: {
-      'ui-label': [px(uiType.label.size), { lineHeight: String(uiType.label.lineHeight) }],
-      'ui-body': [px(uiType.body.size), { lineHeight: String(uiType.body.lineHeight) }],
-      'ui-title': [px(uiType.title.size), { lineHeight: String(uiType.title.lineHeight) }],
-      'ui-mono': [px(uiType.mono.size), { lineHeight: String(uiType.mono.lineHeight) }],
-    },
+    /*
+       Aufgezählt wird nicht, sondern abgeleitet: eine Stufe, die in
+       `theme.config.ts` dazukommt, hätte sonst keine Klasse — und die
+       Utility verpufft in dieser ersetzten Skala lautlos, statt zu fehlen.
+    */
+    fontSize: Object.fromEntries(
+      Object.entries(uiType).map(([name, stufe]) => [
+        `ui-${name}`,
+        [px(stufe.size), { lineHeight: String(stufe.lineHeight) }],
+      ]),
+    ),
     fontWeight: {
       normal: '400',
       regular: '400',

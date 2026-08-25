@@ -144,7 +144,8 @@ export default function App() {
         aria-hidden={!dropping}
       >
         <p className="rounded-md bg-ui-surface px-4 py-3 text-ui-title font-semibold shadow-ui-xl">
-          Drop a <code className="font-mono">.md</code> deck to open it, or an image to place it
+          Ein <code className="font-mono">.md</code>-Deck hierher ziehen zum Öffnen, ein Bild zum
+          Platzieren
         </p>
       </div>
     </div>

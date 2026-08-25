@@ -633,6 +633,17 @@ export const uiType = {
   body: { size: 13, lineHeight: 1.45, weight: fontWeight.regular, tracking: 0 },
   title: { size: 15, lineHeight: 1.25, weight: fontWeight.bold, tracking: -0.01 },
   mono: { size: 12, lineHeight: 1.5, weight: fontWeight.regular, tracking: 0 },
+  /*
+     Die eine Stufe, die nicht bedient, sondern gelesen wird.
+
+     Die Notizen der Referentenansicht stehen einen Meter vom Auge entfernt und
+     werden beim Sprechen überflogen, nicht studiert. Die 15 px von `title`
+     sind für eine Feldbeschriftung richtig und für einen Satz, den man in
+     einer halben Sekunde wiederfinden muss, zu klein. Der Zeilenabstand ist
+     aus demselben Grund weiter: die Zeile, in der man war, geht sonst
+     verloren.
+  */
+  read: { size: 20, lineHeight: 1.55, weight: fontWeight.regular, tracking: 0 },
 } as const;
 
 /* -------------------------------------------------------------------------- */

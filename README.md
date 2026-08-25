@@ -198,6 +198,14 @@ durchkämmt, findet auf jede Frage etwas und damit nichts.
 Gedanke für Gedanke aufgeht. Übersicht mit `⌘K`, Filmstreifen immer sichtbar.
 `prefers-reduced-motion` wird beachtet.
 
+**Die Referentenansicht** öffnet ein zweites Fenster (Tafel-Symbol in der
+Vortragsleiste): links die laufende Folie, daneben **die nächste**, darunter die
+Notizen groß, unten die verstrichene Zeit. Geblättert wird in beiden Fenstern,
+und beide folgen einander. Zwei Fenster statt eines geteilten Bildschirms, damit
+sich das eine auf den Beamer schieben und ins Vollbild schicken lässt, während
+das andere vor dir stehen bleibt. Das zweite Fenster ändert nichts: es hat keine
+Datei, keine Sicherung und keinen Weg zurück ins Deck.
+
 <br clear="right">
 
 <img src="docs/assets/present.png" alt="Präsentationsmodus: die Folie füllt das Fenster, die Bedienung blendet sich weg">

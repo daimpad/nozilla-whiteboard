@@ -21,7 +21,20 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const ROOT = join(process.cwd(), 'src', 'components');
+/*
+   Gesucht wird in `src`, nicht in `src/components`.
+
+   Die Grenze war bequem und falsch: der Hinweis, der beim Ziehen einer Datei
+   über das ganze Fenster liegt, steht in `App.tsx` — also eine Ebene über dem
+   Ordner, den das Sieb absuchte. Er blieb englisch, während drinnen jede
+   Beschriftung geprüft wurde. Ein Wächter, der nach dem Ort urteilt statt nach
+   der Sache, übersieht genau das Auffälligste.
+
+   Gelesen werden nur `.tsx`-Dateien: dort steht, was gezeichnet wird. Die
+   `.ts`-Dateien darunter tragen Dateiformat und Rechnung, und deren
+   Zeichenketten sind keine Beschriftungen.
+*/
+const ROOT = join(process.cwd(), 'src');
 
 /**
  * Zwei Siebe, weil es zwei Fälle gibt.
@@ -132,13 +145,24 @@ function quellen(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const path = join(dir, entry);
     if (statSync(path).isDirectory()) return quellen(path);
-    return /\.tsx?$/.test(path) && !path.endsWith('.test.ts') ? [path] : [];
+    return path.endsWith('.tsx') ? [path] : [];
   });
 }
 
-/** Kommentare heraus — der Code ist auf Deutsch kommentiert, das zählt nicht. */
-function ohneKommentare(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+/**
+ * Heraus, was niemand sieht.
+ *
+ * Kommentare zuerst — der Code ist auf Deutsch kommentiert, das zählt nicht.
+ * Und die Ausnahmen: `new Error('Root container #root is missing')` steht für
+ * den, der die Konsole aufmacht, nicht für den, der eine Folie baut. Sie
+ * deutsch zu verlangen hieße, das Sieb an einer Stelle scharf zu stellen, an
+ * der es nichts zu bewachen gibt.
+ */
+function nurOberflaeche(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+    .replace(/new Error\([\s\S]*?\)/g, '');
 }
 
 /**
@@ -228,7 +252,7 @@ describe('die Oberfläche spricht Deutsch', () => {
     const treffer: string[] = [];
     for (const file of quellen(ROOT)) {
       const name = file.split('/').pop() ?? '';
-      for (const text of sichtbareTexte(ohneKommentare(readFileSync(file, 'utf8')))) {
+      for (const text of sichtbareTexte(nurOberflaeche(readFileSync(file, 'utf8')))) {
         if (istEnglisch(text)) treffer.push(`${name}: ${text}`);
       }
     }

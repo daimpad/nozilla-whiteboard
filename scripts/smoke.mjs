@@ -551,6 +551,59 @@ async function main() {
     await seite.waitForTimeout(400);
   });
 
+  await pruefe('die Referentenansicht folgt dem Vortrag im zweiten Fenster', async () => {
+    /*
+       Zwei Fenster, ein Kanal — und drei Dinge, die nur hier auffallen
+       könnten: dass die Abzweigung in `main.tsx` überhaupt greift (sonst
+       stünde im zweiten Fenster der Editor), dass das Deck über den Kanal
+       ankommt (sonst bliebe es beim „Warte auf den Vortrag …") und dass das
+       Blättern zurückwirkt.
+    */
+    const [referent] = await Promise.all([
+      seite.waitForEvent('popup'),
+      seite.getByRole('button', { name: 'Referentenansicht öffnen' }).click(),
+    ]);
+    await referent.waitForLoadState('networkidle');
+    await referent.waitForTimeout(2500);
+
+    const text = await referent.evaluate(() => document.body.innerText);
+    wahr(!/Warte auf den Vortrag/.test(text), 'das zweite Fenster bekam kein Deck');
+    wahr(
+      !(await referent.getByRole('button', { name: 'Export', exact: true }).count()),
+      'im zweiten Fenster steht der Editor statt der Referentenansicht',
+    );
+    // Ohne `i` findet sich nichts: die Überschriften stehen in Versalien, und
+    // `innerText` gibt zurück, was zu sehen ist — „NOTIZEN", nicht „Notizen".
+    wahr(/notizen/i.test(text), `keine Notizen in der Referentenansicht: ${text.slice(0, 80)}`);
+    wahr(
+      !/\bNotes\b|Next up/i.test(text),
+      `die Referentenansicht ist englisch: ${text.slice(0, 80)}`,
+    );
+
+    // Die laufende *und* die nächste Folie — der eigentliche Gewinn des
+    // zweiten Fensters. Eine allein wäre nur eine kleinere Vortragsansicht.
+    const folien = await referent.evaluate(
+      () =>
+        [...document.querySelectorAll('svg')].filter((svg) => {
+          const box = svg.getBoundingClientRect();
+          return box.width * box.height > 40_000;
+        }).length,
+    );
+    wahr(folien >= 2, `nur ${folien} Folie(n) in der Referentenansicht`);
+
+    // Und zurück: was im zweiten Fenster gedrückt wird, blättert im ersten.
+    const vorher = (await seite.evaluate(FOLIE)).markup;
+    await referent.keyboard.press('ArrowRight');
+    await seite.waitForTimeout(900);
+    wahr(
+      (await seite.evaluate(FOLIE)).markup !== vorher,
+      'das Blättern in der Referentenansicht kam im Vortrag nicht an',
+    );
+
+    await referent.close();
+    await seite.waitForTimeout(400);
+  });
+
   await pruefe('Esc führt zurück an die Arbeit', async () => {
     await seite.keyboard.press('Escape');
     await seite.waitForTimeout(900);
