@@ -36,6 +36,7 @@ export const elementKinds = [
   'connector',
   'image',
   'wordmark',
+  'chart',
 ] as const;
 export type ElementKind = (typeof elementKinds)[number];
 
@@ -138,6 +139,28 @@ export interface TextElement extends ElementBase {
   valign: VerticalAlign;
 }
 
+/** Balken oder Linie. Mehr braucht ein Deck nicht, und mehr verträgt es nicht. */
+export const chartKinds = ['bar', 'line'] as const;
+export type ChartKind = (typeof chartKinds)[number];
+
+export interface ChartElement extends ElementBase {
+  kind: 'chart';
+  chart: ChartKind;
+  /**
+   * Die Zahlen, eine Zeile je Wert: `Beschriftung  Zahl`.
+   *
+   * Ein Textblock und keine Liste von Objekten, weil man ihn tippen können
+   * soll — im Inspektor, im Deck-Prompt und in der `.md`. Getrennt wird an
+   * Tabulator, Semikolon, senkrechtem Strich oder zwei Leerzeichen; ein Wert
+   * mit `*` davor bekommt die Signalfarbe.
+   */
+  data: string;
+  /** Überschrift über dem Diagramm. Leer heißt: keine. */
+  label: string;
+  /** Die Werte an den Balken oder Punkten mitschreiben. */
+  values: boolean;
+}
+
 export interface MarkdownElement extends ElementBase {
   kind: 'markdown';
   markdown: string;
@@ -203,7 +226,8 @@ export type CanvasElement =
   | ShapeElement
   | ConnectorElement
   | ImageElement
-  | WordmarkElement;
+  | WordmarkElement
+  | ChartElement;
 
 /* -------------------------------------------------------------------------- */
 /* Folien & Deck                                                               */

@@ -102,6 +102,12 @@ export const connectorLabels: Record<string, string> = {
   elbow: 'Winkel',
 };
 
+/** Balken oder Linie. */
+export const chartLabels: Record<string, string> = {
+  bar: 'Balken',
+  line: 'Linie',
+};
+
 export const shapeLabels: Record<string, string> = {
   rectangle: 'Rechteck',
   ellipse: 'Ellipse',

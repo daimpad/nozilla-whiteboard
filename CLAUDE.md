@@ -331,6 +331,15 @@ Der Rauchtest meldete fünfzehn von fünfzehn — über den Code *vor* der
 Sabotage. `pruefeStand()` in `scripts/smoke.mjs` vergleicht jetzt die
 Änderungszeiten und bricht ab, bevor eine solche Zahl entsteht.
 
+**Ein `rect`-Primitiv trägt keine Matrix.** Alles, was ein Element zeichnet,
+steht in Element-Koordinaten und wird über `transformSegs(..., matrix)` an
+seinen Platz gebracht. Ein `{ t: 'rect', x, y }` kann das nicht — es landet
+so, wie es dasteht. Beim ersten Diagramm lagen die Balken deshalb links neben
+ihrem Kasten, und die Punkte des zweiten Diagramms mitten im ersten. Flächen
+innerhalb eines Elements gehören als geschlossener Pfad emittiert; `rect`
+bleibt dem Folien-Beiwerk vorbehalten, das ohnehin in Folien-Koordinaten
+rechnet.
+
 **Der Setzer misst gegen die echte Schrift.** Ein `@font-face` allein lädt
 nichts — der Browser holt die Datei erst, wenn ein Zeichen sie braucht, und
 `document.fonts.ready` löst vorher auf. Wer dann misst, misst die

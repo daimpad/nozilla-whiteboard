@@ -170,6 +170,16 @@ stünde: lesbar, einfügbar, und von denselben Prüfungen gedeckt. Auf einer
 anderen Folie behält das Eingefügte seinen Ort — das ist der Sinn der Sache;
 nur auf derselben Folie rückt die Kopie beiseite.
 
+**Diagramme aus Zahlen.** Balken und Linien als eigene Elementart; die Werte
+stehen als Textblock im Element, eine Zeile je Wert (`2024  52`), und ein `*`
+davor gibt einem Wert das Signal. Getrennt wird an Tabulator, Semikolon,
+senkrechtem Strich oder zwei Leerzeichen, deutsche Zahlen samt Einheit
+inbegriffen — man kann aus einer Tabellenkalkulation kopieren. Die Achse
+beginnt bei null, solange alles positiv ist; das ist die verbreitetste Art, mit
+einem Diagramm zu lügen, und sie passiert meist aus Versehen. Weil ein
+Diagramm ein Kunde derselben `Scene` ist, tragen es SVG, PDF und PowerPoint
+ohne eine Zeile Zusatzarbeit — in der `.pptx` als echte Formen, nicht als Bild.
+
 **Überlauf wird angezeigt.** Steht gesetzter Text tiefer als sein Kasten,
 liegt ein Strich auf der Unterkante und der Inspektor sagt, um wie viel — mit
 einem Knopf, der den Kasten anpasst. Auf der Fläche sähe man die Zeile sonst

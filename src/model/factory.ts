@@ -22,6 +22,7 @@ import {
   iconFrames,
   shapeNames,
   verticalAligns,
+  chartKinds,
   wordmarkVariants,
   type CanvasElement,
   type ElementBase,
@@ -53,6 +54,7 @@ const defaultFill: Record<ElementKind, FillStyle> = {
   connector: 'none',
   image: 'outline',
   wordmark: 'none',
+  chart: 'framed',
 };
 
 const defaultShadow: Record<ElementKind, ShadowName> = {
@@ -65,6 +67,7 @@ const defaultShadow: Record<ElementKind, ShadowName> = {
   connector: 'none',
   image: 'md',
   wordmark: 'none',
+  chart: 'none',
 };
 
 const defaultPadding: Record<ElementKind, number> = {
@@ -77,6 +80,7 @@ const defaultPadding: Record<ElementKind, number> = {
   connector: 0,
   image: 0,
   wordmark: 0,
+  chart: elementDefaults.chart.padding,
 };
 
 const defaultStroke: Record<ElementKind, StrokeName> = {
@@ -89,6 +93,7 @@ const defaultStroke: Record<ElementKind, StrokeName> = {
   connector: elementDefaults.connector.strokeWeight,
   image: 'rule',
   wordmark: 'hair',
+  chart: elementDefaults.chart.strokeWeight,
 };
 
 const defaultSize: Record<ElementKind, { w: number; h: number }> = {
@@ -101,6 +106,7 @@ const defaultSize: Record<ElementKind, { w: number; h: number }> = {
   connector: { w: elementDefaults.connector.width, h: elementDefaults.connector.height },
   image: { w: elementDefaults.image.width, h: elementDefaults.image.height },
   wordmark: { w: elementDefaults.wordmark.width, h: elementDefaults.wordmark.height },
+  chart: { w: elementDefaults.chart.width, h: elementDefaults.chart.height },
 };
 
 const defaultTone: Record<ElementKind, ToneName> = {
@@ -113,6 +119,7 @@ const defaultTone: Record<ElementKind, ToneName> = {
   connector: elementDefaults.connector.tone,
   image: elementDefaults.image.tone,
   wordmark: elementDefaults.wordmark.tone,
+  chart: elementDefaults.chart.tone,
 };
 
 function baseFor(kind: ElementKind): ElementBase {
@@ -195,6 +202,18 @@ export function createElement<K extends ElementKind>(
       break;
     case 'wordmark':
       element = { ...base, kind: 'wordmark', variant: 'auto' };
+      break;
+    case 'chart':
+      element = {
+        ...base,
+        kind: 'chart',
+        chart: 'bar',
+        // Drei Zeilen als Anschauung: man sieht sofort, wie die Zahlen
+        // hineinkommen, und muss nichts nachschlagen.
+        data: '2023  38\n2024  52\n* 2025  61',
+        label: '',
+        values: true,
+      };
       break;
     default:
       throw new Error(`Unbekannte Elementart: ${String(kind)}`);
@@ -371,6 +390,15 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
       };
     case 'wordmark':
       return { ...base, kind: 'wordmark', variant: oneOf(raw.variant, wordmarkVariants, 'auto') };
+    case 'chart':
+      return {
+        ...base,
+        kind: 'chart',
+        chart: oneOf(raw.chart, chartKinds, 'bar'),
+        data: str(raw.data),
+        label: str(raw.label),
+        values: bool(raw.values, true),
+      };
     default:
       return null;
   }
@@ -468,6 +496,12 @@ export function minimizeElement(element: CanvasElement): Record<string, unknown>
       break;
     case 'wordmark':
       keepIfChanged('variant', element.variant, 'auto');
+      break;
+    case 'chart':
+      out.chart = element.chart;
+      out.data = element.data;
+      if (element.label) out.label = element.label;
+      keepIfChanged('values', element.values, true);
       break;
   }
 

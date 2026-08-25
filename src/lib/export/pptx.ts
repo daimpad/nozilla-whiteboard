@@ -424,6 +424,20 @@ function elementShapes(
   }
 
   // Dann der Text, als eigener Rahmen darüber.
+  // Ein Diagramm schreibt seinen Text in die *Szene* — Werte an den Balken,
+  // Kategorien darunter. Ohne diesen Zweig fiele er hier heraus, denn oben
+  // werden Textprimitive aus der Geometrie gefiltert, und `TEXT_KINDS` kennt
+  // nur Bausteine mit eigenen Textfeldern. Die `.pptx` hätte dann Balken ohne
+  // Beschriftung gezeigt — dieselbe Falle wie damals bei der Wortmarke, und
+  // dieselbe Antwort: der Weg, der seine Fußzeile selbst setzt, muss auch
+  // selbst hinsehen.
+  if (element.kind === 'chart') {
+    for (const prim of prims) {
+      if (prim.t !== 'text') continue;
+      out.push(...scenenTextShape(prim, nextId));
+    }
+  }
+
   if (TEXT_KINDS.has(element.kind)) {
     const paras = elementParagraphs(element, bg);
     if (paras.length > 0) {
@@ -806,6 +820,35 @@ interface TextShapeOptions {
  * Schriftgröße nicht. `<a:normAutofit/>` würde beim Bearbeiten heimlich
  * verkleinern und damit die Typo-Hierarchie der Marke aushebeln.
  */
+/**
+ * Ein Textprimitiv der Szene als eigener Textrahmen.
+ *
+ * Die Grundlinie der Szene wird zur Oberkante des Rahmens: PowerPoint kennt
+ * keine Grundlinie, sondern nur Kästen. Ein Kasten von der anderthalbfachen
+ * Schriftgröße, oben angeschlagen, trifft sie nah genug — und weil er weder
+ * Rand noch Füllung hat, sieht man den Unterschied nicht.
+ */
+function scenenTextShape(prim: Extract<ScenePrim, { t: 'text' }>, nextId: IdFn): string[] {
+  const text = prim.runs.map((run) => run.text).join('');
+  if (!text.trim()) return [];
+
+  const groesse = prim.runs.reduce((max, run) => Math.max(max, run.font.size), 0);
+  const breite = prim.runs.reduce((summe, run) => summe + run.width, 0);
+  const farbe = prim.runs[0]?.color;
+
+  return [
+    textShape(
+      nextId(),
+      'Diagrammbeschriftung',
+      prim.x,
+      prim.y - groesse,
+      Math.max(8, breite + groesse),
+      groesse * 1.5,
+      [inlineToParagraph(text, 'label', { color: farbe })],
+    ),
+  ];
+}
+
 function textShape(
   id: number,
   name: string,

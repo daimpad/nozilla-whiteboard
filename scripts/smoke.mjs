@@ -388,6 +388,35 @@ async function main() {
     await seite.waitForTimeout(300);
   });
 
+  await pruefe('ein Diagramm zeichnet die Zahlen, die drinstehen', async () => {
+    // Ein Diagramm ist ein Kunde der Szene wie jedes andere Element — deshalb
+    // wird hier geprüft, was auf der Folie *steht*, nicht was das Modell hält.
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    await seite.locator('aside button').filter({ hasText: 'Balken' }).first().click();
+    await seite.waitForTimeout(700);
+
+    const folie = () => seite.evaluate(FOLIE);
+    const vorher = (await folie()).markup;
+    for (const wort of ['2023', '2025', '61']) {
+      wahr(vorher.includes(`>${wort}<`), `„${wort}" fehlt im Diagramm`);
+    }
+    // Der mit * markierte Wert trägt die Signalfarbe — höchstens einer.
+    const signale = vorher.split('#00FF9C').length - 1;
+    wahr(signale > 0, 'kein hervorgehobener Balken');
+
+    // Andere Zahlen, anderes Bild.
+    await seite.getByRole('button', { name: 'Element', exact: true }).click();
+    await seite.waitForTimeout(300);
+    const feld = seite.locator('aside[aria-label="Inspektor"] textarea').first();
+    await feld.fill('Eins  10\nZwei  90');
+    await seite.waitForTimeout(800);
+
+    const nachher = (await folie()).markup;
+    wahr(nachher.includes('>Eins<'), 'die neuen Beschriftungen stehen nicht auf der Folie');
+    wahr(!nachher.includes('>2023<'), 'die alten Beschriftungen stehen noch da');
+  });
+
   console.log('\nErscheinungsbild und Erscheinung:');
 
   await pruefe('ein anderes Erscheinungsbild färbt die Folie um', async () => {

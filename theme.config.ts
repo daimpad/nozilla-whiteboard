@@ -760,6 +760,18 @@ export const elementDefaults = {
     padding: space[5],
     strokeWeight: 'rule' as StrokeName,
   },
+  /**
+   * Ein Diagramm ist breiter als hoch, weil Zahlenreihen waagerecht gelesen
+   * werden. Die Maße sind die der Karte, einmal quer — so passen zwei
+   * nebeneinander in eine Einsetzspalte, ohne dass etwas gequetscht aussieht.
+   */
+  chart: {
+    width: 530,
+    height: 300,
+    tone: 'paper' as ToneName,
+    padding: space[5],
+    strokeWeight: 'rule' as StrokeName,
+  },
   badge: {
     width: 168,
     height: 40,

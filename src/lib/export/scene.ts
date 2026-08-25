@@ -46,6 +46,7 @@ import {
   type Seg,
 } from '@/lib/geometry/path';
 import { connectorGeometry, shapeGeometry } from '@/lib/geometry/shapes';
+import { chartScale, parseChartData } from '@/lib/chart';
 import { flowFrame, flowOffsetY, footerFrame } from '@/lib/layout/slideLayout';
 import { font, measureText, type FontSpec } from '@/lib/text/measure';
 import { typesetMarkdown, typesetText, type TypesetResult } from '@/lib/text/typeset';
@@ -635,6 +636,11 @@ export function buildElementPrims(
       out.push(...cardScene(element, paint, matrix, bg, emitBody, boxSegs));
       break;
 
+    case 'chart':
+      emitBody(boxSegs(), true);
+      out.push(...chartScene(element, paint, matrix));
+      break;
+
     case 'wordmark':
       out.push(...wordmarkScene(element, paint, bg, matrix, opacity));
       break;
@@ -974,6 +980,212 @@ function cardScene(
   }
 
   return out;
+}
+
+/**
+ * Balken und Linien.
+ *
+ * Ein Diagramm ist ein Kunde der `Scene` wie jedes andere Element: es gibt
+ * Rechtecke, Pfade und Textläufe zurück. Damit tragen es Fläche, SVG, PDF und
+ * PPTX ohne eine Zeile Zusatzarbeit — der ganze Grund, warum es hier steht und
+ * nicht in einer Diagrammbibliothek.
+ *
+ * Gezeichnet wird mit den Mitteln der CI: Balken in Tinte, ein hervorgehobener
+ * in Signal, Achse als Haarlinie, Beschriftungen in der Label-Stufe. Es gibt
+ * kein Gitternetz, keine Legende und keine Farbverläufe — nichts davon steht
+ * in der CI, und ein Diagramm mit fünf Blautönen wäre genau der Verstoß, den
+ * die Tonrollen verhindern sollen.
+ */
+function chartScene(
+  element: Extract<CanvasElement, { kind: 'chart' }>,
+  paint: ElementPaint,
+  matrix: Mat,
+): ScenePrim[] {
+  const out: ScenePrim[] = [];
+  const punkte = parseChartData(element.data);
+  if (punkte.length === 0) return out;
+
+  const pad = element.padding;
+  const innen = { x: pad, y: pad, w: element.w - pad * 2, h: element.h - pad * 2 };
+  if (innen.w <= 0 || innen.h <= 0) return out;
+
+  let oben = innen.y;
+  if (element.label) {
+    oben += pushLabel(out, element.label, innen.x, oben, innen.w, paint, matrix, element.opacity);
+    oben += strokeWidthOf('rule') * 8;
+  }
+
+  // Unten die Kategorien, darüber die Zeichenfläche.
+  const beschriftung = typeScale.label.size * 1.6;
+  const wertHoehe = element.values ? typeScale.label.size * 1.5 : 0;
+  const feld = {
+    x: innen.x,
+    y: oben + wertHoehe,
+    w: innen.w,
+    h: innen.y + innen.h - beschriftung - (oben + wertHoehe),
+  };
+  if (feld.h <= 4) return out;
+
+  const { min, max } = chartScale(punkte);
+  const spanne = max - min;
+  const yFuer = (wert: number) => feld.y + feld.h - ((wert - min) / spanne) * feld.h;
+
+  /**
+   * Eine gefüllte Fläche.
+   *
+   * Als Pfad und nicht als `rect`-Primitiv, weil ein Rechteck keine Matrix
+   * tragen kann: es stünde in Element-Koordinaten, während alles andere in
+   * Folien-Koordinaten steht. Beim ersten Versuch lagen die Balken deshalb
+   * links neben ihrem Kasten und die Punkte des zweiten Diagramms mitten im
+   * ersten — im Bild sofort zu sehen, in der Zahl nicht.
+   */
+  const flaeche = (x: number, y: number, w: number, h: number, farbe: string) => {
+    out.push({
+      t: 'path',
+      segs: transformSegs(
+        [
+          { c: 'M', x, y },
+          { c: 'L', x: x + w, y },
+          { c: 'L', x: x + w, y: y + h },
+          { c: 'L', x, y: y + h },
+          { c: 'Z' },
+        ],
+        matrix,
+      ),
+      closed: true,
+      fill: farbe,
+      opacity: element.opacity === 1 ? undefined : element.opacity,
+    });
+  };
+
+  const linie = (segs: Seg[], farbe: string, breite: number) => {
+    out.push({
+      t: 'path',
+      segs: transformSegs(segs, matrix),
+      closed: false,
+      stroke: farbe,
+      strokeWidth: breite,
+      lineCap: 'square',
+      lineJoin: 'miter',
+      opacity: element.opacity === 1 ? undefined : element.opacity,
+    });
+  };
+
+  // Die Nulllinie. Sie liegt unten, solange alles positiv ist — und mittendrin,
+  // sobald ein Wert darunter geht. Ohne sie läse man negative Werte als kurze.
+  linie(
+    [
+      { c: 'M', x: feld.x, y: yFuer(Math.max(min, 0)) },
+      { c: 'L', x: feld.x + feld.w, y: yFuer(Math.max(min, 0)) },
+    ],
+    paint.line,
+    strokeWidthOf('rule'),
+  );
+
+  const schritt = feld.w / punkte.length;
+
+  punkte.forEach((punkt, i) => {
+    const mitte = feld.x + schritt * (i + 0.5);
+    const farbe = punkt.signal ? paint.signal : paint.ink;
+    const y = yFuer(punkt.value);
+    const null_ = yFuer(Math.max(min, 0));
+
+    if (element.chart === 'bar') {
+      // Ein Drittel Luft zwischen den Balken — schmaler wirkt zerfranst,
+      // breiter wird aus dem Diagramm ein Blockbild.
+      const breite = schritt * 0.62;
+      flaeche(
+        mitte - breite / 2,
+        Math.min(y, null_),
+        breite,
+        Math.max(1, Math.abs(null_ - y)),
+        farbe,
+      );
+    } else {
+      // Der Punkt auf der Linie; die Linie selbst kommt danach in einem Stück.
+      const r = strokeWidthOf('strong');
+      flaeche(mitte - r, y - r, r * 2, r * 2, farbe);
+    }
+
+    if (element.values) {
+      pushZentriert(
+        out,
+        formatWert(punkt.value),
+        mitte,
+        Math.min(y, null_) - typeScale.label.size * 0.5,
+        punkt.signal ? paint.text : paint.muted,
+        matrix,
+        element.opacity,
+      );
+    }
+    if (punkt.label) {
+      pushZentriert(
+        out,
+        punkt.label,
+        mitte,
+        innen.y + innen.h - typeScale.label.size * 0.3,
+        paint.muted,
+        matrix,
+        element.opacity,
+      );
+    }
+  });
+
+  if (element.chart === 'line' && punkte.length > 1) {
+    linie(
+      punkte.map((punkt, i) => ({
+        c: i === 0 ? 'M' : 'L',
+        x: feld.x + schritt * (i + 0.5),
+        y: yFuer(punkt.value),
+      })) as Seg[],
+      paint.ink,
+      strokeWidthOf('strong'),
+    );
+  }
+
+  return out;
+}
+
+/** Eine Zeile, um `mitte` zentriert, auf der Grundlinie `y`. */
+function pushZentriert(
+  out: ScenePrim[],
+  text: string,
+  mitte: number,
+  y: number,
+  farbe: string,
+  matrix: Mat,
+  opacity: number,
+): void {
+  const style = typeScale.label;
+  const spec = font({
+    family: style.family,
+    size: style.size,
+    weight: style.weight,
+    tracking: style.tracking,
+  });
+  const breite = measureText(text, spec);
+  out.push(
+    ...textPrim(
+      mitte - breite / 2,
+      y,
+      [{ dx: 0, text, font: spec, color: farbe, width: breite }],
+      matrix,
+      opacity,
+    ),
+  );
+}
+
+/**
+ * Eine Zahl, wie man sie auf Deutsch schreibt.
+ *
+ * Ganze Zahlen ohne Nachkommastellen, sonst eine — mehr liest auf einer Folie
+ * niemand, und der Punkt als Tausendertrenner kommt aus der Landeseinstellung
+ * und nicht von Hand.
+ */
+function formatWert(wert: number): string {
+  return Number.isInteger(wert)
+    ? wert.toLocaleString('de-DE')
+    : wert.toLocaleString('de-DE', { maximumFractionDigits: 1 });
 }
 
 function pushLabel(

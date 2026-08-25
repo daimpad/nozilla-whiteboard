@@ -250,6 +250,45 @@ describe('Folieninhalt', () => {
     expect(nahe(nacktXml)).toBe(0);
   });
 
+  it('nimmt die Beschriftung eines Diagramms mit', async () => {
+    // Der PPTX-Weg filtert Textprimitive aus der Geometrie und setzt den Text
+    // danach aus den *Feldern* des Elements — ein Diagramm hat aber keine
+    // Textfelder, sein Text steht in der Szene. Ohne den eigenen Zweig hätte
+    // die `.pptx` Balken ohne Beschriftung gezeigt: dieselbe Falle wie damals
+    // bei der Wortmarke.
+    const deck = parseDeck(
+      [
+        '<!-- nzl',
+        'elements:',
+        '  - kind: chart',
+        '    x: 100',
+        '    y: 100',
+        '    w: 500',
+        '    h: 300',
+        '    chart: bar',
+        '    label: Laufzeit in Tagen',
+        '    data: |',
+        '      2023  38',
+        '      2024  52',
+        '-->',
+        '',
+        '# Zahlen',
+      ].join('\n'),
+    );
+    const xml = (await readZip(await deckToPptx(deck, { images: new Map() }))).get(
+      'ppt/slides/slide1.xml',
+    )!;
+
+    // Die Überschrift steht in der Label-Stufe und damit in Versalien — so
+    // wird sie auch gezeichnet.
+    for (const wort of ['LAUFZEIT IN TAGEN', '2023', '2024', '38', '52']) {
+      expect(xml, wort).toContain(`<a:t>${wort}</a:t>`);
+    }
+    // Und die Balken sind echte Formen, nicht ein eingebettetes Bild.
+    expect(xml).toContain('<a:custGeom>');
+    expect(xml).not.toContain('<p:pic>');
+  });
+
   it('lässt PowerPoint umbrechen, ohne die Schrift zu verkleinern', () => {
     expect(slide1).toContain('wrap="square"');
     expect(slide1).toContain('<a:noAutofit/>');

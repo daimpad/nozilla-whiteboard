@@ -30,6 +30,7 @@ import {
   alignLabels,
   backgroundLabels,
   cardLabels,
+  chartLabels,
   connectorLabels,
   fillLabels,
   iconFrameLabels,
@@ -45,6 +46,7 @@ import {
 import { iconNames, isIconName, type IconName } from '@/assets/icons';
 import {
   cardVariants,
+  chartKinds,
   connectorKinds,
   fillStyles,
   horizontalAligns,
@@ -596,6 +598,50 @@ interface KindFieldsProps {
 
 function KindFields({ element, patch }: KindFieldsProps) {
   switch (element.kind) {
+    case 'chart':
+      return (
+        <>
+          <Field label="Art">
+            <Segmented
+              value={element.chart}
+              onChange={(chart) => patch({ chart } as Partial<CanvasElement>)}
+              options={chartKinds.map((value) => ({
+                value,
+                label: labelOf(chartLabels, value),
+              }))}
+            />
+          </Field>
+          <Field label="Überschrift">
+            <input
+              className="nz-field"
+              value={element.label}
+              onChange={(event) => patch({ label: event.target.value } as Partial<CanvasElement>)}
+            />
+          </Field>
+          <Field
+            label="Zahlen"
+            hint="Eine Zeile je Wert: Beschriftung, dann die Zahl. Ein * davor hebt einen Wert hervor."
+          >
+            <textarea
+              rows={6}
+              className="nz-field resize-y font-mono text-ui-label"
+              value={element.data}
+              onChange={(event) => patch({ data: event.target.value } as Partial<CanvasElement>)}
+            />
+          </Field>
+          <label className="flex items-center gap-2 text-ui-body">
+            <input
+              type="checkbox"
+              checked={element.values}
+              onChange={(event) =>
+                patch({ values: event.target.checked } as Partial<CanvasElement>)
+              }
+            />
+            Zahlen mitschreiben
+          </label>
+        </>
+      );
+
     case 'text':
       return (
         <>
