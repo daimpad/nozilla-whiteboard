@@ -488,6 +488,38 @@ async function main() {
     await seite.keyboard.press('Escape');
   });
 
+  await pruefe('das PNG einer Folie kommt heraus und ist ein Bild', async () => {
+    // Nicht nur „eine Datei kam an": ein SVG, das über ein <img> gerastert
+    // wird, ist ein eigenes Dokument ohne Zugriff auf die Schriften der
+    // Seite. Wer Textknoten hineinlegt, bekommt ein Bild in der
+    // Ersatzschrift — und merkt es erst beim Empfänger. Deshalb wird hier die
+    // *Signatur* der Datei geprüft und ihre Größe: ein leeres oder einfarbiges
+    // Bild wäre klein.
+    await seite.getByRole('button', { name: 'Export', exact: true }).click();
+    await seite.waitForTimeout(300);
+    const wartet = seite.waitForEvent('download', { timeout: 60000 });
+    await seite
+      .locator('[role="menu"] button')
+      .filter({ hasText: 'PNG — diese Folie' })
+      .first()
+      .click();
+    const datei = await wartet;
+    const pfad = await datei.path();
+    const fs = await import('node:fs');
+    const bytes = await fs.promises.readFile(pfad);
+
+    wahr(
+      bytes.length > 8 && bytes[0] === 0x89 && bytes.toString('latin1', 1, 4) === 'PNG',
+      'die Datei trägt keine PNG-Signatur',
+    );
+    // Breite und Höhe stehen im IHDR, big-endian ab Byte 16.
+    const breite = bytes.readUInt32BE(16);
+    const hoehe = bytes.readUInt32BE(20);
+    gleich(`${breite}×${hoehe}`, '2560×1440', 'Maß des Bildes');
+    wahr(bytes.length > 20_000, `PNG zu klein: ${bytes.length} Bytes`);
+    await seite.keyboard.press('Escape');
+  });
+
   await pruefe('nichts hat sich in der Konsole beschwert', async () => {
     gleich(fehler.join('\n'), '', 'Fehler in der Konsole');
   });

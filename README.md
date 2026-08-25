@@ -189,6 +189,7 @@ Gedanke für Gedanke aufgeht. Übersicht mit `⌘K`, Filmstreifen immer sichtbar
 | **SVG**        | Echte `<path>`/`<text>`-Vektoren — kein `foreignObject`, keine Rasterung                                      |
 | **PDF**        | Vektorseiten mit markierbarem, durchsuchbarem Text                                                            |
 | **PowerPoint** | `.pptx` mit echten Formen und **bearbeitbaren Textrahmen** — auch der Weg nach Google Slides (dort hochladen) |
+| **PNG**        | Eine Folie in 2560 × 1440 — zum Verschicken, wenn niemand eine Datei will                                     |
 
 Für SVG und PDF gibt es zwei Wege, wie die Schrift in die Datei kommt. Beide
 erzeugen dasselbe Bild; sie unterscheiden sich darin, was die Gegenseite

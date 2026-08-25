@@ -78,6 +78,10 @@ const SUBSTANTIV = new Set(
     // Aus dem Sperren-Knopf, der beide Zweige in einem Attribut trug.
     'lock',
     'unlock',
+    // Aus dem Hinweis „1280×720 vectors" im Export-Menü — eine Vorlage in
+    // einem Attribut, in der nach dem Auflösen genau ein Wort übrig bleibt.
+    'vectors',
+    'vector',
     'group',
     'ungroup',
   ].map((word) => word.toLowerCase()),
@@ -155,6 +159,15 @@ function sichtbareTexte(source: string): string[] {
     /(?:label|title|placeholder|aria-label|hint|alt)=(?:"([^"]{2,})"|\{'([^']{2,})'\})/g,
   )) {
     out.push(match[1] ?? match[2]);
+  }
+
+  // 1c · Als Vorlage in einem Attribut: hint={`… vectors`}. Das Satz-Sieb
+  // unten sieht sie zwar, aber nach dem Auflösen der Platzhalter bleibt oft
+  // nur ein Wort übrig — und ein Wort allein wertet es nicht.
+  for (const match of source.matchAll(
+    /(?:label|title|placeholder|aria-label|hint|alt)=\{`([^`]{2,200})`\}/g,
+  )) {
+    out.push(match[1].replace(/\$\{[^}]*\}/g, ' '));
   }
 
   // 1b · Als Attribut, dessen Wert ein Ausdruck ist:
@@ -245,6 +258,8 @@ describe('die Oberfläche spricht Deutsch', () => {
     // einem Attribut standen.
     expect(istEnglisch('Lock')).toBe(true);
     expect(istEnglisch('Unlock')).toBe(true);
+    expect(istEnglisch(' × vectors')).toBe(true);
+    expect(istEnglisch(' × , echte Pfade')).toBe(false);
     // Und die deutschen Beschriftungen daneben bleiben deutsch.
     expect(istEnglisch('Nichts ausgewählt.')).toBe(false);
     expect(istEnglisch('Datei einbetten')).toBe(false);

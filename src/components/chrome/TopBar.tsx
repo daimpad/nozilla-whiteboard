@@ -9,6 +9,7 @@ import { bundledDecks } from '@/decks';
 import {
   exportMarkdown,
   exportPdf,
+  exportPng,
   exportPptx,
   exportSvg,
   textModeLabels,
@@ -275,10 +276,16 @@ function ExportMenu({
           <MenuItem
             icon="square"
             label="SVG — diese Folie"
-            hint={`${canvasTokens.width}×${canvasTokens.height} vectors`}
+            hint={`${canvasTokens.width}×${canvasTokens.height}, echte Pfade`}
             onClick={() =>
               run('Zeichne SVG', () => exportSvg(deck, { slideIndex, text: textMode }))
             }
+          />
+          <MenuItem
+            icon="image"
+            label="PNG — diese Folie"
+            hint={`${canvasTokens.width * 2}×${canvasTokens.height * 2}, zum Verschicken`}
+            onClick={() => run('Rastere PNG', () => exportPng(deck, { slideIndex }))}
           />
           <MenuItem
             icon="layer-group"
