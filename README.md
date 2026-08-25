@@ -170,6 +170,12 @@ stünde: lesbar, einfügbar, und von denselben Prüfungen gedeckt. Auf einer
 anderen Folie behält das Eingefügte seinen Ort — das ist der Sinn der Sache;
 nur auf derselben Folie rückt die Kopie beiseite.
 
+**Suchen mit `⌘F`** — über den Fließtext, die Notizen und jedes Textfeld jedes
+Elements, quer durchs ganze Deck. Ein Treffer nennt die Folie und den
+Ausschnitt drumherum, ein Klick bringt einen hin und wählt das Element aus.
+Kennungen, Zeichennamen und Layoutwerte bleiben draußen: eine Suche, die alles
+durchkämmt, findet auf jede Frage etwas und damit nichts.
+
 ### Präsentation
 
 `P` startet, `Esc` beendet, `F` Vollbild, `N` Notizen.

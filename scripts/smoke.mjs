@@ -359,6 +359,35 @@ async function main() {
     gleich(`${x} / ${y}`, '88 / 72', 'Ort des eingefügten Bildes');
   });
 
+  await pruefe('⌘F findet ein Wort auf einer anderen Folie', async () => {
+    // Die Suche des Browsers fände nur, was gerade auf dem Bildschirm steht —
+    // also die eine Folie, die man ohnehin sieht.
+    await seite.getByRole('navigation', { name: 'Folien' }).locator('button').first().click();
+    await seite.waitForTimeout(500);
+    const vorher = Number(
+      (await seite.locator('header span.tabular-nums').first().innerText()).split('/')[0],
+    );
+
+    await seite.keyboard.press('Control+f');
+    await seite.waitForTimeout(400);
+    await seite.getByLabel('Im Deck suchen').fill('Vektor');
+    await seite.waitForTimeout(600);
+
+    const treffer = seite.locator('[aria-label="Im Deck suchen"]').locator('..').locator('..');
+    const knoepfe = treffer.locator('ul button');
+    wahr(await knoepfe.count(), 'kein Treffer für ein Wort, das im Deck steht');
+
+    await knoepfe.first().click();
+    await seite.waitForTimeout(700);
+    const nachher = Number(
+      (await seite.locator('header span.tabular-nums').first().innerText()).split('/')[0],
+    );
+    wahr(nachher !== vorher, `der Treffer führte nicht auf eine andere Folie (${nachher})`);
+
+    await seite.keyboard.press('Escape');
+    await seite.waitForTimeout(300);
+  });
+
   console.log('\nErscheinungsbild und Erscheinung:');
 
   await pruefe('ein anderes Erscheinungsbild färbt die Folie um', async () => {

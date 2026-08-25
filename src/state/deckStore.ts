@@ -56,6 +56,7 @@ export interface EditorState {
   overviewOpen: boolean;
   notesOpen: boolean;
   promptOpen: boolean;
+  searchOpen: boolean;
 
   /* Canvas */
   selection: string[];
@@ -87,6 +88,7 @@ export interface EditorState {
   toggleOverview: (open?: boolean) => void;
   toggleNotes: (open?: boolean) => void;
   togglePrompt: (open?: boolean) => void;
+  toggleSearch: (open?: boolean) => void;
 
   addSlide: (at?: number, patch?: Partial<Slide>) => void;
   deleteSlide: (index?: number) => void;
@@ -255,6 +257,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
     overviewOpen: false,
     notesOpen: false,
     promptOpen: false,
+    searchOpen: false,
 
     selection: [],
     guides: [],
@@ -371,6 +374,8 @@ export const useDeckStore = create<EditorState>()((set, get) => {
     toggleOverview: (open) => set((state) => ({ overviewOpen: open ?? !state.overviewOpen })),
     toggleNotes: (open) => set((state) => ({ notesOpen: open ?? !state.notesOpen })),
     togglePrompt: (open) => set((state) => ({ promptOpen: open ?? !state.promptOpen })),
+
+    toggleSearch: (open) => set((state) => ({ searchOpen: open ?? !state.searchOpen })),
 
     /* -------------------------------------------------------------- slides */
 
