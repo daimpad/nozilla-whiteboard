@@ -21,7 +21,7 @@ import {
   normalizeZOrder,
   parseDeck,
 } from '@/lib/markdown/deck';
-import { createElement, createId, duplicateElement } from '@/model/factory';
+import { createElement, createId, duplicateElement, regroupElements } from '@/model/factory';
 import {
   maxRevealStep,
   type CanvasElement,
@@ -115,6 +115,9 @@ export interface EditorState {
   setElementTone: (tone: ToneName) => void;
   setRevealStep: (step: number, animation?: RevealAnimation) => void;
 
+  /** Die Auswahl zu Gruppen zusammenfassen — und wieder auflösen. */
+  groupSelection: () => void;
+  ungroupSelection: () => void;
   select: (ids: string[]) => void;
   toggleSelect: (id: string) => void;
   selectAll: () => void;
@@ -161,6 +164,28 @@ export function createStarterDeck(): Deck {
  * Breiter als die Spalte wird nichts: sonst liefe ein Baustein über den
  * rechten Satzspiegel hinaus, und der ist keine Empfehlung.
  */
+/**
+ * Eine Auswahl auf ganze Gruppen ausdehnen.
+ *
+ * Hier und nicht in der Fläche, weil jeder Weg zur Auswahl hier vorbeikommt —
+ * Klick, Umschalt-Klick, Aufziehrechteck, „alles auswählen". Läge die Regel in
+ * der Fläche, hätte jeder neue Weg sie wieder nicht.
+ */
+function mitGruppe(state: EditorState, ids: readonly string[]): string[] {
+  const slide: Slide | undefined = state.deck.slides[state.slideIndex];
+  if (!slide) return [...new Set(ids)];
+  const gruppen = new Set(
+    ids
+      .map((id) => slide.elements.find((element) => element.id === id)?.group)
+      .filter((gruppe): gruppe is string => Boolean(gruppe)),
+  );
+  if (gruppen.size === 0) return [...new Set(ids)];
+  const dazu = slide.elements
+    .filter((element) => element.group && gruppen.has(element.group))
+    .map((element) => element.id);
+  return [...new Set([...ids, ...dazu])];
+}
+
 function spalteFuer(element: CanvasElement): { w: number; h: number } {
   if (element.kind === 'text' || element.kind === 'markdown') {
     const innen = element.fill === 'none' ? 0 : element.padding;
@@ -547,15 +572,17 @@ export const useDeckStore = create<EditorState>()((set, get) => {
         const slide = currentSlide(state);
         if (!slide || state.selection.length === 0) return {};
         const targets = new Set(state.selection);
-        const copies = slide.elements
-          .filter((element) => targets.has(element.id))
-          .map(
-            (element, index) =>
-              ({
-                ...duplicateElement(element),
-                z: slide.elements.length + index,
-              }) as CanvasElement,
-          );
+        const copies = regroupElements(
+          slide.elements
+            .filter((element) => targets.has(element.id))
+            .map(
+              (element, index) =>
+                ({
+                  ...duplicateElement(element),
+                  z: slide.elements.length + index,
+                }) as CanvasElement,
+            ),
+        );
         if (copies.length === 0) return {};
         return {
           ...history(state),
@@ -736,14 +763,18 @@ export const useDeckStore = create<EditorState>()((set, get) => {
 
     /* ----------------------------------------------------------- selection */
 
-    select: (ids) => set({ selection: [...new Set(ids)] }),
+    select: (ids) => set((state) => ({ selection: mitGruppe(state, ids) })),
 
     toggleSelect: (id) =>
-      set((state) => ({
-        selection: state.selection.includes(id)
-          ? state.selection.filter((entry) => entry !== id)
-          : [...state.selection, id],
-      })),
+      set((state) => {
+        const betroffen = mitGruppe(state, [id]);
+        // Ein Element aus einer Gruppe abzuwählen nimmt die ganze Gruppe
+        // heraus: sonst bliebe eine halbe Gruppe ausgewählt, und der nächste
+        // Zug führe sie auseinander.
+        return state.selection.includes(id)
+          ? { selection: state.selection.filter((entry) => !betroffen.includes(entry)) }
+          : { selection: [...new Set([...state.selection, ...betroffen])] };
+      }),
 
     selectAll: () =>
       set((state) => {
@@ -752,6 +783,48 @@ export const useDeckStore = create<EditorState>()((set, get) => {
       }),
 
     clearSelection: () => set({ selection: [], guides: [] }),
+
+    /**
+     * Alles Ausgewählte bekommt dieselbe frische Gruppenkennung.
+     *
+     * Auch das, was schon in einer Gruppe war: `mitGruppe()` hat die Auswahl
+     * vorher ohnehin auf ganze Gruppen ausgedehnt, und zwei Gruppen zu einer
+     * zu verschmelzen ist genau das, was man erwartet, wenn man sie zusammen
+     * auswählt und ⌘G drückt.
+     */
+    groupSelection: () =>
+      set((state) => {
+        const slide = currentSlide(state);
+        if (!slide || state.selection.length < 2) return {};
+        const ids = new Set(state.selection);
+        const gruppe = createId('group');
+        return {
+          ...history(state),
+          deck: withElements(state, (elements) =>
+            elements.map((element) =>
+              ids.has(element.id) ? ({ ...element, group: gruppe } as CanvasElement) : element,
+            ),
+          ),
+        };
+      }),
+
+    ungroupSelection: () =>
+      set((state) => {
+        const slide = currentSlide(state);
+        if (!slide || state.selection.length === 0) return {};
+        const ids = new Set(state.selection);
+        if (!slide.elements.some((element) => ids.has(element.id) && element.group)) return {};
+        return {
+          ...history(state),
+          deck: withElements(state, (elements) =>
+            elements.map((element) => {
+              if (!ids.has(element.id) || !element.group) return element;
+              const { group: _weg, ...rest } = element;
+              return rest as CanvasElement;
+            }),
+          ),
+        };
+      }),
 
     /* -------------------------------------------------------------- canvas */
 

@@ -346,6 +346,101 @@ describe('elements', () => {
   });
 });
 
+describe('Gruppen', () => {
+  const dreiFormen = () => {
+    const a = addShape({ x: 100, y: 100 });
+    const b = addShape({ x: 300, y: 100 });
+    const c = addShape({ x: 500, y: 100 });
+    return [a, b, c];
+  };
+
+  it('fasst die Auswahl zusammen und löst sie wieder auf', () => {
+    const [a, b] = dreiFormen();
+    store().select([a, b]);
+    store().groupSelection();
+
+    const gruppen = elementsNow().map((element) => element.group);
+    expect(gruppen[0]).toBeTruthy();
+    expect(gruppen[1]).toBe(gruppen[0]);
+    expect(gruppen[2]).toBeUndefined();
+
+    store().ungroupSelection();
+    expect(elementsNow().every((element) => element.group === undefined)).toBe(true);
+  });
+
+  it('wählt beim Klick auf ein Mitglied die ganze Gruppe', () => {
+    // Das ist der Sinn der Sache: sonst zöge man weiterhin einzeln.
+    const [a, b, c] = dreiFormen();
+    store().select([a, b]);
+    store().groupSelection();
+
+    store().select([a]);
+    expect([...store().selection].sort()).toEqual([a, b].sort());
+
+    store().select([c]);
+    expect(store().selection).toEqual([c]);
+  });
+
+  it('nimmt beim Abwählen die ganze Gruppe heraus', () => {
+    // Eine halbe Gruppe in der Auswahl führte den nächsten Zug auseinander.
+    const [a, b, c] = dreiFormen();
+    store().select([a, b]);
+    store().groupSelection();
+
+    store().select([a, c]);
+    expect(store().selection).toHaveLength(3);
+    store().toggleSelect(b);
+    expect(store().selection).toEqual([c]);
+  });
+
+  it('verschmilzt zwei Gruppen, statt sie zu verschachteln', () => {
+    const [a, b, c] = dreiFormen();
+    store().select([a, b]);
+    store().groupSelection();
+    store().select([b, c]);
+    store().groupSelection();
+
+    const gruppen = elementsNow().map((element) => element.group);
+    expect(new Set(gruppen).size).toBe(1);
+    expect(gruppen[0]).toBeTruthy();
+  });
+
+  it('gibt einer Kopie eine eigene Gruppe', () => {
+    // Sonst nähme das Wegziehen der Kopie das Original mit.
+    const [a, b] = dreiFormen();
+    store().select([a, b]);
+    store().groupSelection();
+    const vorher = elementsNow()[0].group;
+
+    store().duplicateSelection();
+    const kopien = elementsNow().slice(3);
+    expect(kopien).toHaveLength(2);
+    expect(kopien[0].group).toBeTruthy();
+    expect(kopien[0].group).not.toBe(vorher);
+    expect(kopien[1].group).toBe(kopien[0].group);
+  });
+
+  it('lässt eine einzelne Auswahl in Ruhe', () => {
+    const [a] = dreiFormen();
+    store().select([a]);
+    store().groupSelection();
+    expect(elementsNow()[0].group).toBeUndefined();
+  });
+
+  it('übersteht den Weg durch die Datei', () => {
+    const [a, b] = dreiFormen();
+    store().select([a, b]);
+    store().groupSelection();
+    const gruppe = elementsNow()[0].group;
+
+    const wieder = parseDeck(serializeDeck(store().deck));
+    const elemente = wieder.slides[store().slideIndex].elements;
+    expect(elemente[0].group).toBe(gruppe);
+    expect(elemente[1].group).toBe(gruppe);
+    expect(elemente[2].group).toBeUndefined();
+  });
+});
+
 describe('presentation', () => {
   it('walks reveal steps before moving to the next slide', () => {
     store().setSlideMarkdown('# One');

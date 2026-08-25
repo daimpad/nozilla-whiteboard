@@ -75,6 +75,11 @@ const SUBSTANTIV = new Set(
     'file',
     'files',
     'image',
+    // Aus dem Sperren-Knopf, der beide Zweige in einem Attribut trug.
+    'lock',
+    'unlock',
+    'group',
+    'ungroup',
   ].map((word) => word.toLowerCase()),
 );
 
@@ -152,6 +157,18 @@ function sichtbareTexte(source: string): string[] {
     out.push(match[1] ?? match[2]);
   }
 
+  // 1b · Als Attribut, dessen Wert ein Ausdruck ist:
+  // `label={gesperrt ? 'Entsperren' : 'Sperren'}`. Beide Zweige stehen vor
+  // Augen, und beide entkamen: der Ausdruck oben verlangt genau `{'…'}`, und
+  // das Satz-Sieb unten wertet nur, was zwei Wörter hat.
+  for (const match of source.matchAll(
+    /(?:label|title|placeholder|aria-label|hint|alt)=\{([^}]{2,200})\}/g,
+  )) {
+    for (const teil of match[1].matchAll(/'([^'\n]{2,120})'|"([^"\n]{2,120})"/g)) {
+      out.push(teil[1] ?? teil[2]);
+    }
+  }
+
   // 2 · Als Eigenschaft eines Objekts: `{ value: 'fit', label: 'Passend' }`.
   // So ist jede Beschriftung eines `Segmented` geschrieben — ein ganzer
   // Bautyp, den das Sieb nie zu Gesicht bekam.
@@ -224,6 +241,10 @@ describe('die Oberfläche spricht Deutsch', () => {
     // Die zwei, die das Urteil durchließ, obwohl das Sieb sie hatte.
     expect(istEnglisch('Nothing selected.')).toBe(true);
     expect(istEnglisch('Embed a file')).toBe(true);
+    // Und die zwei aus dem Sperren-Knopf, die als Zweige eines Ausdrucks in
+    // einem Attribut standen.
+    expect(istEnglisch('Lock')).toBe(true);
+    expect(istEnglisch('Unlock')).toBe(true);
     // Und die deutschen Beschriftungen daneben bleiben deutsch.
     expect(istEnglisch('Nichts ausgewählt.')).toBe(false);
     expect(istEnglisch('Datei einbetten')).toBe(false);
@@ -244,6 +265,7 @@ describe('die Oberfläche spricht Deutsch', () => {
       "<p>{notiz || 'Als Rückfall in einem Ausdruck.'}</p>",
       "<p>{kopiert ? 'Erster Zweig hier' : 'Zweiter Zweig hier'}</p>",
       '<Field hint={`Als Vorlage mit ${wert} darin.`} />',
+      "<IconButton label={gesperrt ? 'Erster Zweig im Attribut' : 'Zweiter Zweig im Attribut'} />",
     ].join('\n');
 
     const gefunden = sichtbareTexte(quelle);
@@ -255,6 +277,8 @@ describe('die Oberfläche spricht Deutsch', () => {
       'Als Rückfall in einem Ausdruck.',
       'Erster Zweig hier',
       'Zweiter Zweig hier',
+      'Erster Zweig im Attribut',
+      'Zweiter Zweig im Attribut',
     ]) {
       expect(gefunden, erwartet).toContain(erwartet);
     }

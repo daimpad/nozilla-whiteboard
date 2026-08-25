@@ -334,11 +334,16 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
   const alignSelection = useDeckStore((state) => state.alignSelection);
   const distributeSelection = useDeckStore((state) => state.distributeSelection);
   const duplicateSelection = useDeckStore((state) => state.duplicateSelection);
+  const groupSelection = useDeckStore((state) => state.groupSelection);
+  const ungroupSelection = useDeckStore((state) => state.ungroupSelection);
   const deleteSelection = useDeckStore((state) => state.deleteSelection);
   const setRevealStep = useDeckStore((state) => state.setRevealStep);
 
   const ids = useMemo(() => elements.map((element) => element.id), [elements]);
   const first = elements[0];
+  // Eine Gruppe liegt vor, sobald das erste ausgewählte Element eine Kennung
+  // trägt — die Auswahl umfasst dann ohnehin die ganze Gruppe.
+  const gruppiert = Boolean(first?.group);
 
   const patch = (update: Partial<CanvasElement>, historic = true) => {
     if (historic) pushHistory();
@@ -383,8 +388,15 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
         <Divider />
         <IconButton icon="plus" label="Duplizieren" onClick={duplicateSelection} />
         <IconButton
+          icon="layer-group"
+          label={gruppiert ? 'Gruppe auflösen (⇧⌘G)' : 'Gruppieren (⌘G)'}
+          active={gruppiert}
+          disabled={!gruppiert && elements.length < 2}
+          onClick={() => (gruppiert ? ungroupSelection() : groupSelection())}
+        />
+        <IconButton
           icon={first.locked ? 'lock' : 'key'}
-          label={first.locked ? 'Unlock' : 'Lock'}
+          label={first.locked ? 'Entsperren' : 'Sperren'}
           active={first.locked}
           onClick={() => patch({ locked: !first.locked })}
         />

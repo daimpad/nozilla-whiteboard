@@ -204,6 +204,22 @@ export function createElement<K extends ElementKind>(
 }
 
 /** Ein Element mit frischer Id kopieren, um `offset` Folien-Einheiten versetzt. */
+/**
+ * Gruppenkennungen einer Auswahl frisch vergeben.
+ *
+ * Ohne das trüge jede Kopie die Kennung ihres Originals — und wäre damit
+ * dieselbe Gruppe. Wer eine Gruppe dupliziert und die Kopie wegzieht, nähme
+ * das Original mit.
+ */
+export function regroupElements(elements: readonly CanvasElement[]): CanvasElement[] {
+  const neu = new Map<string, string>();
+  return elements.map((element) => {
+    if (!element.group) return element;
+    if (!neu.has(element.group)) neu.set(element.group, createId('group'));
+    return { ...element, group: neu.get(element.group) } as CanvasElement;
+  });
+}
+
 export function duplicateElement(
   element: CanvasElement,
   offset = canvas.gridSize * 3,
@@ -285,6 +301,7 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
   };
 
   if (typeof raw.name === 'string' && raw.name.trim()) base.name = raw.name;
+  if (typeof raw.group === 'string' && raw.group.trim()) base.group = raw.group.trim();
 
   const reveal = normalizeReveal(raw.reveal);
   if (reveal) base.reveal = reveal;
@@ -403,6 +420,7 @@ export function minimizeElement(element: CanvasElement): Record<string, unknown>
   keepIfChanged('opacity', round2(element.opacity), 1);
   keepIfChanged('locked', element.locked, false);
   if (element.name) out.name = element.name;
+  if (element.group) out.group = element.group;
   if (element.reveal && element.reveal.step > 0) {
     out.reveal = { step: element.reveal.step, animation: element.reveal.animation };
   }

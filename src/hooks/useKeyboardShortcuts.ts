@@ -146,6 +146,13 @@ export function useKeyboardShortcuts(): void {
         return;
       }
 
+      if (mod && event.key.toLowerCase() === 'g') {
+        event.preventDefault();
+        if (event.shiftKey) store.ungroupSelection();
+        else store.groupSelection();
+        return;
+      }
+
       if (mod && (event.key === ']' || event.key === '[')) {
         event.preventDefault();
         if (event.shiftKey) store.reorderSelection(event.key === ']' ? 'front' : 'back');

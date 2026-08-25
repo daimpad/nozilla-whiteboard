@@ -145,7 +145,9 @@ Tabellen, Bilder — gesetzt in der CI-Hierarchie.
 Ziehen, größer ziehen, drehen; Mehrfachauswahl per Shift oder
 Gummiband. Einrasten auf das 8er-Raster _und_ auf Hilfslinien: Kanten und
 Mitten der Nachbarn, Folienränder, Satzspiegel. `Alt` hält das Raster an.
-Duplizieren, löschen, stapeln, ausrichten, verteilen, sperren. Rückgängig und
+Duplizieren, löschen, stapeln, ausrichten, verteilen, sperren. **Gruppieren**
+mit `⌘G`, auflösen mit `⇧⌘G` — ein Klick auf ein Mitglied nimmt die ganze
+Gruppe mit, und die Zugehörigkeit steht in der `.md`. Rückgängig und
 Wiederholen mit Gesten-Bewusstsein — ein Zug ist ein Schritt, nicht sechzig.
 
 **Eingesetzt wird an einer Linie.** Jeder Baustein aus der Bibliothek beginnt am

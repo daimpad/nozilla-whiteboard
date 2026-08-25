@@ -113,6 +113,21 @@ export interface ElementBase {
   reveal?: Reveal;
   /** Optionaler Name für die Ebenenliste. */
   name?: string;
+  /**
+   * Zu welcher Gruppe das Element gehört.
+   *
+   * Eine Gruppe ist kein eigenes Element, sondern eine Kennung, die mehrere
+   * tragen. Das ist die kleinere Änderung — ein Gruppen-Element hätte einen
+   * eigenen Kasten, eigene Maße und eine eigene Malreihenfolge, und jede
+   * Ausgabe müsste es kennen. So bleibt für Szene, SVG, PDF und PPTX alles,
+   * wie es war: sie sehen weiterhin nur Elemente.
+   *
+   * Gruppen verschachteln sich nicht. Wer eine Gruppe mit etwas anderem
+   * gruppiert, bekommt eine Gruppe aus allem — das ist die Erwartung bei einem
+   * Werkzeug, in dem man Dinge nebeneinanderlegt, und es erspart einen Baum,
+   * den niemand sehen kann.
+   */
+  group?: string;
 }
 
 export interface TextElement extends ElementBase {

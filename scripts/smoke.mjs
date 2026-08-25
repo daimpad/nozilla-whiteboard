@@ -271,6 +271,46 @@ async function main() {
     wahr(Math.abs(kante - 88) <= 6, `linke Kante des Label-Textes: ${kante} statt 88`);
   });
 
+  await pruefe('zwei Bausteine lassen sich zu einer Gruppe zusammenfassen', async () => {
+    // Mehrfachauswahl gab es, Gruppieren nicht — wer eine Karte samt Zeichen
+    // verschieben wollte, musste jedes Mal neu einrahmen.
+    await seite.locator('aside button').filter({ hasText: 'Zahl' }).first().click();
+    await seite.waitForTimeout(500);
+    await seite.keyboard.press('Control+a');
+    await seite.waitForTimeout(300);
+    await seite.keyboard.press('Control+g');
+    await seite.waitForTimeout(500);
+
+    const knopf = seite.getByRole('button', { name: /Gruppe auflösen/ });
+    wahr(await knopf.count(), 'kein Knopf zum Auflösen — es wurde nicht gruppiert');
+    gleich(await knopf.first().getAttribute('aria-pressed'), 'true', 'Zustand des Gruppenknopfs');
+
+    // Und der Klick auf ein einzelnes Mitglied nimmt die ganze Gruppe.
+    //
+    // Geprüft an den Griffen, nicht am Gruppenknopf: der zeigt sich auch bei
+    // einem einzelnen Mitglied, denn die Kennung klebt am Element. Griffe
+    // zeichnet die Fläche dagegen nur, wenn genau *eines* ausgewählt ist —
+    // keine Griffe heißt also: die Gruppe hängt mit dran.
+    await seite.keyboard.press('Escape');
+    await seite.waitForTimeout(300);
+    await seite.locator('[data-hit-element]').first().click();
+    await seite.waitForTimeout(400);
+    gleich(
+      await seite.locator('[data-handle]').count(),
+      0,
+      'Griffe nach dem Klick auf ein Gruppenmitglied',
+    );
+
+    await seite.keyboard.press('Control+Shift+g');
+    await seite.waitForTimeout(400);
+    wahr(
+      await seite.getByRole('button', { name: /^Gruppieren/ }).count(),
+      'die Gruppe ließ sich nicht auflösen',
+    );
+    await seite.keyboard.press('Escape');
+    await seite.waitForTimeout(300);
+  });
+
   await pruefe('eine Karte reist über die Zwischenablage auf die nächste Folie', async () => {
     // Für ein Werkzeug, das sich Whiteboard nennt, war ⌘V die auffälligste
     // Lücke: eine Datei *fallen zu lassen* ging, sie *einzufügen* nicht.
