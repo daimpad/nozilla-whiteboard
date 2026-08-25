@@ -56,6 +56,7 @@ import {
   type FillStyle,
 } from '@/model/types';
 import { readFileAsDataUrl } from '@/lib/export/download';
+import { overflowOf } from '@/lib/overflow';
 import { selectCurrentSlide, useDeckStore, useSelectedElements } from '@/state/deckStore';
 import { useThemeVersion } from '@/hooks/useTheme';
 import {
@@ -344,6 +345,9 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
   // Eine Gruppe liegt vor, sobald das erste ausgewählte Element eine Kennung
   // trägt — die Auswahl umfasst dann ohnehin die ganze Gruppe.
   const gruppiert = Boolean(first?.group);
+  // Nur bei einer einzelnen Auswahl: bei mehreren wüsste man nicht, welcher
+  // Kasten gemeint ist, und „anpassen" träfe alle.
+  const ueberlauf = elements.length === 1 && first ? overflowOf(first) : 0;
 
   const patch = (update: Partial<CanvasElement>, historic = true) => {
     if (historic) pushHistory();
@@ -473,6 +477,23 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
           onChange={(value) => patch({ opacity: Math.min(1, Math.max(0, value / 100)) })}
         />
       </div>
+
+      {ueberlauf > 0 ? (
+        <p className="flex items-start gap-2 border border-ui-warn bg-ui-warn-bg px-2 py-1.5 text-ui-body text-ui-ink">
+          <Icon name="triangle-exclamation" size={14} className="mt-0.5 shrink-0 text-ui-warn" />
+          <span>
+            Der Text steht {ueberlauf} Einheiten unter der Unterkante. Auf der Fläche sieht man ihn
+            noch — im PDF steht er über dem Rand, und PowerPoint schneidet ihn ab.{' '}
+            <button
+              type="button"
+              className="underline underline-offset-2"
+              onClick={() => patch({ h: Math.round(first.h + ueberlauf) })}
+            >
+              Kasten anpassen
+            </button>
+          </span>
+        </p>
+      ) : null}
 
       {/* ------------------------------------------------------------- CI */}
       <Field label="Ton">

@@ -442,6 +442,38 @@ async function main() {
     wahr(r + g + b > 600, `Vorschau-Untergrund zu dunkel: ${hell}`);
   });
 
+  await pruefe('ein überlaufender Text meldet sich, ein passender nicht', async () => {
+    // Zweimal ist genau das schon passiert — die Überschrift des Musterkunden
+    // lief aus ihrem Kasten, eine Karte saß auf ihrer Unterkante. Beide Male
+    // war alles grün, und gesehen habe ich es im Bild.
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    await seite.locator('aside button').filter({ hasText: 'Fließtext' }).first().click();
+    await seite.waitForTimeout(600);
+
+    const warnung = seite.getByText('unter der Unterkante', { exact: false });
+    gleich(await warnung.count(), 0, 'Warnung bei einem Text, der passt');
+
+    // Auf ein Zehntel der Höhe zusammenschieben — dann steht er heraus.
+    await seite.getByRole('button', { name: 'Element', exact: true }).click();
+    await seite.waitForTimeout(300);
+    const hoehe = seite.locator('aside[aria-label="Inspektor"] input').nth(3);
+    await hoehe.fill('12');
+    await hoehe.press('Enter');
+    await seite.waitForTimeout(700);
+
+    wahr(await warnung.count(), 'keine Warnung, obwohl der Text heraussteht');
+    // Und der Strich liegt auch auf der Fläche, ohne dass man klicken muss.
+    wahr(
+      await seite.locator('[title*="unter der Unterkante"]').count(),
+      'kein Strich auf der Fläche',
+    );
+
+    await seite.getByRole('button', { name: /Kasten anpassen/ }).click();
+    await seite.waitForTimeout(700);
+    gleich(await warnung.count(), 0, 'Warnung nach dem Anpassen des Kastens');
+  });
+
   console.log('\nVortrag:');
 
   // Der Bildschirm, den nicht der Benutzer sieht, sondern sein Publikum — und

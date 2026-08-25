@@ -97,9 +97,14 @@ describe('Marke und Werkzeug sind getrennt', () => {
     // Tailwind-Klassen und damit über CSS-Variablen bezogen.
     //
     // `CanvasStage` ist die Ausnahme, und zwar mit Grund: Auswahlrahmen,
-    // Aufziehrechteck und Raster liegen *auf* der Folie und wechseln deshalb
-    // nicht mit. Genau diese drei Werte darf sie lesen.
-    const ON_SLIDE = new Set(['select', 'selectWash', 'grid']);
+    // Aufziehrechteck, Raster und der Überlauf-Strich liegen *auf* der Folie
+    // und wechseln deshalb nicht mit. Genau diese vier Werte darf sie lesen.
+    //
+    // Der Überlauf-Strich kam als vierter dazu und gehört in dieselbe Familie:
+    // er markiert eine Stelle auf dem Papier. Ein Strich, der im dunklen
+    // Werkzeug die Farbe wechselte, wechselte sie über cremefarbenem Papier —
+    // dort ändert sich nichts, und er wäre plötzlich schlecht zu sehen.
+    const ON_SLIDE = new Set(['select', 'selectWash', 'grid', 'warn']);
     const offenders: string[] = [];
 
     for (const file of sourceFiles(COMPONENT_ROOT)) {

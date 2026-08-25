@@ -170,6 +170,11 @@ stünde: lesbar, einfügbar, und von denselben Prüfungen gedeckt. Auf einer
 anderen Folie behält das Eingefügte seinen Ort — das ist der Sinn der Sache;
 nur auf derselben Folie rückt die Kopie beiseite.
 
+**Überlauf wird angezeigt.** Steht gesetzter Text tiefer als sein Kasten,
+liegt ein Strich auf der Unterkante und der Inspektor sagt, um wie viel — mit
+einem Knopf, der den Kasten anpasst. Auf der Fläche sähe man die Zeile sonst
+noch, im PDF stünde sie über dem Rand, und PowerPoint schnitte sie ab.
+
 **Suchen mit `⌘F`** — über den Fließtext, die Notizen und jedes Textfeld jedes
 Elements, quer durchs ganze Deck. Ein Treffer nennt die Folie und den
 Ausschnitt drumherum, ein Klick bringt einen hin und wählt das Element aus.
