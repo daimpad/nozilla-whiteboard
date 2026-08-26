@@ -542,6 +542,19 @@ Und wo es trotzdem nicht reicht, steht es jetzt quer über dem Fenster. Eine
 Warnung in der Leiste wäre zu leise für den Satz „von hier an sichert sich
 nichts mehr".
 
+**Und die Regel hing zuerst am falschen Auslöser.** Angefasst wurde nur, was zu
+*breit* war — ein Vollbild-Bildschirmfoto mit 2560 × 1440 liegt aber genau auf
+der Kappungsgrenze und wurde durchgereicht. Es blieb als PNG bei 1,6 Millionen
+Zeichen, wo dasselbe Bild als JPEG 219.000 braucht; zwei davon, und die Ablage
+war wieder tot. Ein Bild kann auf zwei Weisen zu groß sein, und die beiden
+haben nichts miteinander zu tun: **zu breit** und **zu lang**. `neuschrift()`
+fragt jetzt beides.
+
+Gefunden hat es kein Test, sondern ein Maßband: die Zahlen einmal im Browser
+ausgerechnet, statt sich auf „das haben wir ja gekappt" zu verlassen. Die
+Prüfung dazu setzt ein Bild ein, das *genau* auf der Kante liegt — der Fall,
+den die erste Fassung als erledigt ansah.
+
 **Ein gescheiterter Export sagte nichts.** `console.error` und der Spinner ging
 aus: wer auf „PDF" klickte und dessen Export scheiterte, sah einen Moment lang
 etwas laufen und danach nichts — kein Unterschied zu einem Export, den man

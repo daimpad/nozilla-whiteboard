@@ -86,6 +86,58 @@ const RASTERFORMATE = new Set(['image/png', 'image/jpeg']);
  */
 const JPEG_LOHNT_SICH_AB = 0.5;
 
+/**
+ * Was die Sitzungsablage im Browser insgesamt fasst.
+ *
+ * Etwa fünf Megabyte, und `localStorage` zählt in UTF-16 — also rund
+ * zweieinhalb Millionen Zeichen für das **ganze** Deck, Text und Bilder
+ * zusammen.
+ */
+const ABLAGE_ZEICHEN = 2_500_000;
+
+/**
+ * Ab welcher Länge ein Bild überhaupt neu geschrieben wird.
+ *
+ * Das war die Lücke im ersten Anlauf, und sie ist am Maßband aufgefallen:
+ * angefasst wurde nur, was **zu breit** war. Ein Vollbild-Bildschirmfoto mit
+ * 2560 × 1440 liegt genau auf der Kappungsgrenze, wurde also durchgereicht —
+ * und blieb als PNG bei 1,6 Millionen Zeichen, wo dasselbe Bild als JPEG
+ * 219.000 braucht. Zwei davon, und die Ablage ist wieder tot.
+ *
+ * Ein Fünftel der Ablage für ein einzelnes Bild: das lässt Platz für ein
+ * Dutzend davon und für den Text daneben. Darunter bringt das Neuschreiben zu
+ * wenig, um dafür Güte zu riskieren.
+ */
+const NEU_SCHREIBEN_AB = ABLAGE_ZEICHEN / 5;
+
+/**
+ * Ob und auf welches Maß ein Bild neu geschrieben wird.
+ *
+ * Zwei Gründe führen dahin, und sie sind unabhängig: es ist **zu breit**, oder
+ * es ist **zu lang**. Der erste Anlauf kannte nur den ersten und ließ damit
+ * genau den häufigsten Fall durch.
+ */
+export function neuschrift(
+  breite: number,
+  hoehe: number,
+  mime: string,
+  zeichen: number,
+): { w: number; h: number } | null {
+  if (!RASTERFORMATE.has(mime)) return null;
+
+  const gekappt = zielmass(breite, hoehe);
+  if (gekappt) return gekappt;
+
+  if (zeichen <= NEU_SCHREIBEN_AB) return null;
+  // Ein JPEG ist bereits die knappe Fassung. Es ohne Not noch einmal zu
+  // schreiben kostet Güte — jede Runde durch den Kodierer frisst Kanten — und
+  // bringt ein paar Prozent. Neu geschrieben wird es nur, wenn es ohnehin
+  // kleiner gezeichnet werden muss.
+  if (mime === 'image/jpeg') return null;
+
+  return { w: breite, h: hoehe };
+}
+
 export async function imageElementFromFile(
   file: File,
   patch: Partial<CanvasElement> = {},
@@ -97,7 +149,7 @@ export async function imageElementFromFile(
     bild && bild.naturalWidth > 0 ? bild.naturalHeight / bild.naturalWidth : ERSATZ_VERHAELTNIS;
 
   return createElement('image', {
-    src: (bild && verkleinert(bild, file.type)) || roh,
+    src: (bild && neugeschrieben(bild, file.type, roh)) || roh,
     // Ein Bildschirmfoto aus der Zwischenablage heißt „image.png" — daraus
     // wird kein brauchbarer Alternativtext, also bleibt er leer und der
     // Inspektor fragt danach.
@@ -118,17 +170,15 @@ function lade(src: string): Promise<HTMLImageElement | null> {
 }
 
 /**
- * Das Bild neu zeichnen, kleiner — oder `null`, wenn es dabei bleibt.
+ * Das Bild neu zeichnen — oder `null`, wenn es bleibt, wie es kam.
  *
  * `null` kommt auch heraus, wo es keine Zeichenfläche gibt: in einem Test ohne
  * Browser, oder wenn `toDataURL` an einer fremden Herkunft scheitert. Dann
  * bleibt das Bild, wie es kam. Ein Werkzeug, das an dieser Stelle gar kein
  * Bild einsetzte, wäre die schlechtere Lage.
  */
-function verkleinert(bild: HTMLImageElement, mime: string): string | null {
-  if (!RASTERFORMATE.has(mime)) return null;
-
-  const ziel = zielmass(bild.naturalWidth, bild.naturalHeight);
+function neugeschrieben(bild: HTMLImageElement, mime: string, roh: string): string | null {
+  const ziel = neuschrift(bild.naturalWidth, bild.naturalHeight, mime, roh.length);
   if (!ziel) return null;
 
   try {
@@ -142,13 +192,23 @@ function verkleinert(bild: HTMLImageElement, mime: string): string | null {
     // Ohne Güteangabe: die des Browsers ist für JPEG seit je 0,92, und eine
     // eigene Zahl wäre eine erfundene.
     const png = flaeche.toDataURL('image/png');
-    if (durchsichtig(stift, flaeche.width, flaeche.height)) return png;
+    const beste = durchsichtig(stift, flaeche.width, flaeche.height)
+      ? png
+      : besseres(png, flaeche.toDataURL('image/jpeg'));
 
-    const jpeg = flaeche.toDataURL('image/jpeg');
-    return jpeg.length < png.length * JPEG_LOHNT_SICH_AB ? jpeg : png;
+    // Und wenn dabei nichts gewonnen ist, bleibt das Original. Ein von Hand
+    // optimiertes PNG rechnet der Browser nicht besser nach; es dann durch
+    // seine eigene, größere Fassung zu ersetzen wäre ein Rückschritt, den
+    // niemand bemerkt hätte.
+    return beste.length < roh.length ? beste : null;
   } catch {
     return null;
   }
+}
+
+/** Das JPEG nur, wenn es sich deutlich lohnt — siehe `JPEG_LOHNT_SICH_AB`. */
+function besseres(png: string, jpeg: string): string {
+  return jpeg.length < png.length * JPEG_LOHNT_SICH_AB ? jpeg : png;
 }
 
 /**

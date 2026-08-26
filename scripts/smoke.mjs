@@ -538,6 +538,24 @@ async function main() {
     gleich(schirm.breite, 2560, 'Breite des eingebetteten Bildschirmfotos');
     // Die Gegenrichtung: hier wäre JPEG ein Verlust ohne Gewinn.
     gleich(schirm.art, 'image/png', 'Format des eingebetteten Bildschirmfotos');
+
+    /* ------------------------------------------- genau auf der Kante */
+    /*
+       Die Lücke des ersten Anlaufs. Angefasst wurde nur, was zu *breit* war —
+       und ein Vollbild-Foto mit 2560 × 1440 liegt genau auf der
+       Kappungsgrenze. Es wurde durchgereicht und blieb als PNG bei 1,6
+       Millionen Zeichen, wo dasselbe Bild als JPEG 219.000 braucht. Zwei
+       davon, und die Sitzungsablage ist wieder tot.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    await einfuegen(2560, 1440, 'foto');
+    await seite.waitForTimeout(4000);
+
+    const kante = await eingebettet();
+    wahr(kante !== null, 'kein Foto auf der Folie');
+    gleich(kante.breite, 2560, 'Breite des Fotos auf der Kante');
+    gleich(kante.art, 'image/jpeg', 'Format des Fotos auf der Kante');
   });
 
   await pruefe('⌘F findet ein Wort auf einer anderen Folie', async () => {
