@@ -54,6 +54,14 @@ export interface EditorState {
   fileName: string;
   fileHandle?: FileSystemFileHandle;
   dirty: boolean;
+  /**
+   * Ob die Selbstsicherung zuletzt gescheitert ist.
+   *
+   * Gehört nicht zum Deck und nicht zum Verlauf — es ist eine Aussage über
+   * die *Ablage*, nicht über den Inhalt. Steht hier trotzdem, weil `dirty`
+   * daneben steht und beide dasselbe beantworten: ist die Arbeit sicher?
+   */
+  sicherungGescheitert: boolean;
 
   /* Navigation */
   slideIndex: number;
@@ -88,6 +96,8 @@ export interface EditorState {
   ) => void;
   newDeck: () => void;
   markSaved: (meta?: { fileName?: string; handle?: FileSystemFileHandle }) => void;
+  /** Die Selbstsicherung meldet, ob sie durchkam — siehe `persistence.ts`. */
+  meldeSicherung: (gelungen: boolean) => void;
   setDeckMeta: (patch: Partial<DeckMeta>) => void;
 
   goTo: (index: number) => void;
@@ -350,6 +360,8 @@ export const useDeckStore = create<EditorState>()((set, get) => {
     past: [],
     future: [],
 
+    sicherungGescheitert: false,
+
     /* ------------------------------------------------------------ document */
 
     loadDeck: (deck, meta) =>
@@ -388,6 +400,8 @@ export const useDeckStore = create<EditorState>()((set, get) => {
         fileName: meta?.fileName ?? state.fileName,
         fileHandle: meta?.handle ?? state.fileHandle,
       })),
+
+    meldeSicherung: (gelungen) => set({ sicherungGescheitert: !gelungen }),
 
     setDeckMeta: (patch) =>
       set((state) => ({

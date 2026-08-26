@@ -196,6 +196,14 @@ liegt ein Strich auf der Unterkante und der Inspektor sagt, um wie viel — mit
 einem Knopf, der den Kasten anpasst. Auf der Fläche sähe man die Zeile sonst
 noch, im PDF stünde sie über dem Rand, und PowerPoint schnitte sie ab.
 
+**Eingesetzte Bilder werden auf ein vernünftiges Maß gebracht.** Ein Foto aus
+einem Telefon ist breiter als jede Ausgabe dieses Werkzeugs es zeigen kann;
+eingebettet in voller Auflösung sprengte ein einziges davon die Sitzungsablage
+des Browsers — und ab da merkte sich nichts mehr etwas, ohne dass es jemand
+gesagt hätte. Jetzt wird gekappt, ein Foto wird zum JPEG (ein Bildschirmfoto
+bleibt PNG, damit die Buchstaben scharf bleiben), und wenn die Ablage trotzdem
+nicht mitmacht, steht es oben im Fenster.
+
 **⌘Z nimmt einen Handgriff zurück, keinen Buchstaben.** Wer einen Satz in ein
 Feld tippt, bekommt dafür einen Verlaufsschritt und nicht vierzig — und der
 Verlauf teilt sich mit der Gegenwart alles, was sich nicht geändert hat, statt
@@ -530,7 +538,7 @@ CI-Konformität aller 554 Icons.
 
 Das prüft alles, was das Werkzeug **herstellt**. Ob man es **bedienen** kann,
 prüft `npm run test:ui`: Playwright klickt gegen `vite preview`, also gegen
-das gebaute Verzeichnis. Siebenundzwanzig Handgriffe, jeder für einen Fehler,
+das gebaute Verzeichnis. Achtundzwanzig Handgriffe, jeder für einen Fehler,
 der einmal durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
 ihrem Kasten, eine Vorschau schwarz auf dunkelgrau. Beides läuft bei jedem
 Pull Request.

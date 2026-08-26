@@ -21,6 +21,7 @@ import { PromptStudio } from '@/components/panels/PromptStudio';
 import { SearchPanel } from '@/components/panels/SearchPanel';
 import { Overview } from '@/components/chrome/Overview';
 import { TopBar } from '@/components/chrome/TopBar';
+import { SessionWarning } from '@/components/chrome/SessionWarning';
 import { SlideRail } from '@/components/chrome/SlideRail';
 import { PanelHandle } from '@/components/chrome/PanelHandle';
 import { PresentView } from '@/components/present/PresentView';
@@ -127,6 +128,7 @@ export default function App() {
       onDrop={onDrop}
     >
       <TopBar />
+      <SessionWarning />
 
       <div className="flex min-h-0 flex-1">
         {panels.library ? <AssetSidebar /> : null}

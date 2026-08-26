@@ -7,9 +7,9 @@
  * samt Verlauf, und die Selbstsicherung schrieb den Verlust siebenhundert
  * Millisekunden später fest.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { darfErsetzen } from './persistence';
-import { useDeckStore } from './deckStore';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { darfErsetzen, startAutosave } from './persistence';
+import { createStarterDeck, useDeckStore } from './deckStore';
 
 const schmutzig = (wert: boolean) => useDeckStore.setState({ dirty: wert });
 
@@ -63,5 +63,66 @@ describe('darf das offene Deck ersetzt werden', () => {
     schmutzig(true);
     vi.stubGlobal('confirm', undefined);
     expect(darfErsetzen()).toBe(true);
+  });
+});
+
+describe('wenn sich die Sitzung nicht mehr merken lässt', () => {
+  /*
+     Der Fehler, gegen den das steht: das Schreiben scheiterte, und der `catch`
+     war leer. „Best-effort by design" stand daneben, und der Satz stimmte —
+     nur war er kein Grund zu schweigen. Ein einziges eingebettetes Bild
+     sprengte das Kontingent, von da an sicherte sich nichts mehr, und der
+     Benutzer arbeitete weiter im Vertrauen darauf, dass es geschieht.
+  */
+  let stop = () => undefined as void;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    useDeckStore.setState({
+      deck: createStarterDeck(),
+      slideIndex: 0,
+      sicherungGescheitert: false,
+    });
+    stop = startAutosave();
+  });
+
+  afterEach(() => {
+    stop();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  /** Eine Änderung am Deck anstoßen und die Selbstsicherung laufen lassen. */
+  const schreibenLassen = () => {
+    useDeckStore.getState().addSlide();
+    vi.advanceTimersByTime(1000);
+  };
+
+  it('sagt es', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota', 'QuotaExceededError');
+    });
+
+    schreibenLassen();
+    expect(useDeckStore.getState().sicherungGescheitert).toBe(true);
+  });
+
+  it('nimmt es zurück, sobald es wieder geht', () => {
+    // Wer den Grund beseitigt — das Bild gelöscht, das Deck geteilt —, soll
+    // die Warnung loswerden, ohne etwas dafür tun zu müssen.
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota', 'QuotaExceededError');
+    });
+    schreibenLassen();
+    expect(useDeckStore.getState().sicherungGescheitert).toBe(true);
+
+    setItem.mockRestore();
+    schreibenLassen();
+    expect(useDeckStore.getState().sicherungGescheitert).toBe(false);
+  });
+
+  it('schlägt keinen Alarm, solange es klappt', () => {
+    schreibenLassen();
+    expect(useDeckStore.getState().sicherungGescheitert).toBe(false);
   });
 });

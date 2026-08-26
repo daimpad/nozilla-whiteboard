@@ -29,9 +29,7 @@ import type { Deck } from '@/model/types';
 import { canvas } from '@/theme';
 import { saveBlob, slugify, type SaveResult } from './download';
 import { renderSvg } from './index';
-
-/** Wie viele Bildpunkte auf eine Folien-Einheit kommen. */
-const SCHAERFE = 2;
+import { SCHAERFE } from './raster';
 
 const PNG_MIME = 'image/png';
 

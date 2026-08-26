@@ -6,6 +6,7 @@
  * state is a file you could have written by hand. No database, no sync, no
  * server: the whole point of the tool.
  */
+import { exportMarkdown } from '@/lib/export';
 import { parseDeck, serializeDeck } from '@/lib/markdown/deck';
 import type { Deck } from '@/model/types';
 import { useDeckStore } from './deckStore';
@@ -57,8 +58,23 @@ export function startAutosave(): () => void {
 
   let timer: ReturnType<typeof setTimeout> | undefined;
 
+  /*
+     Scheitert das Schreiben, wird es gesagt.
+
+     „Best-effort by design" stand hier, und der Satz stimmt auch — nur ist er
+     kein Grund zu schweigen. Das Kontingent von `localStorage` liegt bei etwa
+     fünf Megabyte, und ein einziges eingebettetes Bild reichte, es zu
+     sprengen. Von da an sicherte sich nichts mehr, und zu sehen war das an
+     keiner Stelle: der Benutzer arbeitete weiter in dem Glauben, die Sitzung
+     werde gemerkt.
+
+     Beide Richtungen gehören dazu. Wer den Grund beseitigt — das Bild
+     gelöscht, das Deck geteilt —, soll die Warnung wieder loswerden, ohne
+     etwas dafür tun zu müssen.
+  */
   const write = () => {
     const state = useDeckStore.getState();
+    let gelungen = false;
     try {
       const session: StoredSession = {
         markdown: serializeDeck(state.deck),
@@ -67,8 +83,12 @@ export function startAutosave(): () => void {
         savedAt: Date.now(),
       };
       storage.setItem(STORAGE_KEY, JSON.stringify(session));
+      gelungen = true;
     } catch {
-      // Quota exceeded or private mode — autosave is best-effort by design.
+      // Kontingent erschöpft, privates Fenster, abgeschaltete Ablage.
+    }
+    if (state.sicherungGescheitert === gelungen) {
+      useDeckStore.getState().meldeSicherung(gelungen);
     }
   };
 
@@ -116,6 +136,34 @@ export function darfErsetzen(): boolean {
   if (!useDeckStore.getState().dirty) return true;
   if (typeof confirm !== 'function') return true;
   return confirm('Das offene Deck ist nicht gesichert. Trotzdem ersetzen?');
+}
+
+/**
+ * Das Deck in seine Datei schreiben.
+ *
+ * Es gab diesen Weg dreimal — im Knopf der Leiste, auf `⌘S` und jetzt in der
+ * Warnung, die erscheint, wenn die Sitzungsablage nicht mehr mitmacht. Drei
+ * Fassungen einer Rechnung laufen auseinander; die auf `⌘S` hatte schon keine
+ * Fehlerbehandlung mehr, und ein abgebrochener Dateidialog endete dort als
+ * unbehandelte Zusage.
+ *
+ * Zurück kommt, ob wirklich geschrieben wurde. Ein geschlossener Dialog ist
+ * kein Fehler, sondern eine Antwort — alles andere fliegt weiter, damit die
+ * Oberfläche es sagen kann.
+ */
+export async function sichereDeck(): Promise<boolean> {
+  const state = useDeckStore.getState();
+  try {
+    const result = await exportMarkdown(state.deck, {
+      filename: state.fileName,
+      handle: state.fileHandle,
+    });
+    useDeckStore.getState().markSaved({ handle: result.handle });
+    return true;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') return false;
+    throw error;
+  }
 }
 
 /** Warn before leaving with unsaved changes. Returns an unsubscribe function. */

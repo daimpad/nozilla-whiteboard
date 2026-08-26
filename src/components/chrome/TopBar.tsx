@@ -3,7 +3,7 @@
  * options and the presentation switch.
  */
 import { useEffect, useRef, useState } from 'react';
-import { darfErsetzen } from '@/state/persistence';
+import { darfErsetzen, sichereDeck } from '@/state/persistence';
 import { brand, canvas as canvasTokens } from '@/theme';
 import { openMarkdownFile } from '@/lib/export/download';
 import { bundledDecks } from '@/decks';
@@ -27,7 +27,6 @@ import { Logo } from '@/components/chrome/Logo';
 export function TopBar() {
   const deck = useDeckStore((state) => state.deck);
   const fileName = useDeckStore((state) => state.fileName);
-  const fileHandle = useDeckStore((state) => state.fileHandle);
   const dirty = useDeckStore((state) => state.dirty);
   const slideIndex = useDeckStore((state) => state.slideIndex);
   const total = useDeckStore((state) => state.deck.slides.length);
@@ -40,7 +39,6 @@ export function TopBar() {
 
   const loadMarkdown = useDeckStore((state) => state.loadMarkdown);
   const newDeck = useDeckStore((state) => state.newDeck);
-  const markSaved = useDeckStore((state) => state.markSaved);
   const setZoom = useDeckStore((state) => state.setZoom);
   const toggleGrid = useDeckStore((state) => state.toggleGrid);
   const setSnap = useDeckStore((state) => state.setSnap);
@@ -62,8 +60,7 @@ export function TopBar() {
   const handleSave = async () => {
     setBusy('Saving');
     try {
-      const result = await exportMarkdown(deck, { filename: fileName, handle: fileHandle });
-      markSaved({ handle: result.handle });
+      await sichereDeck();
     } finally {
       setBusy(null);
     }

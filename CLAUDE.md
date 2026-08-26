@@ -210,7 +210,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Siebenundzwanzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Achtundzwanzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
   `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
   Fassung passt nicht zur Bibliothek, deshalb
@@ -484,6 +484,34 @@ Browser.** `isTypingTarget` lässt es durch, damit ein ⌘Z im Notizfeld Text
 zurücknimmt und keine Folie. Der Rauchtest muss deshalb erst aus dem Feld
 heraus, sonst misst er die Rücknahme des Browsers — ein Anschlag — und meldet
 einen Fehler, den es nicht gibt.
+
+**Ein eingebettetes Bild legte die Selbstsicherung still — schweigend.** Die
+Ablage im Browser fasst etwa fünf Megabyte. Ein Foto aus einem Telefon hat
+vier; als data-URI werden daraus 5,3 Millionen Zeichen, und `localStorage`
+zählt in UTF-16, also gut zehn Megabyte. Ein einziges eingefügtes Bild reichte
+damit, und `setItem` warf. Der `catch` war leer, mit einem Kommentar daneben:
+„Quota exceeded or private mode — autosave is best-effort by design." Der Satz
+stimmt und ist trotzdem kein Grund zu schweigen: von da an sicherte sich
+nichts mehr, und der Benutzer arbeitete weiter in dem Glauben, es geschehe.
+
+Zwei Hälften, und die zweite ist erst am Ergebnis aufgefallen. Die erste ist
+das Kappen: eingesetzte Bilder werden auf `canvas.width × SCHAERFE` gebracht —
+die Breite, mit der dieses Werkzeug eine ganze Folie rastert. Breiter kann kein
+Bild in keiner Ausgabe von hier mehr Einzelheiten zeigen.
+
+Die zweite: **aus der Zwischenablage kommt immer ein PNG**, und PNG rechnet ein
+Foto nicht klein. Nach dem Kappen standen im Rauchtest immer noch siebzehn
+Millionen Zeichen — der Fehler war gekappt und trotzdem da. Beide Fassungen
+werden jetzt geschrieben, und das JPEG bekommt den Zuschlag nur, wenn es unter
+der Hälfte bleibt. Ein Bildschirmfoto kommt in diese Nähe nie und behält seine
+scharfen Buchstaben; ein Foto unterbietet um ein Vielfaches. Entschieden wird
+damit an der Datei und nicht am Dateinamen, und die Prüfung fährt beide
+Richtungen: das Foto *muss* zum JPEG werden, das Bildschirmfoto *darf* es
+nicht. Eine Regel, deren Gegenrichtung niemand prüft, ist eine halbe Regel.
+
+Und wo es trotzdem nicht reicht, steht es jetzt quer über dem Fenster. Eine
+Warnung in der Leiste wäre zu leise für den Satz „von hier an sichert sich
+nichts mehr".
 
 ---
 
