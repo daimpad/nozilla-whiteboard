@@ -11,7 +11,7 @@ import { imageElementFromFile } from '@/lib/imageElement';
 import { insertFrame } from '@/lib/layout/slideLayout';
 import { useDeckTheme } from '@/hooks/useDeckTheme';
 import { selectCurrentSlide, useDeckStore } from '@/state/deckStore';
-import { guardUnsavedChanges, loadSession, startAutosave } from '@/state/persistence';
+import { guardUnsavedChanges, loadSession, startAutosave, darfErsetzen } from '@/state/persistence';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useClipboard } from '@/hooks/useClipboard';
 import { CanvasStage } from '@/components/canvas/CanvasStage';
@@ -48,6 +48,18 @@ export default function App() {
   useClipboard();
 
   /* --------------------------------------------------------------- startup */
+  /*
+     Sitzungsstart — die eine Stelle, die *nicht* fragt.
+
+     `darfErsetzen()` steht vor jedem Weg, der ein offenes Deck ersetzt. Hier
+     gibt es keines: das Fenster ist eben aufgegangen, und was geladen wird,
+     ist die gemerkte Sitzung oder das Willkommens-Deck. Fragen hieße, den
+     Benutzer beim Öffnen zu fragen, ob er öffnen möchte.
+
+     Der Vermerk ist nicht nur Prosa: `replaceGuard.test.ts` sucht danach und
+     nimmt genau die Rufe aus, die ihm nahe genug stehen — beide hier gehören
+     zum Sitzungsstart.
+  */
   useEffect(() => {
     const session = loadSession();
     if (session) {
@@ -75,6 +87,7 @@ export default function App() {
       if (!file) return;
 
       if (/\.(md|markdown|txt)$/i.test(file.name) || file.type.startsWith('text/')) {
+        if (!darfErsetzen()) return;
         const opened = await readDroppedFile(file);
         loadMarkdown(opened.text, { fileName: opened.name });
         return;

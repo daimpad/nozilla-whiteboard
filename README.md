@@ -196,6 +196,12 @@ liegt ein Strich auf der Unterkante und der Inspektor sagt, um wie viel — mit
 einem Knopf, der den Kasten anpasst. Auf der Fläche sähe man die Zeile sonst
 noch, im PDF stünde sie über dem Rand, und PowerPoint schnitte sie ab.
 
+**Nichts wird ersetzt, ohne zu fragen.** Wer ein neues Deck anlegt, eines
+öffnet, eine Datei ins Fenster zieht oder einen Entwurf aus dem Prompt
+übernimmt, wird gefragt — aber nur, wenn wirklich ungesicherte Arbeit im Weg
+steht. Ein frisch geladenes Deck ist nicht ungesichert, also hält niemanden
+etwas auf, der drei Beispiele hintereinander ansieht.
+
 **Die drei Leisten gehen zu.** Bausteine, Filmstreifen und Inspektor nehmen
 zusammen 568 Pixel Breite und 104 Pixel Höhe — auf einem Laptop gut ein Drittel
 des Fensters. Der Griff sitzt an der Kante der Fläche, also auf der Seite, die

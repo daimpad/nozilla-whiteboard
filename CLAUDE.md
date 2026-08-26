@@ -360,6 +360,21 @@ Die erste Fassung der Rauchtest-Prüfung maß, wo die Zahlenspalte steht — und
 Tabelle, und die ist bei gleich breiten Spalten dieselbe. Gemessen wird jetzt
 die *linksbündige* letzte Spalte, denn die verrät, wo ihre Spalte anfängt.
 
+**Sechs Wege ersetzten das Deck, einer fragte.** „Neues Deck", „Öffnen",
+`⌘⇧N`, `⌘O`, eine Datei ins Fenster gezogen, die Übernahme aus dem Prompt — und
+nur das Beispiel-Menü stellte die Frage. Die anderen luden durch, leerten
+dabei `past` und `future`, und siebenhundert Millisekunden später schrieb die
+Selbstsicherung den neuen Stand über die gemerkte Sitzung. Die Frage steht
+jetzt in `darfErsetzen()`, und `replaceGuard.test.ts` liest die Quellen wie
+`theme.test.ts`: wer einen siebenten Weg baut, wird gefragt, ob er auch fragt.
+
+Der Wächter selbst hat dabei zwei Anläufe gebraucht. Der erste ließ eine
+Erwähnung im *Kommentar* gelten — die Sabotage entfernte den Ruf, der Satz
+darüber blieb stehen, und das Sieb war zufrieden. Der zweite schnitt die
+Kommentare heraus und verschob damit die Zeilennummern, sodass der Rückblick
+auf den Ausnahmevermerk ins Leere zeigte. Kommentare werden jetzt *geleert*,
+nicht entfernt.
+
 **Der Bildschirm ersetzt eine fehlende Glyphe, die Datei nicht.** Die
 Tastentabelle des Willkommens-Decks setzt ihre Kürzel in Backticks, also in
 `codeInline`, also in Space Mono — und Space Mono führt `⌘`, `⌫`, `⇧` und `⌥`

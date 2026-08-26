@@ -803,6 +803,50 @@ async function main() {
     await seite.keyboard.press('Escape');
   });
 
+  console.log('\nSchutz der Arbeit:');
+
+  /*
+     Diese Prüfung steht am Ende, und das ist Absicht: sie legt ein neues Deck
+     an, und alles danach liefe auf einer leeren Folie.
+  */
+  await pruefe('ein neues Deck fragt, bevor es das offene ersetzt', async () => {
+    /*
+       Der Fehler, gegen den das hier steht: sechs Wege ersetzten das Deck,
+       genau einer fragte. Wer danebengriff, verlor die ungesicherte Arbeit
+       samt Verlauf — und die Selbstsicherung schrieb den Verlust
+       siebenhundert Millisekunden später fest.
+
+       Gemessen wird das *Deck*, nicht der Dialog. Eine Prüfung, die nur
+       nachsähe, ob ein Fenster aufging, hielte auch dann, wenn danach
+       trotzdem geladen würde.
+    */
+    const folien = async () =>
+      Number((await seite.locator('header span.tabular-nums').first().innerText()).split('/')[1]);
+
+    // Etwas Ungesichertes anlegen — ohne `dirty` fragt niemand, und das ist
+    // richtig so.
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(600);
+    const vorher = await folien();
+    wahr(vorher > 1, `zu wenige Folien zum Prüfen: ${vorher}`);
+
+    // Abgelehnt: das Deck bleibt.
+    const ablehnen = (dialog) => void dialog.dismiss();
+    seite.on('dialog', ablehnen);
+    await seite.keyboard.press('Control+Shift+KeyN');
+    await seite.waitForTimeout(900);
+    seite.off('dialog', ablehnen);
+    gleich(await folien(), vorher, 'das Deck überlebte die Ablehnung nicht');
+
+    // Angenommen: jetzt darf es weg.
+    const annehmen = (dialog) => void dialog.accept();
+    seite.on('dialog', annehmen);
+    await seite.keyboard.press('Control+Shift+KeyN');
+    await seite.waitForTimeout(900);
+    seite.off('dialog', annehmen);
+    gleich(await folien(), 1, 'das neue Deck kam nicht');
+  });
+
   await pruefe('nichts hat sich in der Konsole beschwert', async () => {
     gleich(fehler.join('\n'), '', 'Fehler in der Konsole');
   });
