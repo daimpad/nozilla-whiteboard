@@ -352,3 +352,63 @@ describe('slugify', () => {
     expect(slugify(' ')).toBe('deck');
   });
 });
+
+describe('der Alternativtext eines Bildes', () => {
+  /*
+     Er stand im Inspektor und ging fast nirgendwohin: das SVG kannte ihn
+     nicht, das PDF auch nicht, und in der PPTX landete er im `name` — dem
+     Namen in der Auswahlliste, den keine Hilfstechnik vorliest. Ein Feld,
+     dessen Inhalt verworfen wird, ist schlimmer als kein Feld: es sieht so
+     aus, als hätte man etwas getan.
+  */
+  const mitBild = (alt: string) =>
+    deckOf(
+      [
+        '<!-- nzl',
+        'elements:',
+        '  - id: bild-1',
+        '    kind: image',
+        '    x: 100',
+        '    y: 100',
+        '    w: 200',
+        '    h: 120',
+        '    src: bilder/team.png',
+        `    alt: ${alt}`,
+        '-->',
+        '',
+        '# Eins',
+        '',
+      ].join('\n'),
+    );
+
+  it('steht im SVG als Titel', () => {
+    const deck = mitBild('Das Team vor der Werkstatt');
+    const scene = buildSlideScene(deck.slides[0], deck);
+    const markup = primsToSvgMarkup(scene.prims);
+    expect(markup).toContain('<title>Das Team vor der Werkstatt</title>');
+  });
+
+  it('fehlt im SVG, wenn keiner da ist', () => {
+    // Die Gegenrichtung: ein leerer `<title>` wäre schlechter als keiner —
+    // eine Hilfstechnik läse dann „" statt das Bild zu überspringen.
+    const deck = mitBild("''");
+    const markup = primsToSvgMarkup(buildSlideScene(deck.slides[0], deck).prims);
+    expect(markup).toContain('<image');
+    expect(markup).not.toContain('<title>');
+  });
+
+  it('kommt auch aus einem Markdown-Bild mit', () => {
+    // `![so hier](bild.png)` — der Text in den eckigen Klammern. Er kam bis
+    // in die Szene und fiel dort heraus.
+    const deck = deckOf('# Eins\n\n![Ein Diagramm der Laufzeiten](bilder/kurve.png)\n');
+    const scene = buildSlideScene(deck.slides[0], deck);
+    const bild = scene.prims.find((prim) => prim.t === 'image');
+    expect(bild).toMatchObject({ alt: 'Ein Diagramm der Laufzeiten' });
+  });
+
+  it('wird im SVG wie jeder andere Text entschärft', () => {
+    const deck = mitBild('"Ein <Bild> & ein Text"');
+    const markup = primsToSvgMarkup(buildSlideScene(deck.slides[0], deck).prims);
+    expect(markup).toContain('&lt;Bild&gt; &amp; ein Text');
+  });
+});

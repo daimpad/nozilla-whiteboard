@@ -196,6 +196,21 @@ liegt ein Strich auf der Unterkante und der Inspektor sagt, um wie viel — mit
 einem Knopf, der den Kasten anpasst. Auf der Fläche sähe man die Zeile sonst
 noch, im PDF stünde sie über dem Rand, und PowerPoint schnitte sie ab.
 
+**Ein Handout mit den Notizen.** Im Export-Menü: je Seite eine Folie im
+Hochformat und darunter, was du dir dazu aufgeschrieben hast. Zum Ausdrucken,
+zum Mitgeben, zum Vollkritzeln — der Text bleibt markierbar.
+
+**Suchen kann jetzt auch ersetzen.** `⌘F`, ein zweites Feld darunter, und der
+Knopf sagt, wie viele Stellen er anfasst — Fließtext, Notizen und jedes
+Textfeld jedes Elements, Groß und Klein unbeachtet. Der ganze Handgriff hängt
+an einem `⌘Z`.
+
+**Der Alternativtext eines Bildes kommt jetzt mit.** Er stand im Inspektor und
+ging fast nirgendwohin — das SVG kannte ihn nicht, in der PowerPoint-Datei
+landete er als Anzeigename, den keine Hilfstechnik vorliest. Jetzt steht er im
+SVG als `<title>` und in der `.pptx` als Beschreibung, und ein Bild ohne ihn
+sagt es im Inspektor.
+
 **Die Fläche geht auch ohne Maus.** Mit `Tab` läuft man durch die Elemente
 einer Folie — in der Reihenfolge, in der sie übereinanderliegen —, und wer
 darauf steht, hat es ausgewählt: Pfeiltasten schieben, `⌫` löscht, der
@@ -555,7 +570,7 @@ CI-Konformität aller 554 Icons.
 
 Das prüft alles, was das Werkzeug **herstellt**. Ob man es **bedienen** kann,
 prüft `npm run test:ui`: Playwright klickt gegen `vite preview`, also gegen
-das gebaute Verzeichnis. Einunddreißig Handgriffe, jeder für einen Fehler,
+das gebaute Verzeichnis. Dreiunddreißig Handgriffe, jeder für einen Fehler,
 der einmal durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
 ihrem Kasten, eine Vorschau schwarz auf dunkelgrau. Beides läuft bei jedem
 Pull Request.

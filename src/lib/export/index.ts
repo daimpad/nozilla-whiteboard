@@ -12,7 +12,7 @@
  */
 import { serializeDeck } from '@/lib/markdown/deck';
 import type { Deck } from '@/model/types';
-import { buildSlideScene, type Scene, type SceneOptions } from './scene';
+import { buildHandoutScene, buildSlideScene, type Scene, type SceneOptions } from './scene';
 import { resolveDeckImages, sizeResolver, inlineImageHrefs, type ImageMap } from './images';
 import { downloadBlob, saveText, slugify, type SaveResult } from './download';
 import { scenesToPdf, type PdfOptions } from './pdf';
@@ -217,6 +217,64 @@ export async function renderPdf(
   return {
     blob: doc.output('blob'),
     filename: options.filename ?? `${slugify(deck.meta.title)}${suffix}.pdf`,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Handout                                                                     */
+/* -------------------------------------------------------------------------- */
+
+export async function exportHandoutPdf(
+  deck: Deck,
+  options: PdfExportOptions = {},
+): Promise<SaveResult> {
+  const { blob, filename } = await renderHandoutPdf(deck, options);
+  return { via: (downloadBlob(blob, filename), 'download') };
+}
+
+/**
+ * Je Seite eine Folie und darunter ihre Notizen.
+ *
+ * Der Weg ist derselbe wie beim PDF, nur mit einer anderen Szene — und das ist
+ * der Punkt: gezeichnet wird von `scenesToPdf`, wie alles andere auch. Ein
+ * eigener Zeichner für das Handout wäre ein zweiter Weg zur selben Folie und
+ * liefe früher oder später auseinander.
+ *
+ * Konturen gibt es hier nicht. Ein Handout ist zum Lesen und Vollkritzeln da;
+ * markierbaren Text hineinzugeben und ihn dann in Kurven zu wandeln, hieße den
+ * einen Vorteil wegzuwerfen, den ein Blatt Papier noch hat, wenn man es
+ * einscannt.
+ */
+export async function renderHandoutPdf(
+  deck: Deck,
+  options: PdfExportOptions = {},
+): Promise<{ blob: Blob; filename: string }> {
+  const images = await resolveDeckImages(deck);
+  const scenes = deck.slides.map((slide, index) =>
+    buildHandoutScene(slide, deck, {
+      resolveImageSize: sizeResolver(images),
+      chrome: !options.bare,
+      slideNumber: index + 1,
+      totalSlides: deck.slides.length,
+    }),
+  );
+
+  const doc = await scenesToPdf(scenes, {
+    ...options,
+    embedFonts: true,
+    title: options.title ?? deck.meta.title,
+    author: options.author ?? deck.meta.author,
+    images: new Map(
+      [...images.values()].map((image) => [
+        image.src,
+        { dataUrl: image.dataUrl, format: image.format },
+      ]),
+    ),
+  });
+
+  return {
+    blob: doc.output('blob'),
+    filename: options.filename ?? `${slugify(deck.meta.title)}-handout.pdf`,
   };
 }
 

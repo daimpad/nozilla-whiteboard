@@ -210,7 +210,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Einunddreißig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Dreiunddreißig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
   `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
   Fassung passt nicht zur Bibliothek, deshalb
@@ -618,6 +618,50 @@ Ende der Folie geht es weiter zur nächsten Leiste. Ausdrücklich **nur auf der
 Arbeitsfläche** (`focusable`): dieselbe Ansicht zeichnet die Kacheln des
 Filmstreifens, die Übersicht und den Vortrag, und dort wären sechs Folien mit
 je zehn Elementen sechzig Tabs bis zum nächsten Knopf.
+
+**Eine Seite, die keine Folie ist.** Das Handout ist so breit wie die Folie und
+mal Wurzel zwei hoch; die Folie sitzt oben links und behält damit jede
+Koordinate, die sie ohnehin hat. Das ist der ganze Kniff, und er erspart die
+Rechnung, die es sonst bräuchte: einen Weg, eine ganze Szene zu skalieren —
+durch jeden Primitivtyp hindurch, samt der vorgemessenen Breiten in den
+Textläufen. Zwei Wege, eine Folie zu zeichnen, sind genau das, was die erste
+Regel dieses Projekts verbietet.
+
+Daran hing eine Stelle, die vorher niemandem wehtat: `scenesToPdf` nahm das
+Seitenmaß aus `canvas.width/height` der CI statt aus der Szene. Beide waren
+dasselbe, solange jede Seite eine Folie war. Mit dem Handout ist es das nicht
+mehr — die Seiten wären quer geblieben und die Notizen außerhalb.
+
+**„Das letzte SVG der Seite" ist nicht die Folie.** Zwei Rauchtest-Prüfungen
+mussten aus einem Textfeld heraus und klickten dafür auf 92 % der Breite des
+letzten `<svg>`. Das ist ein Zeichen im Filmstreifen, und 92 % seiner Breite
+liegen auf „Folie danach einfügen". Die Prüfung legte damit eine Folie an,
+stand auf einer leeren und suchte dort einen Text, den sie auf der vorigen
+geschrieben hatte. Geklickt wird jetzt auf `.nz-stage`, und zwar über einen
+Helfer, damit es nicht zweimal danebengehen kann.
+
+**Ein Knopf, der eine Zahl nennt und eine andere tut.** Die Trefferliste zeigt
+**eine** Zeile je Feld — als Wegweiser richtig, drei Zeilen für dieselbe Karte
+wären dreimal derselbe Weg. Der Knopf „Alle ersetzen" nahm die Länge dieser
+Liste und versprach damit zu wenig: „Zwiebelsuppe und Zwiebelbrot" steht in
+einem Feld, die Liste meldete einen Treffer, ersetzt wurden zwei. Gezählt wird
+jetzt mit `zaehleFunde()`, also mit dem, was tatsächlich geschieht.
+
+**Ein Feld, dessen Inhalt verworfen wird, ist schlimmer als kein Feld.** Der
+Alternativtext eines Bildes stand seit je im Inspektor. Er ging ins PPTX — und
+dort in `name`, den Namen in der Auswahlliste, den keine Hilfstechnik vorliest.
+Ins SVG ging er gar nicht, ins PDF auch nicht, und der Alternativtext eines
+Markdown-Bildes (`![so hier](bild.png)`) kam bis in die Szene und fiel dort
+heraus. Wer das Feld ausfüllte, hatte den Eindruck, etwas getan zu haben.
+
+Er steht jetzt in der `ScenePrim` und damit dort, wo jede Ausgabe ihn findet:
+im SVG als `<title>`, in der PPTX zusätzlich als `descr`. Auf dem Bildschirm
+zeigt der Browser den `<title>` als Kurzhinweis — dasselbe Markup, dieselbe
+Stelle. Für das PDF gibt es keinen Weg: jsPDF kennt keine Alternativtexte.
+
+Und beide Richtungen gehören geprüft: ein *leeres* `descr` oder ein leerer
+`<title>` behaupten, das Bild sei beschrieben, und wären schlechter als
+nichts.
 
 Und eine Warnung an den Nächsten, der hier aufräumen will: **`role="img"` am
 `<svg>` blockiert nichts.** Die erste Fassung dieses Kommentars behauptete, es

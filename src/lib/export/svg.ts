@@ -133,11 +133,19 @@ function primToSvg(prim: ScenePrim): string {
         ? ` transform="rotate(${round(prim.rotate)} ${round(prim.x)} ${round(prim.y)})"`
         : '';
       const opacity = prim.opacity !== undefined ? ` opacity="${round(prim.opacity, 3)}"` : '';
-      return (
+      const kopf =
         `<image x="${round(prim.x)}" y="${round(prim.y)}" width="${round(prim.w)}" ` +
         `height="${round(prim.h)}" href="${escapeXml(prim.href)}" ` +
-        `preserveAspectRatio="xMidYMid meet"${transform}${opacity}/>`
-      );
+        `preserveAspectRatio="xMidYMid meet"${transform}${opacity}`;
+      /*
+         Der Alternativtext steht als `<title>`, weil das die Stelle ist, an
+         der eine Hilfstechnik ihn sucht — in einer `.svg`-Datei genauso wie
+         auf der Fläche, die dasselbe Markup einsetzt. Nebenwirkung auf dem
+         Bildschirm: der Browser zeigt ihn als Kurzhinweis, wenn der Zeiger
+         darauf steht. Das ist kein Unfall, sondern derselbe Text an derselben
+         Stelle.
+      */
+      return prim.alt ? `${kopf}><title>${escapeXml(prim.alt)}</title></image>` : `${kopf}/>`;
     }
 
     default:

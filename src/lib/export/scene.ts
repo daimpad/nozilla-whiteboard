@@ -98,6 +98,16 @@ export type ScenePrim =
       w: number;
       h: number;
       href: string;
+      /**
+       * Was auf dem Bild zu sehen ist, in Worten.
+       *
+       * Gehört in die **Szene** und nicht nur ins Modell, weil jede Ausgabe
+       * es braucht und keine es sich selbst zusammenreimen kann: das SVG
+       * schreibt einen `<title>`, PPTX eine Beschreibung. Vorher stand der
+       * Alternativtext im Inspektor, ging aber nur nach PowerPoint — und dort
+       * als Anzeigename, den keine Hilfstechnik liest.
+       */
+      alt?: string;
       opacity?: number;
       rotate?: number;
     };
@@ -204,6 +214,80 @@ export function buildSlideScene(slide: Slide, deck: Deck, options: SceneOptions 
       ...visible.flatMap((element) => buildElementPrims(element, bg, options)),
       ...buildSlideChrome(slide, deck, options),
     ],
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Das Handout                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Das Seitenverhältnis der DIN-A-Reihe.
+ *
+ * Keine erfundene Zahl, sondern die Eigenschaft, die A4 zu A4 macht: die
+ * lange Kante ist die kurze mal Wurzel zwei. Eine Handout-Seite, die anders
+ * proportioniert ist, druckt mit Rändern, die niemand wollte.
+ */
+const DIN_HOCH = Math.SQRT2;
+
+/** Wie weit die Notizen unter der Folie beginnen. */
+const NOTIZ_ABSTAND = canvasTokens.margin.top;
+
+/**
+ * Eine Folie mit ihren Notizen darunter, auf einer Seite im Hochformat.
+ *
+ * **Ohne die Folie neu zu zeichnen.** Die Seite ist so breit wie die Folie und
+ * mal Wurzel zwei hoch; die Folie sitzt oben links und behält damit jede
+ * Koordinate, die sie ohnehin hat. Das ist der ganze Trick, und er erspart
+ * eine Rechnung, die es sonst gäbe: einen Weg, eine ganze Szene zu skalieren
+ * — durch jeden Primitivtyp hindurch, samt der vorgemessenen Breiten in den
+ * Textläufen. Zwei Wege, eine Folie zu zeichnen, wären genau das, was die
+ * erste Regel dieses Projekts verbietet.
+ *
+ * Der Untergrund der Seite ist deshalb Papier und nicht der der Folie: die
+ * Folie malt ihren eigenen über sich, und eine dunkle Folie soll nicht die
+ * ganze Seite schwärzen. Der Haarstrich um sie herum ist der Grund, warum man
+ * auf weißem Papier noch sieht, wo die Folie aufhört.
+ */
+export function buildHandoutScene(slide: Slide, deck: Deck, options: SceneOptions = {}): Scene {
+  const folie = buildSlideScene(slide, deck, options);
+  const papier = backgroundStyle('paper');
+
+  const breite = canvasTokens.width;
+  const hoehe = Math.round(breite * DIN_HOCH);
+  const rand = canvasTokens.margin.left;
+
+  const prims: ScenePrim[] = [
+    { t: 'rect', x: 0, y: 0, w: breite, h: hoehe, fill: papier.fill },
+    ...folie.prims,
+    {
+      t: 'rect',
+      x: 0,
+      y: 0,
+      w: breite,
+      h: canvasTokens.height,
+      stroke: papier.line,
+      strokeWidth: strokeWidthOf('hair'),
+    },
+  ];
+
+  const notiz = (slide.meta.notes ?? '').trim();
+  if (notiz) {
+    const gesetzt = typesetMarkdown(notiz, {
+      width: breite - rand * 2,
+      baseStyle: 'body',
+      resolveImageSize: options.resolveImageSize,
+      palette: flowPalette(papier),
+    });
+    prims.push(...typesetToScene(gesetzt, rand, canvasTokens.height + NOTIZ_ABSTAND));
+  }
+
+  return {
+    width: breite,
+    height: hoehe,
+    background: papier.fill,
+    title: deck.meta.title,
+    prims,
   };
 }
 
@@ -672,6 +756,7 @@ export function buildElementPrims(
           w: element.w,
           h: element.h,
           href: element.src,
+          alt: element.alt || undefined,
           opacity: opacity === 1 ? undefined : opacity,
           rotate: element.rotation || undefined,
         });
@@ -1457,6 +1542,10 @@ export function typesetToScene(
           w: prim.w,
           h: prim.h,
           href: prim.src,
+          // Ein Markdown-Bild trägt seinen Alternativtext in den eckigen
+          // Klammern: `![so hier](bild.png)`. Er kam bis hierher und fiel
+          // dann heraus.
+          alt: prim.alt || undefined,
           rotate: rotate || undefined,
           opacity: opacity === 1 ? undefined : opacity,
         });
