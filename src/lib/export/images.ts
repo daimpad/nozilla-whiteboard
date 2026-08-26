@@ -18,6 +18,43 @@ export interface ResolvedImage {
 
 export type ImageMap = Map<string, ResolvedImage>;
 
+/* -------------------------------------------------------------------------- */
+/* Was fehlt, wird gesagt                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Wohin die Nachricht geht, dass ein Bild fehlt.
+ *
+ * Ein Bild, das sich nicht laden lässt, darf einen Export **nicht** abbrechen —
+ * ein Deck mit dreißig Folien wegen eines toten Pfades gar nicht auszugeben
+ * wäre die schlechtere Lage. Bisher stand das so im Kommentar und damit war
+ * die Sache erledigt: das PDF kam ohne das Bild heraus, und niemand erfuhr es.
+ * Die Politik war richtig, das Schweigen nicht.
+ *
+ * Gemeldet wird über einen Melder und nicht durch einen Import aus dem Store:
+ * `lib/` kennt `state/` nicht, und das soll so bleiben — der Ausgabeweg ist
+ * eine Rechnung, keine Oberfläche. Die eine Verdrahtung steht im
+ * Sitzungsstart.
+ *
+ * Und der Melder sitzt an der **einen** Stelle, an der Bilder geladen werden.
+ * Ein sechster Ausgabeweg bekommt ihn damit umsonst — die Alternative wäre,
+ * ihn in jedem Weg einzeln durchzureichen, und wie das ausgeht, steht in
+ * CLAUDE.md unter „Sechs Wege ersetzten das Deck, einer fragte".
+ */
+export type Fehlmeldung = (fehlend: readonly string[]) => void;
+
+let melder: Fehlmeldung | null = null;
+
+/** Den Melder setzen; `null` schaltet ihn ab. */
+export function beiFehlendenBildern(fn: Fehlmeldung | null): void {
+  melder = fn;
+}
+
+/** Melden, dass diese Quellen nicht zu haben waren. */
+export function meldeFehlendeBilder(fehlend: readonly string[]): void {
+  if (fehlend.length > 0) melder?.(fehlend);
+}
+
 const MARKDOWN_IMAGE_RE = /!\[[^\]]*]\(\s*<?([^)\s>]+)>?(?:\s+["'][^"']*["'])?\s*\)/g;
 
 /** Every image source a deck refers to, from elements and from Markdown. */
@@ -55,7 +92,10 @@ export async function resolveImages(sources: readonly string[]): Promise<ImageMa
 }
 
 export async function resolveDeckImages(deck: Deck): Promise<ImageMap> {
-  return resolveImages(collectImageSources(deck));
+  const quellen = collectImageSources(deck);
+  const geladen = await resolveImages(quellen);
+  meldeFehlendeBilder(quellen.filter((src) => !geladen.has(src)));
+  return geladen;
 }
 
 async function resolveOne(src: string): Promise<ResolvedImage | null> {

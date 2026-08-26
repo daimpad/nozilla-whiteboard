@@ -210,7 +210,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Neunundzwanzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Einunddreißig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
   `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
   Fassung passt nicht zur Bibliothek, deshalb
@@ -542,6 +542,19 @@ Und wo es trotzdem nicht reicht, steht es jetzt quer über dem Fenster. Eine
 Warnung in der Leiste wäre zu leise für den Satz „von hier an sichert sich
 nichts mehr".
 
+**Und die Regel hing zuerst am falschen Auslöser.** Angefasst wurde nur, was zu
+*breit* war — ein Vollbild-Bildschirmfoto mit 2560 × 1440 liegt aber genau auf
+der Kappungsgrenze und wurde durchgereicht. Es blieb als PNG bei 1,6 Millionen
+Zeichen, wo dasselbe Bild als JPEG 219.000 braucht; zwei davon, und die Ablage
+war wieder tot. Ein Bild kann auf zwei Weisen zu groß sein, und die beiden
+haben nichts miteinander zu tun: **zu breit** und **zu lang**. `neuschrift()`
+fragt jetzt beides.
+
+Gefunden hat es kein Test, sondern ein Maßband: die Zahlen einmal im Browser
+ausgerechnet, statt sich auf „das haben wir ja gekappt" zu verlassen. Die
+Prüfung dazu setzt ein Bild ein, das *genau* auf der Kante liegt — der Fall,
+den die erste Fassung als erledigt ansah.
+
 **Ein gescheiterter Export sagte nichts.** `console.error` und der Spinner ging
 aus: wer auf „PDF" klickte und dessen Export scheiterte, sah einen Moment lang
 etwas laufen und danach nichts — kein Unterschied zu einem Export, den man
@@ -573,6 +586,47 @@ Sabotage entfernte den Ruf, ließ damit einen Import ungenutzt, `tsc` brach ab �
 und `npm run test:ui` lief wegen des `&&` gar nicht erst. Diesmal fiel es auf,
 weil gar keine Zahl kam. Eine Sabotage muss **bauen**, sonst prüft sie den
 vorigen Stand.
+
+**Ein fehlendes Bild fehlte auch in jeder Meldung.** `resolveOne()` fing jeden
+Ladefehler und gab `null` zurück, im PDF fing `drawImage` noch einmal — mit dem
+Kommentar „A broken image should never abort the whole export". Der Satz ist
+richtig: ein toter Pfad darf ein Deck von dreißig Folien nicht ungedruckt
+lassen. Nur erfuhr es niemand; das PDF kam ohne das Logo heraus, und wer nicht
+selbst nachsah, merkte es beim Vortrag. **Die Politik stimmte, das Schweigen
+nicht** — dasselbe Muster wie beim leeren `catch` der Selbstsicherung.
+
+Gemeldet wird über einen **Melder** und nicht über einen Import aus dem Store:
+`lib/` kennt `state/` nicht, und das soll so bleiben — der Ausgabeweg ist eine
+Rechnung, keine Oberfläche. Die eine Naht steht im Sitzungsstart von `App.tsx`.
+
+Und der Melder sitzt an der **einen** Stelle, an der Bilder geladen werden.
+Ein sechster Ausgabeweg bekommt ihn damit umsonst; die Alternative wäre, ihn
+durch jeden Weg einzeln durchzureichen, und wie das ausgeht, steht ein paar
+Absätze weiter oben unter „Sechs Wege ersetzten das Deck, einer fragte".
+
+**`Tab` abzufangen hätte die Fläche geöffnet und die Leiste zugesperrt.** Es
+gab keinen Weg, *ein* Element auszuwählen, ohne darauf zu klicken. Der
+naheliegende Griff wäre gewesen, `Tab` in `useKeyboardShortcuts` abzufangen und
+die Auswahl weiterzuschieben — und damit die Taste zu belegen, mit der man
+überhaupt weiterkommt. Wer sie abfängt, sperrt den Benutzer in dem Bereich ein,
+den er gerade erreicht hat.
+
+Erreichbar sind die Elemente jetzt über die Tab-Reihenfolge des Browsers:
+`tabindex`, `role="button"` und ein `aria-label` an jedem `<g>`. Die
+Reihenfolge ist die Malreihenfolge, weil die Knoten so im Baum stehen, und am
+Ende der Folie geht es weiter zur nächsten Leiste. Ausdrücklich **nur auf der
+Arbeitsfläche** (`focusable`): dieselbe Ansicht zeichnet die Kacheln des
+Filmstreifens, die Übersicht und den Vortrag, und dort wären sechs Folien mit
+je zehn Elementen sechzig Tabs bis zum nächsten Knopf.
+
+Und eine Warnung an den Nächsten, der hier aufräumen will: **`role="img"` am
+`<svg>` blockiert nichts.** Die erste Fassung dieses Kommentars behauptete, es
+halte `Tab` aus dem Baum heraus, und die Sabotage widerlegte das — der
+Rauchtest blieb grün, als das `img` zurückkam. Nachgemessen wurde danach
+beides, Tab-Reihenfolge und Barrierebaum über CDP: kein Unterschied. Die Rolle
+steht trotzdem auf `group`, weil ein Bild mit Knöpfen darin dem ARIA-Modell
+widerspricht — aber sie ist nicht der Grund, warum es geht. Der Grund ist der
+`tabindex`, und daran hängt auch die Prüfung.
 
 ---
 

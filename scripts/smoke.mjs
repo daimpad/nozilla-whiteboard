@@ -337,6 +337,56 @@ async function main() {
     wahr(!(await steht('Handgeschrieben')), 'das Getippte steht immer noch auf der Folie');
   });
 
+  await pruefe('ein Element ist auch ohne Maus zu erreichen', async () => {
+    /*
+       Der Fehler, gegen den das steht: es gab keinen Weg, *ein* Element
+       auszuwählen, ohne darauf zu klicken. Die Pfeiltasten schoben eine
+       Auswahl, `⌘A` nahm alle — aber wer nicht zeigen kann, kam an keines.
+
+       Erreichbar sind sie jetzt über die Tab-Reihenfolge des Browsers und
+       nicht über eine abgefangene Taste. Der Unterschied ist der zweite Teil
+       dieser Prüfung: `Tab` muss auch wieder **heraus**führen. Wer die Taste
+       abfängt, mit der man weiterkommt, sperrt den Benutzer in dem Bereich
+       ein, den er gerade erreicht hat.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
+    await seite.waitForTimeout(600);
+    await seite.keyboard.press('Escape');
+    await seite.waitForTimeout(300);
+
+    // Die Griffe liegen im Kasten der Fläche, also *hinter* der Folie: ein
+    // Schritt zurück landet auf dem letzten Element.
+    await seite.locator('[data-panel-handle="library"]').focus();
+    await seite.keyboard.press('Shift+Tab');
+    await seite.waitForTimeout(400);
+
+    const daran = await seite.evaluate(() => {
+      const el = document.activeElement;
+      return {
+        id: el?.getAttribute?.('data-element-id') ?? null,
+        ansage: el?.getAttribute?.('aria-label') ?? null,
+      };
+    });
+    wahr(Boolean(daran.id), 'der Zeiger landete auf keinem Element');
+    // Und er sagt an, was da liegt — „Grafik" hülfe niemandem beim Suchen.
+    wahr(/Karte/.test(daran.ansage ?? ''), `Ansage des Elements: ${daran.ansage}`);
+
+    // Ausgewählt ist es damit auch: der Inspektor zeigt seine Maße.
+    const [, , breite] = await masse(seite);
+    wahr(breite > 0, `keine Auswahl nach dem Tabben: Breite ${breite}`);
+
+    /* ------------------------------------------------- und wieder hinaus */
+    await seite.locator('[data-panel-handle="library"]').focus();
+    for (let schritt = 0; schritt < 6; schritt += 1) await seite.keyboard.press('Tab');
+    await seite.waitForTimeout(300);
+    const draussen = await seite.evaluate(() =>
+      Boolean(document.activeElement?.closest('.nz-stage svg')),
+    );
+    wahr(!draussen, 'Tab kam aus der Folie nicht wieder heraus');
+  });
+
   await pruefe('zwei Bausteine lassen sich zu einer Gruppe zusammenfassen', async () => {
     // Mehrfachauswahl gab es, Gruppieren nicht — wer eine Karte samt Zeichen
     // verschieben wollte, musste jedes Mal neu einrahmen.
@@ -538,6 +588,24 @@ async function main() {
     gleich(schirm.breite, 2560, 'Breite des eingebetteten Bildschirmfotos');
     // Die Gegenrichtung: hier wäre JPEG ein Verlust ohne Gewinn.
     gleich(schirm.art, 'image/png', 'Format des eingebetteten Bildschirmfotos');
+
+    /* ------------------------------------------- genau auf der Kante */
+    /*
+       Die Lücke des ersten Anlaufs. Angefasst wurde nur, was zu *breit* war —
+       und ein Vollbild-Foto mit 2560 × 1440 liegt genau auf der
+       Kappungsgrenze. Es wurde durchgereicht und blieb als PNG bei 1,6
+       Millionen Zeichen, wo dasselbe Bild als JPEG 219.000 braucht. Zwei
+       davon, und die Sitzungsablage ist wieder tot.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    await einfuegen(2560, 1440, 'foto');
+    await seite.waitForTimeout(4000);
+
+    const kante = await eingebettet();
+    wahr(kante !== null, 'kein Foto auf der Folie');
+    gleich(kante.breite, 2560, 'Breite des Fotos auf der Kante');
+    gleich(kante.art, 'image/jpeg', 'Format des Fotos auf der Kante');
   });
 
   await pruefe('⌘F findet ein Wort auf einer anderen Folie', async () => {
@@ -982,6 +1050,48 @@ async function main() {
     gleich(`${breite}×${hoehe}`, '2560×1440', 'Maß des Bildes');
     wahr(bytes.length > 20_000, `PNG zu klein: ${bytes.length} Bytes`);
     await seite.keyboard.press('Escape');
+  });
+
+  await pruefe('ein fehlendes Bild fehlt nicht in der Meldung', async () => {
+    /*
+       Der Fehler, gegen den das steht: `resolveOne()` fing jeden Ladefehler
+       und gab `null` zurück, im PDF fing `drawImage` noch einmal — mit dem
+       Kommentar „A broken image should never abort the whole export". Die
+       Politik stimmt: ein toter Pfad darf ein Deck von dreißig Folien nicht
+       ungedruckt lassen. Nur erfuhr es niemand. Das PDF kam ohne das Logo
+       heraus, und wer nicht selbst nachsah, merkte es beim Vortrag.
+
+       Geprüft wird an der Meldung *nach* einem Export, der durchgeht — beides
+       gehört zusammen: die Datei kommt, und der Mangel wird genannt.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    const feld = seite.locator('aside[aria-label="Inspektor"] textarea').first();
+    await feld.click();
+    await seite.keyboard.press('Control+a');
+    await seite.keyboard.type('# Mit Loch\n\n![Logo](bilder/gibt-es-nicht.png)');
+    await seite.waitForTimeout(800);
+
+    const wartet = seite.waitForEvent('download', { timeout: 60000 });
+    await seite.getByRole('button', { name: 'Export', exact: true }).click();
+    await seite.waitForTimeout(300);
+    await seite
+      .locator('[role="menu"] button')
+      .filter({ hasText: 'SVG — diese Folie' })
+      .first()
+      .click();
+
+    // Die Datei kommt trotzdem — das ist die Hälfte, die stimmen muss.
+    const datei = await wartet;
+    wahr(Boolean(await datei.path()), 'kein SVG trotz vorhandener Folie');
+
+    await seite.waitForTimeout(800);
+    const meldung = await seite.getByRole('alert').first().innerText();
+    wahr(/nicht laden/i.test(meldung), `keine Meldung über das fehlende Bild: ${meldung}`);
+    wahr(meldung.includes('bilder/gibt-es-nicht.png'), `der Pfad fehlt in der Meldung: ${meldung}`);
+
+    await seite.getByRole('button', { name: 'Hinweis schließen' }).click();
+    await seite.waitForTimeout(300);
   });
 
   await pruefe('ein gescheiterter Export sagt es', async () => {

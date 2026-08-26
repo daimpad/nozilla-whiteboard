@@ -343,6 +343,13 @@ export function CanvasStage({ slide, deck, slideNumber, totalSlides }: CanvasSta
           deck={deck}
           slideNumber={slideNumber}
           totalSlides={totalSlides}
+          /*
+             Nur hier: auf der Arbeitsfläche sind die Elemente Sachen, die man
+             anfasst. In den Kacheln des Filmstreifens, in der Übersicht und
+             im Vortrag sind sie ein Bild.
+          */
+          focusable
+          onFocusElement={(id) => select([id])}
           className="pointer-events-none absolute inset-0 h-full w-full overflow-hidden rounded-[inherit]"
         />
 

@@ -19,6 +19,26 @@ export function labelOf(table: Record<string, string>, value: string): string {
   return table[value] ?? value;
 }
 
+/**
+ * Wie eine Elementart heißt, wenn man sie ansagen muss.
+ *
+ * Gebraucht wird das dort, wo kein Bild hilft: eine Hilfstechnik liest die
+ * Fläche vor, und „Gruppe" für jedes Element wäre keine Auskunft.
+ */
+export const kindLabels: Record<string, string> = {
+  text: 'Text',
+  markdown: 'Markdown',
+  card: 'Karte',
+  badge: 'Badge',
+  icon: 'Zeichen',
+  shape: 'Form',
+  connector: 'Verbinder',
+  image: 'Bild',
+  wordmark: 'Wortmarke',
+  chart: 'Diagramm',
+  table: 'Tabelle',
+};
+
 export const layoutLabels: Record<string, string> = {
   title: 'Titel',
   default: 'Standard',

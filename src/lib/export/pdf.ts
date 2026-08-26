@@ -25,6 +25,7 @@ import { facesFor, loadTtf, toBase64, type FaceRef } from './fontFiles';
 import { glyphCoverFor, leereDeckung, splitByFace, type GlyphCover } from './glyphCover';
 import { ellipseSegs, rectSegs, type Seg } from '@/lib/geometry/path';
 import { parseColor, type Rgba } from './color';
+import { meldeFehlendeBilder } from './images';
 import type { Scene, ScenePrim, SceneRun } from './scene';
 
 /** Slide units → PDF points. 1280×720 slide units become a 960×540 pt page. */
@@ -488,7 +489,14 @@ function drawImage(
       prim.rotate ? -prim.rotate : 0,
     );
   } catch {
-    // A broken image should never abort the whole export.
+    /*
+       Ein kaputtes Bild darf den ganzen Export nicht abbrechen — aber es
+       verschwindet auch nicht wortlos. Das ist der zweite Fang: das Bild war
+       zu haben, jsPDF kommt trotzdem nicht damit zurecht (ein falsch
+       angemeldetes Format, eine beschädigte Datei). Ohne diese Zeile fehlte
+       es im PDF und in keiner Meldung.
+    */
+    meldeFehlendeBilder([prim.href]);
   }
 }
 
