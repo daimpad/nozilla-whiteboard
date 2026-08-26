@@ -329,6 +329,35 @@ alte Ausdruck endete nur an `<`). Danach fielen noch zwei durch, die das Sieb
 sehr wohl sah: „Nothing selected." und „Embed a file" — dort war nicht das
 Sieb zu eng, sondern das *Urteil* zu milde.
 
+**Und das Urteil war eine Verbotsliste.** Was nicht auf ihr stand, kam durch —
+das ist keine Lücke, das ist die Bauart. Sechs sichtbare Zeichenketten hat sie
+zuletzt durchgelassen: „· unsaved" in der Titelzeile (also die meiste Zeit),
+„Saving…" bei jedem Speichern, „(embedded image)" bei jedem eingebetteten
+Bild, „Dashed" am Verbinder, „— not installed" bei einem fremden
+Erscheinungsbild und der ganze Platzhalter des Markdown-Feldes („# Heading /
+- A point"). Kein einziges ihrer Wörter stand auf der Liste, und keines wäre je
+daraufgekommen, ohne dass jemand den Fehler erst gemacht hätte.
+
+Dazu kommt jetzt eine Regel nach der **Wortform**: `-ed`, `-ing`, `-ness`,
+`-able`, `-ible`, `-ously`. Eine Endung ist kein Wort, sondern eine Form, und
+sie fängt auch das, was noch niemand geschrieben hat. `-tion` und `-ment`
+stehen ausdrücklich nicht dabei — „Position", „Präsentation", „Dokument",
+„Element" sind deutsch, und ein Wächter, der die halbe Oberfläche verurteilt,
+wird abgeschaltet und bewacht dann gar nichts mehr.
+
+Der Unterschied, auf den es ankommt: **irrt sich diese Regel, wird der Test an
+deutschem Text rot** — laut, sofort, mit der Stelle daneben. Irrt sich eine
+Verbotsliste, bleibt sie grün und der englische Satz steht im Fenster.
+
+Zwei Dinge hängen daran. Ein *einzelnes* Wort wird jetzt auch gewertet — die
+alte Regel „mindestens zwei Wörter" hielt Klassennamen draußen und ließ dabei
+„Saving" mit hinaus. Und Klempnerei wird an der *Schreibweise* erkannt statt an
+der Wortzahl: durchgehend klein, mit Bindestrichen. Das ist kein Kniff, sondern
+deutsche Rechtschreibung — Substantive werden großgeschrieben, eine sichtbare
+Beschriftung ohne einen einzigen Großbuchstaben ist so gut wie nie eine. Ohne
+diesen Filter verurteilte die neue Regel dreißig Tailwind-Listen auf einmal:
+`rounded`, `dashed`, `leading`, `tracking` enden alle so.
+
 **Ein Gegentest, der nicht baut, prüft den vorigen Stand.** Beim Gegenprüfen
 wurde eine Zeile in `App.tsx` auskommentiert; damit war ein Import ungenutzt,
 `tsc --noEmit` brach ab, `vite build` lief nie, und `dist/` blieb unberührt.

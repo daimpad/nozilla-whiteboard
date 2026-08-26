@@ -58,7 +58,7 @@ export function TopBar() {
   };
 
   const handleSave = async () => {
-    setBusy('Saving');
+    setBusy('Sichere');
     try {
       await sichereDeck();
     } finally {
@@ -74,7 +74,7 @@ export function TopBar() {
         <span className="truncate text-ui-title font-semibold">{deck.meta.title}</span>
         <span className="truncate text-[11px] text-ui-faint">
           {fileName}
-          {dirty ? ' · unsaved' : ''}
+          {dirty ? ' · nicht gesichert' : ''}
         </span>
       </div>
 

@@ -208,7 +208,7 @@ function SlidePanel() {
           onChange={(event) => setSlideMarkdown(event.target.value)}
           rows={12}
           className="nz-field resize-y font-mono text-[12px] leading-relaxed"
-          placeholder={'# Heading\n\n- A point\n- Another point'}
+          placeholder={'# Überschrift\n\n- Ein Punkt\n- Noch ein Punkt'}
         />
       </Field>
 
@@ -253,7 +253,7 @@ function ThemeField() {
 
   const options = [
     ...known.map((entry) => ({ value: entry.id, label: entry.label })),
-    ...(unknown ? [{ value: current, label: `${current} — not installed` }] : []),
+    ...(unknown ? [{ value: current, label: `${current} — nicht installiert` }] : []),
   ];
 
   return (
@@ -897,7 +897,7 @@ function KindFields({ element, patch }: KindFieldsProps) {
                 patch({ dashed: event.target.checked } as Partial<CanvasElement>)
               }
             />
-            Dashed
+            Gestrichelt
           </label>
           <Field label="Label">
             <input
@@ -915,7 +915,7 @@ function KindFields({ element, patch }: KindFieldsProps) {
           <Field label="Quelle" hint="Ein Pfad relativ zum Deck oder eine eingebettete data-URI.">
             <input
               className="nz-field"
-              value={element.src.startsWith('data:') ? '(embedded image)' : element.src}
+              value={element.src.startsWith('data:') ? '(eingebettetes Bild)' : element.src}
               readOnly={element.src.startsWith('data:')}
               onChange={(event) => patch({ src: event.target.value } as Partial<CanvasElement>)}
             />
