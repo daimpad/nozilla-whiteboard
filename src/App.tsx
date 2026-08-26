@@ -22,6 +22,7 @@ import { SearchPanel } from '@/components/panels/SearchPanel';
 import { Overview } from '@/components/chrome/Overview';
 import { TopBar } from '@/components/chrome/TopBar';
 import { SlideRail } from '@/components/chrome/SlideRail';
+import { PanelHandle } from '@/components/chrome/PanelHandle';
 import { PresentView } from '@/components/present/PresentView';
 import { cx } from '@/components/ui/controls';
 
@@ -33,6 +34,7 @@ export default function App() {
   const overviewOpen = useDeckStore((state) => state.overviewOpen);
   const promptOpen = useDeckStore((state) => state.promptOpen);
   const searchOpen = useDeckStore((state) => state.searchOpen);
+  const panels = useDeckStore((state) => state.panels);
   const deck = useDeckStore((state) => state.deck);
   const slide = useDeckStore(selectCurrentSlide);
   const slideIndex = useDeckStore((state) => state.slideIndex);
@@ -114,21 +116,41 @@ export default function App() {
       <TopBar />
 
       <div className="flex min-h-0 flex-1">
-        <AssetSidebar />
+        {panels.library ? <AssetSidebar /> : null}
 
-        <main className="relative flex min-w-0 flex-1 flex-col">
-          {slide ? (
-            <CanvasStage
-              slide={slide}
-              deck={deck}
-              slideNumber={slideIndex + 1}
-              totalSlides={deck.slides.length}
-            />
-          ) : null}
-          <SlideRail />
+        {/*
+           Die Griffe liegen im `main` und nicht in den Leisten — sonst
+           verschwänden sie mit dem, was sie zurückholen sollen. Die Fläche
+           misst sich selbst (`useElementSize` in `CanvasStage`); dass sie
+           breiter wird, merkt sie ohne Zutun, und „Passend" stimmt sofort.
+        */}
+        <main className="flex min-w-0 flex-1 flex-col">
+          {/*
+             Die Griffe liegen im Kasten der *Fläche*, nicht im ganzen `main`.
+             Damit sitzt der untere von allein an der Grenze zum Filmstreifen,
+             wenn der offen ist, und am Fensterrand, wenn er zu ist — ohne dass
+             seine Höhe (104) irgendwo ein zweites Mal aufgeschrieben werden
+             müsste. Zwei Rechnungen für dieselbe Kante liefen auseinander.
+          */}
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            {slide ? (
+              <CanvasStage
+                slide={slide}
+                deck={deck}
+                slideNumber={slideIndex + 1}
+                totalSlides={deck.slides.length}
+              />
+            ) : null}
+
+            <PanelHandle panel="library" side="left" name="Bausteine" shortcut="⌘1" />
+            <PanelHandle panel="rail" side="bottom" name="Filmstreifen" shortcut="⌘2" />
+            <PanelHandle panel="inspector" side="right" name="Inspektor" shortcut="⌘3" />
+          </div>
+
+          {panels.rail ? <SlideRail /> : null}
         </main>
 
-        <Inspector />
+        {panels.inspector ? <Inspector /> : null}
       </div>
 
       {overviewOpen ? <Overview /> : null}

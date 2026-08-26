@@ -498,6 +498,65 @@ async function main() {
     );
   });
 
+  await pruefe('die drei Leisten gehen zu und wieder auf', async () => {
+    /*
+       Gemessen wird die Fläche, nicht der Knopf.
+
+       Zuklappen heißt: die Folie bekommt den Platz. Eine Prüfung, die nur
+       nachsähe, ob der Griff jetzt „ausklappen" heißt, hielte auch dann, wenn
+       die Leiste stehen bliebe — und genau das wäre der Fehler. Die Fläche
+       misst sich selbst (`useElementSize`), also verrät ihre Größe, ob wirklich
+       Platz frei wurde.
+
+       Und zurück muss es auch gehen: der Griff liegt deshalb auf der Seite,
+       die bleibt. Läge er in der Leiste, wäre sie nach dem ersten Klick für
+       immer weg.
+    */
+    const folie = async () => {
+      const gemessen = await seite.evaluate(FOLIE);
+      return gemessen ? gemessen.flaeche : 0;
+    };
+
+    await seite.getByRole('navigation', { name: 'Folien' }).locator('button').first().click();
+    await seite.waitForTimeout(500);
+    const vorher = await folie();
+    wahr(vorher > 0, 'keine Folie zu messen');
+
+    for (const bereich of ['library', 'inspector', 'rail']) {
+      await seite.locator(`[data-panel-handle="${bereich}"]`).click();
+      await seite.waitForTimeout(500);
+    }
+
+    const zu = await folie();
+    wahr(zu > vorher * 1.5, `die Folie wuchs nicht: ${Math.round(vorher)} → ${Math.round(zu)} px²`);
+    // Und die Leisten sind wirklich weg, nicht nur schmal.
+    wahr(
+      !(await seite.locator('aside[aria-label="Inspektor"]').count()),
+      'der Inspektor steht noch da',
+    );
+    wahr(
+      !(await seite.getByRole('navigation', { name: 'Folien' }).count()),
+      'der Filmstreifen steht noch da',
+    );
+
+    // Zurück über die Tastatur — ⌘1 bis ⌘3.
+    for (const taste of ['1', '2', '3']) {
+      await seite.keyboard.press('Control+' + taste);
+      await seite.waitForTimeout(400);
+    }
+    await seite.waitForTimeout(500);
+
+    const wieder = await folie();
+    wahr(
+      Math.abs(wieder - vorher) < vorher * 0.02,
+      `die Folie kam nicht auf ihr Maß zurück: ${Math.round(vorher)} → ${Math.round(wieder)} px²`,
+    );
+    wahr(
+      await seite.locator('aside[aria-label="Inspektor"]').count(),
+      'der Inspektor kam nicht zurück',
+    );
+  });
+
   console.log('\nErscheinungsbild und Erscheinung:');
 
   await pruefe('ein anderes Erscheinungsbild färbt die Folie um', async () => {

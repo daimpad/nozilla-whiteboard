@@ -196,6 +196,13 @@ liegt ein Strich auf der Unterkante und der Inspektor sagt, um wie viel — mit
 einem Knopf, der den Kasten anpasst. Auf der Fläche sähe man die Zeile sonst
 noch, im PDF stünde sie über dem Rand, und PowerPoint schnitte sie ab.
 
+**Die drei Leisten gehen zu.** Bausteine, Filmstreifen und Inspektor nehmen
+zusammen 568 Pixel Breite und 104 Pixel Höhe — auf einem Laptop gut ein Drittel
+des Fensters. Der Griff sitzt an der Kante der Fläche, also auf der Seite, die
+bleibt; `⌘1`, `⌘2` und `⌘3` tun dasselbe. Die Folie wächst von allein mit, weil
+sie sich selbst misst. Was offen steht, bleibt im Browser und steht in keiner
+Datei: es gehört dem Arbeitsplatz, nicht dem Deck.
+
 **Suchen mit `⌘F`** — über den Fließtext, die Notizen und jedes Textfeld jedes
 Elements, quer durchs ganze Deck. Ein Treffer nennt die Folie und den
 Ausschnitt drumherum, ein Klick bringt einen hin und wählt das Element aus.
@@ -460,6 +467,7 @@ WOFF2 kann keiner von beiden lesen.
 | `⌘A` / `Esc`   | Alles wählen / Auswahl aufheben                           |
 | `⌘Z` `⇧⌘Z`     | Rückgängig / wiederholen                                  |
 | `⌘O` `⌘S`      | Markdown öffnen / sichern                                 |
+| `⌘1` `⌘2` `⌘3` | Bausteine / Filmstreifen / Inspektor zu- und aufklappen   |
 | `⌘K`           | Übersicht                                                 |
 | `P` / `Esc`    | Präsentieren / zurück                                     |
 | `N` / `F`      | Notizen / Vollbild (während der Präsentation)             |
