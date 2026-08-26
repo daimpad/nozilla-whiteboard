@@ -1089,6 +1089,30 @@ async function main() {
     await seite.keyboard.press('Escape');
   });
 
+  await pruefe('das Handout kommt heraus und ist hochkant', async () => {
+    /*
+       Der Ausgabeweg ist derselbe wie beim PDF — nur mit einer anderen Szene.
+       Geprüft wird hier deshalb nicht die Rechnung (die steht in
+       `handout.test.ts`), sondern dass der Weg durch das Menü überhaupt
+       funktioniert und eine Datei herausfällt.
+    */
+    await seite.getByRole('button', { name: 'Export', exact: true }).click();
+    await seite.waitForTimeout(300);
+    const wartet = seite.waitForEvent('download', { timeout: 90000 });
+    await seite.locator('[role="menu"] button').filter({ hasText: 'Handout' }).first().click();
+    const datei = await wartet;
+    const pfad = await datei.path();
+    const bytes = await import('node:fs').then((fs) => fs.promises.readFile(pfad));
+
+    wahr(bytes.subarray(0, 5).toString() === '%PDF-', 'kein PDF');
+    wahr(bytes.length > 20_000, `Handout zu klein: ${bytes.length} Bytes`);
+    // Das Seitenmaß steht als Rechteck im Katalog: hochkant heißt Höhe > Breite.
+    const mediaBox = /\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)/.exec(bytes.toString('latin1'));
+    wahr(Boolean(mediaBox), 'keine MediaBox im PDF gefunden');
+    const [breite, hoehe] = [Number(mediaBox[1]), Number(mediaBox[2])];
+    wahr(hoehe > breite, `Handout liegt quer: ${breite} × ${hoehe}`);
+  });
+
   await pruefe('das PNG einer Folie kommt heraus und ist ein Bild', async () => {
     // Nicht nur „eine Datei kam an": ein SVG, das über ein <img> gerastert
     // wird, ist ein eigenes Dokument ohne Zugriff auf die Schriften der

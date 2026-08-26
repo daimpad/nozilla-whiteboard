@@ -124,13 +124,22 @@ export async function scenesToPdf(
 ): Promise<jsPDF> {
   const { jsPDF: JsPdf } = await import('jspdf');
   const scale = options.scale ?? PDF_SCALE;
-  const pageWidth = canvasTokens.width * scale;
-  const pageHeight = canvasTokens.height * scale;
+  /*
+     Das Seitenmaß kommt aus der **Szene** und nicht aus den Folienmaßen der
+     CI. Beide waren dasselbe, solange jede Seite eine Folie war; das Handout
+     ist es nicht — es ist so breit wie die Folie und mal Wurzel zwei hoch.
+     Wer hier die Tokens liest, druckt die Notizen über den Rand hinaus.
+  */
+  const massDer = (scene: Scene | undefined) => ({
+    w: (scene?.width ?? canvasTokens.width) * scale,
+    h: (scene?.height ?? canvasTokens.height) * scale,
+  });
+  const erste = massDer(scenes[0]);
 
   const doc = new JsPdf({
-    orientation: pageWidth >= pageHeight ? 'landscape' : 'portrait',
+    orientation: erste.w >= erste.h ? 'landscape' : 'portrait',
     unit: 'pt',
-    format: [pageWidth, pageHeight],
+    format: [erste.w, erste.h],
     compress: true,
   });
 
@@ -152,8 +161,8 @@ export async function scenesToPdf(
   const fonts = options.embedFonts === false ? new Map() : await embedFaces(doc, scenes, cover);
 
   scenes.forEach((scene, index) => {
-    if (index > 0)
-      doc.addPage([pageWidth, pageHeight], pageWidth >= pageHeight ? 'landscape' : 'portrait');
+    const mass = massDer(scene);
+    if (index > 0) doc.addPage([mass.w, mass.h], mass.w >= mass.h ? 'landscape' : 'portrait');
     drawScene(doc, scene, scale, options, fonts, cover);
   });
 

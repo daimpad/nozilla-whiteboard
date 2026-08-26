@@ -8,6 +8,7 @@ import { brand, canvas as canvasTokens } from '@/theme';
 import { bundledDecks } from '@/decks';
 import {
   exportMarkdown,
+  exportHandoutPdf,
   exportPdf,
   exportPng,
   exportPptx,
@@ -323,6 +324,12 @@ function ExportMenu({
                 : 'Vektorseiten, Text als Konturen'
             }
             onClick={() => run('Zeichne PDF', () => exportPdf(deck, { text: textMode }))}
+          />
+          <MenuItem
+            icon="file-lines"
+            label="PDF — Handout mit Notizen"
+            hint="Hochformat, je Seite eine Folie und ihre Notizen"
+            onClick={() => run('Setze Handout', () => exportHandoutPdf(deck))}
           />
           <MenuItem
             icon="play"
