@@ -210,7 +210,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Siebenundzwanzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Neunundzwanzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
   `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
   Fassung passt nicht zur Bibliothek, deshalb
@@ -328,6 +328,35 @@ und als Textknoten *vor* einem Ausdruck (`Notes · {slideTitle(…)}`, denn der
 alte Ausdruck endete nur an `<`). Danach fielen noch zwei durch, die das Sieb
 sehr wohl sah: „Nothing selected." und „Embed a file" — dort war nicht das
 Sieb zu eng, sondern das *Urteil* zu milde.
+
+**Und das Urteil war eine Verbotsliste.** Was nicht auf ihr stand, kam durch —
+das ist keine Lücke, das ist die Bauart. Sechs sichtbare Zeichenketten hat sie
+zuletzt durchgelassen: „· unsaved" in der Titelzeile (also die meiste Zeit),
+„Saving…" bei jedem Speichern, „(embedded image)" bei jedem eingebetteten
+Bild, „Dashed" am Verbinder, „— not installed" bei einem fremden
+Erscheinungsbild und der ganze Platzhalter des Markdown-Feldes („# Heading /
+- A point"). Kein einziges ihrer Wörter stand auf der Liste, und keines wäre je
+daraufgekommen, ohne dass jemand den Fehler erst gemacht hätte.
+
+Dazu kommt jetzt eine Regel nach der **Wortform**: `-ed`, `-ing`, `-ness`,
+`-able`, `-ible`, `-ously`. Eine Endung ist kein Wort, sondern eine Form, und
+sie fängt auch das, was noch niemand geschrieben hat. `-tion` und `-ment`
+stehen ausdrücklich nicht dabei — „Position", „Präsentation", „Dokument",
+„Element" sind deutsch, und ein Wächter, der die halbe Oberfläche verurteilt,
+wird abgeschaltet und bewacht dann gar nichts mehr.
+
+Der Unterschied, auf den es ankommt: **irrt sich diese Regel, wird der Test an
+deutschem Text rot** — laut, sofort, mit der Stelle daneben. Irrt sich eine
+Verbotsliste, bleibt sie grün und der englische Satz steht im Fenster.
+
+Zwei Dinge hängen daran. Ein *einzelnes* Wort wird jetzt auch gewertet — die
+alte Regel „mindestens zwei Wörter" hielt Klassennamen draußen und ließ dabei
+„Saving" mit hinaus. Und Klempnerei wird an der *Schreibweise* erkannt statt an
+der Wortzahl: durchgehend klein, mit Bindestrichen. Das ist kein Kniff, sondern
+deutsche Rechtschreibung — Substantive werden großgeschrieben, eine sichtbare
+Beschriftung ohne einen einzigen Großbuchstaben ist so gut wie nie eine. Ohne
+diesen Filter verurteilte die neue Regel dreißig Tailwind-Listen auf einmal:
+`rounded`, `dashed`, `leading`, `tracking` enden alle so.
 
 **Ein Gegentest, der nicht baut, prüft den vorigen Stand.** Beim Gegenprüfen
 wurde eine Zeile in `App.tsx` auskommentiert; damit war ein Import ungenutzt,
@@ -484,6 +513,66 @@ Browser.** `isTypingTarget` lässt es durch, damit ein ⌘Z im Notizfeld Text
 zurücknimmt und keine Folie. Der Rauchtest muss deshalb erst aus dem Feld
 heraus, sonst misst er die Rücknahme des Browsers — ein Anschlag — und meldet
 einen Fehler, den es nicht gibt.
+
+**Ein eingebettetes Bild legte die Selbstsicherung still — schweigend.** Die
+Ablage im Browser fasst etwa fünf Megabyte. Ein Foto aus einem Telefon hat
+vier; als data-URI werden daraus 5,3 Millionen Zeichen, und `localStorage`
+zählt in UTF-16, also gut zehn Megabyte. Ein einziges eingefügtes Bild reichte
+damit, und `setItem` warf. Der `catch` war leer, mit einem Kommentar daneben:
+„Quota exceeded or private mode — autosave is best-effort by design." Der Satz
+stimmt und ist trotzdem kein Grund zu schweigen: von da an sicherte sich
+nichts mehr, und der Benutzer arbeitete weiter in dem Glauben, es geschehe.
+
+Zwei Hälften, und die zweite ist erst am Ergebnis aufgefallen. Die erste ist
+das Kappen: eingesetzte Bilder werden auf `canvas.width × SCHAERFE` gebracht —
+die Breite, mit der dieses Werkzeug eine ganze Folie rastert. Breiter kann kein
+Bild in keiner Ausgabe von hier mehr Einzelheiten zeigen.
+
+Die zweite: **aus der Zwischenablage kommt immer ein PNG**, und PNG rechnet ein
+Foto nicht klein. Nach dem Kappen standen im Rauchtest immer noch siebzehn
+Millionen Zeichen — der Fehler war gekappt und trotzdem da. Beide Fassungen
+werden jetzt geschrieben, und das JPEG bekommt den Zuschlag nur, wenn es unter
+der Hälfte bleibt. Ein Bildschirmfoto kommt in diese Nähe nie und behält seine
+scharfen Buchstaben; ein Foto unterbietet um ein Vielfaches. Entschieden wird
+damit an der Datei und nicht am Dateinamen, und die Prüfung fährt beide
+Richtungen: das Foto *muss* zum JPEG werden, das Bildschirmfoto *darf* es
+nicht. Eine Regel, deren Gegenrichtung niemand prüft, ist eine halbe Regel.
+
+Und wo es trotzdem nicht reicht, steht es jetzt quer über dem Fenster. Eine
+Warnung in der Leiste wäre zu leise für den Satz „von hier an sichert sich
+nichts mehr".
+
+**Ein gescheiterter Export sagte nichts.** `console.error` und der Spinner ging
+aus: wer auf „PDF" klickte und dessen Export scheiterte, sah einen Moment lang
+etwas laufen und danach nichts — kein Unterschied zu einem Export, den man
+versehentlich abgebrochen hat. Und genau der Unterschied ist der, auf den es
+ankommt. Der `⌘S`-Weg war noch eine Stufe schlimmer: gar keine
+Fehlerbehandlung, ein Scheitern endete als unbehandelte Zusage.
+
+Der Hinweis steht deshalb im Store und nicht in der Leiste. Drei Stellen setzen
+ihn — das Export-Menü, `sichereDeck()` und `oeffneDeck()` —, und läge er in der
+Leiste, hätten die anderen beiden keinen Weg dorthin. Genau deshalb schrieben
+sie vorher auf die Konsole.
+
+Drei Regeln, die daran hängen. Ein **geschlossener Dateidialog** bleibt stumm:
+das ist keine Panne, sondern die Antwort „doch nicht", und eine Klage darüber
+wäre schlimmer als keine. Der **technische Satz bleibt stehen** — wer einen
+Fehler meldet, braucht ihn, und wer ihn nicht braucht, überliest ihn. Und der
+Hinweis **verschwindet nicht von selbst**: einer, der sich nach drei Sekunden
+wegnimmt, ist für den gemacht, der gerade hinsieht — und wer gerade hinsieht,
+hat den Fehler ohnehin bemerkt.
+
+Der Rauchtest bringt den Export dafür wirklich zum Scheitern, und zwar an der
+Stelle, an der jede Ausgabe vorbeikommt: dem Aushändigen der Datei. Damit
+schreibt der Weg zu Recht auch auf die Konsole — und die Prüfung „nichts hat
+sich in der Konsole beschwert" zählte das als Beschwerde. Herausgenommen wird
+deshalb genau der Satz, den die Prüfung selbst geworfen hat, und kein anderer.
+
+Und die Gegenprobe dazu ist selbst in die alte Falle getappt: die erste
+Sabotage entfernte den Ruf, ließ damit einen Import ungenutzt, `tsc` brach ab —
+und `npm run test:ui` lief wegen des `&&` gar nicht erst. Diesmal fiel es auf,
+weil gar keine Zahl kam. Eine Sabotage muss **bauen**, sonst prüft sie den
+vorigen Stand.
 
 ---
 

@@ -141,6 +141,64 @@ const ERLAUBT = new Set(
   ].map((word) => word.toLowerCase()),
 );
 
+/**
+ * Wörter, die ihre Sprache in der Endung tragen.
+ *
+ * Der Grund für diese Regel ist die Bauart der beiden Listen darüber: sie sind
+ * **Verbotslisten**. Was nicht darin steht, kommt durch — und dreimal ist genau
+ * das passiert. Zuletzt standen „· unsaved" in der Titelzeile (sichtbar,
+ * solange nicht gesichert ist: die meiste Zeit), „(embedded image)" im
+ * Inspektor bei jedem eingebetteten Bild und „Saving…" während des Speicherns.
+ * Kein Wort davon stand in einer Liste, und keines wäre je hineingekommen,
+ * ohne dass jemand den Fehler erst gemacht hätte.
+ *
+ * Eine Endung ist kein Wort, sondern eine Form — und sie fängt auch das, was
+ * noch niemand geschrieben hat. `-tion` und `-ment` stehen bewusst **nicht**
+ * dabei: „Position", „Präsentation", „Dokument", „Element" sind deutsch, und
+ * eine Regel, die die halbe Oberfläche verurteilt, wird nach einer Woche
+ * abgeschaltet.
+ *
+ * Und der Unterschied, auf den es ankommt: irrt sich diese Regel, wird der Test
+ * an deutschem Text **rot** — laut, sofort, mit der Stelle daneben. Irrt sich
+ * eine Verbotsliste, bleibt sie grün und der englische Satz steht im Fenster.
+ */
+const ENGLISCHE_ENDUNG = /^[a-z]{2,}(ed|ing|ness|able|ible|ously)$/;
+
+/**
+ * Deutsche Wörter, die zufällig so enden.
+ *
+ * Kurz, und das ist der Punkt: was hier fehlt, macht sich beim nächsten
+ * `npm run test` bemerkbar, nicht beim nächsten Benutzer.
+ */
+const TROTZDEM_DEUTSCH = new Set([
+  'lied',
+  'glied',
+  'mitglied',
+  'abschied',
+  'ring',
+  'ding',
+  'training',
+  'meeting',
+  'marketing',
+  'timing',
+  'rendering',
+  'layouting',
+]);
+
+/**
+ * Sieht die Zeichenkette aus wie Klempnerei statt wie eine Beschriftung?
+ *
+ * Klassennamen, Schlüssel des Dateiformats, Zeichennamen, MIME-Typen: alles
+ * durchgehend klein, mit Bindestrichen, Schrägstrichen und Klammern. Eine
+ * deutsche Beschriftung sieht anders aus, und zwar aus einem Grund, der der
+ * Sprache selbst gehört — **deutsche Substantive werden großgeschrieben.** Ein
+ * sichtbarer Text ohne einen einzigen Großbuchstaben ist hier so gut wie immer
+ * keiner.
+ */
+function istKlempnerei(text: string): boolean {
+  return /^[a-z0-9:\-/[\]. %]+$/.test(text);
+}
+
 function quellen(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const path = join(dir, entry);
@@ -220,6 +278,11 @@ function sichtbareTexte(source: string): string[] {
   // Und er fängt nicht immer mit einem Buchstaben an — die Hilfszeile beginnt
   // mit einem Pfeil.
   for (const match of source.matchAll(/>\s*([^<>{}\n][^<>{}\n]{3,90})\s*[<{]/g)) {
+    // Kein Textknoten fängt mit einer schließenden Klammer an — wohl aber die
+    // Rückgabe einer Funktion hinter einem generischen Typ:
+    // `Array<string | false>): string {`. Das `>` gehört dort der Klammer und
+    // nicht einem Element, und „string" endet auf `-ing`.
+    if (/^[)\]}]/.test(match[1])) continue;
     if (/[A-Za-zÄÖÜäöü]/.test(match[1])) out.push(match[1]);
   }
 
@@ -232,7 +295,23 @@ function sichtbareTexte(source: string): string[] {
     if (/\S\s+\S/.test(text) && /[A-Za-zÄÖÜäöü]/.test(text)) out.push(text);
   }
 
-  return out.map((text) => text.trim()).filter(Boolean);
+  // 5 · Als *einzelnes* Wort in einem Ausdruck: `setBusy('Saving')`. Die
+  // Zeile darüber verlangt zwei Wörter, und aus gutem Grund — sonst geriete
+  // jeder Klassenname ins Sieb. „Saving…" stand deshalb monatelang sichtbar
+  // über der Leiste, während der Wächter grün war. Was Klempnerei ist, wird
+  // hier an der Schreibweise erkannt und nicht an der Wortzahl.
+  for (const match of source.matchAll(/'([A-Za-zÄÖÜäöü][^'\n]{2,40})'/g)) {
+    out.push(match[1]);
+  }
+
+  // Klempnerei fällt hier heraus und nicht erst im Urteil: eine Liste von
+  // Tailwind-Klassen ist voller `rounded`, `dashed`, `leading` und `tracking`,
+  // und die Regel nach der Wortform verurteilte sie reihenweise. Sie steht
+  // aber nicht vor Augen — sie *macht* das, was vor Augen steht.
+  return out
+    .map((text) => text.trim())
+    .filter(Boolean)
+    .filter((text) => !istKlempnerei(text));
 }
 
 function istEnglisch(text: string): boolean {
@@ -242,6 +321,10 @@ function istEnglisch(text: string): boolean {
   if (woerter.length === 0) return false;
   if (woerter.every((word) => ERLAUBT.has(word))) return false;
   if (FUNKTIONSWORT.test(text)) return true;
+  // Nach der Form, nicht nach der Liste — siehe `ENGLISCHE_ENDUNG`.
+  if (woerter.some((word) => ENGLISCHE_ENDUNG.test(word) && !TROTZDEM_DEUTSCH.has(word))) {
+    return true;
+  }
   // Eine Beschriftung ganz aus englischen Substantiven — „Line weight", „Alt
   // text". Fachwörter dürfen dabeistehen, sie entscheiden nichts.
   return woerter.every((word) => SUBSTANTIV.has(word) || ERLAUBT.has(word));
@@ -290,6 +373,60 @@ describe('die Oberfläche spricht Deutsch', () => {
     expect(istEnglisch('Eine Seite')).toBe(false);
     expect(istEnglisch('Ziel danach')).toBe(false);
     expect(istEnglisch('Prompt ·')).toBe(false);
+
+    /*
+       Und die sechs, die eine Verbotsliste nicht fangen konnte, weil keines
+       ihrer Wörter darin stand. Sie standen alle sichtbar da — „· nicht
+       gesichert" die meiste Zeit, „Saving…" bei jedem Speichern, der
+       Platzhalter in jedem leeren Markdown-Feld.
+    */
+    expect(istEnglisch('· unsaved')).toBe(true);
+    expect(istEnglisch('(embedded image)')).toBe(true);
+    expect(istEnglisch('Saving')).toBe(true);
+    expect(istEnglisch('# Heading\n\n- A point\n- Another point')).toBe(true);
+    expect(istEnglisch(' — not installed')).toBe(true);
+    expect(istEnglisch('Dashed')).toBe(true);
+    // Und was an ihre Stelle getreten ist, bleibt deutsch.
+    expect(istEnglisch('· nicht gesichert')).toBe(false);
+    expect(istEnglisch('(eingebettetes Bild)')).toBe(false);
+    expect(istEnglisch('Sichere')).toBe(false);
+    expect(istEnglisch(' — nicht installiert')).toBe(false);
+    expect(istEnglisch('Gestrichelt')).toBe(false);
+  });
+
+  it('hält deutsche Wörter mit englischer Endung aus', () => {
+    /*
+       Die Gegenrichtung der Regel nach der Wortform, und die entscheidet, ob
+       sie überlebt: ein Wächter, der reihenweise deutschen Text verurteilt,
+       wird nach einer Woche abgeschaltet — und dann bewacht er gar nichts
+       mehr. Deshalb keine Endungen auf `-tion` und `-ment`.
+    */
+    expect(istEnglisch('Position auf der Folie')).toBe(false);
+    expect(istEnglisch('Dokument und Element')).toBe(false);
+    expect(istEnglisch('Präsentation beenden')).toBe(false);
+    expect(istEnglisch('Mitglied der Gruppe')).toBe(false);
+    expect(istEnglisch('Training')).toBe(false);
+  });
+
+  it('hält eine Liste von Klassen nicht für eine Beschriftung', () => {
+    /*
+       Der erste Anlauf der Regel nach der Wortform verurteilte dreißig
+       Tailwind-Klassenlisten: `rounded`, `dashed`, `leading` und `tracking`
+       enden alle so. Sie stehen nicht vor Augen — sie machen das, was vor
+       Augen steht. Erkannt werden sie an der Schreibweise: durchgehend klein,
+       mit Bindestrichen. Eine deutsche Beschriftung sieht anders aus, denn
+       deutsche Substantive werden großgeschrieben.
+    */
+    const quelle = [
+      "<div className='flex items-center rounded-sm border-dashed leading-snug' />",
+      "<div className='mt-1.5 text-[11px] tracking-wide bg-ui-surface/85' />",
+      '<p>Eine gestrichelte Linie</p>',
+    ].join('\n');
+
+    const gefunden = sichtbareTexte(quelle);
+    expect(gefunden.filter((text) => istEnglisch(text))).toEqual([]);
+    // Aber der sichtbare Satz daneben wird sehr wohl gesehen.
+    expect(gefunden).toContain('Eine gestrichelte Linie');
   });
 
   it('findet eine Beschriftung in allen vier Schreibweisen', () => {

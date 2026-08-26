@@ -54,6 +54,23 @@ export interface EditorState {
   fileName: string;
   fileHandle?: FileSystemFileHandle;
   dirty: boolean;
+  /**
+   * Ob die Selbstsicherung zuletzt gescheitert ist.
+   *
+   * Gehört nicht zum Deck und nicht zum Verlauf — es ist eine Aussage über
+   * die *Ablage*, nicht über den Inhalt. Steht hier trotzdem, weil `dirty`
+   * daneben steht und beide dasselbe beantworten: ist die Arbeit sicher?
+   */
+  sicherungGescheitert: boolean;
+  /**
+   * Ein Hinweis, den der Mensch lesen soll — fast immer ein Fehler.
+   *
+   * Er steht hier und nicht in einer Komponente, weil drei Stellen ihn
+   * setzen: das Export-Menü, `⌘S` und die Warnung über der Leiste. Läge er in
+   * der Leiste, hätten die anderen beiden keinen Weg dorthin — und genau
+   * deshalb schrieben sie vorher auf die Konsole.
+   */
+  hinweis: string | null;
 
   /* Navigation */
   slideIndex: number;
@@ -88,6 +105,10 @@ export interface EditorState {
   ) => void;
   newDeck: () => void;
   markSaved: (meta?: { fileName?: string; handle?: FileSystemFileHandle }) => void;
+  /** Die Selbstsicherung meldet, ob sie durchkam — siehe `persistence.ts`. */
+  meldeSicherung: (gelungen: boolean) => void;
+  /** Einen Hinweis zeigen; `null` nimmt ihn weg. */
+  zeigeHinweis: (text: string | null) => void;
   setDeckMeta: (patch: Partial<DeckMeta>) => void;
 
   goTo: (index: number) => void;
@@ -350,6 +371,9 @@ export const useDeckStore = create<EditorState>()((set, get) => {
     past: [],
     future: [],
 
+    sicherungGescheitert: false,
+    hinweis: null,
+
     /* ------------------------------------------------------------ document */
 
     loadDeck: (deck, meta) =>
@@ -388,6 +412,10 @@ export const useDeckStore = create<EditorState>()((set, get) => {
         fileName: meta?.fileName ?? state.fileName,
         fileHandle: meta?.handle ?? state.fileHandle,
       })),
+
+    meldeSicherung: (gelungen) => set({ sicherungGescheitert: !gelungen }),
+
+    zeigeHinweis: (text) => set({ hinweis: text }),
 
     setDeckMeta: (patch) =>
       set((state) => ({

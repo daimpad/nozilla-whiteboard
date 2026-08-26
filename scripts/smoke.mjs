@@ -425,6 +425,121 @@ async function main() {
     gleich(`${x} / ${y}`, '88 / 72', 'Ort des eingefügten Bildes');
   });
 
+  await pruefe('ein zu großes Bild wird beim Einsetzen gekappt', async () => {
+    /*
+       Der Fehler, gegen den das steht: ein Foto wurde in voller Auflösung
+       eingebettet. Vier Megabyte werden als data-URI zu 5,3 Millionen
+       Zeichen, und `localStorage` zählt in UTF-16 — gut zehn Megabyte gegen
+       ein Kontingent von etwa fünf. Ein einziges eingefügtes Bild legte die
+       Selbstsicherung still, und zu sehen war davon nichts.
+
+       Gemessen wird das eingebettete Bild selbst und nicht die Rechnung, die
+       zu ihm führt: die steht in `imageElement.test.ts`. Hier geht es um die
+       Frage, ob im Dokument am Ende auch wirklich das kleinere Bild steht —
+       und in welchem Format.
+
+       Zwei Bilder, weil die Regel in zwei Richtungen gilt. Das Kappen allein
+       half dem Foto nicht: aus der Zwischenablage kommt **immer** ein PNG,
+       und PNG rechnet ein Foto nicht klein. Es wird deshalb zum JPEG, wenn
+       das deutlich kleiner ausfällt. Ein Bildschirmfoto darf das gerade
+       nicht: an seinen Buchstaben sähe man es.
+    */
+    const einfuegen = (breite, hoehe, art) =>
+      seite.evaluate(
+        async ([b, h, welche]) => {
+          const flaeche = document.createElement('canvas');
+          flaeche.width = b;
+          flaeche.height = h;
+          const stift = flaeche.getContext('2d');
+          if (welche === 'foto') {
+            // Weiche Verläufe mit etwas Struktur — so verhält sich ein Foto.
+            const daten = stift.createImageData(b, h);
+            for (let y = 0; y < h; y += 1) {
+              for (let x = 0; x < b; x += 1) {
+                const i = (y * b + x) * 4;
+                daten.data[i] = (x / b) * 255;
+                daten.data[i + 1] = (y / h) * 255;
+                daten.data[i + 2] = 128 + 120 * Math.sin((x + y) / 90);
+                daten.data[i + 3] = 255;
+              }
+            }
+            stift.putImageData(daten, 0, 0);
+          } else {
+            // Große weiße Fläche mit harten schwarzen Kanten — ein Fenster
+            // voller Text, wie es die Zwischenablage liefert.
+            stift.fillStyle = '#ffffff';
+            stift.fillRect(0, 0, b, h);
+            stift.fillStyle = '#000000';
+            for (let y = 20; y < h; y += 40) stift.fillRect(40, y, b - 200, 14);
+          }
+          const blob = await new Promise((fertig) => flaeche.toBlob(fertig, 'image/png'));
+          const daten = new DataTransfer();
+          daten.items.add(new File([blob], `${welche}.png`, { type: 'image/png' }));
+          document.dispatchEvent(
+            new ClipboardEvent('paste', { clipboardData: daten, bubbles: true, cancelable: true }),
+          );
+          return blob.size;
+        },
+        [breite, hoehe, art],
+      );
+
+    /** Die Quelle des Bildes, das auf der Folie liegt. */
+    const eingebettet = () =>
+      seite.evaluate(async () => {
+        let folie = null;
+        for (const svg of document.querySelectorAll('svg')) {
+          const box = svg.getBoundingClientRect();
+          if (!folie || box.width * box.height > folie.flaeche) {
+            folie = { flaeche: box.width * box.height, svg };
+          }
+        }
+        const knoten = folie?.svg.querySelector('image');
+        const quelle = knoten?.getAttribute('href') ?? knoten?.getAttribute('xlink:href');
+        if (!quelle) return null;
+        const bild = new Image();
+        await new Promise((fertig, schief) => {
+          bild.onload = fertig;
+          bild.onerror = schief;
+          bild.src = quelle;
+        });
+        return {
+          breite: bild.naturalWidth,
+          zeichen: quelle.length,
+          art: quelle.slice(5, quelle.indexOf(';')),
+        };
+      });
+
+    /* ------------------------------------------------------- das Foto */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    const fotoBytes = await einfuegen(4032, 3024, 'foto');
+    await seite.waitForTimeout(4000);
+
+    const foto = await eingebettet();
+    wahr(foto !== null, 'kein Foto auf der Folie');
+    // 2560 ist die Rasterbreite einer Folie; mehr nützt in keiner Ausgabe.
+    gleich(foto.breite, 2560, 'Breite des eingebetteten Fotos');
+    gleich(foto.art, 'image/jpeg', 'Format des eingebetteten Fotos');
+    // Und es passt jetzt in eine Sitzungsablage von etwa fünf Megabyte —
+    // vorher waren es allein für dieses eine Bild ein Vielfaches davon.
+    wahr(
+      foto.zeichen < 2_000_000,
+      `data-URI des Fotos ${foto.zeichen} Zeichen lang (Quelle: ${fotoBytes} Bytes)`,
+    );
+
+    /* ----------------------------------------------- das Bildschirmfoto */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    await einfuegen(3000, 2000, 'schirm');
+    await seite.waitForTimeout(4000);
+
+    const schirm = await eingebettet();
+    wahr(schirm !== null, 'kein Bildschirmfoto auf der Folie');
+    gleich(schirm.breite, 2560, 'Breite des eingebetteten Bildschirmfotos');
+    // Die Gegenrichtung: hier wäre JPEG ein Verlust ohne Gewinn.
+    gleich(schirm.art, 'image/png', 'Format des eingebetteten Bildschirmfotos');
+  });
+
   await pruefe('⌘F findet ein Wort auf einer anderen Folie', async () => {
     // Die Suche des Browsers fände nur, was gerade auf dem Bildschirm steht —
     // also die eine Folie, die man ohnehin sieht.
@@ -867,6 +982,63 @@ async function main() {
     gleich(`${breite}×${hoehe}`, '2560×1440', 'Maß des Bildes');
     wahr(bytes.length > 20_000, `PNG zu klein: ${bytes.length} Bytes`);
     await seite.keyboard.press('Escape');
+  });
+
+  await pruefe('ein gescheiterter Export sagt es', async () => {
+    /*
+       Der Fehler, gegen den das steht: `console.error` und der Spinner ging
+       aus. Wer auf „PDF" klickte und dessen Export scheiterte, sah einen
+       Moment lang etwas laufen und danach nichts — kein Unterschied zu einem
+       Export, den man versehentlich abgebrochen hat.
+
+       Zum Scheitern gebracht wird er an der Stelle, an der jede Ausgabe
+       vorbeikommt: dem Aushändigen der Datei. Das ist keine erfundene Panne,
+       sondern die wahrscheinlichste — ein privates Fenster, ein voller
+       Datenträger, ein abgelehnter Zugriff.
+    */
+    await seite.evaluate(() => {
+      window.__objectUrl = URL.createObjectURL;
+      URL.createObjectURL = () => {
+        throw new Error('Die Datei ließ sich nicht anlegen');
+      };
+    });
+
+    await seite.getByRole('button', { name: 'Export', exact: true }).click();
+    await seite.waitForTimeout(300);
+    await seite
+      .locator('[role="menu"] button')
+      .filter({ hasText: 'SVG — diese Folie' })
+      .first()
+      .click();
+    await seite.waitForTimeout(1500);
+
+    const meldung = await seite.getByRole('alert').first().innerText();
+    wahr(/gescheitert/i.test(meldung), `keine Klage über den Export: ${meldung}`);
+    // Und der Grund steht dabei — ohne ihn ist eine Meldung nur ein Schulterzucken.
+    wahr(
+      meldung.includes('Die Datei ließ sich nicht anlegen'),
+      `der Grund fehlt in der Meldung: ${meldung}`,
+    );
+
+    // Weggeräumt wird sie mit einem Klick.
+    await seite.getByRole('button', { name: 'Hinweis schließen' }).click();
+    await seite.waitForTimeout(300);
+    gleich(await seite.getByRole('alert').count(), 0, 'die Meldung blieb stehen');
+
+    await seite.evaluate(() => {
+      URL.createObjectURL = window.__objectUrl;
+    });
+
+    /*
+       Diese eine Prüfung *erzeugt* einen Fehler, und der Weg schreibt ihn
+       zusätzlich auf die Konsole — zu Recht: wer einen Fehler meldet, soll
+       den Stapel dazu finden. Die Prüfung darunter würde ihn aber als
+       Beschwerde zählen. Herausgenommen wird deshalb genau der Satz, den wir
+       selbst geworfen haben, und kein anderer.
+    */
+    for (let i = fehler.length - 1; i >= 0; i -= 1) {
+      if (fehler[i].includes('Die Datei ließ sich nicht anlegen')) fehler.splice(i, 1);
+    }
   });
 
   console.log('\nSchutz der Arbeit:');

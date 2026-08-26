@@ -7,10 +7,8 @@
  */
 import { useEffect } from 'react';
 import { canvas } from '@/theme';
-import { exportMarkdown } from '@/lib/export';
-import { openMarkdownFile } from '@/lib/export/download';
 import { useDeckStore } from '@/state/deckStore';
-import { darfErsetzen } from '@/state/persistence';
+import { darfErsetzen, oeffneDeck, sichereDeck } from '@/state/persistence';
 
 /**
  * Ob der Zeiger gerade in einem Feld steht. Auch die Zwischenablage fragt
@@ -60,23 +58,13 @@ export function useKeyboardShortcuts(): void {
 
       if (mod && event.key.toLowerCase() === 's') {
         event.preventDefault();
-        void exportMarkdown(store.deck, {
-          filename: store.fileName,
-          handle: store.fileHandle,
-        }).then((result) => useDeckStore.getState().markSaved({ handle: result.handle }));
+        void sichereDeck();
         return;
       }
 
       if (mod && event.key.toLowerCase() === 'o') {
         event.preventDefault();
-        if (!darfErsetzen()) return;
-        void openMarkdownFile().then((file) => {
-          if (file) {
-            useDeckStore
-              .getState()
-              .loadMarkdown(file.text, { fileName: file.name, handle: file.handle });
-          }
-        });
+        void oeffneDeck();
         return;
       }
 
