@@ -210,7 +210,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Sechsundzwanzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Siebenundzwanzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
   `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
   Fassung passt nicht zur Bibliothek, deshalb
@@ -453,6 +453,37 @@ schon vorher nichts von dem Block, und trotzdem wäre nichts verloren gewesen,
 wenn er beim Schreiben wieder dagestanden hätte. Der Rauchtest legt die Sitzung
 deshalb über ein Startskript und nicht kurz vor dem Neuladen — dazwischen liegt
 `beforeunload`, und dort schreibt die Selbstsicherung den offenen Stand darüber.
+
+**Jeder getippte Buchstabe war ein Verlaufsschritt samt Tiefklon.** `history()`
+legte bei jeder Aktion ein `structuredClone` des ganzen Decks ab — auch bei
+jedem einzelnen Anschlag in einem Textfeld. Dreiundvierzig Zeichen waren
+dreiundvierzig Schritte: sie schoben alles davor aus den hundertzwanzig heraus,
+und ⌘Z nahm danach einen Buchstaben zurück statt der Änderung davor. Dazu
+hundertzwanzig Tiefklone eines Decks, das eingebettete Bilder tragen kann.
+
+Beides ist erledigt, und beides hat eine Bedingung.
+
+*Zusammengefasst* wird über einen Schlüssel: gleicher Handgriff auf dasselbe
+Ziel innerhalb von 600 ms ist ein Schritt. Der Merker zeigt dabei auf den
+Eintrag, den er selbst abgelegt hat — liegt der nicht mehr obenauf, hört die
+Zusammenfassung von selbst auf. Ein ⌘Z, ein geladenes Deck, ein `setState` im
+Test: alle drei tauschen ihn aus. Eine Liste von Stellen, an denen man einen
+Merker zurücksetzen *muss*, wäre eine Liste von Stellen, an denen man es
+vergisst.
+
+*Geteilt* wird, statt geklont: der Verlauf hält dieselben Folien- und
+Element-Objekte wie die Gegenwart. Das ist nur erlaubt, solange jede Aktion ihr
+Ergebnis aus neuen Objekten baut — ein `element.x = …` oder ein `push()` auf
+dem Array aus dem Zustand änderte sonst den Verlauf rückwirkend. Deshalb friert
+`deckStore.test.ts` das Deck ein und ruft vierundzwanzig Aktionen dagegen; wer
+künftig an Ort und Stelle ändert, bekommt einen TypeError statt eines stillen
+Fehlers.
+
+Und noch eine Falle steckt in der Prüfung selbst: **⌘Z im Textfeld gehört dem
+Browser.** `isTypingTarget` lässt es durch, damit ein ⌘Z im Notizfeld Text
+zurücknimmt und keine Folie. Der Rauchtest muss deshalb erst aus dem Feld
+heraus, sonst misst er die Rücknahme des Browsers — ein Anschlag — und meldet
+einen Fehler, den es nicht gibt.
 
 ---
 

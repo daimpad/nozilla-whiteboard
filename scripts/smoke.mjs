@@ -78,6 +78,23 @@ async function masse(seite) {
   );
 }
 
+/** Steht dieser Text auf der Folie? Gefragt wird das Bild, nicht das Feld. */
+async function stehtAufFolie(seite, text) {
+  return seite.evaluate((gesucht) => {
+    let folie = null;
+    for (const svg of document.querySelectorAll('svg')) {
+      const box = svg.getBoundingClientRect();
+      if (!folie || box.width * box.height > folie.flaeche) {
+        folie = { flaeche: box.width * box.height, svg };
+      }
+    }
+    if (!folie) return false;
+    return [...folie.svg.querySelectorAll('text')].some((el) =>
+      (el.textContent ?? '').includes(gesucht),
+    );
+  }, text);
+}
+
 /* -------------------------------------------------------------------------- */
 /* Der Server                                                                  */
 /* -------------------------------------------------------------------------- */
@@ -269,6 +286,55 @@ async function main() {
     // Dieselbe Linie wie die Karte darüber. Ein paar Einheiten Spiel für die
     // Seitenlage der ersten Glyphe.
     wahr(Math.abs(kante - 88) <= 6, `linke Kante des Label-Textes: ${kante} statt 88`);
+  });
+
+  await pruefe('ein getipptes Wort ist ein ⌘Z wert, kein Buchstabe', async () => {
+    const steht = (text) => stehtAufFolie(seite, text);
+    /*
+       Der Fehler, gegen den das steht: jeder Anschlag legte einen
+       Verlaufsschritt an — samt Tiefklon des ganzen Decks. Dreiundvierzig
+       Zeichen waren dreiundvierzig Schritte, schoben alles davor aus den
+       hundertzwanzig heraus, und ⌘Z nahm danach *einen Buchstaben* zurück.
+
+       Geprüft wird an der Oberfläche und nicht am Store, denn der Weg, um den
+       es geht, führt durch den Inspektor: `patch()` ruft `pushHistory()` und
+       gibt ihm den Schlüssel, an dem der Verlauf denselben Handgriff erkennt.
+       Ein Test am Store liefe an dieser Stelle vorbei.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
+    await seite.waitForTimeout(600);
+
+    await seite.getByRole('button', { name: 'Element', exact: true }).click();
+    await seite.waitForTimeout(300);
+    const feld = seite.locator('aside[aria-label="Inspektor"] textarea').first();
+    const vorher = await feld.inputValue();
+
+    await feld.click();
+    await seite.keyboard.press('Control+a');
+    await seite.keyboard.type('Handgeschrieben', { delay: 40 });
+    await seite.waitForTimeout(400);
+    gleich(await feld.inputValue(), 'Handgeschrieben', 'was im Feld steht');
+    wahr(await steht('Handgeschrieben'), 'das Getippte steht nicht auf der Folie');
+
+    /*
+       Vor dem ⌘Z aus dem Feld heraus — und das ist keine Umständlichkeit,
+       sondern der Weg. Solange der Zeiger im Feld steht, gehört ⌘Z dem
+       Browser (`isTypingTarget` in `useKeyboardShortcuts`), und der nimmt
+       einen Anschlag zurück, nicht einen Verlaufsschritt. Der erste Anlauf
+       dieser Prüfung maß genau das und meldete „Handgeschriebe".
+    */
+    const kasten = await seite.locator('svg').last().boundingBox();
+    await seite.mouse.click(kasten.x + kasten.width * 0.92, kasten.y + kasten.height * 0.92);
+    await seite.waitForTimeout(300);
+
+    await seite.keyboard.press('Control+z');
+    await seite.waitForTimeout(500);
+
+    // Ein einziges ⌘Z bringt den ganzen Satz zurück auf den Stand davor.
+    wahr(await steht(vorher), `der Text nach einem ⌘Z — „${vorher}" fehlt auf der Folie`);
+    wahr(!(await steht('Handgeschrieben')), 'das Getippte steht immer noch auf der Folie');
   });
 
   await pruefe('zwei Bausteine lassen sich zu einer Gruppe zusammenfassen', async () => {

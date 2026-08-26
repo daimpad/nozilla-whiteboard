@@ -363,8 +363,15 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
   // Kasten gemeint ist, und „anpassen" träfe alle.
   const ueberlauf = elements.length === 1 && first ? overflowOf(first) : 0;
 
+  /*
+     Der Schlüssel sagt dem Verlauf, was für ein Handgriff das war: dieselben
+     Elemente, dasselbe Feld. Wer in ein Textfeld tippt, bekommt damit einen
+     Schritt statt einen je Anschlag — und wer danach das Feld wechselt, einen
+     neuen. Ohne ihn war ein getippter Satz vierzig Schritte, und ⌘Z nahm einen
+     Buchstaben zurück.
+  */
   const patch = (update: Partial<CanvasElement>, historic = true) => {
-    if (historic) pushHistory();
+    if (historic) pushHistory(`${ids.join()}:${Object.keys(update).join()}`);
     updateElements(ids, update);
   };
 

@@ -8,6 +8,11 @@
  * History discipline: atomic actions snapshot themselves. Continuous gestures
  * (drag, resize, rotate) call `pushHistory()` once when the gesture starts and
  * then use the plain mutators, so a drag is one undo step rather than sixty.
+ *
+ * Was sich nicht als Geste erkennen lässt — Tippen in ein Feld —, bekommt
+ * einen Schlüssel mit: gleicher Schlüssel kurz hintereinander heißt gleicher
+ * Handgriff und wird ein Schritt. Und der Schnappschuss ist kein Klon, sondern
+ * der Stand selbst; die Begründung steht bei `history()`.
  */
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
@@ -137,7 +142,7 @@ export interface EditorState {
   toggleGrid: () => void;
   setZoom: (zoom: number | 'fit') => void;
 
-  pushHistory: () => void;
+  pushHistory: (schluessel?: string) => void;
   undo: () => void;
   redo: () => void;
 }
@@ -211,13 +216,64 @@ function spalteFuer(element: CanvasElement): { w: number; h: number } {
   return { w: Math.min(element.w, insertColumnWidth), h: element.h };
 }
 
+/**
+ * Wie lange ein Handgriff derselbe bleibt.
+ *
+ * Sechshundert Millisekunden sind länger als der Abstand zwischen zwei
+ * Anschlägen und kürzer als eine Pause zum Nachdenken. Wer tippt, bekommt
+ * einen Schritt; wer aufhört und dann etwas anderes tut, bekommt einen neuen.
+ */
+const ZUSAMMENFASSEN_MS = 600;
+
 export const useDeckStore = create<EditorState>()((set, get) => {
-  /** Snapshot the deck for undo, then hand the caller a mutable draft. */
-  const history = (state: EditorState) => ({
-    past: [...state.past, cloneDeck(state.deck)].slice(-HISTORY_LIMIT),
-    future: [] as Deck[],
-    dirty: true,
-  });
+  /**
+   * Der zuletzt abgelegte Schritt — woraufhin und wann.
+   *
+   * `stand` ist der Eintrag, den dieser Lauf in `past` geschoben hat. Nur
+   * wenn er dort noch obenauf liegt, darf zusammengefasst werden; jedes ⌘Z,
+   * jedes geladene Deck und jedes `setState` im Test tauscht ihn aus und
+   * beendet die Zusammenfassung damit von selbst. Das ist Absicht: eine
+   * Liste von Stellen, an denen man den Merker zurücksetzen *muss*, wäre eine
+   * Liste von Stellen, an denen man es vergessen kann.
+   */
+  let letzterSchritt: { schluessel: string; zeit: number; stand: Deck } | null = null;
+
+  /**
+   * Den Stand vor der Änderung in den Verlauf legen.
+   *
+   * Zwei Dinge daran sind nicht selbstverständlich.
+   *
+   * **Kein Tiefklon.** Jede Aktion hier baut ihr Ergebnis aus neuen Objekten
+   * (`{ ...element, x }`, `slides.slice()`), fasst also nichts an, was schon
+   * im Verlauf liegt. Der Verlauf teilt sich deshalb alles Unveränderte mit
+   * der Gegenwart. Vorher war jeder Schritt ein `structuredClone` des ganzen
+   * Decks — bei einem Deck mit eingebetteten Bildern hundertzwanzigmal ein
+   * paar Megabyte, und das bei jedem einzelnen Tastendruck.
+   * `deckStore.test.ts` friert das Deck ein und ruft die Aktionen dagegen;
+   * wer künftig an Ort und Stelle ändert, bekommt einen TypeError.
+   *
+   * **Zusammengefasst.** Ein getippter Buchstabe war ein Verlaufsschritt.
+   * Dreiundvierzig Zeichen in einem Feld waren dreiundvierzig Schritte,
+   * schoben alles andere aus den hundertzwanzig heraus, und ⌘Z nahm danach
+   * einen Buchstaben zurück. Gleiche Aktion auf dasselbe Ziel innerhalb von
+   * `ZUSAMMENFASSEN_MS` wird deshalb ein Schritt. Wer keinen Schlüssel
+   * mitgibt, bekommt wie bisher immer einen eigenen.
+   */
+  const history = (state: EditorState, schluessel?: string) => {
+    const jetzt = Date.now();
+    const fortsetzung =
+      schluessel !== undefined &&
+      letzterSchritt !== null &&
+      letzterSchritt.schluessel === schluessel &&
+      jetzt - letzterSchritt.zeit < ZUSAMMENFASSEN_MS &&
+      state.past[state.past.length - 1] === letzterSchritt.stand;
+
+    const past = fortsetzung ? state.past : [...state.past, state.deck].slice(-HISTORY_LIMIT);
+    letzterSchritt =
+      schluessel === undefined ? null : { schluessel, zeit: jetzt, stand: past[past.length - 1] };
+
+    return { past, future: [] as Deck[], dirty: true };
+  };
 
   const currentSlide = (state: EditorState): Slide | undefined =>
     state.deck.slides[state.slideIndex];
@@ -335,7 +391,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
 
     setDeckMeta: (patch) =>
       set((state) => ({
-        ...history(state),
+        ...history(state, `deck:${Object.keys(patch).join()}`),
         deck: { ...state.deck, meta: { ...state.deck.meta, ...patch } },
       })),
 
@@ -486,13 +542,15 @@ export const useDeckStore = create<EditorState>()((set, get) => {
 
     setSlideMarkdown: (markdown, index) =>
       set((state) => ({
-        ...history(state),
+        ...history(state, `markdown:${index ?? state.slideIndex}`),
         deck: mapSlide(state, index ?? state.slideIndex, (slide) => ({ ...slide, markdown })),
       })),
 
     setSlideMeta: (patch, index) =>
       set((state) => ({
-        ...history(state),
+        // Nach Feld getrennt: erst das Layout, dann die Notizen sind zwei
+        // Handgriffe und sollen zwei Schritte sein.
+        ...history(state, `folie:${index ?? state.slideIndex}:${Object.keys(patch).join()}`),
         deck: mapSlide(state, index ?? state.slideIndex, (slide) => ({
           ...slide,
           meta: { ...slide.meta, ...patch },
@@ -879,7 +937,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
 
     /* ------------------------------------------------------------- history */
 
-    pushHistory: () => set((state) => history(state)),
+    pushHistory: (schluessel) => set((state) => history(state, schluessel)),
 
     undo: () =>
       set((state) => {
@@ -888,7 +946,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
         return {
           deck: previous,
           past: state.past.slice(0, -1),
-          future: [cloneDeck(state.deck), ...state.future].slice(0, HISTORY_LIMIT),
+          future: [state.deck, ...state.future].slice(0, HISTORY_LIMIT),
           slideIndex: Math.min(state.slideIndex, previous.slides.length - 1),
           selection: [],
           guides: [],
@@ -902,7 +960,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
         if (!next) return {};
         return {
           deck: next,
-          past: [...state.past, cloneDeck(state.deck)].slice(-HISTORY_LIMIT),
+          past: [...state.past, state.deck].slice(-HISTORY_LIMIT),
           future: state.future.slice(1),
           slideIndex: Math.min(state.slideIndex, next.slides.length - 1),
           selection: [],
