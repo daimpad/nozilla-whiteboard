@@ -3,9 +3,8 @@
  * options and the presentation switch.
  */
 import { useEffect, useRef, useState } from 'react';
-import { darfErsetzen, sichereDeck } from '@/state/persistence';
+import { darfErsetzen, grund, oeffneDeck, sichereDeck } from '@/state/persistence';
 import { brand, canvas as canvasTokens } from '@/theme';
-import { openMarkdownFile } from '@/lib/export/download';
 import { bundledDecks } from '@/decks';
 import {
   exportMarkdown,
@@ -37,7 +36,6 @@ export function TopBar() {
   const canUndo = useDeckStore(selectCanUndo);
   const canRedo = useDeckStore(selectCanRedo);
 
-  const loadMarkdown = useDeckStore((state) => state.loadMarkdown);
   const newDeck = useDeckStore((state) => state.newDeck);
   const setZoom = useDeckStore((state) => state.setZoom);
   const toggleGrid = useDeckStore((state) => state.toggleGrid);
@@ -50,12 +48,6 @@ export function TopBar() {
   const addSlide = useDeckStore((state) => state.addSlide);
 
   const [busy, setBusy] = useState<string | null>(null);
-
-  const handleOpen = async () => {
-    if (!darfErsetzen()) return;
-    const file = await openMarkdownFile();
-    if (file) loadMarkdown(file.text, { fileName: file.name, handle: file.handle });
-  };
 
   const handleSave = async () => {
     setBusy('Sichere');
@@ -88,7 +80,11 @@ export function TopBar() {
         }}
       />
       <BeispielMenu />
-      <IconButton icon="folder" label="Markdown-Deck öffnen (⌘O)" onClick={handleOpen} />
+      <IconButton
+        icon="folder"
+        label="Markdown-Deck öffnen (⌘O)"
+        onClick={() => void oeffneDeck()}
+      />
       <IconButton icon="download" label="Markdown sichern (⌘S)" onClick={handleSave} />
       <ExportMenu busy={busy} setBusy={setBusy} />
 
@@ -155,6 +151,8 @@ export function TopBar() {
           {busy}…
         </span>
       ) : null}
+
+      <Hinweis />
     </header>
   );
 }
@@ -170,9 +168,9 @@ export function TopBar() {
  * Rückfrage, sobald noch Ungesichertes daliegt.
  */
 function BeispielMenu() {
+  const loadMarkdown = useDeckStore((state) => state.loadMarkdown);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const loadMarkdown = useDeckStore((state) => state.loadMarkdown);
 
   useEffect(() => {
     if (!open) return;
@@ -229,6 +227,7 @@ function ExportMenu({
 }) {
   const deck = useDeckStore((state) => state.deck);
   const slideIndex = useDeckStore((state) => state.slideIndex);
+  const zeigeHinweis = useDeckStore((state) => state.zeigeHinweis);
   const [open, setOpen] = useState(false);
   // Wie die Schrift in die Datei kommt. Eine Entscheidung pro Export, kein
   // Deck-Zustand — sie hängt am Ziel (Bildschirm, Druckerei), nicht am Inhalt.
@@ -244,14 +243,29 @@ function ExportMenu({
     return () => document.removeEventListener('mousedown', close);
   }, [open]);
 
+  /*
+     Ein gescheiterter Export sagte nichts.
+
+     `console.error` und der Spinner ging aus: wer auf „PDF" klickte, sah einen
+     Moment lang etwas laufen und danach nichts. Keine Datei, keine Meldung,
+     kein Unterschied zu einem Export, den man versehentlich abgebrochen hat —
+     und der Unterschied ist genau der, auf den es ankommt.
+
+     Ein geschlossener Dateidialog bleibt stumm: das ist keine Panne, sondern
+     die Antwort „doch nicht".
+  */
   const run = async (label: string, task: () => Promise<unknown>) => {
     setOpen(false);
+    // Der nächste Versuch räumt den vorigen Hinweis weg — sonst stünde nach
+    // einem geglückten Export noch die Klage über den davor.
+    zeigeHinweis(null);
     setBusy(label);
     try {
       await task();
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
         console.error(error);
+        zeigeHinweis(`${label} — gescheitert. ${grund(error)}`);
       }
     } finally {
       setBusy(null);
@@ -380,5 +394,32 @@ function MenuItem({
         {hint ? <span className="block truncate text-[11px] text-ui-faint">{hint}</span> : null}
       </span>
     </button>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Der Hinweis, der nach einem Fehlschlag stehen bleibt.
+ *
+ * Er verschwindet **nicht** von selbst. Ein Hinweis, der sich nach drei
+ * Sekunden wegnimmt, ist für den gemacht, der gerade hinsieht — und wer gerade
+ * hinsieht, hat den Fehler ohnehin bemerkt. Weggenommen wird er mit einem
+ * Klick oder vom nächsten Versuch.
+ */
+function Hinweis() {
+  const text = useDeckStore((state) => state.hinweis);
+  const zeigeHinweis = useDeckStore((state) => state.zeigeHinweis);
+  if (!text) return null;
+
+  return (
+    <div
+      role="alert"
+      className="absolute left-1/2 top-14 z-toast flex max-w-xl -translate-x-1/2 items-start gap-2 border border-ui-warn bg-ui-warn-bg px-3 py-2 text-ui-body text-ui-ink shadow-ui-lg"
+    >
+      <Icon name="triangle-exclamation" size={15} className="mt-0.5 shrink-0 text-ui-warn" />
+      <span className="min-w-0">{text}</span>
+      <IconButton icon="xmark" label="Hinweis schließen" onClick={() => zeigeHinweis(null)} />
+    </div>
   );
 }

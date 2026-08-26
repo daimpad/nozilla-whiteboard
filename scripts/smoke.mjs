@@ -984,6 +984,63 @@ async function main() {
     await seite.keyboard.press('Escape');
   });
 
+  await pruefe('ein gescheiterter Export sagt es', async () => {
+    /*
+       Der Fehler, gegen den das steht: `console.error` und der Spinner ging
+       aus. Wer auf „PDF" klickte und dessen Export scheiterte, sah einen
+       Moment lang etwas laufen und danach nichts — kein Unterschied zu einem
+       Export, den man versehentlich abgebrochen hat.
+
+       Zum Scheitern gebracht wird er an der Stelle, an der jede Ausgabe
+       vorbeikommt: dem Aushändigen der Datei. Das ist keine erfundene Panne,
+       sondern die wahrscheinlichste — ein privates Fenster, ein voller
+       Datenträger, ein abgelehnter Zugriff.
+    */
+    await seite.evaluate(() => {
+      window.__objectUrl = URL.createObjectURL;
+      URL.createObjectURL = () => {
+        throw new Error('Die Datei ließ sich nicht anlegen');
+      };
+    });
+
+    await seite.getByRole('button', { name: 'Export', exact: true }).click();
+    await seite.waitForTimeout(300);
+    await seite
+      .locator('[role="menu"] button')
+      .filter({ hasText: 'SVG — diese Folie' })
+      .first()
+      .click();
+    await seite.waitForTimeout(1500);
+
+    const meldung = await seite.getByRole('alert').first().innerText();
+    wahr(/gescheitert/i.test(meldung), `keine Klage über den Export: ${meldung}`);
+    // Und der Grund steht dabei — ohne ihn ist eine Meldung nur ein Schulterzucken.
+    wahr(
+      meldung.includes('Die Datei ließ sich nicht anlegen'),
+      `der Grund fehlt in der Meldung: ${meldung}`,
+    );
+
+    // Weggeräumt wird sie mit einem Klick.
+    await seite.getByRole('button', { name: 'Hinweis schließen' }).click();
+    await seite.waitForTimeout(300);
+    gleich(await seite.getByRole('alert').count(), 0, 'die Meldung blieb stehen');
+
+    await seite.evaluate(() => {
+      URL.createObjectURL = window.__objectUrl;
+    });
+
+    /*
+       Diese eine Prüfung *erzeugt* einen Fehler, und der Weg schreibt ihn
+       zusätzlich auf die Konsole — zu Recht: wer einen Fehler meldet, soll
+       den Stapel dazu finden. Die Prüfung darunter würde ihn aber als
+       Beschwerde zählen. Herausgenommen wird deshalb genau der Satz, den wir
+       selbst geworfen haben, und kein anderer.
+    */
+    for (let i = fehler.length - 1; i >= 0; i -= 1) {
+      if (fehler[i].includes('Die Datei ließ sich nicht anlegen')) fehler.splice(i, 1);
+    }
+  });
+
   console.log('\nSchutz der Arbeit:');
 
   /*

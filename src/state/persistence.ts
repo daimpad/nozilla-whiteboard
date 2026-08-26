@@ -6,7 +6,7 @@
  * state is a file you could have written by hand. No database, no sync, no
  * server: the whole point of the tool.
  */
-import { exportMarkdown } from '@/lib/export';
+import { exportMarkdown, openMarkdownFile } from '@/lib/export';
 import { parseDeck, serializeDeck } from '@/lib/markdown/deck';
 import type { Deck } from '@/model/types';
 import { useDeckStore } from './deckStore';
@@ -148,8 +148,11 @@ export function darfErsetzen(): boolean {
  * unbehandelte Zusage.
  *
  * Zurück kommt, ob wirklich geschrieben wurde. Ein geschlossener Dialog ist
- * kein Fehler, sondern eine Antwort — alles andere fliegt weiter, damit die
- * Oberfläche es sagen kann.
+ * kein Fehler, sondern eine Antwort — alles andere wird **hier** gemeldet und
+ * nicht dem Aufrufer überlassen. Es gibt drei davon, und der auf `⌘S` hatte
+ * gar keine Fehlerbehandlung: dort endete ein Scheitern als unbehandelte
+ * Zusage in der Konsole, und der Benutzer sah nichts als ein Deck, das nicht
+ * gesichert war.
  */
 export async function sichereDeck(): Promise<boolean> {
   const state = useDeckStore.getState();
@@ -159,11 +162,48 @@ export async function sichereDeck(): Promise<boolean> {
       handle: state.fileHandle,
     });
     useDeckStore.getState().markSaved({ handle: result.handle });
+    useDeckStore.getState().zeigeHinweis(null);
     return true;
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') return false;
-    throw error;
+    useDeckStore.getState().zeigeHinweis(`Das Deck ließ sich nicht sichern. ${grund(error)}`);
+    return false;
   }
+}
+
+/**
+ * Ein Deck aus einer Datei holen.
+ *
+ * Dieselbe Geschichte wie beim Sichern, eine Tür weiter: den Weg gab es
+ * zweimal — im Knopf der Leiste und auf `⌘O` —, und die Fassung auf `⌘O` hatte
+ * keine Fehlerbehandlung. Die Frage vor dem Ersetzen steht jetzt ebenfalls
+ * hier, also an der einen Stelle, an der auch geladen wird.
+ */
+export async function oeffneDeck(): Promise<boolean> {
+  if (!darfErsetzen()) return false;
+  try {
+    const datei = await openMarkdownFile();
+    if (!datei) return false;
+    useDeckStore
+      .getState()
+      .loadMarkdown(datei.text, { fileName: datei.name, handle: datei.handle });
+    return true;
+  } catch (error) {
+    useDeckStore.getState().zeigeHinweis(`Die Datei ließ sich nicht öffnen. ${grund(error)}`);
+    return false;
+  }
+}
+
+/**
+ * Was von einem Fehler übrig bleibt, wenn ein Mensch ihn lesen soll.
+ *
+ * Der technische Satz bleibt stehen und wird nicht weggeglättet: wer einen
+ * Fehler meldet, braucht ihn, und wer ihn nicht braucht, überliest ihn.
+ */
+export function grund(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  const text = String(error);
+  return text === '[object Object]' ? 'Unbekannter Fehler.' : text;
 }
 
 /** Warn before leaving with unsaved changes. Returns an unsubscribe function. */

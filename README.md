@@ -196,6 +196,13 @@ liegt ein Strich auf der Unterkante und der Inspektor sagt, um wie viel — mit
 einem Knopf, der den Kasten anpasst. Auf der Fläche sähe man die Zeile sonst
 noch, im PDF stünde sie über dem Rand, und PowerPoint schnitte sie ab.
 
+**Was nicht klappt, sagt es.** Ein Export, der scheitert, eine Datei, die sich
+nicht öffnen lässt, ein Deck, das sich nicht sichern lässt — bisher stand das
+in der Browser-Konsole, und vor Augen kam ein Spinner, der wieder ausging.
+Jetzt steht der Grund im Fenster, bis man ihn wegklickt. Nur ein geschlossener
+Dateidialog bleibt stumm: das ist keine Panne, sondern die Antwort „doch
+nicht".
+
 **Eingesetzte Bilder werden auf ein vernünftiges Maß gebracht.** Ein Foto aus
 einem Telefon ist breiter als jede Ausgabe dieses Werkzeugs es zeigen kann;
 eingebettet in voller Auflösung sprengte ein einziges davon die Sitzungsablage
@@ -538,7 +545,7 @@ CI-Konformität aller 554 Icons.
 
 Das prüft alles, was das Werkzeug **herstellt**. Ob man es **bedienen** kann,
 prüft `npm run test:ui`: Playwright klickt gegen `vite preview`, also gegen
-das gebaute Verzeichnis. Achtundzwanzig Handgriffe, jeder für einen Fehler,
+das gebaute Verzeichnis. Neunundzwanzig Handgriffe, jeder für einen Fehler,
 der einmal durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
 ihrem Kasten, eine Vorschau schwarz auf dunkelgrau. Beides läuft bei jedem
 Pull Request.

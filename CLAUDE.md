@@ -210,7 +210,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Achtundzwanzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Neunundzwanzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
   `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
   Fassung passt nicht zur Bibliothek, deshalb
@@ -541,6 +541,38 @@ nicht. Eine Regel, deren Gegenrichtung niemand prüft, ist eine halbe Regel.
 Und wo es trotzdem nicht reicht, steht es jetzt quer über dem Fenster. Eine
 Warnung in der Leiste wäre zu leise für den Satz „von hier an sichert sich
 nichts mehr".
+
+**Ein gescheiterter Export sagte nichts.** `console.error` und der Spinner ging
+aus: wer auf „PDF" klickte und dessen Export scheiterte, sah einen Moment lang
+etwas laufen und danach nichts — kein Unterschied zu einem Export, den man
+versehentlich abgebrochen hat. Und genau der Unterschied ist der, auf den es
+ankommt. Der `⌘S`-Weg war noch eine Stufe schlimmer: gar keine
+Fehlerbehandlung, ein Scheitern endete als unbehandelte Zusage.
+
+Der Hinweis steht deshalb im Store und nicht in der Leiste. Drei Stellen setzen
+ihn — das Export-Menü, `sichereDeck()` und `oeffneDeck()` —, und läge er in der
+Leiste, hätten die anderen beiden keinen Weg dorthin. Genau deshalb schrieben
+sie vorher auf die Konsole.
+
+Drei Regeln, die daran hängen. Ein **geschlossener Dateidialog** bleibt stumm:
+das ist keine Panne, sondern die Antwort „doch nicht", und eine Klage darüber
+wäre schlimmer als keine. Der **technische Satz bleibt stehen** — wer einen
+Fehler meldet, braucht ihn, und wer ihn nicht braucht, überliest ihn. Und der
+Hinweis **verschwindet nicht von selbst**: einer, der sich nach drei Sekunden
+wegnimmt, ist für den gemacht, der gerade hinsieht — und wer gerade hinsieht,
+hat den Fehler ohnehin bemerkt.
+
+Der Rauchtest bringt den Export dafür wirklich zum Scheitern, und zwar an der
+Stelle, an der jede Ausgabe vorbeikommt: dem Aushändigen der Datei. Damit
+schreibt der Weg zu Recht auch auf die Konsole — und die Prüfung „nichts hat
+sich in der Konsole beschwert" zählte das als Beschwerde. Herausgenommen wird
+deshalb genau der Satz, den die Prüfung selbst geworfen hat, und kein anderer.
+
+Und die Gegenprobe dazu ist selbst in die alte Falle getappt: die erste
+Sabotage entfernte den Ruf, ließ damit einen Import ungenutzt, `tsc` brach ab —
+und `npm run test:ui` lief wegen des `&&` gar nicht erst. Diesmal fiel es auf,
+weil gar keine Zahl kam. Eine Sabotage muss **bauen**, sonst prüft sie den
+vorigen Stand.
 
 ---
 
