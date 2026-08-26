@@ -337,6 +337,56 @@ async function main() {
     wahr(!(await steht('Handgeschrieben')), 'das Getippte steht immer noch auf der Folie');
   });
 
+  await pruefe('ein Element ist auch ohne Maus zu erreichen', async () => {
+    /*
+       Der Fehler, gegen den das steht: es gab keinen Weg, *ein* Element
+       auszuwählen, ohne darauf zu klicken. Die Pfeiltasten schoben eine
+       Auswahl, `⌘A` nahm alle — aber wer nicht zeigen kann, kam an keines.
+
+       Erreichbar sind sie jetzt über die Tab-Reihenfolge des Browsers und
+       nicht über eine abgefangene Taste. Der Unterschied ist der zweite Teil
+       dieser Prüfung: `Tab` muss auch wieder **heraus**führen. Wer die Taste
+       abfängt, mit der man weiterkommt, sperrt den Benutzer in dem Bereich
+       ein, den er gerade erreicht hat.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
+    await seite.waitForTimeout(600);
+    await seite.keyboard.press('Escape');
+    await seite.waitForTimeout(300);
+
+    // Die Griffe liegen im Kasten der Fläche, also *hinter* der Folie: ein
+    // Schritt zurück landet auf dem letzten Element.
+    await seite.locator('[data-panel-handle="library"]').focus();
+    await seite.keyboard.press('Shift+Tab');
+    await seite.waitForTimeout(400);
+
+    const daran = await seite.evaluate(() => {
+      const el = document.activeElement;
+      return {
+        id: el?.getAttribute?.('data-element-id') ?? null,
+        ansage: el?.getAttribute?.('aria-label') ?? null,
+      };
+    });
+    wahr(Boolean(daran.id), 'der Zeiger landete auf keinem Element');
+    // Und er sagt an, was da liegt — „Grafik" hülfe niemandem beim Suchen.
+    wahr(/Karte/.test(daran.ansage ?? ''), `Ansage des Elements: ${daran.ansage}`);
+
+    // Ausgewählt ist es damit auch: der Inspektor zeigt seine Maße.
+    const [, , breite] = await masse(seite);
+    wahr(breite > 0, `keine Auswahl nach dem Tabben: Breite ${breite}`);
+
+    /* ------------------------------------------------- und wieder hinaus */
+    await seite.locator('[data-panel-handle="library"]').focus();
+    for (let schritt = 0; schritt < 6; schritt += 1) await seite.keyboard.press('Tab');
+    await seite.waitForTimeout(300);
+    const draussen = await seite.evaluate(() =>
+      Boolean(document.activeElement?.closest('.nz-stage svg')),
+    );
+    wahr(!draussen, 'Tab kam aus der Folie nicht wieder heraus');
+  });
+
   await pruefe('zwei Bausteine lassen sich zu einer Gruppe zusammenfassen', async () => {
     // Mehrfachauswahl gab es, Gruppieren nicht — wer eine Karte samt Zeichen
     // verschieben wollte, musste jedes Mal neu einrahmen.

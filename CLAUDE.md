@@ -210,7 +210,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Dreißig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Einunddreißig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
   `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
   Fassung passt nicht zur Bibliothek, deshalb
@@ -603,6 +603,30 @@ Und der Melder sitzt an der **einen** Stelle, an der Bilder geladen werden.
 Ein sechster Ausgabeweg bekommt ihn damit umsonst; die Alternative wäre, ihn
 durch jeden Weg einzeln durchzureichen, und wie das ausgeht, steht ein paar
 Absätze weiter oben unter „Sechs Wege ersetzten das Deck, einer fragte".
+
+**`Tab` abzufangen hätte die Fläche geöffnet und die Leiste zugesperrt.** Es
+gab keinen Weg, *ein* Element auszuwählen, ohne darauf zu klicken. Der
+naheliegende Griff wäre gewesen, `Tab` in `useKeyboardShortcuts` abzufangen und
+die Auswahl weiterzuschieben — und damit die Taste zu belegen, mit der man
+überhaupt weiterkommt. Wer sie abfängt, sperrt den Benutzer in dem Bereich ein,
+den er gerade erreicht hat.
+
+Erreichbar sind die Elemente jetzt über die Tab-Reihenfolge des Browsers:
+`tabindex`, `role="button"` und ein `aria-label` an jedem `<g>`. Die
+Reihenfolge ist die Malreihenfolge, weil die Knoten so im Baum stehen, und am
+Ende der Folie geht es weiter zur nächsten Leiste. Ausdrücklich **nur auf der
+Arbeitsfläche** (`focusable`): dieselbe Ansicht zeichnet die Kacheln des
+Filmstreifens, die Übersicht und den Vortrag, und dort wären sechs Folien mit
+je zehn Elementen sechzig Tabs bis zum nächsten Knopf.
+
+Und eine Warnung an den Nächsten, der hier aufräumen will: **`role="img"` am
+`<svg>` blockiert nichts.** Die erste Fassung dieses Kommentars behauptete, es
+halte `Tab` aus dem Baum heraus, und die Sabotage widerlegte das — der
+Rauchtest blieb grün, als das `img` zurückkam. Nachgemessen wurde danach
+beides, Tab-Reihenfolge und Barrierebaum über CDP: kein Unterschied. Die Rolle
+steht trotzdem auf `group`, weil ein Bild mit Knöpfen darin dem ARIA-Modell
+widerspricht — aber sie ist nicht der Grund, warum es geht. Der Grund ist der
+`tabindex`, und daran hängt auch die Prüfung.
 
 ---
 
