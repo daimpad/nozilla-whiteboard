@@ -19,6 +19,7 @@ import {
 } from '@/lib/prompt/buildPrompt';
 import { parseDeck } from '@/lib/markdown/deck';
 import { useDeckStore } from '@/state/deckStore';
+import { darfErsetzen } from '@/state/persistence';
 import { Button, Field, IconButton, Select, cx } from '@/components/ui/controls';
 
 export function PromptStudio() {
@@ -59,6 +60,7 @@ export function PromptStudio() {
       return;
     }
     setImportError(null);
+    if (!darfErsetzen()) return;
     loadMarkdown(cleaned, { fileName: 'entwurf.md' });
     close(false);
   };

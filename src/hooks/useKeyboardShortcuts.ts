@@ -10,6 +10,7 @@ import { canvas } from '@/theme';
 import { exportMarkdown } from '@/lib/export';
 import { openMarkdownFile } from '@/lib/export/download';
 import { useDeckStore } from '@/state/deckStore';
+import { darfErsetzen } from '@/state/persistence';
 
 /**
  * Ob der Zeiger gerade in einem Feld steht. Auch die Zwischenablage fragt
@@ -68,6 +69,7 @@ export function useKeyboardShortcuts(): void {
 
       if (mod && event.key.toLowerCase() === 'o') {
         event.preventDefault();
+        if (!darfErsetzen()) return;
         void openMarkdownFile().then((file) => {
           if (file) {
             useDeckStore
@@ -80,6 +82,7 @@ export function useKeyboardShortcuts(): void {
 
       if (mod && event.shiftKey && event.key.toLowerCase() === 'n') {
         event.preventDefault();
+        if (!darfErsetzen()) return;
         store.newDeck();
         return;
       }

@@ -162,6 +162,22 @@ export function parseSlide(chunk: string): Slide {
   if (match) {
     const raw = unescapeCommentTerminators(match[1]);
     const data = safeLoadYaml(raw);
+    if ((!data || typeof data !== 'object' || Array.isArray(data)) && raw.trim() !== '') {
+      /*
+         Der Block ist da, aber nicht lesbar.
+
+         Ihn wie „kein Block" zu behandeln war der Fehler: Layout fiel auf die
+         Vorgabe, die Elemente verschwanden, und der Rohtext wurde unten aus
+         dem Markdown geschnitten. Beim nächsten Sichern stand er in keiner
+         Datei mehr. Er bleibt jetzt hier liegen und wird beim Sichern
+         wortgleich zurückgeschrieben.
+
+         Ein *leerer* Block ist kein Fehler, sondern nur nichts — er sagt
+         dasselbe wie gar kein Block und darf keine Warnung auslösen. Deshalb
+         die Prüfung auf `raw.trim()`.
+      */
+      meta.unreadable = match[1];
+    }
     if (data && typeof data === 'object' && !Array.isArray(data)) {
       const record = data as Record<string, unknown>;
       meta = {
@@ -299,6 +315,18 @@ function buildDeckFrontmatter(meta: DeckMeta): string | null {
 }
 
 function buildSlideMetaBlock(slide: Slide): string | null {
+  /*
+     Ein Block, der sich nicht lesen ließ, geht unverändert zurück.
+
+     Nichts von dem, was er meinte, ist im Modell angekommen — ihn aus dem
+     Modell neu zu bauen hieße, ihn durch einen leeren zu ersetzen. Wortgleich
+     zurückgeschrieben bleibt die Arbeit erhalten, und wer den Tippfehler
+     findet, hat sein Deck wieder.
+  */
+  if (slide.meta.unreadable !== undefined) {
+    return `<!-- ${META_TAG}${slide.meta.unreadable}-->`;
+  }
+
   const data: Record<string, unknown> = {};
   if (slide.meta.layout !== DEFAULT_SLIDE_META.layout) data.layout = slide.meta.layout;
   if (slide.meta.transition !== DEFAULT_SLIDE_META.transition)

@@ -196,6 +196,25 @@ liegt ein Strich auf der Unterkante und der Inspektor sagt, um wie viel — mit
 einem Knopf, der den Kasten anpasst. Auf der Fläche sähe man die Zeile sonst
 noch, im PDF stünde sie über dem Rand, und PowerPoint schnitte sie ab.
 
+**⌘Z nimmt einen Handgriff zurück, keinen Buchstaben.** Wer einen Satz in ein
+Feld tippt, bekommt dafür einen Verlaufsschritt und nicht vierzig — und der
+Verlauf teilt sich mit der Gegenwart alles, was sich nicht geändert hat, statt
+das ganze Deck hundertzwanzigmal zu kopieren. Ein Feldwechsel oder eine kurze
+Pause fängt einen neuen Schritt an.
+
+**Ein Tippfehler im Dateiformat löscht nichts.** Eine Folie trägt ihre Elemente
+in einem YAML-Block im Markdown, und der lässt sich von Hand verderben — ein
+Doppelpunkt zu viel in einem Text genügt. Früher war die Folie danach leer, und
+beim nächsten Sichern war der Block fort. Jetzt bleibt er Zeichen für Zeichen
+stehen, der Inspektor sagt, dass er nicht lesbar war, und wer den Tippfehler
+geradebiegt, hat seine Folie zurück.
+
+**Nichts wird ersetzt, ohne zu fragen.** Wer ein neues Deck anlegt, eines
+öffnet, eine Datei ins Fenster zieht oder einen Entwurf aus dem Prompt
+übernimmt, wird gefragt — aber nur, wenn wirklich ungesicherte Arbeit im Weg
+steht. Ein frisch geladenes Deck ist nicht ungesichert, also hält niemanden
+etwas auf, der drei Beispiele hintereinander ansieht.
+
 **Die drei Leisten gehen zu.** Bausteine, Filmstreifen und Inspektor nehmen
 zusammen 568 Pixel Breite und 104 Pixel Höhe — auf einem Laptop gut ein Drittel
 des Fensters. Der Griff sitzt an der Kante der Fläche, also auf der Seite, die
@@ -511,8 +530,8 @@ CI-Konformität aller 554 Icons.
 
 Das prüft alles, was das Werkzeug **herstellt**. Ob man es **bedienen** kann,
 prüft `npm run test:ui`: Playwright klickt gegen `vite preview`, also gegen
-das gebaute Verzeichnis. Neun Handgriffe, jeder für einen Fehler, der einmal
-durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
+das gebaute Verzeichnis. Siebenundzwanzig Handgriffe, jeder für einen Fehler,
+der einmal durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
 ihrem Kasten, eine Vorschau schwarz auf dunkelgrau. Beides läuft bei jedem
 Pull Request.
 

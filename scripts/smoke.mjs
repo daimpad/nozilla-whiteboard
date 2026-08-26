@@ -3,7 +3,7 @@
  *
  * ## Warum es ihn gibt
  *
- * Die 3589 Unit-Tests prüfen, was das Werkzeug *herstellt* — Szene, Markup,
+ * Die rund 3700 Unit-Tests prüfen, was das Werkzeug *herstellt* — Szene, Markup,
  * PDF, PPTX. Sie prüfen nicht, ob man es *bedienen* kann. Der Unterschied ist
  * nicht theoretisch: die vier Fehler, die zuletzt gefunden wurden, waren alle
  * grün.
@@ -76,6 +76,23 @@ async function masse(seite) {
       .slice(0, 4)
       .map((el) => Number(el.value)),
   );
+}
+
+/** Steht dieser Text auf der Folie? Gefragt wird das Bild, nicht das Feld. */
+async function stehtAufFolie(seite, text) {
+  return seite.evaluate((gesucht) => {
+    let folie = null;
+    for (const svg of document.querySelectorAll('svg')) {
+      const box = svg.getBoundingClientRect();
+      if (!folie || box.width * box.height > folie.flaeche) {
+        folie = { flaeche: box.width * box.height, svg };
+      }
+    }
+    if (!folie) return false;
+    return [...folie.svg.querySelectorAll('text')].some((el) =>
+      (el.textContent ?? '').includes(gesucht),
+    );
+  }, text);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -269,6 +286,55 @@ async function main() {
     // Dieselbe Linie wie die Karte darüber. Ein paar Einheiten Spiel für die
     // Seitenlage der ersten Glyphe.
     wahr(Math.abs(kante - 88) <= 6, `linke Kante des Label-Textes: ${kante} statt 88`);
+  });
+
+  await pruefe('ein getipptes Wort ist ein ⌘Z wert, kein Buchstabe', async () => {
+    const steht = (text) => stehtAufFolie(seite, text);
+    /*
+       Der Fehler, gegen den das steht: jeder Anschlag legte einen
+       Verlaufsschritt an — samt Tiefklon des ganzen Decks. Dreiundvierzig
+       Zeichen waren dreiundvierzig Schritte, schoben alles davor aus den
+       hundertzwanzig heraus, und ⌘Z nahm danach *einen Buchstaben* zurück.
+
+       Geprüft wird an der Oberfläche und nicht am Store, denn der Weg, um den
+       es geht, führt durch den Inspektor: `patch()` ruft `pushHistory()` und
+       gibt ihm den Schlüssel, an dem der Verlauf denselben Handgriff erkennt.
+       Ein Test am Store liefe an dieser Stelle vorbei.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
+    await seite.waitForTimeout(600);
+
+    await seite.getByRole('button', { name: 'Element', exact: true }).click();
+    await seite.waitForTimeout(300);
+    const feld = seite.locator('aside[aria-label="Inspektor"] textarea').first();
+    const vorher = await feld.inputValue();
+
+    await feld.click();
+    await seite.keyboard.press('Control+a');
+    await seite.keyboard.type('Handgeschrieben', { delay: 40 });
+    await seite.waitForTimeout(400);
+    gleich(await feld.inputValue(), 'Handgeschrieben', 'was im Feld steht');
+    wahr(await steht('Handgeschrieben'), 'das Getippte steht nicht auf der Folie');
+
+    /*
+       Vor dem ⌘Z aus dem Feld heraus — und das ist keine Umständlichkeit,
+       sondern der Weg. Solange der Zeiger im Feld steht, gehört ⌘Z dem
+       Browser (`isTypingTarget` in `useKeyboardShortcuts`), und der nimmt
+       einen Anschlag zurück, nicht einen Verlaufsschritt. Der erste Anlauf
+       dieser Prüfung maß genau das und meldete „Handgeschriebe".
+    */
+    const kasten = await seite.locator('svg').last().boundingBox();
+    await seite.mouse.click(kasten.x + kasten.width * 0.92, kasten.y + kasten.height * 0.92);
+    await seite.waitForTimeout(300);
+
+    await seite.keyboard.press('Control+z');
+    await seite.waitForTimeout(500);
+
+    // Ein einziges ⌘Z bringt den ganzen Satz zurück auf den Stand davor.
+    wahr(await steht(vorher), `der Text nach einem ⌘Z — „${vorher}" fehlt auf der Folie`);
+    wahr(!(await steht('Handgeschrieben')), 'das Getippte steht immer noch auf der Folie');
   });
 
   await pruefe('zwei Bausteine lassen sich zu einer Gruppe zusammenfassen', async () => {
@@ -801,6 +867,122 @@ async function main() {
     gleich(`${breite}×${hoehe}`, '2560×1440', 'Maß des Bildes');
     wahr(bytes.length > 20_000, `PNG zu klein: ${bytes.length} Bytes`);
     await seite.keyboard.press('Escape');
+  });
+
+  console.log('\nSchutz der Arbeit:');
+
+  /*
+     Diese Prüfung steht am Ende, und das ist Absicht: sie legt ein neues Deck
+     an, und alles danach liefe auf einer leeren Folie.
+  */
+  await pruefe('ein neues Deck fragt, bevor es das offene ersetzt', async () => {
+    /*
+       Der Fehler, gegen den das hier steht: sechs Wege ersetzten das Deck,
+       genau einer fragte. Wer danebengriff, verlor die ungesicherte Arbeit
+       samt Verlauf — und die Selbstsicherung schrieb den Verlust
+       siebenhundert Millisekunden später fest.
+
+       Gemessen wird das *Deck*, nicht der Dialog. Eine Prüfung, die nur
+       nachsähe, ob ein Fenster aufging, hielte auch dann, wenn danach
+       trotzdem geladen würde.
+    */
+    const folien = async () =>
+      Number((await seite.locator('header span.tabular-nums').first().innerText()).split('/')[1]);
+
+    // Etwas Ungesichertes anlegen — ohne `dirty` fragt niemand, und das ist
+    // richtig so.
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(600);
+    const vorher = await folien();
+    wahr(vorher > 1, `zu wenige Folien zum Prüfen: ${vorher}`);
+
+    // Abgelehnt: das Deck bleibt.
+    const ablehnen = (dialog) => void dialog.dismiss();
+    seite.on('dialog', ablehnen);
+    await seite.keyboard.press('Control+Shift+KeyN');
+    await seite.waitForTimeout(900);
+    seite.off('dialog', ablehnen);
+    gleich(await folien(), vorher, 'das Deck überlebte die Ablehnung nicht');
+
+    // Angenommen: jetzt darf es weg.
+    const annehmen = (dialog) => void dialog.accept();
+    seite.on('dialog', annehmen);
+    await seite.keyboard.press('Control+Shift+KeyN');
+    await seite.waitForTimeout(900);
+    seite.off('dialog', annehmen);
+    gleich(await folien(), 1, 'das neue Deck kam nicht');
+  });
+
+  await pruefe('ein unlesbarer Block überlebt das Sichern', async () => {
+    /*
+       Der Fehler, gegen den das hier steht: ein Doppelpunkt zu viel im YAML
+       eines `nzl`-Blocks — im deutschen Text einer Karte die wahrscheinlichste
+       Stelle — machte die Folie lautlos leer. Layout auf Vorgabe, Elemente
+       weg, und beim nächsten Sichern stand der Block in keiner Datei mehr.
+       Der Fließtext blieb stehen; die Folie sah deshalb nicht kaputt aus,
+       sondern nur leer.
+
+       Geprüft wird die *gesicherte Datei*, nicht das Modell. Der Unterschied
+       ist genau der Fehler: das Modell wusste schon vorher nichts von dem
+       Block, und trotzdem hätte niemand etwas verloren, wenn er beim
+       Schreiben wieder dagestanden hätte.
+    */
+    const ZEILE = 'text: Achtung: hier steht ein Doppelpunkt zu viel';
+    const KAPUTT = [
+      '<!-- nzl',
+      'layout: canvas',
+      'elements:',
+      '  - id: card-1',
+      '    kind: card',
+      '    x: 80',
+      '    y: 80',
+      '    w: 480',
+      '    h: 220',
+      `    ${ZEILE}`,
+      '-->',
+      '',
+      '# Eine Folie, deren Block nicht lesbar ist',
+      '',
+    ].join('\n');
+
+    /*
+       Gelegt wird die Sitzung über ein Startskript und nicht über ein
+       `evaluate` vor dem Neuladen — dazwischen liegt `beforeunload`, und dort
+       schreibt die Selbstsicherung den *offenen* Stand über das eben Gelegte.
+       Der erste Anlauf las danach das Willkommens-Deck und meldete, der
+       Inspektor sage nichts.
+
+       Das Startskript gilt von hier an für jede Navigation; deshalb steht
+       diese Prüfung am Ende.
+    */
+    await seite.addInitScript((md) => {
+      localStorage.setItem(
+        'nozilla-whiteboard:session:v1',
+        JSON.stringify({ markdown: md, fileName: 'kaputt.md', slideIndex: 0, savedAt: 1 }),
+      );
+    }, KAPUTT);
+    await seite.reload({ waitUntil: 'networkidle' });
+    await seite.waitForTimeout(1500);
+
+    // Sichtbar sein muss es auch: eine Folie, der die Elemente fehlen, ohne
+    // dass irgendwo steht warum, ist der halbe Fehler.
+    wahr(
+      (await seite.getByText('ließ sich nicht lesen').count()) === 1,
+      'der Inspektor sagt nichts über den unlesbaren Block',
+    );
+
+    // Etwas ändern, das die Folie *nicht* anfasst — sonst gäbe das Werkzeug
+    // den Rohtext zu Recht auf. Eine neue Folie reicht und stößt die
+    // Selbstsicherung an.
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(1400);
+
+    const gesichert = await seite.evaluate(() => {
+      const roh = localStorage.getItem('nozilla-whiteboard:session:v1');
+      return roh ? String(JSON.parse(roh).markdown) : '';
+    });
+    wahr(gesichert.length > 0, 'nichts gesichert');
+    wahr(gesichert.includes(ZEILE), 'der unlesbare Block fehlt in der gesicherten Datei');
   });
 
   await pruefe('nichts hat sich in der Konsole beschwert', async () => {

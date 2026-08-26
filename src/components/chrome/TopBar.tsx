@@ -3,6 +3,7 @@
  * options and the presentation switch.
  */
 import { useEffect, useRef, useState } from 'react';
+import { darfErsetzen } from '@/state/persistence';
 import { brand, canvas as canvasTokens } from '@/theme';
 import { openMarkdownFile } from '@/lib/export/download';
 import { bundledDecks } from '@/decks';
@@ -53,6 +54,7 @@ export function TopBar() {
   const [busy, setBusy] = useState<string | null>(null);
 
   const handleOpen = async () => {
+    if (!darfErsetzen()) return;
     const file = await openMarkdownFile();
     if (file) loadMarkdown(file.text, { fileName: file.name, handle: file.handle });
   };
@@ -81,7 +83,13 @@ export function TopBar() {
 
       <Divider className="mx-1" />
 
-      <IconButton icon="file-lines" label="Neues Deck (⌘⇧N)" onClick={newDeck} />
+      <IconButton
+        icon="file-lines"
+        label="Neues Deck (⌘⇧N)"
+        onClick={() => {
+          if (darfErsetzen()) newDeck();
+        }}
+      />
       <BeispielMenu />
       <IconButton icon="folder" label="Markdown-Deck öffnen (⌘O)" onClick={handleOpen} />
       <IconButton icon="download" label="Markdown sichern (⌘S)" onClick={handleSave} />
@@ -168,7 +176,6 @@ function BeispielMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const loadMarkdown = useDeckStore((state) => state.loadMarkdown);
-  const dirty = useDeckStore((state) => state.dirty);
 
   useEffect(() => {
     if (!open) return;
@@ -180,7 +187,10 @@ function BeispielMenu() {
   }, [open]);
 
   const oeffne = (deck: (typeof bundledDecks)[number]) => {
-    if (dirty && !confirm('Das offene Deck ist nicht gesichert. Trotzdem ersetzen?')) return;
+    // Die Frage stand ursprünglich hier — als einzige von sechs Stellen.
+    // Jetzt steht sie in `darfErsetzen()`, und die anderen fünf stellen sie
+    // auch.
+    if (!darfErsetzen()) return;
     loadMarkdown(deck.source, { fileName: deck.file });
     setOpen(false);
   };

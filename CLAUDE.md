@@ -210,8 +210,8 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Neun Handgriffe, die je einen Fehler abbilden,
-  der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
+  gegen das gebaute Verzeichnis. Siebenundzwanzig Handgriffe, die je einen
+  Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
   `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
   Fassung passt nicht zur Bibliothek, deshalb
   `SMOKE_CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
@@ -360,6 +360,21 @@ Die erste Fassung der Rauchtest-Prüfung maß, wo die Zahlenspalte steht — und
 Tabelle, und die ist bei gleich breiten Spalten dieselbe. Gemessen wird jetzt
 die *linksbündige* letzte Spalte, denn die verrät, wo ihre Spalte anfängt.
 
+**Sechs Wege ersetzten das Deck, einer fragte.** „Neues Deck", „Öffnen",
+`⌘⇧N`, `⌘O`, eine Datei ins Fenster gezogen, die Übernahme aus dem Prompt — und
+nur das Beispiel-Menü stellte die Frage. Die anderen luden durch, leerten
+dabei `past` und `future`, und siebenhundert Millisekunden später schrieb die
+Selbstsicherung den neuen Stand über die gemerkte Sitzung. Die Frage steht
+jetzt in `darfErsetzen()`, und `replaceGuard.test.ts` liest die Quellen wie
+`theme.test.ts`: wer einen siebenten Weg baut, wird gefragt, ob er auch fragt.
+
+Der Wächter selbst hat dabei zwei Anläufe gebraucht. Der erste ließ eine
+Erwähnung im *Kommentar* gelten — die Sabotage entfernte den Ruf, der Satz
+darüber blieb stehen, und das Sieb war zufrieden. Der zweite schnitt die
+Kommentare heraus und verschob damit die Zeilennummern, sodass der Rückblick
+auf den Ausnahmevermerk ins Leere zeigte. Kommentare werden jetzt *geleert*,
+nicht entfernt.
+
 **Der Bildschirm ersetzt eine fehlende Glyphe, die Datei nicht.** Die
 Tastentabelle des Willkommens-Decks setzt ihre Kürzel in Backticks, also in
 `codeInline`, also in Space Mono — und Space Mono führt `⌘`, `⌫`, `⇧` und `⌥`
@@ -416,6 +431,59 @@ richtigen Glyphen da sind. `src/theme/fonts.ts` fordert deshalb jeden Schnitt
 mit `document.fonts.load()` an und zählt danach einen Zähler hoch, an dem die
 Fläche hängt — den Messpuffer zu leeren reicht nicht, ohne Zustandsänderung
 zeichnet React nicht neu.
+
+**Ein unlesbarer `nzl`-Block war ein stiller Löschbefehl.** Ein Doppelpunkt zu
+viel im YAML — im deutschen Text einer Karte die wahrscheinlichste Stelle —
+und `parseSlide` fiel auf die Vorgaben zurück: Layout `default`, keine
+Elemente. Der Fließtext blieb stehen, die Folie sah also nicht kaputt aus,
+sondern *leer*. Und weil der Block beim Sichern aus dem Modell neu gebaut wird,
+stand er danach in keiner Datei mehr: Öffnen und Speichern genügte, um eine
+Folie voller Arbeit endgültig zu verlieren.
+
+Der Rohtext bleibt jetzt in `SlideMeta.unreadable` liegen und wird wortgleich
+zurückgeschrieben — dieselbe Linie wie bei einem unbekannten `theme:` im
+Frontmatter: den Wert behalten, die Lücke zeigen. Daran hängen zwei Dinge, die
+leicht zu vergessen sind. Der Inspektor *sagt* es, denn eine Folie ohne
+Elemente, ohne einen Hinweis warum, ist der halbe Fehler. Und `mapSlide` lässt
+den Rohtext fallen, sobald jemand die Folie ändert — sonst stünde beim nächsten
+Öffnen wieder der kaputte Block da und die eben gemachte Änderung nirgends.
+
+Geprüft wird an der **gesicherten Datei**, nicht am Modell: das Modell wusste
+schon vorher nichts von dem Block, und trotzdem wäre nichts verloren gewesen,
+wenn er beim Schreiben wieder dagestanden hätte. Der Rauchtest legt die Sitzung
+deshalb über ein Startskript und nicht kurz vor dem Neuladen — dazwischen liegt
+`beforeunload`, und dort schreibt die Selbstsicherung den offenen Stand darüber.
+
+**Jeder getippte Buchstabe war ein Verlaufsschritt samt Tiefklon.** `history()`
+legte bei jeder Aktion ein `structuredClone` des ganzen Decks ab — auch bei
+jedem einzelnen Anschlag in einem Textfeld. Dreiundvierzig Zeichen waren
+dreiundvierzig Schritte: sie schoben alles davor aus den hundertzwanzig heraus,
+und ⌘Z nahm danach einen Buchstaben zurück statt der Änderung davor. Dazu
+hundertzwanzig Tiefklone eines Decks, das eingebettete Bilder tragen kann.
+
+Beides ist erledigt, und beides hat eine Bedingung.
+
+*Zusammengefasst* wird über einen Schlüssel: gleicher Handgriff auf dasselbe
+Ziel innerhalb von 600 ms ist ein Schritt. Der Merker zeigt dabei auf den
+Eintrag, den er selbst abgelegt hat — liegt der nicht mehr obenauf, hört die
+Zusammenfassung von selbst auf. Ein ⌘Z, ein geladenes Deck, ein `setState` im
+Test: alle drei tauschen ihn aus. Eine Liste von Stellen, an denen man einen
+Merker zurücksetzen *muss*, wäre eine Liste von Stellen, an denen man es
+vergisst.
+
+*Geteilt* wird, statt geklont: der Verlauf hält dieselben Folien- und
+Element-Objekte wie die Gegenwart. Das ist nur erlaubt, solange jede Aktion ihr
+Ergebnis aus neuen Objekten baut — ein `element.x = …` oder ein `push()` auf
+dem Array aus dem Zustand änderte sonst den Verlauf rückwirkend. Deshalb friert
+`deckStore.test.ts` das Deck ein und ruft vierundzwanzig Aktionen dagegen; wer
+künftig an Ort und Stelle ändert, bekommt einen TypeError statt eines stillen
+Fehlers.
+
+Und noch eine Falle steckt in der Prüfung selbst: **⌘Z im Textfeld gehört dem
+Browser.** `isTypingTarget` lässt es durch, damit ein ⌘Z im Notizfeld Text
+zurücknimmt und keine Folie. Der Rauchtest muss deshalb erst aus dem Feld
+heraus, sonst misst er die Rücknahme des Browsers — ein Anschlag — und meldet
+einen Fehler, den es nicht gibt.
 
 ---
 

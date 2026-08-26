@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { canvas } from '@/theme';
 import { flowBounds, insertColumnWidth } from '@/lib/layout/slideLayout';
 import { createElement } from '@/model/factory';
@@ -539,5 +539,195 @@ describe('document lifecycle', () => {
       rotation: 15,
       reveal: { step: 3, animation: 'wipe' },
     });
+  });
+});
+
+describe('eine Folie mit unlesbarem `nzl`-Block', () => {
+  const KAPUTT = [
+    '<!-- nzl',
+    'layout: canvas',
+    'elements:',
+    '  - id: card-1',
+    '    kind: card',
+    '    text: Achtung: hier steht ein Doppelpunkt zu viel',
+    '-->',
+    '',
+    '# Eine Folie',
+    '',
+  ].join('\n');
+
+  it('behält den Rohtext, solange niemand sie anfasst', () => {
+    store().loadMarkdown(KAPUTT);
+    expect(serializeDeck(store().deck)).toContain('text: Achtung: hier steht');
+  });
+
+  it('gibt ihn auf, sobald jemand die Folie ändert', () => {
+    /*
+       Das ist die Falle, die der Rundlauf aufstellt: der Rohtext wird
+       *wortgleich* zurückgeschrieben, und in ihm steht kein Wort von dem, was
+       gerade geändert wurde. Ohne dieses Fallenlassen setzte der Benutzer ein
+       Layout, sähe es auf der Fläche — und fände beim nächsten Öffnen wieder
+       den kaputten Block. Von zwei Wahrheiten in einer Datei ist die neuere
+       die, die der Mensch gerade wollte.
+    */
+    store().loadMarkdown(KAPUTT);
+    store().setSlideMeta({ layout: 'split' });
+
+    const gesichert = serializeDeck(store().deck);
+    expect(gesichert).not.toContain('Doppelpunkt zu viel');
+    expect(gesichert).toContain('layout: split');
+  });
+
+  it('gibt ihn auch beim Tippen im Fließtext auf', () => {
+    // Derselbe Weg, andere Tür: `mapSlide` ist die eine Stelle, durch die
+    // jede Folienänderung geht — deshalb steht das Fallenlassen dort und
+    // nicht in den einzelnen Aktionen.
+    store().loadMarkdown(KAPUTT);
+    store().setSlideMarkdown('# Etwas Neues');
+
+    const gesichert = serializeDeck(store().deck);
+    expect(gesichert).not.toContain('Doppelpunkt zu viel');
+    expect(gesichert).toContain('# Etwas Neues');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Der Verlauf                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/** Alles einfrieren, was der Verlauf noch braucht. */
+function einfrieren<T>(wert: T): T {
+  if (wert && typeof wert === 'object' && !Object.isFrozen(wert)) {
+    Object.freeze(wert);
+    for (const teil of Object.values(wert)) einfrieren(teil);
+  }
+  return wert;
+}
+
+describe('der Verlauf', () => {
+  it('macht aus einem getippten Wort einen Schritt', () => {
+    /*
+       Der Fehler, gegen den das steht: jeder Anschlag war ein Schritt.
+       Dreiundvierzig Zeichen in einem Feld waren dreiundvierzig Schritte,
+       schoben alles davor aus den hundertzwanzig heraus — und ⌘Z nahm danach
+       einen Buchstaben zurück statt der Änderung davor.
+    */
+    const anfang = store().deck.slides[0].markdown;
+    let getippt = '';
+    for (const zeichen of '# Guten Tag') {
+      getippt += zeichen;
+      store().setSlideMarkdown(getippt);
+    }
+
+    expect(store().past).toHaveLength(1);
+    store().undo();
+    expect(store().deck.slides[0].markdown).toBe(anfang);
+  });
+
+  it('trennt, sobald das Feld wechselt', () => {
+    // Erst der Fließtext, dann die Notizen: zwei Handgriffe, zwei Schritte.
+    store().setSlideMarkdown('# Eins');
+    store().setSlideMeta({ notes: 'Ein Wort' });
+    store().setSlideMeta({ notes: 'Ein Wort dazu' });
+    expect(store().past).toHaveLength(2);
+  });
+
+  it('trennt nach einer Pause', () => {
+    vi.useFakeTimers();
+    try {
+      store().setSlideMarkdown('# Eins');
+      vi.advanceTimersByTime(2000);
+      store().setSlideMarkdown('# Eins und zwei');
+      expect(store().past).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('fasst nach einem ⌘Z nicht in den falschen Schritt hinein', () => {
+    /*
+       Der Merker zeigt auf den Eintrag, den er selbst abgelegt hat. Ein ⌘Z
+       nimmt genau den wieder heraus — und damit hört die Zusammenfassung von
+       selbst auf. Eine Liste von Stellen, an denen man zurücksetzen *muss*,
+       wäre eine Liste von Stellen, an denen man es vergessen kann.
+    */
+    store().setSlideMarkdown('# Eins');
+    store().undo();
+    store().setSlideMarkdown('# Zwei');
+    expect(store().past).toHaveLength(1);
+    store().undo();
+    expect(store().deck.slides[0].markdown).toBe('');
+  });
+
+  it('teilt sich mit dem Verlauf, was sich nicht geändert hat', () => {
+    /*
+       Vorher war jeder Schritt ein `structuredClone` des ganzen Decks — bei
+       einem Deck mit eingebetteten Bildern hundertzwanzigmal ein paar
+       Megabyte. Geprüft wird deshalb die *Identität*: die unveränderte Folie
+       im Verlauf ist dieselbe wie die in der Gegenwart, nicht bloß gleich.
+    */
+    store().addSlide();
+    store().goTo(0);
+    const zweite = store().deck.slides[1];
+
+    store().setSlideMarkdown('# Nur die erste');
+
+    const abgelegt = store().past[store().past.length - 1];
+    expect(abgelegt.slides[1]).toBe(zweite);
+    expect(store().deck.slides[1]).toBe(zweite);
+    // Und die erste Folie ist es *nicht* — sonst hätte der Verlauf nichts
+    // aufgehoben, sondern nur mitgeschrieben.
+    expect(abgelegt.slides[0]).not.toBe(store().deck.slides[0]);
+  });
+
+  it('fasst nichts an, was der Verlauf noch hält', () => {
+    /*
+       Das ist die Bedingung, unter der das Teilen überhaupt erlaubt ist: jede
+       Aktion baut ihr Ergebnis aus neuen Objekten. Wer künftig an Ort und
+       Stelle ändert — ein `element.x = …`, ein `slides.push(…)` auf dem Array
+       aus dem Zustand —, bekommt hier einen TypeError statt eines Verlaufs,
+       der sich rückwirkend ändert.
+    */
+    addShape({ x: 40, y: 40 });
+    addShape({ x: 220, y: 40 });
+    addShape({ x: 400, y: 40 });
+    store().addSlide();
+    store().goTo(0);
+    store().selectAll();
+
+    const handgriffe: Array<[string, () => void]> = [
+      ['setSlideMarkdown', () => store().setSlideMarkdown('# Titel')],
+      ['setSlideMeta', () => store().setSlideMeta({ layout: 'split' })],
+      ['setDeckMeta', () => store().setDeckMeta({ title: 'Neu' })],
+      ['updateElements', () => store().updateElements(store().selection, { opacity: 0.5 })],
+      ['transformElements', () => store().transformElements((el) => ({ x: el.x + 1 }))],
+      ['nudgeSelection', () => store().nudgeSelection(4, 0)],
+      ['reorderSelection', () => store().reorderSelection('front')],
+      ['alignSelection', () => store().alignSelection('left')],
+      ['distributeSelection', () => store().distributeSelection('h')],
+      ['setElementTone', () => store().setElementTone('signal')],
+      ['setRevealStep', () => store().setRevealStep(1)],
+      ['groupSelection', () => store().groupSelection()],
+      ['ungroupSelection', () => store().ungroupSelection()],
+      ['duplicateSelection', () => store().duplicateSelection()],
+      ['insertPreset', () => store().insertPreset('badge')],
+      ['addElement', () => store().addElement(createElement('shape'))],
+      ['pasteElements', () => store().pasteElements([createElement('shape')])],
+      ['deleteSelection', () => (store().selectAll(), store().deleteSelection())],
+      ['addSlide', () => store().addSlide()],
+      ['duplicateSlide', () => store().duplicateSlide()],
+      ['moveSlide', () => store().moveSlide(0, 1)],
+      ['deleteSlide', () => store().deleteSlide()],
+      ['undo', () => store().undo()],
+      ['redo', () => store().redo()],
+    ];
+
+    einfrieren(store().deck);
+    for (const [name, handgriff] of handgriffe) {
+      expect(handgriff, name).not.toThrow();
+      // Auch das Ergebnis gehört gleich dem Verlauf — der nächste Handgriff
+      // muss es genauso in Ruhe lassen.
+      einfrieren(store().deck);
+    }
   });
 });
