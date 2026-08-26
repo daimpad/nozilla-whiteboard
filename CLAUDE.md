@@ -619,6 +619,22 @@ Arbeitsfläche** (`focusable`): dieselbe Ansicht zeichnet die Kacheln des
 Filmstreifens, die Übersicht und den Vortrag, und dort wären sechs Folien mit
 je zehn Elementen sechzig Tabs bis zum nächsten Knopf.
 
+**Ein Feld, dessen Inhalt verworfen wird, ist schlimmer als kein Feld.** Der
+Alternativtext eines Bildes stand seit je im Inspektor. Er ging ins PPTX — und
+dort in `name`, den Namen in der Auswahlliste, den keine Hilfstechnik vorliest.
+Ins SVG ging er gar nicht, ins PDF auch nicht, und der Alternativtext eines
+Markdown-Bildes (`![so hier](bild.png)`) kam bis in die Szene und fiel dort
+heraus. Wer das Feld ausfüllte, hatte den Eindruck, etwas getan zu haben.
+
+Er steht jetzt in der `ScenePrim` und damit dort, wo jede Ausgabe ihn findet:
+im SVG als `<title>`, in der PPTX zusätzlich als `descr`. Auf dem Bildschirm
+zeigt der Browser den `<title>` als Kurzhinweis — dasselbe Markup, dieselbe
+Stelle. Für das PDF gibt es keinen Weg: jsPDF kennt keine Alternativtexte.
+
+Und beide Richtungen gehören geprüft: ein *leeres* `descr` oder ein leerer
+`<title>` behaupten, das Bild sei beschrieben, und wären schlechter als
+nichts.
+
 Und eine Warnung an den Nächsten, der hier aufräumen will: **`role="img"` am
 `<svg>` blockiert nichts.** Die erste Fassung dieses Kommentars behauptete, es
 halte `Tab` aus dem Baum heraus, und die Sabotage widerlegte das — der

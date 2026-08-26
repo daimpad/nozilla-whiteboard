@@ -98,6 +98,16 @@ export type ScenePrim =
       w: number;
       h: number;
       href: string;
+      /**
+       * Was auf dem Bild zu sehen ist, in Worten.
+       *
+       * Gehört in die **Szene** und nicht nur ins Modell, weil jede Ausgabe
+       * es braucht und keine es sich selbst zusammenreimen kann: das SVG
+       * schreibt einen `<title>`, PPTX eine Beschreibung. Vorher stand der
+       * Alternativtext im Inspektor, ging aber nur nach PowerPoint — und dort
+       * als Anzeigename, den keine Hilfstechnik liest.
+       */
+      alt?: string;
       opacity?: number;
       rotate?: number;
     };
@@ -672,6 +682,7 @@ export function buildElementPrims(
           w: element.w,
           h: element.h,
           href: element.src,
+          alt: element.alt || undefined,
           opacity: opacity === 1 ? undefined : opacity,
           rotate: element.rotation || undefined,
         });
@@ -1457,6 +1468,10 @@ export function typesetToScene(
           w: prim.w,
           h: prim.h,
           href: prim.src,
+          // Ein Markdown-Bild trägt seinen Alternativtext in den eckigen
+          // Klammern: `![so hier](bild.png)`. Er kam bis hierher und fiel
+          // dann heraus.
+          alt: prim.alt || undefined,
           rotate: rotate || undefined,
           opacity: opacity === 1 ? undefined : opacity,
         });

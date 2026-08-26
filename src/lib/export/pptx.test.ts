@@ -450,6 +450,47 @@ describe('Bilder', () => {
     expect(built.get('ppt/slides/_rels/slide1.xml.rels')).toContain('../media/image1.png');
   });
 
+  it('schreibt den Alternativtext dorthin, wo er vorgelesen wird', async () => {
+    /*
+       `name` ist der Name in der Auswahlliste, `descr` der Alternativtext —
+       und nur den liest eine Hilfstechnik vor. Bisher stand er im `name`:
+       sichtbar für den, der die Datei bearbeitet, unsichtbar für den, der sie
+       hört.
+    */
+    const built = await build(
+      [
+        '<!-- nzl',
+        'elements:',
+        '  - kind: image',
+        '    x: 0',
+        '    y: 0',
+        '    src: p.png',
+        '    alt: Das Team vor der Werkstatt',
+        '-->',
+      ].join('\n'),
+      [['p.png', PIXEL]],
+    );
+    expect(built.get('ppt/slides/slide1.xml')).toContain('descr="Das Team vor der Werkstatt"');
+  });
+
+  it('erfindet keine Beschreibung, wo keine steht', async () => {
+    // Die Gegenrichtung: ein leeres `descr` behauptet, das Bild sei
+    // beschrieben. Lieber gar keines — dann sagt die Hilfstechnik „Bild".
+    const built = await build(
+      [
+        '<!-- nzl',
+        'elements:',
+        '  - kind: image',
+        '    x: 0',
+        '    y: 0',
+        '    src: p.png',
+        '-->',
+      ].join('\n'),
+      [['p.png', PIXEL]],
+    );
+    expect(built.get('ppt/slides/slide1.xml')).not.toContain('descr=');
+  });
+
   it('packt kein Bild ein, auf das nichts zeigt', async () => {
     // Ein Bild im Fließtext hat in PPTX keine Entsprechung — ein Textrahmen
     // kennt keine eingebetteten Bilder. Die Bytes trotzdem einzupacken

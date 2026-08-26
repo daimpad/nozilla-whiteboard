@@ -196,6 +196,12 @@ liegt ein Strich auf der Unterkante und der Inspektor sagt, um wie viel — mit
 einem Knopf, der den Kasten anpasst. Auf der Fläche sähe man die Zeile sonst
 noch, im PDF stünde sie über dem Rand, und PowerPoint schnitte sie ab.
 
+**Der Alternativtext eines Bildes kommt jetzt mit.** Er stand im Inspektor und
+ging fast nirgendwohin — das SVG kannte ihn nicht, in der PowerPoint-Datei
+landete er als Anzeigename, den keine Hilfstechnik vorliest. Jetzt steht er im
+SVG als `<title>` und in der `.pptx` als Beschreibung, und ein Bild ohne ihn
+sagt es im Inspektor.
+
 **Die Fläche geht auch ohne Maus.** Mit `Tab` läuft man durch die Elemente
 einer Folie — in der Reihenfolge, in der sie übereinanderliegen —, und wer
 darauf steht, hat es ausgewählt: Pfeiltasten schieben, `⌫` löscht, der

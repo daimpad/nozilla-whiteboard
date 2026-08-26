@@ -936,13 +936,29 @@ function KindFields({ element, patch }: KindFieldsProps) {
           >
             Datei einbetten
           </Button>
-          <Field label="Alternativtext">
+          <Field
+            label="Alternativtext"
+            hint="Was auf dem Bild zu sehen ist, in einem Satz. Landet im SVG als Titel und in der PPTX als Beschreibung — dort liest eine Hilfstechnik ihn vor."
+          >
             <input
               className="nz-field"
               value={element.alt}
               onChange={(event) => patch({ alt: event.target.value } as Partial<CanvasElement>)}
             />
           </Field>
+          {element.alt.trim() ? null : (
+            <p className="flex items-start gap-2 border border-ui-warn bg-ui-warn-bg px-2 py-1.5 text-ui-body text-ui-ink">
+              <Icon
+                name="triangle-exclamation"
+                size={14}
+                className="mt-0.5 shrink-0 text-ui-warn"
+              />
+              <span>
+                Ohne Alternativtext ist dieses Bild in jeder Ausgabe ein stummer Fleck. Zwei Sätze
+                genügen — wer die Folie nicht sehen kann, hat sonst nichts.
+              </span>
+            </p>
+          )}
           <Field label="Einpassung">
             <Segmented
               value={element.fit}

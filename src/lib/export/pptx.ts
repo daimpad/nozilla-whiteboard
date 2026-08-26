@@ -1209,7 +1209,15 @@ function pictureShape(
 ): string {
   return [
     '<p:pic>',
-    `<p:nvPicPr><p:cNvPr id="${id}" name="${escapeXml(element.alt || 'Bild')}"/>`,
+    /*
+       `name` ist der Name in der Auswahlliste, `descr` der Alternativtext —
+       und nur den liest eine Hilfstechnik vor. Bisher stand der
+       Alternativtext im `name`: sichtbar für den, der die Datei bearbeitet,
+       unsichtbar für den, der sie hört.
+    */
+    `<p:nvPicPr><p:cNvPr id="${id}" name="${escapeXml(element.alt || 'Bild')}"` +
+      (element.alt ? ` descr="${escapeXml(element.alt)}"` : '') +
+      '/>',
     '<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>',
     `<p:blipFill><a:blip r:embed="rId${relIndex + 10}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>`,
     '<p:spPr>',
