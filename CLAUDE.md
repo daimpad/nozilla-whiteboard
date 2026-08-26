@@ -136,6 +136,7 @@ src/
               typeset.ts      Markdown → gesetzter Text
               truetype.ts     Zeichen → Umriss (glyf, cmap, composite)
     export/   scene.ts        Folie → Szene  ◄── die Drehscheibe
+              glyphCover.ts   Welcher Schnitt ein Zeichen wirklich zeichnet
               svg.ts pdf.ts   Szene → Datei
               png.ts          Szene → Bild (über das SVG, mit Umrissen)
               pptx*.ts zip.ts Szene + Modell → PowerPoint
@@ -357,6 +358,45 @@ Die erste Fassung der Rauchtest-Prüfung maß, wo die Zahlenspalte steht — und
 überlebte die Gegenprobe: rechtsbündig steht sie an der rechten Kante der
 Tabelle, und die ist bei gleich breiten Spalten dieselbe. Gemessen wird jetzt
 die *linksbündige* letzte Spalte, denn die verrät, wo ihre Spalte anfängt.
+
+**Der Bildschirm ersetzt eine fehlende Glyphe, die Datei nicht.** Die
+Tastentabelle des Willkommens-Decks setzt ihre Kürzel in Backticks, also in
+`codeInline`, also in Space Mono — und Space Mono führt `⌘`, `⌫`, `⇧` und `⌥`
+nicht. Auf der Fläche sprang der Browser auf eine Systemschrift, und es sah
+richtig aus. Im PNG stand „D" statt „⌘D", die Zeile „Löschen" hatte gar keinen
+Wert mehr, und im PDF stand „#". Drei Ausgaben falsch, kein Test rot, weil
+keiner je hinsah.
+
+Die Antwort steht in `glyphCover.ts` und hat zwei Hälften, die zusammengehören:
+der Export sucht ein fehlendes Zeichen in den *anderen* Marken-Schriften, und
+der Schriftstapel in `theme.config.ts` nennt dieselben Schriften in derselben
+Reihenfolge. Das Zweite ist keine Zugabe: **wo** ein Zeichen steht, misst der
+Browser, und er misst die Schrift, die er selbst gewählt hat. Ohne den
+gemeinsamen Stapel zeichnete der Export Inters `⌘` an eine Stelle, die für eine
+fremde Breite gerechnet war — die Zeichen liefen ineinander. Die Kette wird
+deshalb aus `fontFamily` *abgelesen* und nicht daneben noch einmal
+aufgeschrieben.
+
+**Und die zweite Hälfte gilt für jedes Erscheinungsbild.** `musterkunde.ts`
+belegt `fontFamily` neu und trug die alten Stapel ohne Geschwister — der Fix
+griff dort nicht, in genau der Datei, die jeder Kunde abschreibt. Ein Absatz in
+`themes/index.ts` allein hätte das nicht verhindert; die Prüfung „gibt jedem
+Erscheinungsbild eine Ersatzkette" geht deshalb jedes angemeldete
+Erscheinungsbild durch und verlangt für jede Rolle eine zweite Marken-Schrift.
+
+**Der Maßstab hängt am Schnitt, der zeichnet.** Inter zählt 2048 Einheiten aufs
+Geviert, Space Mono und Zilla Slab 1000. Wer den Maßstab wie früher einmal je
+Lauf nimmt, setzt ein aus Inter geholtes Zeichen gut doppelt so groß — und die
+Segmentzahl bleibt dabei dieselbe, keine Zählprüfung sagt ein Wort. Gemessen
+wird deshalb der Kasten des Zeichens.
+
+**Eine Schrift im PDF zu finden heißt nicht, dass sie benutzt wird.** jsPDF
+schreibt jeden angemeldeten Schnitt in die Datei, ob ein Textstück ihn wählt
+oder nicht. Eine Prüfung, die „Inter" in den Rohbytes sucht, bestätigt die
+Einbettung und lässt genau den Fehler durch, um den es geht. `pdfjs-dist` gibt
+je Textstück den Schnitt zurück, mit dem es gesetzt ist — dort steht `⌘` in
+Inter-Regular und `D` in SpaceMono-Regular, und eine Sabotage an der Zuordnung
+liefert nur noch `['D']`.
 
 **Ein zweites Fenster mit demselben Store überschreibt die Sitzung des
 ersten.** Die Referentenansicht läuft unter `?referent=1` in derselben

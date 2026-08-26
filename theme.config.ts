@@ -417,10 +417,26 @@ export const uiShadow = {
  * (SIL Open Font License 1.1, siehe `public/fonts/OFL.txt`). Kein CDN, keine
  * Netzabhängigkeit — dieselbe Entscheidung wie im CI-Repo.
  */
+/*
+   Hinter der eigenen Schrift stehen erst die beiden *anderen* Marken-Schriften
+   und dann erst die des Systems.
+
+   Das ist kein Schmuck, sondern die Bedingung dafür, dass Bildschirm und
+   Export dasselbe zeigen. Space Mono führt `⌘`, `⌫`, `⇧` und `⌥` nicht; Inter
+   führt sie. Ohne diese Reihenfolge nimmt der Browser irgendeine Systemschrift
+   — auf jedem Rechner eine andere, auf manchem gar keine —, misst deren
+   Vorschub und setzt das nächste Zeichen danach. Der Export hat diese Schrift
+   nicht und kann nur aus den mitgelieferten wählen: er zeichnete an einer
+   Stelle, die für eine fremde Breite gerechnet war, und die Zeichen liefen
+   ineinander.
+
+   So fällt beides auf dieselbe Datei zurück, und die Frage „wo steht das
+   Zeichen" hat wieder eine Antwort.
+*/
 export const fontFamily = {
-  display: "'Zilla Slab', Georgia, 'Times New Roman', serif",
-  body: "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-  mono: "'Space Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace",
+  display: "'Zilla Slab', 'Inter', 'Space Mono', Georgia, 'Times New Roman', serif",
+  body: "'Inter', 'Zilla Slab', 'Space Mono', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+  mono: "'Space Mono', 'Inter', 'Zilla Slab', ui-monospace, 'SFMono-Regular', Menlo, monospace",
 } as const;
 
 /**

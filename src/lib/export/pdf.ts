@@ -20,8 +20,9 @@
  */
 import type { jsPDF } from 'jspdf';
 import { brand, canvas as canvasTokens, pdfFontFamily } from '@/theme';
-import type { FontFamilyKey } from '@/lib/text/measure';
+import { measureText, type FontFamilyKey } from '@/lib/text/measure';
 import { facesFor, loadTtf, toBase64, type FaceRef } from './fontFiles';
+import { glyphCoverFor, leereDeckung, splitByFace, type GlyphCover } from './glyphCover';
 import { ellipseSegs, rectSegs, type Seg } from '@/lib/geometry/path';
 import { parseColor, type Rgba } from './color';
 import type { Scene, ScenePrim, SceneRun } from './scene';
@@ -60,15 +61,25 @@ const fontKey = (family: FontFamilyKey, weight: number) => `${family}|${weight}`
  * einfach aus der Karte, und `drawText` nimmt für diesen Lauf die Kernschrift.
  * Ein PDF mit ersetzter Schrift ist besser als gar keins.
  */
-async function embedFaces(doc: jsPDF, scenes: readonly Scene[]): Promise<FontMap> {
+async function embedFaces(
+  doc: jsPDF,
+  scenes: readonly Scene[],
+  cover: GlyphCover,
+): Promise<FontMap> {
   const specs = scenes.flatMap((scene) =>
     scene.prims.flatMap((prim) => (prim.t === 'text' ? prim.runs.map((run) => run.font) : [])),
   );
   const map: FontMap = new Map();
   if (specs.length === 0) return map;
 
+  // Eingebettet wird, was die Deckung nennt — also auch der Ersatzschnitt für
+  // ein `⌘`, das in keinem anderen Lauf vorkommt. Ohne ihn stünde im PDF
+  // wieder ein fremdes Zeichen.
+  const gebraucht = new Map<string, FaceRef>();
+  for (const face of [...facesFor(specs), ...cover.faces]) gebraucht.set(face.id, face);
+
   const loaded = await Promise.all(
-    facesFor(specs).map(async (face): Promise<[FaceRef, ArrayBuffer] | null> => {
+    [...gebraucht.values()].map(async (face): Promise<[FaceRef, ArrayBuffer] | null> => {
       try {
         return [face, await loadTtf(face)];
       } catch (error) {
@@ -129,12 +140,20 @@ export async function scenesToPdf(
     creator: brand.product,
   });
 
-  const fonts = options.embedFonts === false ? new Map() : await embedFaces(doc, scenes);
+  /*
+     Ohne Einbettung gibt es nichts zu decken.
+
+     Dann schreibt das PDF in die Kernschriften des Betrachters, und welcher
+     Marken-Schnitt ein Zeichen führt, spielt keine Rolle mehr. Die Deckung
+     dafür aufzubauen hiesse, Schriftdateien zu laden, die niemand benutzt.
+  */
+  const cover = options.embedFonts === false ? leereDeckung() : await glyphCoverFor(scenes);
+  const fonts = options.embedFonts === false ? new Map() : await embedFaces(doc, scenes, cover);
 
   scenes.forEach((scene, index) => {
     if (index > 0)
       doc.addPage([pageWidth, pageHeight], pageWidth >= pageHeight ? 'landscape' : 'portrait');
-    drawScene(doc, scene, scale, options, fonts);
+    drawScene(doc, scene, scale, options, fonts, cover);
   });
 
   return doc;
@@ -150,6 +169,7 @@ function drawScene(
   scale: number,
   options: PdfOptions,
   fonts: FontMap,
+  cover: GlyphCover,
 ): void {
   const backdrop = parseColor(scene.background) ?? { r: 255, g: 255, b: 255, a: 1 };
   let currentOpacity = 1;
@@ -185,7 +205,7 @@ function drawScene(
         break;
       case 'text':
         setOpacity(prim.opacity ?? 1);
-        drawText(doc, prim, scale, backdrop, fonts);
+        drawText(doc, prim, scale, backdrop, fonts, cover);
         break;
       case 'image':
         setOpacity(prim.opacity ?? 1);
@@ -343,6 +363,7 @@ function drawText(
   scale: number,
   backdrop: Rgba,
   fonts: FontMap,
+  cover: GlyphCover,
 ): void {
   const angleDeg = prim.rotate ?? 0;
   const rad = (angleDeg * Math.PI) / 180;
@@ -355,24 +376,41 @@ function drawText(
     if (!color || color.a === 0) continue;
     const flat = color.a < 1 ? blend(color, backdrop) : color;
 
-    const embedded = fonts.get(fontKey(run.font.family, run.font.weight));
-    if (embedded) {
-      doc.setFont(embedded.name, embedded.style);
-    } else {
-      doc.setFont(pdfFontFamily[run.font.family], pdfFontStyle(run.font.weight, run.font.italic));
-    }
     doc.setFontSize(run.font.size * scale);
     doc.setTextColor(flat.r, flat.g, flat.b);
 
-    const x = (prim.x + run.dx * cos) * scale;
-    const y = (prim.y + run.dx * sin) * scale;
+    /*
+       Ein Lauf kann mehr als einen Schnitt brauchen.
 
-    doc.text(run.text, x, y, {
-      baseline: 'alphabetic',
-      // jsPDF measures rotation counter-clockwise; the scene is clockwise.
-      angle: angleDeg ? -angleDeg : undefined,
-      charSpace: run.font.tracking ? run.font.tracking * run.font.size * scale : undefined,
-    });
+       `doc.text()` kennt genau eine Schrift, und ein `⌘` mitten in einem
+       Space-Mono-Lauf muss aus Inter kommen — Space Mono führt das Zeichen
+       nicht. Vorher schrieb jsPDF es trotzdem in die eingebettete Schrift,
+       und im Betrachter stand ein fremdes Zeichen: aus `⌘D` wurde `#D`.
+
+       Der Normalfall bleibt *ein* Stück, also ein einziger `doc.text`-Aufruf
+       wie zuvor.
+    */
+    for (const stueck of splitByFace(run, cover)) {
+      const embedded =
+        (stueck.face && fonts.get(fontKey(stueck.face.role, stueck.face.weight))) ??
+        fonts.get(fontKey(run.font.family, run.font.weight));
+      if (embedded) {
+        doc.setFont(embedded.name, embedded.style);
+      } else {
+        doc.setFont(pdfFontFamily[run.font.family], pdfFontStyle(run.font.weight, run.font.italic));
+      }
+
+      // Wo das Stück steht, misst der Browser — dieselbe Rechnung wie im
+      // Umriss-Weg, damit beide Ausgaben an derselben Stelle setzen.
+      const vor = stueck.at === 0 ? 0 : measureText(run.text.slice(0, stueck.at), run.font);
+      const dx = run.dx + vor;
+      doc.text(stueck.text, (prim.x + dx * cos) * scale, (prim.y + dx * sin) * scale, {
+        baseline: 'alphabetic',
+        // jsPDF measures rotation counter-clockwise; the scene is clockwise.
+        angle: angleDeg ? -angleDeg : undefined,
+        charSpace: run.font.tracking ? run.font.tracking * run.font.size * scale : undefined,
+      });
+    }
 
     if (run.underline || run.strike) {
       drawDecoration(doc, prim, run, scale, flat, cos, sin);

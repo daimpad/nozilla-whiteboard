@@ -29,10 +29,9 @@ import {
   transformSegs,
   type Seg,
 } from '@/lib/geometry/path';
-import { measureText, type FontSpec } from '@/lib/text/measure';
-import { facesFor, loadOutlines, resolveFace } from './fontFiles';
+import { measureText } from '@/lib/text/measure';
+import { glyphCoverFor, type GlyphCover } from './glyphCover';
 import type { Scene, ScenePrim, SceneRun } from './scene';
-import type { TrueTypeFont } from '@/lib/text/truetype';
 
 /**
  * Alle Textprimitiven einer Szene durch Pfade ersetzen.
@@ -41,50 +40,36 @@ import type { TrueTypeFont } from '@/lib/text/truetype';
  * Folie mit einer ersetzten Schrift als eine Folie mit einem Loch.
  */
 export async function outlineScene(scene: Scene): Promise<Scene> {
-  const specs: FontSpec[] = [];
-  for (const prim of scene.prims) {
-    if (prim.t === 'text') for (const run of prim.runs) specs.push(run.font);
-  }
-  if (specs.length === 0) return scene;
-
-  const fonts = await loadFonts(specs);
-  if (fonts.size === 0) return scene;
-
-  const prims: ScenePrim[] = [];
-  for (const prim of scene.prims) {
-    if (prim.t !== 'text') {
-      prims.push(prim);
-      continue;
-    }
-    prims.push(...outlineTextPrim(prim, fonts));
-  }
-  return { ...scene, prims };
+  return (await outlineScenes([scene]))[0];
 }
 
 export async function outlineScenes(scenes: readonly Scene[]): Promise<Scene[]> {
-  return Promise.all(scenes.map(outlineScene));
-}
+  const hatText = scenes.some((scene) => scene.prims.some((prim) => prim.t === 'text'));
+  if (!hatText) return [...scenes];
 
-/** Die Schnitte laden, die eine Szene braucht; Fehlschläge stillschweigend auslassen. */
-async function loadFonts(specs: readonly FontSpec[]): Promise<Map<string, TrueTypeFont>> {
-  const loaded = new Map<string, TrueTypeFont>();
-  await Promise.all(
-    facesFor(specs).map(async (face) => {
-      try {
-        loaded.set(face.id, await loadOutlines(face));
-      } catch (error) {
-        console.warn(`Umrisse für ${face.id} nicht verfügbar — bleibt echter Text.`, error);
+  // Die Deckung wird für *alle* Szenen zusammen aufgebaut: ein Ersatzschnitt,
+  // den Folie 6 braucht, ist dann auch für Folie 2 schon gelesen.
+  const cover = await glyphCoverFor(scenes);
+  if (cover.faces.length === 0) return [...scenes];
+
+  return scenes.map((scene) => {
+    const prims: ScenePrim[] = [];
+    for (const prim of scene.prims) {
+      if (prim.t !== 'text') {
+        prims.push(prim);
+        continue;
       }
-    }),
-  );
-  return loaded;
+      prims.push(...outlineTextPrim(prim, cover));
+    }
+    return { ...scene, prims };
+  });
 }
 
 /* -------------------------------------------------------------------------- */
 
 type TextPrim = Extract<ScenePrim, { t: 'text' }>;
 
-function outlineTextPrim(prim: TextPrim, fonts: Map<string, TrueTypeFont>): ScenePrim[] {
+function outlineTextPrim(prim: TextPrim, cover: GlyphCover): ScenePrim[] {
   const out: ScenePrim[] = [];
   const leftovers: SceneRun[] = [];
 
@@ -95,9 +80,9 @@ function outlineTextPrim(prim: TextPrim, fonts: Map<string, TrueTypeFont>): Scen
       : matTranslate(prim.x, prim.y);
 
   for (const run of prim.runs) {
-    const face = resolveFace(run.font);
-    const font = face ? fonts.get(face.id) : undefined;
-    if (!font) {
+    // Der Schnitt des ersten zeichnenden Zeichens entscheidet, ob dieser Lauf
+    // überhaupt in Umrisse kann; kommt seine Datei nicht an, bleibt er Text.
+    if (!hatSchrift(run, cover)) {
       leftovers.push(run);
       continue;
     }
@@ -107,7 +92,7 @@ function outlineTextPrim(prim: TextPrim, fonts: Map<string, TrueTypeFont>): Scen
 
     // Ein Lauf aus reinem Zwischenraum trägt keine Kontur — das ist richtig
     // so, seine Breite steckt bereits im `dx` des nächsten Laufs.
-    const segs = runToSegs(run, font);
+    const segs = runToSegs(run, cover);
     if (segs.length > 0) {
       out.push({
         t: 'path',
@@ -137,15 +122,25 @@ function outlineTextPrim(prim: TextPrim, fonts: Map<string, TrueTypeFont>): Scen
   return out;
 }
 
+/** Ob für diesen Lauf überhaupt eine Schrift gelesen werden konnte. */
+function hatSchrift(run: SceneRun, cover: GlyphCover): boolean {
+  const face = cover.faceFor(run.font, 'A'.codePointAt(0)!);
+  return Boolean(face && cover.outlines(face));
+}
+
 /**
  * Einen Lauf in Konturen übersetzen, in Folien-Einheiten, Y nach unten.
  *
  * Die Schrift liefert Y nach oben und in Font-Einheiten; beides dreht und
  * skaliert `matScale(s, -s)` in einem Schritt.
+ *
+ * Der Schnitt wird **je Zeichen** erfragt, nicht je Lauf. Das kostet ein
+ * Nachschlagen und rettet jedes Zeichen, das die gesetzte Schrift nicht führt:
+ * vorher fiel es hier stillschweigend heraus, und im PNG stand eine leere
+ * Tabellenzelle. Die Skalierung hängt am Schnitt, der tatsächlich zeichnet —
+ * `unitsPerEm` ist von Schrift zu Schrift verschieden.
  */
-function runToSegs(run: SceneRun, font: TrueTypeFont): Seg[] {
-  const scale = run.font.size / font.unitsPerEm;
-  const toSlide = matScale(scale, -scale);
+function runToSegs(run: SceneRun, cover: GlyphCover): Seg[] {
   const out: Seg[] = [];
 
   let index = 0;
@@ -154,11 +149,18 @@ function runToSegs(run: SceneRun, font: TrueTypeFont): Seg[] {
     const codePoint = character.codePointAt(0);
     if (codePoint === undefined) continue;
 
+    const face = cover.faceFor(run.font, codePoint);
+    const font = face ? cover.outlines(face) : undefined;
+    if (!font) continue;
+
     const glyph = font.glyph(codePoint);
     if (glyph && glyph.segs.length > 0) {
+      const scale = run.font.size / font.unitsPerEm;
       // Der Browser hat den Vorschub bis *vor* dieses Zeichen schon bestimmt.
       const x = advanceBefore(run, index - character.length);
-      out.push(...transformSegs(glyph.segs, matMultiply(matTranslate(x, 0), toSlide)));
+      out.push(
+        ...transformSegs(glyph.segs, matMultiply(matTranslate(x, 0), matScale(scale, -scale))),
+      );
     }
   }
 

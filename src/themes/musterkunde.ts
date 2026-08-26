@@ -357,10 +357,21 @@ export const musterkunde: BrandTheme = {
 
   textScale,
   typeScale,
+  /*
+     Hinter der eigenen Schrift steht die *andere* des Erscheinungsbilds, und
+     erst danach das System.
+
+     Das ist keine Kosmetik. Space Mono führt `⌘`, `⌫`, `⇧` und `⌥` nicht;
+     Inter führt sie. Der Export sucht ein fehlendes Zeichen in genau der
+     Reihenfolge, die hier steht (`ersatzkette()` in `glyphCover.ts` liest den
+     Stapel ab) — nennt der Stapel keine zweite Marken-Schrift, findet er
+     nichts, und das Zeichen fällt aus PNG und PDF heraus. Genau dieser Fehler
+     war im nozilla-Erscheinungsbild schon einmal da.
+  */
   fontFamily: {
-    display: "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-    body: "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-    mono: "'Space Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace",
+    display: "'Inter', 'Space Mono', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    body: "'Inter', 'Space Mono', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    mono: "'Space Mono', 'Inter', ui-monospace, 'SFMono-Regular', Menlo, monospace",
   },
   webfont: { ...nozillaTheme.webfont, faces },
   // Im PDF steht für die Auszeichnung jetzt eine Grotesk und keine Serife —
