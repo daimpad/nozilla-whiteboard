@@ -196,6 +196,11 @@ liegt ein Strich auf der Unterkante und der Inspektor sagt, um wie viel — mit
 einem Knopf, der den Kasten anpasst. Auf der Fläche sähe man die Zeile sonst
 noch, im PDF stünde sie über dem Rand, und PowerPoint schnitte sie ab.
 
+**Suchen kann jetzt auch ersetzen.** `⌘F`, ein zweites Feld darunter, und der
+Knopf sagt, wie viele Stellen er anfasst — Fließtext, Notizen und jedes
+Textfeld jedes Elements, Groß und Klein unbeachtet. Der ganze Handgriff hängt
+an einem `⌘Z`.
+
 **Der Alternativtext eines Bildes kommt jetzt mit.** Er stand im Inspektor und
 ging fast nirgendwohin — das SVG kannte ihn nicht, in der PowerPoint-Datei
 landete er als Anzeigename, den keine Hilfstechnik vorliest. Jetzt steht er im
@@ -561,7 +566,7 @@ CI-Konformität aller 554 Icons.
 
 Das prüft alles, was das Werkzeug **herstellt**. Ob man es **bedienen** kann,
 prüft `npm run test:ui`: Playwright klickt gegen `vite preview`, also gegen
-das gebaute Verzeichnis. Einunddreißig Handgriffe, jeder für einen Fehler,
+das gebaute Verzeichnis. Zweiunddreißig Handgriffe, jeder für einen Fehler,
 der einmal durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
 ihrem Kasten, eine Vorschau schwarz auf dunkelgrau. Beides läuft bei jedem
 Pull Request.

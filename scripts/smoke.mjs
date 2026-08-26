@@ -78,6 +78,21 @@ async function masse(seite) {
   );
 }
 
+/**
+ * Auf eine leere Stelle der Folie klicken — um ein Feld zu verlassen.
+ *
+ * Ausdrücklich `.nz-stage` und nicht „das letzte SVG der Seite". Das war der
+ * erste Griff, und er traf ein Zeichen im Filmstreifen: 92 % seiner Breite
+ * lagen auf dem Knopf „Folie danach einfügen". Die Prüfung legte damit eine
+ * Folie an, stand danach auf einer leeren und suchte dort einen Text, den sie
+ * auf der vorigen geschrieben hatte.
+ */
+async function klickeLeereFolie(seite) {
+  const kasten = await seite.locator('.nz-stage').boundingBox();
+  await seite.mouse.click(kasten.x + kasten.width * 0.9, kasten.y + kasten.height * 0.9);
+  await seite.waitForTimeout(300);
+}
+
 /** Steht dieser Text auf der Folie? Gefragt wird das Bild, nicht das Feld. */
 async function stehtAufFolie(seite, text) {
   return seite.evaluate((gesucht) => {
@@ -325,8 +340,7 @@ async function main() {
        einen Anschlag zurück, nicht einen Verlaufsschritt. Der erste Anlauf
        dieser Prüfung maß genau das und meldete „Handgeschriebe".
     */
-    const kasten = await seite.locator('svg').last().boundingBox();
-    await seite.mouse.click(kasten.x + kasten.width * 0.92, kasten.y + kasten.height * 0.92);
+    await klickeLeereFolie(seite);
     await seite.waitForTimeout(300);
 
     await seite.keyboard.press('Control+z');
@@ -635,6 +649,61 @@ async function main() {
 
     await seite.keyboard.press('Escape');
     await seite.waitForTimeout(300);
+  });
+
+  await pruefe('⌘F ersetzt, und ⌘Z nimmt es in einem Zug zurück', async () => {
+    /*
+       Die Suche fand, konnte aber nichts ändern — wer eine Zahl auf vierzig
+       Folien austauschen wollte, ging sie einzeln durch.
+
+       Geprüft wird am *Bild* und am Verlauf, nicht an der Trefferliste: dass
+       die Liste leer wird, wüsste sie auch dann zu melden, wenn das Ersetzen
+       gar nichts geschrieben hätte.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    // Ausdrücklich der Reiter „Folie": stand vorher ein Element in der
+    // Auswahl, zeigte der Inspektor dessen Felder, und „das erste Textfeld"
+    // war ein ganz anderes. Der erste Anlauf tippte deshalb ins Leere und
+    // fand danach nichts zu ersetzen.
+    await seite.getByRole('button', { name: 'Folie', exact: true }).click();
+    await seite.waitForTimeout(300);
+    const feld = seite.locator('aside[aria-label="Inspektor"] textarea').first();
+    await feld.click();
+    await seite.keyboard.press('Control+a');
+    await seite.keyboard.type('# Zwiebelsuppe und Zwiebelbrot');
+    await seite.waitForTimeout(800);
+    wahr(await stehtAufFolie(seite, 'Zwiebelsuppe'), 'der Ausgangstext steht nicht auf der Folie');
+
+    // Aus dem Feld heraus, sonst gehört ⌘F dem Browser nicht und ⌘Z nicht uns.
+    await klickeLeereFolie(seite);
+    await seite.waitForTimeout(300);
+
+    await seite.keyboard.press('Control+f');
+    await seite.waitForTimeout(400);
+    await seite.getByRole('textbox', { name: 'Im Deck suchen' }).fill('zwiebel');
+    await seite.getByRole('textbox', { name: 'Ersetzen durch' }).fill('Kürbis');
+    await seite.waitForTimeout(400);
+    // Der Knopf trägt die Zahl: ohne Treffer ist er aus, und ein Klick darauf
+    // liefe in eine Zeitüberschreitung statt in eine Aussage.
+    const knopf = seite.getByRole('button', { name: /^Alle/ });
+    wahr(
+      /Alle 2/.test(await knopf.innerText()),
+      `Trefferzahl am Knopf: ${await knopf.innerText()}`,
+    );
+    await knopf.click();
+    await seite.waitForTimeout(600);
+    await seite.keyboard.press('Escape');
+    await seite.waitForTimeout(400);
+
+    wahr(await stehtAufFolie(seite, 'Kürbissuppe'), 'das Ersetzte steht nicht auf der Folie');
+    wahr(!(await stehtAufFolie(seite, 'Zwiebel')), 'das Alte steht noch auf der Folie');
+
+    // Und der ganze Handgriff hängt an *einem* ⌘Z.
+    await seite.keyboard.press('Control+z');
+    await seite.waitForTimeout(600);
+    wahr(await stehtAufFolie(seite, 'Zwiebelsuppe'), 'ein ⌘Z brachte den Text nicht zurück');
+    wahr(!(await stehtAufFolie(seite, 'Kürbis')), 'nach dem ⌘Z steht noch Ersetztes da');
   });
 
   await pruefe('ein Diagramm zeichnet die Zahlen, die drinstehen', async () => {

@@ -731,3 +731,72 @@ describe('der Verlauf', () => {
     }
   });
 });
+
+describe('im ganzen Deck ersetzen', () => {
+  const DECK = [
+    '<!-- nzl',
+    'notes: Der Kunde heißt Kunde.',
+    'elements:',
+    '  - id: karte-1',
+    '    kind: card',
+    '    x: 80',
+    '    y: 80',
+    '    title: Für den Kunden',
+    '    body: Was der Kunde davon hat.',
+    '-->',
+    '',
+    '# Der Kunde im Mittelpunkt',
+    '',
+    '---',
+    '',
+    '# Zweite Folie ohne das Wort',
+    '',
+  ].join('\n');
+
+  it('fasst alles an, was ein Mensch geschrieben hat', () => {
+    store().loadMarkdown(DECK);
+    // Fließtext, Notiz, Titel und Text der Karte — fünfmal „Kunde".
+    expect(store().ersetzeImDeck('kunde', 'Auftraggeber')).toBe(5);
+
+    const gesichert = serializeDeck(store().deck);
+    expect(gesichert).not.toMatch(/Kunde/);
+    expect(gesichert).toContain('# Der Auftraggeber im Mittelpunkt');
+    expect(gesichert).toContain('Was der Auftraggeber davon hat.');
+  });
+
+  it('ist ein Verlaufsschritt und nicht zwölf', () => {
+    /*
+       Der Grund, warum das im Store steht und nicht in der Suchleiste: über
+       fünf Felder verteilt wären es fünf Schritte, und ⌘Z nähme das Ersetzen
+       häppchenweise zurück.
+    */
+    store().loadMarkdown(DECK);
+    const vorher = serializeDeck(store().deck);
+
+    store().ersetzeImDeck('kunde', 'Auftraggeber');
+    expect(store().past).toHaveLength(1);
+
+    store().undo();
+    expect(serializeDeck(store().deck)).toBe(vorher);
+  });
+
+  it('lässt das Deck in Ruhe, wenn nichts passt', () => {
+    store().loadMarkdown(DECK);
+    const deck = store().deck;
+    expect(store().ersetzeImDeck('gibtesnicht', 'x')).toBe(0);
+    // Kein Verlaufsschritt, kein neues Deck — sonst hätte ein Fehlgriff das
+    // Deck als „geändert" markiert und die Selbstsicherung angeworfen.
+    expect(store().deck).toBe(deck);
+    expect(store().past).toHaveLength(0);
+  });
+
+  it('teilt unveränderte Folien mit dem Verlauf', () => {
+    // Die zweite Folie trägt das Wort nicht. Sie darf nicht neu gebaut werden
+    // — sonst wüchse der Verlauf um ein Deck statt um das Geänderte.
+    store().loadMarkdown(DECK);
+    const zweite = store().deck.slides[1];
+    store().ersetzeImDeck('kunde', 'Auftraggeber');
+    expect(store().deck.slides[1]).toBe(zweite);
+    expect(store().deck.slides[0]).not.toBe(store().past[0].slides[0]);
+  });
+});

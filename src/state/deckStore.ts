@@ -27,6 +27,7 @@ import {
   parseDeck,
 } from '@/lib/markdown/deck';
 import { createElement, createId, duplicateElement, regroupElements } from '@/model/factory';
+import { elementTexts, ersetzeAlle } from '@/lib/search';
 import {
   maxRevealStep,
   type CanvasElement,
@@ -129,6 +130,14 @@ export interface EditorState {
   moveSlide: (from: number, to: number) => void;
   setSlideMarkdown: (markdown: string, index?: number) => void;
   setSlideMeta: (patch: Partial<SlideMeta>, index?: number) => void;
+  /**
+   * Jeden Fund im ganzen Deck ersetzen. Gibt zurück, wie oft.
+   *
+   * Steht hier und nicht in der Suchleiste, und zwar wegen des Verlaufs: über
+   * zwölf Felder verteilt wären es sonst zwölf Schritte, und ⌘Z nähme das
+   * Ersetzen häppchenweise zurück. Ein Handgriff ist ein Schritt.
+   */
+  ersetzeImDeck: (gesucht: string, ersatz: string) => number;
 
   addElement: (element: CanvasElement, options?: { select?: boolean }) => void;
   addElements: (elements: CanvasElement[]) => void;
@@ -573,6 +582,61 @@ export const useDeckStore = create<EditorState>()((set, get) => {
         ...history(state, `markdown:${index ?? state.slideIndex}`),
         deck: mapSlide(state, index ?? state.slideIndex, (slide) => ({ ...slide, markdown })),
       })),
+
+    ersetzeImDeck: (gesucht, ersatz) => {
+      if (!gesucht) return 0;
+      let anzahl = 0;
+
+      const slides = get().deck.slides.map((slide) => {
+        const geaendert: Partial<Slide> = {};
+
+        const markdown = ersetzeAlle(slide.markdown, gesucht, ersatz);
+        if (markdown.anzahl > 0) {
+          anzahl += markdown.anzahl;
+          geaendert.markdown = markdown.text;
+        }
+
+        const notizen = ersetzeAlle(slide.meta.notes ?? '', gesucht, ersatz);
+        if (notizen.anzahl > 0) {
+          anzahl += notizen.anzahl;
+          geaendert.meta = { ...slide.meta, notes: notizen.text };
+        }
+
+        /*
+           Welche Felder ein Element hat, weiß `elementTexts` — dieselbe
+           Aufzählung, die auch die Suche benutzt. Zwei Tabellen für dieselbe
+           Frage liefen auseinander, sobald jemand eine Elementart hinzufügt:
+           die Suche fände etwas, das sich nicht ersetzen ließe.
+        */
+        const elements = slide.elements.map((element) => {
+          const patch: Record<string, string> = {};
+          for (const { schluessel, text } of elementTexts(element)) {
+            const neu = ersetzeAlle(text, gesucht, ersatz);
+            if (neu.anzahl > 0) {
+              anzahl += neu.anzahl;
+              patch[schluessel] = neu.text;
+            }
+          }
+          return Object.keys(patch).length > 0
+            ? ({ ...element, ...patch } as CanvasElement)
+            : element;
+        });
+        if (elements.some((element, i) => element !== slide.elements[i])) {
+          geaendert.elements = elements;
+        }
+
+        // Unveränderte Folien bleiben *dasselbe Objekt*: der Verlauf teilt
+        // sich mit der Gegenwart, was sich nicht geändert hat.
+        return Object.keys(geaendert).length > 0 ? { ...slide, ...geaendert } : slide;
+      });
+
+      if (anzahl === 0) return 0;
+      set((state) => ({
+        ...history(state),
+        deck: { ...state.deck, slides },
+      }));
+      return anzahl;
+    },
 
     setSlideMeta: (patch, index) =>
       set((state) => ({
