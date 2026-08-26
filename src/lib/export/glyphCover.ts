@@ -57,7 +57,7 @@ const ROLLEN: readonly FontFamilyKey[] = ['display', 'body', 'mono'];
  * zeichnete an einer Stelle, die für eine andere Schrift gerechnet war —
  * zwei Rechnungen für dieselbe Frage, und man sähe es erst in der Datei.
  */
-function ersatzkette(role: FontFamilyKey): FontFamilyKey[] {
+export function ersatzkette(role: FontFamilyKey): FontFamilyKey[] {
   const namen = fontFamily[role].split(',').map((teil) => teil.trim().replace(/^['"]|['"]$/g, ''));
 
   const kette: FontFamilyKey[] = [];

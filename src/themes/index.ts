@@ -56,6 +56,15 @@
  * 2. **Schriften mitliefern.** Eigene Schnitte gehören nach `public/fonts/`
  *    und in `webfont.faces`; `fontFamily` nennt die Stapel. Ohne das setzt der
  *    Setzer weiter in Zilla Slab und Inter.
+ *
+ *    **In jedem Stapel stehen die Geschwister-Schriften vor denen des
+ *    Systems.** Keine Schrift führt jedes Zeichen — Space Mono kennt `⌘`,
+ *    `⌫`, `⇧` und `⌥` nicht —, und der Export sucht ein fehlendes Zeichen in
+ *    genau der Reihenfolge, die im Stapel steht. Nennt er keine zweite
+ *    Marken-Schrift, fällt das Zeichen aus PNG und PDF heraus, während der
+ *    Bildschirm es aus einer Systemschrift holt und richtig aussieht. Das ist
+ *    kein erfundener Fall: er ist im nozilla-Erscheinungsbild passiert und
+ *    stand in drei Ausgaben, bevor ihn jemand sah.
  * 3. **Die Wortmarke ist Geometrie**, kein Bild. `wordmarkFromSvg()` liest sie
  *    aus einer SVG-Datei; die Zuordnung geht über die Füllfarben, nicht über
  *    die Reihenfolge der Pfade. Eine Marke ohne Akzent am Wortende lässt

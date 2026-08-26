@@ -12,12 +12,13 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { parseDeck } from '@/lib/markdown/deck';
 import { font } from '@/lib/text/measure';
 import { bundledDecks } from '@/decks';
-import { isThemeId, setActiveTheme } from '@/theme';
+import { availableThemes, isThemeId, setActiveTheme } from '@/theme';
 import { registerThemes } from '@/themes';
-import { buildSlideScene, type Scene } from './scene';
+import { segsBounds } from '@/lib/geometry/path';
+import { buildSlideScene, type Scene, type ScenePrim } from './scene';
 import { outlineScene } from './outline';
 import { facesFor, resolveFace } from './fontFiles';
-import { glyphCoverFor, splitByFace } from './glyphCover';
+import { ersatzkette, glyphCoverFor, splitByFace } from './glyphCover';
 import { primsToSvgMarkup, sceneToSvg } from './svg';
 
 /** `fetch` auf das Dateisystem legen — dieselben Dateien, die ausgeliefert werden. */
@@ -176,6 +177,43 @@ describe('Zeichen, die die gesetzte Schrift nicht führt', () => {
     expect(mit).toBeGreaterThan(ohne);
   });
 
+  it('setzt das Ersatzzeichen im Maß seines eigenen Schnitts', async () => {
+    /*
+       Inter zählt 2048 Einheiten aufs Geviert, Space Mono 1000.
+
+       Der Umriss-Weg holte den Maßstab früher einmal je Lauf, aus dem Schnitt
+       des Laufs. Ein aus Inter geholtes ⌘, mit Space Monos 1000 skaliert,
+       wäre gut doppelt so groß und stünde quer über seinen Nachbarn — und
+       die Segmentzahl bliebe dieselbe, keine der übrigen Prüfungen sagte ein
+       Wort.
+    */
+    const spec = font({ size: 40, family: 'mono', weight: 400 });
+    const scene: Scene = {
+      width: 1280,
+      height: 720,
+      background: '#FFFEE5',
+      title: 'Nur ein Zeichen',
+      prims: [
+        {
+          t: 'text',
+          x: 100,
+          y: 100,
+          runs: [{ dx: 0, text: '⌘', font: spec, color: '#000000', width: 40 }],
+        },
+      ],
+    };
+
+    const outlined = await outlineScene(scene);
+    const pfad = outlined.prims.find((prim) => prim.t === 'path');
+    expect(pfad?.t).toBe('path');
+    const box = segsBounds((pfad as Extract<ScenePrim, { t: 'path' }>).segs);
+    // Ein Zeichen ist kleiner als sein Geviert; mit falschem Maßstab wäre es
+    // gut das Doppelte.
+    expect(box.h).toBeGreaterThan(spec.size * 0.3);
+    expect(box.h).toBeLessThan(spec.size);
+    expect(box.w).toBeLessThan(spec.size);
+  });
+
   it('nennt ein Zeichen, das keine der Schriften führt', async () => {
     /*
        Ein Emoji: keine der drei Marken-Schriften führt es.
@@ -188,9 +226,21 @@ describe('Zeichen, die die gesetzte Schrift nicht führt', () => {
     const cover = await glyphCoverFor([szene('Zeichen: \u{1F600}')]);
     expect(cover.uncovered).toContain('\u{1F600}');
 
-    // Und das ist kein Abbruch: der Rest der Folie steht weiterhin.
-    const outlined = await outlineScene(szene('Ein Satz \u{1F600} mit Emoji.'));
-    expect(outlined.prims.some((prim) => prim.t === 'path')).toBe(true);
+    /*
+       Und das ist kein Abbruch: der Rest der Folie steht weiterhin.
+
+       Die erste Fassung fragte hier nach *irgendeinem* Pfad — und das ist
+       immer wahr, weil die Wortmarke der Fußzeile schon vor dem Umriss-Weg
+       einer ist. Sie hätte auch dann gehalten, wenn `outlineScene` die Szene
+       unverändert zurückgäbe. Gefragt wird deshalb, ob wirklich gesetzt
+       wurde: kein Text bleibt stehen, und der Satz trägt genauso viele
+       Segmente wie ohne das Emoji — das eine Zeichen fällt aus, sonst nichts.
+    */
+    const mit = await outlineScene(szene('Ein Satz \u{1F600} mit Emoji.'));
+    const ohne = await outlineScene(szene('Ein Satz mit Emoji.'));
+    expect(mit.prims.some((prim) => prim.t === 'text')).toBe(false);
+    expect(segmente(mit)).toBe(segmente(ohne));
+    expect(segmente(mit)).toBeGreaterThan(0);
   });
 
   it('teilt einen Lauf für den PDF-Weg in Stücke je Schnitt', async () => {
@@ -245,9 +295,53 @@ describe('Zeichen, die die gesetzte Schrift nicht führt', () => {
 
     const doc = await scenesToPdf([scene], { title: 'Nur Mono' });
     const bytes = new Uint8Array(doc.output('arraybuffer'));
-    const roh = new TextDecoder('latin1').decode(bytes);
-    expect(roh).toContain('SpaceMono');
-    expect(roh).toContain('Inter');
+
+    /*
+       Gelesen wird die fertige Datei, nicht der Erzeuger.
+
+       Die erste Fassung suchte „Inter\" in den Rohbytes — das belegt nur, dass
+       der Schnitt *eingebettet* wurde. jsPDF schreibt jede angemeldete Schrift
+       aus, ob sie benutzt wird oder nicht; die Zuordnung Stück → `setFont`
+       blieb damit unbewacht, und genau dort saß der Fehler. `pdfjs-dist` gibt
+       je Textstück den Schnitt zurück, mit dem es gesetzt ist.
+    */
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const pdf = await pdfjs.getDocument({ data: bytes, disableFontFace: true }).promise;
+    const seite = await pdf.getPage(1);
+    // Erst der Operatorenlauf füllt die Schnittnamen; ohne ihn stehen dort
+    // nur die Kennungen der Ressourcen.
+    await seite.getOperatorList();
+    const inhalt = await seite.getTextContent();
+
+    const gesetzt = (inhalt.items as { str: string; fontName: string }[]).map((item) => ({
+      text: item.str,
+      schnitt:
+        (seite.commonObjs.get(item.fontName) as { name?: string } | null)?.name ?? item.fontName,
+    }));
+
+    expect(gesetzt.map((eintrag) => eintrag.text)).toEqual(['⌘', 'D']);
+    expect(gesetzt[0].schnitt).toBe('Inter-Regular');
+    expect(gesetzt[1].schnitt).toBe('SpaceMono-Regular');
+  });
+
+  it('gibt jedem Erscheinungsbild eine Ersatzkette', async () => {
+    /*
+       Die Regel als Prüfung, nicht als Absatz in einer Anleitung.
+
+       Der Fix hat zwei Hälften, und die zweite steht in `theme.config.ts`:
+       der Schriftstapel nennt die Geschwister-Schriften vor denen des
+       Systems. Ein Erscheinungsbild, das `fontFamily` neu belegt und das
+       vergisst, hat den Fehler wieder — und das war beim Musterkunden auch
+       so, obwohl er als Vorlage für jeden Kunden dasteht.
+    */
+    registerThemes();
+    for (const { id } of availableThemes()) {
+      setActiveTheme(id);
+      for (const rolle of ['display', 'body', 'mono'] as const) {
+        expect(ersatzkette(rolle).length, `${id} · ${rolle}`).toBeGreaterThan(1);
+      }
+    }
+    setActiveTheme('nozilla');
   });
 
   it('führt jedes Zeichen der mitgelieferten Decks', async () => {

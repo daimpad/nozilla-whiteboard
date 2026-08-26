@@ -377,6 +377,27 @@ fremde Breite gerechnet war — die Zeichen liefen ineinander. Die Kette wird
 deshalb aus `fontFamily` *abgelesen* und nicht daneben noch einmal
 aufgeschrieben.
 
+**Und die zweite Hälfte gilt für jedes Erscheinungsbild.** `musterkunde.ts`
+belegt `fontFamily` neu und trug die alten Stapel ohne Geschwister — der Fix
+griff dort nicht, in genau der Datei, die jeder Kunde abschreibt. Ein Absatz in
+`themes/index.ts` allein hätte das nicht verhindert; die Prüfung „gibt jedem
+Erscheinungsbild eine Ersatzkette" geht deshalb jedes angemeldete
+Erscheinungsbild durch und verlangt für jede Rolle eine zweite Marken-Schrift.
+
+**Der Maßstab hängt am Schnitt, der zeichnet.** Inter zählt 2048 Einheiten aufs
+Geviert, Space Mono und Zilla Slab 1000. Wer den Maßstab wie früher einmal je
+Lauf nimmt, setzt ein aus Inter geholtes Zeichen gut doppelt so groß — und die
+Segmentzahl bleibt dabei dieselbe, keine Zählprüfung sagt ein Wort. Gemessen
+wird deshalb der Kasten des Zeichens.
+
+**Eine Schrift im PDF zu finden heißt nicht, dass sie benutzt wird.** jsPDF
+schreibt jeden angemeldeten Schnitt in die Datei, ob ein Textstück ihn wählt
+oder nicht. Eine Prüfung, die „Inter" in den Rohbytes sucht, bestätigt die
+Einbettung und lässt genau den Fehler durch, um den es geht. `pdfjs-dist` gibt
+je Textstück den Schnitt zurück, mit dem es gesetzt ist — dort steht `⌘` in
+Inter-Regular und `D` in SpaceMono-Regular, und eine Sabotage an der Zuordnung
+liefert nur noch `['D']`.
+
 **Ein zweites Fenster mit demselben Store überschreibt die Sitzung des
 ersten.** Die Referentenansicht läuft unter `?referent=1` in derselben
 Anwendung, und die Abzweigung steht deshalb in `main.tsx` und nicht in `App`:
