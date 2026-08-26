@@ -433,6 +433,14 @@ Die Wortmarke wird als **Pfad** übernommen, nicht als Bild — nur so landet si
 in SVG _und_ PDF als echter Vektor, ohne dass der Export eine Datei nachladen
 muss.
 
+**Fehlt einer Schrift ein Zeichen, springt der Export auf die nächste
+Marken-Schrift.** Space Mono führt `⌘`, `⌫`, `⇧` und `⌥` nicht, Inter schon —
+ein Tastenkürzel in Backticks kommt trotzdem heil in PNG, PDF und SVG an. Der
+Schriftstapel der CI nennt dieselbe Reihenfolge, damit der Browser dieselbe
+Wahl trifft und das Zeichen auf dem Bildschirm dort steht, wo es in der Datei
+steht. Führt es *keine* der Schriften, sagt die Konsole welche — sie fällt dann
+aus, und man erfährt es hier statt beim Empfänger.
+
 Die Schriften kommen als TTF und werden beim Sync zusätzlich nach WOFF2
 gewandelt. Beide Formate werden gebraucht: der Browser lädt beim Start das
 WOFF2 (630 kB statt 1875 kB), der Export holt die TTFs nach — jsPDF bettet

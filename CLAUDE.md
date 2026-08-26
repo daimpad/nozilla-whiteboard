@@ -136,6 +136,7 @@ src/
               typeset.ts      Markdown → gesetzter Text
               truetype.ts     Zeichen → Umriss (glyf, cmap, composite)
     export/   scene.ts        Folie → Szene  ◄── die Drehscheibe
+              glyphCover.ts   Welcher Schnitt ein Zeichen wirklich zeichnet
               svg.ts pdf.ts   Szene → Datei
               png.ts          Szene → Bild (über das SVG, mit Umrissen)
               pptx*.ts zip.ts Szene + Modell → PowerPoint
@@ -357,6 +358,24 @@ Die erste Fassung der Rauchtest-Prüfung maß, wo die Zahlenspalte steht — und
 überlebte die Gegenprobe: rechtsbündig steht sie an der rechten Kante der
 Tabelle, und die ist bei gleich breiten Spalten dieselbe. Gemessen wird jetzt
 die *linksbündige* letzte Spalte, denn die verrät, wo ihre Spalte anfängt.
+
+**Der Bildschirm ersetzt eine fehlende Glyphe, die Datei nicht.** Die
+Tastentabelle des Willkommens-Decks setzt ihre Kürzel in Backticks, also in
+`codeInline`, also in Space Mono — und Space Mono führt `⌘`, `⌫`, `⇧` und `⌥`
+nicht. Auf der Fläche sprang der Browser auf eine Systemschrift, und es sah
+richtig aus. Im PNG stand „D" statt „⌘D", die Zeile „Löschen" hatte gar keinen
+Wert mehr, und im PDF stand „#". Drei Ausgaben falsch, kein Test rot, weil
+keiner je hinsah.
+
+Die Antwort steht in `glyphCover.ts` und hat zwei Hälften, die zusammengehören:
+der Export sucht ein fehlendes Zeichen in den *anderen* Marken-Schriften, und
+der Schriftstapel in `theme.config.ts` nennt dieselben Schriften in derselben
+Reihenfolge. Das Zweite ist keine Zugabe: **wo** ein Zeichen steht, misst der
+Browser, und er misst die Schrift, die er selbst gewählt hat. Ohne den
+gemeinsamen Stapel zeichnete der Export Inters `⌘` an eine Stelle, die für eine
+fremde Breite gerechnet war — die Zeichen liefen ineinander. Die Kette wird
+deshalb aus `fontFamily` *abgelesen* und nicht daneben noch einmal
+aufgeschrieben.
 
 **Ein zweites Fenster mit demselben Store überschreibt die Sitzung des
 ersten.** Die Referentenansicht läuft unter `?referent=1` in derselben
