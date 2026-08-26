@@ -16,6 +16,7 @@ import { selectCurrentSlide, useDeckStore } from '@/state/deckStore';
 import { SlideView } from '@/components/canvas/SlideView';
 import { IconButton, cx } from '@/components/ui/controls';
 import { useElementSize } from '@/hooks/useElementSize';
+import { usePresenterChannel } from '@/hooks/usePresenterChannel';
 
 export function PresentView() {
   const deck = useDeckStore((state) => state.deck);
@@ -30,6 +31,7 @@ export function PresentView() {
   const toggleNotes = useDeckStore((state) => state.toggleNotes);
 
   const [setViewport, viewport] = useElementSize<HTMLDivElement>();
+  const referent = usePresenterChannel();
   const [chromeVisible, setChromeVisible] = useState(true);
   const hideTimer = useRef<number | undefined>(undefined);
 
@@ -114,6 +116,12 @@ export function PresentView() {
             icon="table"
             label="Übersicht (⌘K)"
             onClick={() => useDeckStore.getState().toggleOverview(true)}
+          />
+          <IconButton
+            icon="chalkboard"
+            label="Referentenansicht öffnen"
+            active={referent.offen}
+            onClick={referent.oeffnen}
           />
           <IconButton
             icon="xmark"

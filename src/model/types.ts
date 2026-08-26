@@ -36,6 +36,8 @@ export const elementKinds = [
   'connector',
   'image',
   'wordmark',
+  'chart',
+  'table',
 ] as const;
 export type ElementKind = (typeof elementKinds)[number];
 
@@ -113,6 +115,21 @@ export interface ElementBase {
   reveal?: Reveal;
   /** Optionaler Name für die Ebenenliste. */
   name?: string;
+  /**
+   * Zu welcher Gruppe das Element gehört.
+   *
+   * Eine Gruppe ist kein eigenes Element, sondern eine Kennung, die mehrere
+   * tragen. Das ist die kleinere Änderung — ein Gruppen-Element hätte einen
+   * eigenen Kasten, eigene Maße und eine eigene Malreihenfolge, und jede
+   * Ausgabe müsste es kennen. So bleibt für Szene, SVG, PDF und PPTX alles,
+   * wie es war: sie sehen weiterhin nur Elemente.
+   *
+   * Gruppen verschachteln sich nicht. Wer eine Gruppe mit etwas anderem
+   * gruppiert, bekommt eine Gruppe aus allem — das ist die Erwartung bei einem
+   * Werkzeug, in dem man Dinge nebeneinanderlegt, und es erspart einen Baum,
+   * den niemand sehen kann.
+   */
+  group?: string;
 }
 
 export interface TextElement extends ElementBase {
@@ -121,6 +138,52 @@ export interface TextElement extends ElementBase {
   typeStyle: TypeStyleName;
   align: HorizontalAlign;
   valign: VerticalAlign;
+}
+
+/** Balken oder Linie. Mehr braucht ein Deck nicht, und mehr verträgt es nicht. */
+export const chartKinds = ['bar', 'line'] as const;
+export type ChartKind = (typeof chartKinds)[number];
+
+export interface ChartElement extends ElementBase {
+  kind: 'chart';
+  chart: ChartKind;
+  /**
+   * Die Zahlen, eine Zeile je Wert: `Beschriftung  Zahl`.
+   *
+   * Ein Textblock und keine Liste von Objekten, weil man ihn tippen können
+   * soll — im Inspektor, im Deck-Prompt und in der `.md`. Getrennt wird an
+   * Tabulator, Semikolon, senkrechtem Strich oder zwei Leerzeichen; ein Wert
+   * mit `*` davor bekommt die Signalfarbe.
+   */
+  data: string;
+  /** Überschrift über dem Diagramm. Leer heißt: keine. */
+  label: string;
+  /** Die Werte an den Balken oder Punkten mitschreiben. */
+  values: boolean;
+}
+
+/**
+ * Eine Tabelle.
+ *
+ * Sie zeichnet **nicht selbst**: gelesen wird großzügig, geschrieben wird eine
+ * Markdown-Tabelle, und die zeichnet der Setzer, der auch die Tabellen im
+ * Fließtext zeichnet. Der Gewinn gegenüber einem Markdown-Block ist nicht das
+ * Bild, sondern zweierlei — man kann aus einer Tabellenkalkulation
+ * hineinkopieren, ohne Striche zu tippen, und in der `.pptx` steht danach eine
+ * *echte* Tabelle statt einer Reihe von Zeilen mit Trennpunkten.
+ */
+export interface TableElement extends ElementBase {
+  kind: 'table';
+  /**
+   * Die Zellen, eine Zeile je Zeile. Getrennt wird an Tabulator, senkrechtem
+   * Strich oder zwei Leerzeichen; eine Markdown-Trennzeile (`---`, `---:`)
+   * setzt die Ausrichtung der Spalten.
+   */
+  data: string;
+  /** Die erste Zeile ist die Kopfzeile. */
+  header: boolean;
+  /** Überschrift über der Tabelle. Leer heißt: keine. */
+  label: string;
 }
 
 export interface MarkdownElement extends ElementBase {
@@ -188,7 +251,9 @@ export type CanvasElement =
   | ShapeElement
   | ConnectorElement
   | ImageElement
-  | WordmarkElement;
+  | WordmarkElement
+  | ChartElement
+  | TableElement;
 
 /* -------------------------------------------------------------------------- */
 /* Folien & Deck                                                               */

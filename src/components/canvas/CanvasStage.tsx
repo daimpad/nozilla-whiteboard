@@ -25,6 +25,7 @@ import {
   type Rect,
   type ResizeHandle,
 } from '@/lib/geometry/snap';
+import { overflowOf } from '@/lib/overflow';
 import { useDeckStore } from '@/state/deckStore';
 import type { CanvasElement, Deck, Slide } from '@/model/types';
 import { useElementSize } from '@/hooks/useElementSize';
@@ -82,6 +83,15 @@ export function CanvasStage({ slide, deck, slideNumber, totalSlides }: CanvasSta
   const scale = zoom === 'fit' ? Math.max(0.05, fitScale) : zoom;
 
   const selectionSet = useMemo(() => new Set(selection), [selection]);
+  // Gerechnet wird über alle Elemente der Folie, nicht nur die ausgewählten:
+  // ein Überlauf, den man erst beim Anklicken sähe, hätte man schon geliefert.
+  const ueberlaufende = useMemo(
+    () =>
+      slide.elements
+        .map((element) => ({ element, um: overflowOf(element) }))
+        .filter((eintrag) => eintrag.um > 0),
+    [slide.elements],
+  );
   const selectedElements = useMemo(
     () => slide.elements.filter((element) => selectionSet.has(element.id)),
     [slide.elements, selectionSet],
@@ -337,6 +347,32 @@ export function CanvasStage({ slide, deck, slideNumber, totalSlides }: CanvasSta
         />
 
         {showGrid ? <GridOverlay scale={scale} /> : null}
+
+        {/*
+          Wo Text unter seiner Unterkante steht.
+          
+          Ein dünner Strich auf der Kante, kein Kasten und kein Ausrufezeichen:
+          er soll auffallen, wenn man hinsieht, und nicht die Folie anmalen.
+          Wie Auswahlrahmen und Raster gehört er dem Werkzeug und wechselt
+          deshalb nicht mit der Erscheinung mit — `theme.test.ts` lässt genau
+          diese Stellen durch.
+        */}
+        <div className="pointer-events-none absolute inset-0">
+          {ueberlaufende.map(({ element, um }) => (
+            <div
+              key={element.id}
+              title={`Der Text steht ${um} Einheiten unter der Unterkante.`}
+              className="absolute"
+              style={{
+                left: element.x * scale,
+                top: (element.y + element.h) * scale,
+                width: element.w * scale,
+                height: Math.max(2, 2 * scale),
+                background: ui.warn,
+              }}
+            />
+          ))}
+        </div>
 
         {/* Hit areas — one per element, above the drawing, below the handles. */}
         <div className="absolute inset-0">

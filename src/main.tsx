@@ -1,6 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { PresenterView } from './components/present/PresenterView';
+import { isPresenterWindow } from './lib/presenterChannel';
 import { applyThemeVariables, subscribeSurface, subscribeTheme, watchSystemSurface } from './theme';
 import { installWebfonts } from './theme/fonts';
 import { registerThemes } from './themes';
@@ -33,8 +35,15 @@ watchSystemSurface();
 const container = document.getElementById('root');
 if (!container) throw new Error('Root container #root is missing from index.html');
 
-createRoot(container).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+/*
+   Die Referentenansicht wird **hier** abgezweigt und nicht innerhalb von
+   `App`. Der Grund ist nicht die Übersichtlichkeit, sondern die Sitzung: `App`
+   lädt beim Start das gemerkte Deck und schaltet die Selbstsicherung ein. Ein
+   zweites Fenster, das dasselbe täte, schriebe seinen eigenen Stand über den
+   des ersten — und zwar genau während des Vortrags. Das Vortragsfenster hat
+   deshalb keinen Store, keine Sitzung und keine Sicherung; es bekommt sein
+   Deck über den Kanal.
+*/
+const wurzel = isPresenterWindow(window.location.search) ? <PresenterView /> : <App />;
+
+createRoot(container).render(<StrictMode>{wurzel}</StrictMode>);

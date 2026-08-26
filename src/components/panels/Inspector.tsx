@@ -30,6 +30,7 @@ import {
   alignLabels,
   backgroundLabels,
   cardLabels,
+  chartLabels,
   connectorLabels,
   fillLabels,
   iconFrameLabels,
@@ -45,6 +46,7 @@ import {
 import { iconNames, isIconName, type IconName } from '@/assets/icons';
 import {
   cardVariants,
+  chartKinds,
   connectorKinds,
   fillStyles,
   horizontalAligns,
@@ -56,6 +58,7 @@ import {
   type FillStyle,
 } from '@/model/types';
 import { readFileAsDataUrl } from '@/lib/export/download';
+import { overflowOf } from '@/lib/overflow';
 import { selectCurrentSlide, useDeckStore, useSelectedElements } from '@/state/deckStore';
 import { useThemeVersion } from '@/hooks/useTheme';
 import {
@@ -334,11 +337,19 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
   const alignSelection = useDeckStore((state) => state.alignSelection);
   const distributeSelection = useDeckStore((state) => state.distributeSelection);
   const duplicateSelection = useDeckStore((state) => state.duplicateSelection);
+  const groupSelection = useDeckStore((state) => state.groupSelection);
+  const ungroupSelection = useDeckStore((state) => state.ungroupSelection);
   const deleteSelection = useDeckStore((state) => state.deleteSelection);
   const setRevealStep = useDeckStore((state) => state.setRevealStep);
 
   const ids = useMemo(() => elements.map((element) => element.id), [elements]);
   const first = elements[0];
+  // Eine Gruppe liegt vor, sobald das erste ausgewählte Element eine Kennung
+  // trägt — die Auswahl umfasst dann ohnehin die ganze Gruppe.
+  const gruppiert = Boolean(first?.group);
+  // Nur bei einer einzelnen Auswahl: bei mehreren wüsste man nicht, welcher
+  // Kasten gemeint ist, und „anpassen" träfe alle.
+  const ueberlauf = elements.length === 1 && first ? overflowOf(first) : 0;
 
   const patch = (update: Partial<CanvasElement>, historic = true) => {
     if (historic) pushHistory();
@@ -383,8 +394,15 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
         <Divider />
         <IconButton icon="plus" label="Duplizieren" onClick={duplicateSelection} />
         <IconButton
+          icon="layer-group"
+          label={gruppiert ? 'Gruppe auflösen (⇧⌘G)' : 'Gruppieren (⌘G)'}
+          active={gruppiert}
+          disabled={!gruppiert && elements.length < 2}
+          onClick={() => (gruppiert ? ungroupSelection() : groupSelection())}
+        />
+        <IconButton
           icon={first.locked ? 'lock' : 'key'}
-          label={first.locked ? 'Unlock' : 'Lock'}
+          label={first.locked ? 'Entsperren' : 'Sperren'}
           active={first.locked}
           onClick={() => patch({ locked: !first.locked })}
         />
@@ -461,6 +479,23 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
           onChange={(value) => patch({ opacity: Math.min(1, Math.max(0, value / 100)) })}
         />
       </div>
+
+      {ueberlauf > 0 ? (
+        <p className="flex items-start gap-2 border border-ui-warn bg-ui-warn-bg px-2 py-1.5 text-ui-body text-ui-ink">
+          <Icon name="triangle-exclamation" size={14} className="mt-0.5 shrink-0 text-ui-warn" />
+          <span>
+            Der Text steht {ueberlauf} Einheiten unter der Unterkante. Auf der Fläche sieht man ihn
+            noch — im PDF steht er über dem Rand, und PowerPoint schneidet ihn ab.{' '}
+            <button
+              type="button"
+              className="underline underline-offset-2"
+              onClick={() => patch({ h: Math.round(first.h + ueberlauf) })}
+            >
+              Kasten anpassen
+            </button>
+          </span>
+        </p>
+      ) : null}
 
       {/* ------------------------------------------------------------- CI */}
       <Field label="Ton">
@@ -563,6 +598,84 @@ interface KindFieldsProps {
 
 function KindFields({ element, patch }: KindFieldsProps) {
   switch (element.kind) {
+    case 'chart':
+      return (
+        <>
+          <Field label="Art">
+            <Segmented
+              value={element.chart}
+              onChange={(chart) => patch({ chart } as Partial<CanvasElement>)}
+              options={chartKinds.map((value) => ({
+                value,
+                label: labelOf(chartLabels, value),
+              }))}
+            />
+          </Field>
+          <Field label="Überschrift">
+            <input
+              className="nz-field"
+              value={element.label}
+              onChange={(event) => patch({ label: event.target.value } as Partial<CanvasElement>)}
+            />
+          </Field>
+          <Field
+            label="Zahlen"
+            hint="Eine Zeile je Wert: Beschriftung, dann die Zahl. Ein * davor hebt einen Wert hervor."
+          >
+            <textarea
+              rows={6}
+              className="nz-field resize-y font-mono text-ui-label"
+              value={element.data}
+              onChange={(event) => patch({ data: event.target.value } as Partial<CanvasElement>)}
+            />
+          </Field>
+          <label className="flex items-center gap-2 text-ui-body">
+            <input
+              type="checkbox"
+              checked={element.values}
+              onChange={(event) =>
+                patch({ values: event.target.checked } as Partial<CanvasElement>)
+              }
+            />
+            Zahlen mitschreiben
+          </label>
+        </>
+      );
+
+    case 'table':
+      return (
+        <>
+          <Field label="Überschrift">
+            <input
+              className="nz-field"
+              value={element.label}
+              onChange={(event) => patch({ label: event.target.value } as Partial<CanvasElement>)}
+            />
+          </Field>
+          <Field
+            label="Zellen"
+            hint="Eine Zeile je Zeile. Getrennt wird an Tabulator, senkrechtem Strich oder zwei Leerzeichen — aus einer Tabellenkalkulation kann man hineinkopieren."
+          >
+            <textarea
+              rows={7}
+              className="nz-field resize-y font-mono text-ui-label"
+              value={element.data}
+              onChange={(event) => patch({ data: event.target.value } as Partial<CanvasElement>)}
+            />
+          </Field>
+          <label className="flex items-center gap-2 text-ui-body">
+            <input
+              type="checkbox"
+              checked={element.header}
+              onChange={(event) =>
+                patch({ header: event.target.checked } as Partial<CanvasElement>)
+              }
+            />
+            Erste Zeile ist die Kopfzeile
+          </label>
+        </>
+      );
+
     case 'text':
       return (
         <>

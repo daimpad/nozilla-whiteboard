@@ -145,7 +145,9 @@ Tabellen, Bilder — gesetzt in der CI-Hierarchie.
 Ziehen, größer ziehen, drehen; Mehrfachauswahl per Shift oder
 Gummiband. Einrasten auf das 8er-Raster _und_ auf Hilfslinien: Kanten und
 Mitten der Nachbarn, Folienränder, Satzspiegel. `Alt` hält das Raster an.
-Duplizieren, löschen, stapeln, ausrichten, verteilen, sperren. Rückgängig und
+Duplizieren, löschen, stapeln, ausrichten, verteilen, sperren. **Gruppieren**
+mit `⌘G`, auflösen mit `⇧⌘G` — ein Klick auf ein Mitglied nimmt die ganze
+Gruppe mit, und die Zugehörigkeit steht in der `.md`. Rückgängig und
 Wiederholen mit Gesten-Bewusstsein — ein Zug ist ein Schritt, nicht sechzig.
 
 **Eingesetzt wird an einer Linie.** Jeder Baustein aus der Bibliothek beginnt am
@@ -168,12 +170,52 @@ stünde: lesbar, einfügbar, und von denselben Prüfungen gedeckt. Auf einer
 anderen Folie behält das Eingefügte seinen Ort — das ist der Sinn der Sache;
 nur auf derselben Folie rückt die Kopie beiseite.
 
+**Diagramme aus Zahlen.** Balken und Linien als eigene Elementart; die Werte
+stehen als Textblock im Element, eine Zeile je Wert (`2024  52`), und ein `*`
+davor gibt einem Wert das Signal. Getrennt wird an Tabulator, Semikolon,
+senkrechtem Strich oder zwei Leerzeichen, deutsche Zahlen samt Einheit
+inbegriffen — man kann aus einer Tabellenkalkulation kopieren. Die Achse
+beginnt bei null, solange alles positiv ist; das ist die verbreitetste Art, mit
+einem Diagramm zu lügen, und sie passiert meist aus Versehen. Weil ein
+Diagramm ein Kunde derselben `Scene` ist, tragen es SVG, PDF und PowerPoint
+ohne eine Zeile Zusatzarbeit — in der `.pptx` als echte Formen, nicht als Bild.
+
+**Tabellen als Elementart.** Zellen tippen oder aus einer Tabellenkalkulation
+hineinkopieren — getrennt wird an Tabulator, senkrechtem Strich oder zwei
+Leerzeichen, und eine Markdown-Trennzeile (`---:`) richtet eine Spalte rechts
+aus. Die Spalten teilen sich die Breite **nach dem, was in ihnen steht**, statt
+zu gleichen Teilen; das gilt auch für die Tabellen im Fließtext. Gezeichnet
+wird sie vom selben Setzer wie eine Markdown-Tabelle — es gibt keinen zweiten
+Tabellensatz. Der Gewinn liegt in der `.pptx`: dort steht eine **echte
+PowerPoint-Tabelle** mit bearbeitbaren Zellen, während eine Tabelle in einem
+Markdown-Block dort zu Zeilen mit Trennpunkten wird (PowerPoint kennt keine
+Tabelle im Textfluss).
+
+**Überlauf wird angezeigt.** Steht gesetzter Text tiefer als sein Kasten,
+liegt ein Strich auf der Unterkante und der Inspektor sagt, um wie viel — mit
+einem Knopf, der den Kasten anpasst. Auf der Fläche sähe man die Zeile sonst
+noch, im PDF stünde sie über dem Rand, und PowerPoint schnitte sie ab.
+
+**Suchen mit `⌘F`** — über den Fließtext, die Notizen und jedes Textfeld jedes
+Elements, quer durchs ganze Deck. Ein Treffer nennt die Folie und den
+Ausschnitt drumherum, ein Klick bringt einen hin und wählt das Element aus.
+Kennungen, Zeichennamen und Layoutwerte bleiben draußen: eine Suche, die alles
+durchkämmt, findet auf jede Frage etwas und damit nichts.
+
 ### Präsentation
 
 `P` startet, `Esc` beendet, `F` Vollbild, `N` Notizen.
 Übergänge und Einblendungen; Elemente tragen einen Schritt, damit eine Folie
 Gedanke für Gedanke aufgeht. Übersicht mit `⌘K`, Filmstreifen immer sichtbar.
 `prefers-reduced-motion` wird beachtet.
+
+**Die Referentenansicht** öffnet ein zweites Fenster (Tafel-Symbol in der
+Vortragsleiste): links die laufende Folie, daneben **die nächste**, darunter die
+Notizen groß, unten die verstrichene Zeit. Geblättert wird in beiden Fenstern,
+und beide folgen einander. Zwei Fenster statt eines geteilten Bildschirms, damit
+sich das eine auf den Beamer schieben und ins Vollbild schicken lässt, während
+das andere vor dir stehen bleibt. Das zweite Fenster ändert nichts: es hat keine
+Datei, keine Sicherung und keinen Weg zurück ins Deck.
 
 <br clear="right">
 
@@ -187,6 +229,7 @@ Gedanke für Gedanke aufgeht. Übersicht mit `⌘K`, Filmstreifen immer sichtbar
 | **SVG**        | Echte `<path>`/`<text>`-Vektoren — kein `foreignObject`, keine Rasterung                                      |
 | **PDF**        | Vektorseiten mit markierbarem, durchsuchbarem Text                                                            |
 | **PowerPoint** | `.pptx` mit echten Formen und **bearbeitbaren Textrahmen** — auch der Weg nach Google Slides (dort hochladen) |
+| **PNG**        | Eine Folie in 2560 × 1440 — zum Verschicken, wenn niemand eine Datei will                                     |
 
 Für SVG und PDF gibt es zwei Wege, wie die Schrift in die Datei kommt. Beide
 erzeugen dasselbe Bild; sie unterscheiden sich darin, was die Gegenseite

@@ -347,6 +347,8 @@ kind — die Elementarten und ihre Felder:
   connector  connector, dashed, label
   image      src, alt, fit (cover|contain)
   wordmark   variant (auto|ink|paper|mono)
+  chart      chart (bar|line), label, data, values
+  table      data, header, label
 
 card.variant: ${list(cardVariants)}
               feature = Icon + Titel + Text · stat = große Zahl (title) + Bezug (body)
@@ -354,6 +356,13 @@ card.variant: ${list(cardVariants)}
               note = Balken links, für Hinweise
 shape:        ${list(shapeNames)}
 connector:    ${list(connectorKinds)}
+
+chart.data:   eine Zeile je Wert, „Beschriftung  Zahl". Getrennt wird an
+              Tabulator, Semikolon, senkrechtem Strich oder ZWEI Leerzeichen.
+              Ein * am Zeilenanfang hebt genau einen Wert hervor.
+table.data:   eine Zeile je Zeile, Zellen getrennt an Tabulator, senkrechtem
+              Strich oder ZWEI Leerzeichen. Eine Markdown-Trennzeile
+              (---, ---:, :---:) setzt die Ausrichtung der Spalten.
 
 typeStyle (nur für kind: text):
 ${typeStyles}

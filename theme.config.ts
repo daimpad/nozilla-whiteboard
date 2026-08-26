@@ -633,6 +633,17 @@ export const uiType = {
   body: { size: 13, lineHeight: 1.45, weight: fontWeight.regular, tracking: 0 },
   title: { size: 15, lineHeight: 1.25, weight: fontWeight.bold, tracking: -0.01 },
   mono: { size: 12, lineHeight: 1.5, weight: fontWeight.regular, tracking: 0 },
+  /*
+     Die eine Stufe, die nicht bedient, sondern gelesen wird.
+
+     Die Notizen der Referentenansicht stehen einen Meter vom Auge entfernt und
+     werden beim Sprechen überflogen, nicht studiert. Die 15 px von `title`
+     sind für eine Feldbeschriftung richtig und für einen Satz, den man in
+     einer halben Sekunde wiederfinden muss, zu klein. Der Zeilenabstand ist
+     aus demselben Grund weiter: die Zeile, in der man war, geht sonst
+     verloren.
+  */
+  read: { size: 20, lineHeight: 1.55, weight: fontWeight.regular, tracking: 0 },
 } as const;
 
 /* -------------------------------------------------------------------------- */
@@ -755,6 +766,30 @@ export const elementDefaults = {
   },
   card: {
     width: 340,
+    height: 220,
+    tone: 'paper' as ToneName,
+    padding: space[5],
+    strokeWeight: 'rule' as StrokeName,
+  },
+  /**
+   * Ein Diagramm ist breiter als hoch, weil Zahlenreihen waagerecht gelesen
+   * werden. Die Maße sind die der Karte, einmal quer — so passen zwei
+   * nebeneinander in eine Einsetzspalte, ohne dass etwas gequetscht aussieht.
+   */
+  chart: {
+    width: 530,
+    height: 300,
+    tone: 'paper' as ToneName,
+    padding: space[5],
+    strokeWeight: 'rule' as StrokeName,
+  },
+  /**
+   * Eine Tabelle ist so breit wie die Einsetzspalte und so hoch, wie vier
+   * Zeilen brauchen. Höher aufzuziehen bringt nichts: sie wächst mit ihren
+   * Zeilen von oben nach unten und lässt darunter Luft, statt sie zu dehnen.
+   */
+  table: {
+    width: 530,
     height: 220,
     tone: 'paper' as ToneName,
     padding: space[5],

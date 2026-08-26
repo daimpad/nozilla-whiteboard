@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { typeScale } from '@/theme';
 import { font, measureText } from './measure';
-import { typesetMarkdown, typesetText, wrapRuns, type TypesetPrim } from './typeset';
+import {
+  tableColumnWidths,
+  typesetMarkdown,
+  typesetText,
+  wrapRuns,
+  type TypesetPrim,
+} from './typeset';
 
 const body = font({ size: 18 });
 
@@ -180,5 +186,43 @@ describe('typesetMarkdown', () => {
   it('does not typeset raw HTML', () => {
     const result = typesetMarkdown('<script>alert(1)</script>', { width: 800 });
     expect(textPrims(result.prims).map(lineText).join('')).not.toContain('alert');
+  });
+});
+
+describe('die Spaltenbreiten einer Tabelle', () => {
+  const zelle = (text: string) => [{ text, font: body, color: '#000' }];
+  const breit = 'ein deutlich längerer Zelleninhalt';
+
+  it('gibt der Spalte mehr, in der mehr steht', () => {
+    const [links, rechts] = tableColumnWidths(
+      [
+        [zelle(breit), zelle('12')],
+        [zelle(breit), zelle('7')],
+      ],
+      600,
+      10,
+      12,
+    );
+    expect(links).toBeGreaterThan(rechts * 2);
+    expect(links + rechts).toBeCloseTo(600, 3);
+  });
+
+  it('lässt der schmalen Spalte trotzdem Platz für ihren Inhalt', () => {
+    // Der Fehler, der das gebaut hat: der Innenabstand wurde mitgewichtet.
+    // „Wert" bekam seinen Anteil an der *Gesamt*breite, davon gingen zwei
+    // Innenabstände ab, und es brach zu „Wer / t" um.
+    const spalten = tableColumnWidths([[zelle(breit), zelle('1.240')]], 600, 10, 12);
+    expect(spalten[1] - 20).toBeGreaterThan(measureText('1.240', body));
+  });
+
+  it('teilt auch dann, wenn nichts mehr passt', () => {
+    const spalten = tableColumnWidths([[zelle(breit), zelle(breit)]], 80, 10, 12);
+    expect(spalten.reduce((a, b) => a + b, 0)).toBeCloseTo(80, 3);
+    for (const breiteSpalte of spalten) expect(breiteSpalte).toBeGreaterThan(0);
+  });
+
+  it('lässt eine leere Spalte nicht verschwinden', () => {
+    const spalten = tableColumnWidths([[zelle(breit), zelle('')]], 600, 10, 12);
+    expect(spalten[1]).toBeGreaterThan(20);
   });
 });

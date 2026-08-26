@@ -137,7 +137,10 @@ src/
               truetype.ts     Zeichen → Umriss (glyf, cmap, composite)
     export/   scene.ts        Folie → Szene  ◄── die Drehscheibe
               svg.ts pdf.ts   Szene → Datei
+              png.ts          Szene → Bild (über das SVG, mit Umrissen)
               pptx*.ts zip.ts Szene + Modell → PowerPoint
+    chart.ts table.ts         Zahlen und Zellen lesen (kein eigener Zeichner)
+    presenterChannel.ts       Was die beiden Vortragsfenster einander sagen
   state/      deckStore.ts    Zustand, Aktionen, Verlauf
   components/ canvas · panels · chrome · present · ui
 ```
@@ -330,6 +333,39 @@ wurde eine Zeile in `App.tsx` auskommentiert; damit war ein Import ungenutzt,
 Der Rauchtest meldete fünfzehn von fünfzehn — über den Code *vor* der
 Sabotage. `pruefeStand()` in `scripts/smoke.mjs` vergleicht jetzt die
 Änderungszeiten und bricht ab, bevor eine solche Zahl entsteht.
+
+**Ein `rect`-Primitiv trägt keine Matrix.** Alles, was ein Element zeichnet,
+steht in Element-Koordinaten und wird über `transformSegs(..., matrix)` an
+seinen Platz gebracht. Ein `{ t: 'rect', x, y }` kann das nicht — es landet
+so, wie es dasteht. Beim ersten Diagramm lagen die Balken deshalb links neben
+ihrem Kasten, und die Punkte des zweiten Diagramms mitten im ersten. Flächen
+innerhalb eines Elements gehören als geschlossener Pfad emittiert; `rect`
+bleibt dem Folien-Beiwerk vorbehalten, das ohnehin in Folien-Koordinaten
+rechnet.
+
+**Gleich breite Tabellenspalten sehen aus wie ein Raster.** „Was" bekam so viel
+Platz wie „Folie vor / zurück"; die schmale Spalte stand als Loch daneben,
+während die breite umbrach. Gewichtet wird jetzt nach der breitesten
+*ungebrochenen* Zelle — und der Innenabstand wird dabei **vorweg** abgezogen,
+nicht mitgewichtet: sonst verhungert die schmale Spalte und „1.240" bricht zu
+„1.24 / 0". Die Rechnung steht in `tableColumnWidths()` und ist öffentlich,
+weil der PPTX-Weg dieselbe braucht — zwei Rechnungen für dieselbe Frage liefen
+auseinander, und man sähe es erst in der fremden Datei.
+
+**Eine Prüfung an der rechtsbündigen Spalte beweist nichts über Spaltenbreiten.**
+Die erste Fassung der Rauchtest-Prüfung maß, wo die Zahlenspalte steht — und
+überlebte die Gegenprobe: rechtsbündig steht sie an der rechten Kante der
+Tabelle, und die ist bei gleich breiten Spalten dieselbe. Gemessen wird jetzt
+die *linksbündige* letzte Spalte, denn die verrät, wo ihre Spalte anfängt.
+
+**Ein zweites Fenster mit demselben Store überschreibt die Sitzung des
+ersten.** Die Referentenansicht läuft unter `?referent=1` in derselben
+Anwendung, und die Abzweigung steht deshalb in `main.tsx` und nicht in `App`:
+`App` lädt beim Start das gemerkte Deck und schaltet die Selbstsicherung ein.
+Ein zweites Fenster, das dasselbe täte, schriebe seinen Stand über den des
+ersten — mitten im Vortrag, und ohne dass etwas davon zu sehen wäre. Das
+Vortragsfenster hat deshalb keinen Store: es bekommt sein Deck als Markdown
+über den `BroadcastChannel` und liest es für sich.
 
 **Der Setzer misst gegen die echte Schrift.** Ein `@font-face` allein lädt
 nichts — der Browser holt die Datei erst, wenn ein Zeichen sie braucht, und

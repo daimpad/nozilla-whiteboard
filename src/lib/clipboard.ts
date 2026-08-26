@@ -18,7 +18,7 @@
  * schreiben oder in ein zweites Fenster des Werkzeugs einfügen.
  */
 import { createEmptySlide, parseSlide, serializeSlide } from '@/lib/markdown/deck';
-import { createId } from '@/model/factory';
+import { createId, regroupElements } from '@/model/factory';
 import type { CanvasElement } from '@/model/types';
 
 /** Elemente als Ausschnitt der Datei — der Block, der auch in der `.md` stünde. */
@@ -36,8 +36,10 @@ export function elementsToSnippet(elements: readonly CanvasElement[]): string {
 export function snippetToElements(text: string): CanvasElement[] {
   if (!text.includes('elements:')) return [];
   try {
-    return parseSlide(text).elements.map(
-      (element) => ({ ...element, id: createId(element.kind) }) as CanvasElement,
+    return regroupElements(
+      parseSlide(text).elements.map(
+        (element) => ({ ...element, id: createId(element.kind) }) as CanvasElement,
+      ),
     );
   } catch {
     // Ein Text, der wie ein Block aussah und keiner war. Kein Fehler — der

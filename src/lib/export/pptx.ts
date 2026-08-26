@@ -28,7 +28,7 @@ import {
 } from '@/theme';
 import { flowFrame, footerFrame } from '@/lib/layout/slideLayout';
 import { segsBounds, type Seg } from '@/lib/geometry/path';
-import type { StyledRun } from '@/lib/text/typeset';
+import { tableColumnWidths, type StyledRun } from '@/lib/text/typeset';
 import type { CanvasElement, Deck, Slide } from '@/model/types';
 import { slideTitle } from '@/model/types';
 import {
@@ -39,6 +39,7 @@ import {
   type BackgroundStyle,
   type ScenePrim,
 } from './scene';
+import { parseTable, toMarkdownTable } from '@/lib/table';
 import { parseColor } from './color';
 import { escapeXml } from './svg';
 import { resolveDeckImages, type ImageMap } from './images';
@@ -412,7 +413,13 @@ function elementShapes(
       ? { ...element, text: '' }
       : element.kind === 'markdown'
         ? { ...element, markdown: '' }
-        : element;
+        : // Eine Tabelle wird gleich als *echte* Tabelle geschrieben, und die
+          // bringt ihre Linien selbst mit. Ließe man die des Setzers stehen,
+          // stünden zwei Gitter übereinander — und das des Setzers dort, wo
+          // der Umbruch auf der Fläche lag.
+          element.kind === 'table'
+          ? { ...element, data: '', label: '' }
+          : element;
   const prims = buildElementPrims(source, bg);
   const geometry = prims.filter((prim) => prim.t !== 'text');
   const out: string[] = [];
@@ -424,6 +431,72 @@ function elementShapes(
   }
 
   // Dann der Text, als eigener Rahmen darüber.
+  // Ein Diagramm schreibt seinen Text in die *Szene* — Werte an den Balken,
+  // Kategorien darunter. Ohne diesen Zweig fiele er hier heraus, denn oben
+  // werden Textprimitive aus der Geometrie gefiltert, und `TEXT_KINDS` kennt
+  // nur Bausteine mit eigenen Textfeldern. Die `.pptx` hätte dann Balken ohne
+  // Beschriftung gezeigt — dieselbe Falle wie damals bei der Wortmarke, und
+  // dieselbe Antwort: der Weg, der seine Fußzeile selbst setzt, muss auch
+  // selbst hinsehen.
+  if (element.kind === 'chart') {
+    for (const prim of prims) {
+      if (prim.t !== 'text') continue;
+      out.push(...scenenTextShape(prim, nextId));
+    }
+  }
+
+  /*
+     Die Tabelle ist der Grund, aus dem es diese Elementart überhaupt gibt.
+
+     Ein Markdown-Block mit einer Tabelle darin kommt hier nur als Textrahmen
+     an, und `tableAsParagraphs()` macht daraus Zeilen mit Trennpunkten — in
+     PowerPoint ist eine Tabelle ein eigener Rahmen und kann nicht im Textfluss
+     stehen. Weil hier aber *bekannt* ist, dass das Element eine Tabelle ist,
+     lässt sich derselbe `a:tbl` schreiben, den auch der Fließtext bekommt:
+     echte Zeilen, echte Zellen, in PowerPoint bearbeitbar.
+  */
+  if (element.kind === 'table') {
+    const paint = elementPaint(element, bg);
+    const breite = element.w - element.padding * 2;
+    let y = element.y + element.padding;
+
+    if (element.label) {
+      const hoehe = typeScale.label.size * typeScale.label.lineHeight * 1.6;
+      out.push(
+        textShape(
+          nextId(),
+          'Überschrift',
+          element.x + element.padding,
+          y,
+          breite,
+          hoehe,
+          [inlineToParagraph(element.label, 'label', { color: paint.muted })],
+          { anchor: 't', rotation: element.rotation, opacity: element.opacity },
+        ),
+      );
+      y += hoehe;
+    }
+
+    const quelle = toMarkdownTable(parseTable(element.data, element.header));
+    const block = markdownToBlocks(quelle, {
+      palette: { text: paint.text, muted: paint.muted, accent: paint.text },
+      baseStyle: 'small',
+    }).find((eintrag) => eintrag.t === 'table');
+    if (block?.t === 'table') {
+      out.push(
+        tableShape(
+          nextId(),
+          element.x + element.padding,
+          y,
+          breite,
+          TABLE_ROW_HEIGHT * (block.table.rows.length + 1),
+          block.table,
+          bg,
+        ),
+      );
+    }
+  }
+
   if (TEXT_KINDS.has(element.kind)) {
     const paras = elementParagraphs(element, bg);
     if (paras.length > 0) {
@@ -806,6 +879,35 @@ interface TextShapeOptions {
  * Schriftgröße nicht. `<a:normAutofit/>` würde beim Bearbeiten heimlich
  * verkleinern und damit die Typo-Hierarchie der Marke aushebeln.
  */
+/**
+ * Ein Textprimitiv der Szene als eigener Textrahmen.
+ *
+ * Die Grundlinie der Szene wird zur Oberkante des Rahmens: PowerPoint kennt
+ * keine Grundlinie, sondern nur Kästen. Ein Kasten von der anderthalbfachen
+ * Schriftgröße, oben angeschlagen, trifft sie nah genug — und weil er weder
+ * Rand noch Füllung hat, sieht man den Unterschied nicht.
+ */
+function scenenTextShape(prim: Extract<ScenePrim, { t: 'text' }>, nextId: IdFn): string[] {
+  const text = prim.runs.map((run) => run.text).join('');
+  if (!text.trim()) return [];
+
+  const groesse = prim.runs.reduce((max, run) => Math.max(max, run.font.size), 0);
+  const breite = prim.runs.reduce((summe, run) => summe + run.width, 0);
+  const farbe = prim.runs[0]?.color;
+
+  return [
+    textShape(
+      nextId(),
+      'Diagrammbeschriftung',
+      prim.x,
+      prim.y - groesse,
+      Math.max(8, breite + groesse),
+      groesse * 1.5,
+      [inlineToParagraph(text, 'label', { color: farbe })],
+    ),
+  ];
+}
+
 function textShape(
   id: number,
   name: string,
@@ -1012,19 +1114,33 @@ function tableShape(
   bg: BackgroundStyle,
 ): string {
   const columns = Math.max(1, table.header.length);
-  const columnWidth = Math.floor(emu(w) / columns);
+  /*
+     Dieselben Spaltenbreiten wie auf der Fläche — aus derselben Funktion.
+
+     Gleich breite Spalten waren hier lange richtig, weil sie es auch dort
+     waren. Seit die Fläche nach Inhalt teilt, wären sie ein Unterschied
+     zwischen dem, was man sieht, und dem, was ankommt — und den sähe man erst
+     in PowerPoint.
+  */
+  const zellPadX = typeScale.small.size * 0.7;
+  const breiten = tableColumnWidths(
+    [table.header, ...table.rows],
+    w,
+    zellPadX,
+    typeScale.small.size,
+  );
   // `a:tr h` ist für PowerPoint eine *Mindest*höhe — eine Zeile mit
   // umbrechendem Text wächst darüber hinaus. Eine geratene Aufteilung der
   // Rahmenhöhe wäre deshalb falsch: sie würde Zeilen zu flach machen und die
   // Linien mitten durch die Schrift legen.
   const rowHeight = emu(TABLE_ROW_HEIGHT);
 
-  const cell = (runs: StyledRun[], header: boolean): string => {
+  const cell = (runs: StyledRun[], header: boolean, spalte: number): string => {
     const para: Paragraph = {
       runs,
       level: 0,
       bullet: 'none',
-      align: 'l',
+      align: table.align[spalte] ?? 'l',
       spaceBefore: 0,
       lineHeight: 1.3,
     };
@@ -1035,6 +1151,15 @@ function tableShape(
       // `a:tcPr` ist im Schema eine *Sequenz*: erst die Linien (lnL, lnR,
       // lnT, lnB), dann die Füllung. Umgekehrt ist die Datei ungültig.
       '<a:tcPr marL="45720" marR="45720" marT="27432" marB="27432" anchor="ctr">' +
+      /*
+         Senkrechte Linien werden ausdrücklich abgeschaltet.
+
+         Ohne Angabe greift die *Vorgabe* des Betrachters, und die zieht ein
+         volles Gitter: LibreOffice zeigte einen Kasten um jede Zelle, während
+         die Fläche nur die waagerechten Linien kennt. Die CI kennt sie auch
+         nur — eine Tabelle ist dort eine Folge von Zeilen, kein Raster.
+      */
+      '<a:lnL><a:noFill/></a:lnL><a:lnR><a:noFill/></a:lnR><a:lnT><a:noFill/></a:lnT>' +
       `<a:lnB w="${emu(strokeWidthOf('hair'))}" cap="flat">${solidFill(bg.line)}` +
       '<a:prstDash val="solid"/></a:lnB>' +
       (header ? solidFill(bg.codeBackground) : '<a:noFill/>') +
@@ -1043,11 +1168,15 @@ function tableShape(
   };
 
   const rows = [
-    `<a:tr h="${rowHeight}">` + table.header.map((runs) => cell(runs, true)).join('') + '</a:tr>',
+    `<a:tr h="${rowHeight}">` +
+      table.header.map((runs, index) => cell(runs, true, index)).join('') +
+      '</a:tr>',
     ...table.rows.map(
       (row) =>
         `<a:tr h="${rowHeight}">` +
-        Array.from({ length: columns }, (_, index) => cell(row[index] ?? [], false)).join('') +
+        Array.from({ length: columns }, (_, index) => cell(row[index] ?? [], false, index)).join(
+          '',
+        ) +
         '</a:tr>',
     ),
   ];
@@ -1061,7 +1190,7 @@ function tableShape(
     '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">',
     '<a:tbl><a:tblPr firstRow="1" bandRow="0"/>',
     '<a:tblGrid>' +
-      Array.from({ length: columns }, () => `<a:gridCol w="${columnWidth}"/>`).join('') +
+      breiten.map((breite) => `<a:gridCol w="${emu(breite)}"/>`).join('') +
       '</a:tblGrid>',
     rows.join(''),
     '</a:tbl></a:graphicData></a:graphic>',

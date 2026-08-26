@@ -22,6 +22,7 @@ import {
   iconFrames,
   shapeNames,
   verticalAligns,
+  chartKinds,
   wordmarkVariants,
   type CanvasElement,
   type ElementBase,
@@ -53,6 +54,10 @@ const defaultFill: Record<ElementKind, FillStyle> = {
   connector: 'none',
   image: 'outline',
   wordmark: 'none',
+  chart: 'framed',
+  // Ein Rahmen um eine Tabelle, deren Zeilen schon Linien haben, sind zwei
+  // Gitter übereinander.
+  table: 'none',
 };
 
 const defaultShadow: Record<ElementKind, ShadowName> = {
@@ -65,6 +70,8 @@ const defaultShadow: Record<ElementKind, ShadowName> = {
   connector: 'none',
   image: 'md',
   wordmark: 'none',
+  chart: 'none',
+  table: 'none',
 };
 
 const defaultPadding: Record<ElementKind, number> = {
@@ -77,6 +84,8 @@ const defaultPadding: Record<ElementKind, number> = {
   connector: 0,
   image: 0,
   wordmark: 0,
+  chart: elementDefaults.chart.padding,
+  table: elementDefaults.table.padding,
 };
 
 const defaultStroke: Record<ElementKind, StrokeName> = {
@@ -89,6 +98,8 @@ const defaultStroke: Record<ElementKind, StrokeName> = {
   connector: elementDefaults.connector.strokeWeight,
   image: 'rule',
   wordmark: 'hair',
+  chart: elementDefaults.chart.strokeWeight,
+  table: elementDefaults.table.strokeWeight,
 };
 
 const defaultSize: Record<ElementKind, { w: number; h: number }> = {
@@ -101,6 +112,8 @@ const defaultSize: Record<ElementKind, { w: number; h: number }> = {
   connector: { w: elementDefaults.connector.width, h: elementDefaults.connector.height },
   image: { w: elementDefaults.image.width, h: elementDefaults.image.height },
   wordmark: { w: elementDefaults.wordmark.width, h: elementDefaults.wordmark.height },
+  chart: { w: elementDefaults.chart.width, h: elementDefaults.chart.height },
+  table: { w: elementDefaults.table.width, h: elementDefaults.table.height },
 };
 
 const defaultTone: Record<ElementKind, ToneName> = {
@@ -113,6 +126,8 @@ const defaultTone: Record<ElementKind, ToneName> = {
   connector: elementDefaults.connector.tone,
   image: elementDefaults.image.tone,
   wordmark: elementDefaults.wordmark.tone,
+  chart: elementDefaults.chart.tone,
+  table: elementDefaults.table.tone,
 };
 
 function baseFor(kind: ElementKind): ElementBase {
@@ -196,6 +211,29 @@ export function createElement<K extends ElementKind>(
     case 'wordmark':
       element = { ...base, kind: 'wordmark', variant: 'auto' };
       break;
+    case 'chart':
+      element = {
+        ...base,
+        kind: 'chart',
+        chart: 'bar',
+        // Drei Zeilen als Anschauung: man sieht sofort, wie die Zahlen
+        // hineinkommen, und muss nichts nachschlagen.
+        data: '2023  38\n2024  52\n* 2025  61',
+        label: '',
+        values: true,
+      };
+      break;
+    case 'table':
+      element = {
+        ...base,
+        kind: 'table',
+        // Wie beim Diagramm: drei Zeilen als Anschauung, damit man sieht, wie
+        // die Zellen hineinkommen, statt es nachschlagen zu müssen.
+        data: 'Was  Wert\nErste Zeile  12\nZweite Zeile  34',
+        header: true,
+        label: '',
+      };
+      break;
     default:
       throw new Error(`Unbekannte Elementart: ${String(kind)}`);
   }
@@ -204,6 +242,22 @@ export function createElement<K extends ElementKind>(
 }
 
 /** Ein Element mit frischer Id kopieren, um `offset` Folien-Einheiten versetzt. */
+/**
+ * Gruppenkennungen einer Auswahl frisch vergeben.
+ *
+ * Ohne das trüge jede Kopie die Kennung ihres Originals — und wäre damit
+ * dieselbe Gruppe. Wer eine Gruppe dupliziert und die Kopie wegzieht, nähme
+ * das Original mit.
+ */
+export function regroupElements(elements: readonly CanvasElement[]): CanvasElement[] {
+  const neu = new Map<string, string>();
+  return elements.map((element) => {
+    if (!element.group) return element;
+    if (!neu.has(element.group)) neu.set(element.group, createId('group'));
+    return { ...element, group: neu.get(element.group) } as CanvasElement;
+  });
+}
+
 export function duplicateElement(
   element: CanvasElement,
   offset = canvas.gridSize * 3,
@@ -285,6 +339,7 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
   };
 
   if (typeof raw.name === 'string' && raw.name.trim()) base.name = raw.name;
+  if (typeof raw.group === 'string' && raw.group.trim()) base.group = raw.group.trim();
 
   const reveal = normalizeReveal(raw.reveal);
   if (reveal) base.reveal = reveal;
@@ -354,6 +409,23 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
       };
     case 'wordmark':
       return { ...base, kind: 'wordmark', variant: oneOf(raw.variant, wordmarkVariants, 'auto') };
+    case 'chart':
+      return {
+        ...base,
+        kind: 'chart',
+        chart: oneOf(raw.chart, chartKinds, 'bar'),
+        data: str(raw.data),
+        label: str(raw.label),
+        values: bool(raw.values, true),
+      };
+    case 'table':
+      return {
+        ...base,
+        kind: 'table',
+        data: str(raw.data),
+        header: bool(raw.header, true),
+        label: str(raw.label),
+      };
     default:
       return null;
   }
@@ -403,6 +475,7 @@ export function minimizeElement(element: CanvasElement): Record<string, unknown>
   keepIfChanged('opacity', round2(element.opacity), 1);
   keepIfChanged('locked', element.locked, false);
   if (element.name) out.name = element.name;
+  if (element.group) out.group = element.group;
   if (element.reveal && element.reveal.step > 0) {
     out.reveal = { step: element.reveal.step, animation: element.reveal.animation };
   }
@@ -450,6 +523,17 @@ export function minimizeElement(element: CanvasElement): Record<string, unknown>
       break;
     case 'wordmark':
       keepIfChanged('variant', element.variant, 'auto');
+      break;
+    case 'chart':
+      out.chart = element.chart;
+      out.data = element.data;
+      if (element.label) out.label = element.label;
+      keepIfChanged('values', element.values, true);
+      break;
+    case 'table':
+      out.data = element.data;
+      if (element.label) out.label = element.label;
+      keepIfChanged('header', element.header, true);
       break;
   }
 

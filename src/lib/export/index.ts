@@ -28,6 +28,7 @@ export * from './images';
 export * from './download';
 export * from './fontFiles';
 export * from './outline';
+export * from './png';
 export * from './pptx';
 export * from './zip';
 

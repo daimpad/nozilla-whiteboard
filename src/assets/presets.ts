@@ -98,6 +98,43 @@ export const assetPresets: AssetPreset[] = [
     { text: 'Abschnitt', typeStyle: 'label', w: 300, h: 20 },
     'Label-Schrift, ALL-CAPS, gesperrt — wird automatisch gesetzt',
   ),
+  /* ------------------------------------------------------------ Diagramme */
+  preset(
+    'chart-bar',
+    'Balken',
+    'cards',
+    'chart',
+    {
+      chart: 'bar',
+      label: 'Laufzeit in Tagen',
+      data: '2023  38\n2024  52\n* 2025  61',
+    },
+    'Zahlen als Balken — ein Wert mit * davor bekommt das Signal',
+  ),
+  preset(
+    'chart-line',
+    'Linie',
+    'cards',
+    'chart',
+    {
+      chart: 'line',
+      label: 'Wartungsaufwand',
+      data: 'Q1  62\nQ2  48\nQ3  35\nQ4  28',
+    },
+    'Ein Verlauf über die Zeit',
+  ),
+  preset(
+    'table',
+    'Tabelle',
+    'cards',
+    'table',
+    {
+      label: '',
+      data: 'Was  Tasten\nFolie vor / zurück  → ←\nÜbersicht  ⌘K\nPräsentieren  P',
+      header: true,
+    },
+    'Zellen tippen oder aus einer Tabellenkalkulation hineinkopieren',
+  ),
   preset(
     'markdown-block',
     'Markdown-Block',

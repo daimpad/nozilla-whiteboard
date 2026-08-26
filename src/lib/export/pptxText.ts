@@ -49,6 +49,14 @@ export interface Paragraph {
 export interface TableModel {
   header: StyledRun[][];
   rows: StyledRun[][][];
+  /**
+   * Je Spalte die Ausrichtung aus der Trennzeile (`---:` heißt rechtsbündig).
+   *
+   * Sie steht hier, weil die Fläche sie zeichnet: eine Zahlenspalte, die dort
+   * rechts steht und in der `.pptx` links, ist ein Unterschied, den man erst
+   * in PowerPoint sieht.
+   */
+  align: ('l' | 'ctr' | 'r')[];
 }
 
 /** Was ein Markdown-Block wird: entweder Absätze oder eine echte Tabelle. */
@@ -222,6 +230,10 @@ export function markdownToBlocks(source: string, options: BlockOptions = {}): Bl
             header: table.header.map((cell) =>
               flattenInline(cell.tokens ?? [], spec('bodyStrong'), palette.text),
             ),
+            align: table.header.map((_, index) => {
+              const richtung = table.align?.[index];
+              return richtung === 'right' ? 'r' : richtung === 'center' ? 'ctr' : 'l';
+            }),
             rows: table.rows.map((row) =>
               row.map((cell) => flattenInline(cell.tokens ?? [], spec('body'), palette.text)),
             ),

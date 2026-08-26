@@ -271,6 +271,46 @@ async function main() {
     wahr(Math.abs(kante - 88) <= 6, `linke Kante des Label-Textes: ${kante} statt 88`);
   });
 
+  await pruefe('zwei Bausteine lassen sich zu einer Gruppe zusammenfassen', async () => {
+    // Mehrfachauswahl gab es, Gruppieren nicht — wer eine Karte samt Zeichen
+    // verschieben wollte, musste jedes Mal neu einrahmen.
+    await seite.locator('aside button').filter({ hasText: 'Zahl' }).first().click();
+    await seite.waitForTimeout(500);
+    await seite.keyboard.press('Control+a');
+    await seite.waitForTimeout(300);
+    await seite.keyboard.press('Control+g');
+    await seite.waitForTimeout(500);
+
+    const knopf = seite.getByRole('button', { name: /Gruppe auflösen/ });
+    wahr(await knopf.count(), 'kein Knopf zum Auflösen — es wurde nicht gruppiert');
+    gleich(await knopf.first().getAttribute('aria-pressed'), 'true', 'Zustand des Gruppenknopfs');
+
+    // Und der Klick auf ein einzelnes Mitglied nimmt die ganze Gruppe.
+    //
+    // Geprüft an den Griffen, nicht am Gruppenknopf: der zeigt sich auch bei
+    // einem einzelnen Mitglied, denn die Kennung klebt am Element. Griffe
+    // zeichnet die Fläche dagegen nur, wenn genau *eines* ausgewählt ist —
+    // keine Griffe heißt also: die Gruppe hängt mit dran.
+    await seite.keyboard.press('Escape');
+    await seite.waitForTimeout(300);
+    await seite.locator('[data-hit-element]').first().click();
+    await seite.waitForTimeout(400);
+    gleich(
+      await seite.locator('[data-handle]').count(),
+      0,
+      'Griffe nach dem Klick auf ein Gruppenmitglied',
+    );
+
+    await seite.keyboard.press('Control+Shift+g');
+    await seite.waitForTimeout(400);
+    wahr(
+      await seite.getByRole('button', { name: /^Gruppieren/ }).count(),
+      'die Gruppe ließ sich nicht auflösen',
+    );
+    await seite.keyboard.press('Escape');
+    await seite.waitForTimeout(300);
+  });
+
   await pruefe('eine Karte reist über die Zwischenablage auf die nächste Folie', async () => {
     // Für ein Werkzeug, das sich Whiteboard nennt, war ⌘V die auffälligste
     // Lücke: eine Datei *fallen zu lassen* ging, sie *einzufügen* nicht.
@@ -317,6 +357,145 @@ async function main() {
     // 200 × 100 sind 2 : 1, und 420 ist die Breite eines eingesetzten Bildes.
     gleich(`${breite} × ${hoehe}`, '420 × 210', 'Maß des eingefügten Bildes');
     gleich(`${x} / ${y}`, '88 / 72', 'Ort des eingefügten Bildes');
+  });
+
+  await pruefe('⌘F findet ein Wort auf einer anderen Folie', async () => {
+    // Die Suche des Browsers fände nur, was gerade auf dem Bildschirm steht —
+    // also die eine Folie, die man ohnehin sieht.
+    await seite.getByRole('navigation', { name: 'Folien' }).locator('button').first().click();
+    await seite.waitForTimeout(500);
+    const vorher = Number(
+      (await seite.locator('header span.tabular-nums').first().innerText()).split('/')[0],
+    );
+
+    await seite.keyboard.press('Control+f');
+    await seite.waitForTimeout(400);
+    await seite.getByLabel('Im Deck suchen').fill('Vektor');
+    await seite.waitForTimeout(600);
+
+    const treffer = seite.locator('[aria-label="Im Deck suchen"]').locator('..').locator('..');
+    const knoepfe = treffer.locator('ul button');
+    wahr(await knoepfe.count(), 'kein Treffer für ein Wort, das im Deck steht');
+
+    await knoepfe.first().click();
+    await seite.waitForTimeout(700);
+    const nachher = Number(
+      (await seite.locator('header span.tabular-nums').first().innerText()).split('/')[0],
+    );
+    wahr(nachher !== vorher, `der Treffer führte nicht auf eine andere Folie (${nachher})`);
+
+    await seite.keyboard.press('Escape');
+    await seite.waitForTimeout(300);
+  });
+
+  await pruefe('ein Diagramm zeichnet die Zahlen, die drinstehen', async () => {
+    // Ein Diagramm ist ein Kunde der Szene wie jedes andere Element — deshalb
+    // wird hier geprüft, was auf der Folie *steht*, nicht was das Modell hält.
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    await seite.locator('aside button').filter({ hasText: 'Balken' }).first().click();
+    await seite.waitForTimeout(700);
+
+    const folie = () => seite.evaluate(FOLIE);
+    const vorher = (await folie()).markup;
+    for (const wort of ['2023', '2025', '61']) {
+      wahr(vorher.includes(`>${wort}<`), `„${wort}" fehlt im Diagramm`);
+    }
+    // Der mit * markierte Wert trägt die Signalfarbe — höchstens einer.
+    const signale = vorher.split('#00FF9C').length - 1;
+    wahr(signale > 0, 'kein hervorgehobener Balken');
+
+    // Andere Zahlen, anderes Bild.
+    await seite.getByRole('button', { name: 'Element', exact: true }).click();
+    await seite.waitForTimeout(300);
+    const feld = seite.locator('aside[aria-label="Inspektor"] textarea').first();
+    await feld.fill('Eins  10\nZwei  90');
+    await seite.waitForTimeout(800);
+
+    const nachher = (await folie()).markup;
+    wahr(nachher.includes('>Eins<'), 'die neuen Beschriftungen stehen nicht auf der Folie');
+    wahr(!nachher.includes('>2023<'), 'die alten Beschriftungen stehen noch da');
+  });
+
+  await pruefe('eine Tabelle teilt ihre Spalten nach dem, was drinsteht', async () => {
+    /*
+       Die Spaltenbreiten sind der Grund für diese Prüfung.
+
+       Zu gleichen Teilen war es lange, und es sah aus wie ein Raster: die
+       schmale Spalte stand als Loch daneben, während die breite umbrach. Am
+       Markup ist das nicht zu sehen — wohl aber an den Kästen der Textknoten,
+       und die verrät `getBBox()`.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    await seite.locator('aside button').filter({ hasText: 'Tabelle' }).first().click();
+    await seite.waitForTimeout(900);
+
+    await seite.getByRole('button', { name: 'Element', exact: true }).click();
+    await seite.waitForTimeout(300);
+    const feld = seite.locator('aside[aria-label="Inspektor"] textarea').first();
+    await feld.fill(
+      [
+        'Was | Zahl | Rest',
+        '--- | ---: | ---',
+        'Ein deutlich längerer Zelleninhalt | 1.240 | ja',
+        'Kurz | 12 | nein',
+      ].join('\n'),
+    );
+    await seite.waitForTimeout(900);
+
+    const kaesten = await seite.evaluate(() => {
+      let groesstes = null;
+      for (const svg of document.querySelectorAll('svg')) {
+        const box = svg.getBoundingClientRect();
+        if (!groesstes || box.width * box.height > groesstes.flaeche) {
+          groesstes = { flaeche: box.width * box.height, svg };
+        }
+      }
+      return [...groesstes.svg.querySelectorAll('text')].map((node) => ({
+        text: node.textContent,
+        x: node.getBBox().x,
+        rechts: node.getBBox().x + node.getBBox().width,
+      }));
+    });
+
+    const finde = (text) => kaesten.find((k) => k.text === text);
+    for (const wort of [
+      'Was',
+      'Zahl',
+      'Kurz',
+      '1.240',
+      'ja',
+      'Ein deutlich längerer Zelleninhalt',
+    ]) {
+      wahr(finde(wort), `„${wort}" fehlt in der Tabelle`);
+    }
+
+    /*
+       Gemessen wird die *letzte* Spalte, und zwar eine linksbündige.
+
+       Die erste Fassung sah auf die Zahlenspalte — und die überlebte die
+       Gegenprobe: rechtsbündig steht sie an der rechten Kante der Tabelle, und
+       die ist bei gleichen Teilen dieselbe. Eine linksbündige Spalte verrät,
+       wo ihre Spalte *anfängt*, und genau darum geht es: bei drei gleichen
+       Teilen bei 69 % der Breite, nach Inhalt bei über 90 %.
+    */
+    // Die Kanten kommen aus den Zellen und nicht aus allen Textknoten der
+    // Folie: die Fußzeile steht weiter links und weiter rechts als die Tabelle
+    // und verschöbe jedes Verhältnis.
+    const linkeKante = finde('Was').x;
+    const rechteKante = Math.max(finde('Rest').rechts, finde('nein').rechts);
+    const anteil = (finde('ja').x - linkeKante) / (rechteKante - linkeKante);
+    wahr(anteil > 0.8, `die Spalten sind gleich breit statt nach Inhalt (${anteil.toFixed(2)})`);
+
+    // Und `---:` heißt rechtsbündig: die beiden Zahlen enden auf derselben
+    // Kante, obwohl sie verschieden lang sind.
+    const zahl = finde('1.240');
+    const kurz = finde('12');
+    wahr(
+      Math.abs(zahl.rechts - kurz.rechts) < 2,
+      `die Zahlen stehen nicht rechtsbündig (${Math.round(zahl.rechts)} / ${Math.round(kurz.rechts)})`,
+    );
   });
 
   console.log('\nErscheinungsbild und Erscheinung:');
@@ -373,6 +552,38 @@ async function main() {
     wahr(r + g + b > 600, `Vorschau-Untergrund zu dunkel: ${hell}`);
   });
 
+  await pruefe('ein überlaufender Text meldet sich, ein passender nicht', async () => {
+    // Zweimal ist genau das schon passiert — die Überschrift des Musterkunden
+    // lief aus ihrem Kasten, eine Karte saß auf ihrer Unterkante. Beide Male
+    // war alles grün, und gesehen habe ich es im Bild.
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    await seite.locator('aside button').filter({ hasText: 'Fließtext' }).first().click();
+    await seite.waitForTimeout(600);
+
+    const warnung = seite.getByText('unter der Unterkante', { exact: false });
+    gleich(await warnung.count(), 0, 'Warnung bei einem Text, der passt');
+
+    // Auf ein Zehntel der Höhe zusammenschieben — dann steht er heraus.
+    await seite.getByRole('button', { name: 'Element', exact: true }).click();
+    await seite.waitForTimeout(300);
+    const hoehe = seite.locator('aside[aria-label="Inspektor"] input').nth(3);
+    await hoehe.fill('12');
+    await hoehe.press('Enter');
+    await seite.waitForTimeout(700);
+
+    wahr(await warnung.count(), 'keine Warnung, obwohl der Text heraussteht');
+    // Und der Strich liegt auch auf der Fläche, ohne dass man klicken muss.
+    wahr(
+      await seite.locator('[title*="unter der Unterkante"]').count(),
+      'kein Strich auf der Fläche',
+    );
+
+    await seite.getByRole('button', { name: /Kasten anpassen/ }).click();
+    await seite.waitForTimeout(700);
+    gleich(await warnung.count(), 0, 'Warnung nach dem Anpassen des Kastens');
+  });
+
   console.log('\nVortrag:');
 
   // Der Bildschirm, den nicht der Benutzer sieht, sondern sein Publikum — und
@@ -421,6 +632,59 @@ async function main() {
     await seite.waitForTimeout(400);
   });
 
+  await pruefe('die Referentenansicht folgt dem Vortrag im zweiten Fenster', async () => {
+    /*
+       Zwei Fenster, ein Kanal — und drei Dinge, die nur hier auffallen
+       könnten: dass die Abzweigung in `main.tsx` überhaupt greift (sonst
+       stünde im zweiten Fenster der Editor), dass das Deck über den Kanal
+       ankommt (sonst bliebe es beim „Warte auf den Vortrag …") und dass das
+       Blättern zurückwirkt.
+    */
+    const [referent] = await Promise.all([
+      seite.waitForEvent('popup'),
+      seite.getByRole('button', { name: 'Referentenansicht öffnen' }).click(),
+    ]);
+    await referent.waitForLoadState('networkidle');
+    await referent.waitForTimeout(2500);
+
+    const text = await referent.evaluate(() => document.body.innerText);
+    wahr(!/Warte auf den Vortrag/.test(text), 'das zweite Fenster bekam kein Deck');
+    wahr(
+      !(await referent.getByRole('button', { name: 'Export', exact: true }).count()),
+      'im zweiten Fenster steht der Editor statt der Referentenansicht',
+    );
+    // Ohne `i` findet sich nichts: die Überschriften stehen in Versalien, und
+    // `innerText` gibt zurück, was zu sehen ist — „NOTIZEN", nicht „Notizen".
+    wahr(/notizen/i.test(text), `keine Notizen in der Referentenansicht: ${text.slice(0, 80)}`);
+    wahr(
+      !/\bNotes\b|Next up/i.test(text),
+      `die Referentenansicht ist englisch: ${text.slice(0, 80)}`,
+    );
+
+    // Die laufende *und* die nächste Folie — der eigentliche Gewinn des
+    // zweiten Fensters. Eine allein wäre nur eine kleinere Vortragsansicht.
+    const folien = await referent.evaluate(
+      () =>
+        [...document.querySelectorAll('svg')].filter((svg) => {
+          const box = svg.getBoundingClientRect();
+          return box.width * box.height > 40_000;
+        }).length,
+    );
+    wahr(folien >= 2, `nur ${folien} Folie(n) in der Referentenansicht`);
+
+    // Und zurück: was im zweiten Fenster gedrückt wird, blättert im ersten.
+    const vorher = (await seite.evaluate(FOLIE)).markup;
+    await referent.keyboard.press('ArrowRight');
+    await seite.waitForTimeout(900);
+    wahr(
+      (await seite.evaluate(FOLIE)).markup !== vorher,
+      'das Blättern in der Referentenansicht kam im Vortrag nicht an',
+    );
+
+    await referent.close();
+    await seite.waitForTimeout(400);
+  });
+
   await pruefe('Esc führt zurück an die Arbeit', async () => {
     await seite.keyboard.press('Escape');
     await seite.waitForTimeout(900);
@@ -445,6 +709,38 @@ async function main() {
     const pfad = await datei.path();
     const { size } = await import('node:fs').then((fs) => fs.promises.stat(pfad));
     wahr(size > 50_000, `SVG zu klein: ${size} Bytes`);
+    await seite.keyboard.press('Escape');
+  });
+
+  await pruefe('das PNG einer Folie kommt heraus und ist ein Bild', async () => {
+    // Nicht nur „eine Datei kam an": ein SVG, das über ein <img> gerastert
+    // wird, ist ein eigenes Dokument ohne Zugriff auf die Schriften der
+    // Seite. Wer Textknoten hineinlegt, bekommt ein Bild in der
+    // Ersatzschrift — und merkt es erst beim Empfänger. Deshalb wird hier die
+    // *Signatur* der Datei geprüft und ihre Größe: ein leeres oder einfarbiges
+    // Bild wäre klein.
+    await seite.getByRole('button', { name: 'Export', exact: true }).click();
+    await seite.waitForTimeout(300);
+    const wartet = seite.waitForEvent('download', { timeout: 60000 });
+    await seite
+      .locator('[role="menu"] button')
+      .filter({ hasText: 'PNG — diese Folie' })
+      .first()
+      .click();
+    const datei = await wartet;
+    const pfad = await datei.path();
+    const fs = await import('node:fs');
+    const bytes = await fs.promises.readFile(pfad);
+
+    wahr(
+      bytes.length > 8 && bytes[0] === 0x89 && bytes.toString('latin1', 1, 4) === 'PNG',
+      'die Datei trägt keine PNG-Signatur',
+    );
+    // Breite und Höhe stehen im IHDR, big-endian ab Byte 16.
+    const breite = bytes.readUInt32BE(16);
+    const hoehe = bytes.readUInt32BE(20);
+    gleich(`${breite}×${hoehe}`, '2560×1440', 'Maß des Bildes');
+    wahr(bytes.length > 20_000, `PNG zu klein: ${bytes.length} Bytes`);
     await seite.keyboard.press('Escape');
   });
 

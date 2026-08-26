@@ -18,6 +18,7 @@ import { CanvasStage } from '@/components/canvas/CanvasStage';
 import { AssetSidebar } from '@/components/panels/AssetSidebar';
 import { Inspector } from '@/components/panels/Inspector';
 import { PromptStudio } from '@/components/panels/PromptStudio';
+import { SearchPanel } from '@/components/panels/SearchPanel';
 import { Overview } from '@/components/chrome/Overview';
 import { TopBar } from '@/components/chrome/TopBar';
 import { SlideRail } from '@/components/chrome/SlideRail';
@@ -31,6 +32,7 @@ export default function App() {
   const mode = useDeckStore((state) => state.mode);
   const overviewOpen = useDeckStore((state) => state.overviewOpen);
   const promptOpen = useDeckStore((state) => state.promptOpen);
+  const searchOpen = useDeckStore((state) => state.searchOpen);
   const deck = useDeckStore((state) => state.deck);
   const slide = useDeckStore(selectCurrentSlide);
   const slideIndex = useDeckStore((state) => state.slideIndex);
@@ -131,6 +133,7 @@ export default function App() {
 
       {overviewOpen ? <Overview /> : null}
       {promptOpen ? <PromptStudio /> : null}
+      {searchOpen ? <SearchPanel /> : null}
 
       <div
         className={cx(
@@ -141,7 +144,8 @@ export default function App() {
         aria-hidden={!dropping}
       >
         <p className="rounded-md bg-ui-surface px-4 py-3 text-ui-title font-semibold shadow-ui-xl">
-          Drop a <code className="font-mono">.md</code> deck to open it, or an image to place it
+          Ein <code className="font-mono">.md</code>-Deck hierher ziehen zum Öffnen, ein Bild zum
+          Platzieren
         </p>
       </div>
     </div>

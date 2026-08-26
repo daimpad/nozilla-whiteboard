@@ -21,7 +21,20 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const ROOT = join(process.cwd(), 'src', 'components');
+/*
+   Gesucht wird in `src`, nicht in `src/components`.
+
+   Die Grenze war bequem und falsch: der Hinweis, der beim Ziehen einer Datei
+   über das ganze Fenster liegt, steht in `App.tsx` — also eine Ebene über dem
+   Ordner, den das Sieb absuchte. Er blieb englisch, während drinnen jede
+   Beschriftung geprüft wurde. Ein Wächter, der nach dem Ort urteilt statt nach
+   der Sache, übersieht genau das Auffälligste.
+
+   Gelesen werden nur `.tsx`-Dateien: dort steht, was gezeichnet wird. Die
+   `.ts`-Dateien darunter tragen Dateiformat und Rechnung, und deren
+   Zeichenketten sind keine Beschriftungen.
+*/
+const ROOT = join(process.cwd(), 'src');
 
 /**
  * Zwei Siebe, weil es zwei Fälle gibt.
@@ -75,6 +88,15 @@ const SUBSTANTIV = new Set(
     'file',
     'files',
     'image',
+    // Aus dem Sperren-Knopf, der beide Zweige in einem Attribut trug.
+    'lock',
+    'unlock',
+    // Aus dem Hinweis „1280×720 vectors" im Export-Menü — eine Vorlage in
+    // einem Attribut, in der nach dem Auflösen genau ein Wort übrig bleibt.
+    'vectors',
+    'vector',
+    'group',
+    'ungroup',
   ].map((word) => word.toLowerCase()),
 );
 
@@ -123,13 +145,24 @@ function quellen(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const path = join(dir, entry);
     if (statSync(path).isDirectory()) return quellen(path);
-    return /\.tsx?$/.test(path) && !path.endsWith('.test.ts') ? [path] : [];
+    return path.endsWith('.tsx') ? [path] : [];
   });
 }
 
-/** Kommentare heraus — der Code ist auf Deutsch kommentiert, das zählt nicht. */
-function ohneKommentare(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+/**
+ * Heraus, was niemand sieht.
+ *
+ * Kommentare zuerst — der Code ist auf Deutsch kommentiert, das zählt nicht.
+ * Und die Ausnahmen: `new Error('Root container #root is missing')` steht für
+ * den, der die Konsole aufmacht, nicht für den, der eine Folie baut. Sie
+ * deutsch zu verlangen hieße, das Sieb an einer Stelle scharf zu stellen, an
+ * der es nichts zu bewachen gibt.
+ */
+function nurOberflaeche(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+    .replace(/new Error\([\s\S]*?\)/g, '');
 }
 
 /**
@@ -150,6 +183,27 @@ function sichtbareTexte(source: string): string[] {
     /(?:label|title|placeholder|aria-label|hint|alt)=(?:"([^"]{2,})"|\{'([^']{2,})'\})/g,
   )) {
     out.push(match[1] ?? match[2]);
+  }
+
+  // 1c · Als Vorlage in einem Attribut: hint={`… vectors`}. Das Satz-Sieb
+  // unten sieht sie zwar, aber nach dem Auflösen der Platzhalter bleibt oft
+  // nur ein Wort übrig — und ein Wort allein wertet es nicht.
+  for (const match of source.matchAll(
+    /(?:label|title|placeholder|aria-label|hint|alt)=\{`([^`]{2,200})`\}/g,
+  )) {
+    out.push(match[1].replace(/\$\{[^}]*\}/g, ' '));
+  }
+
+  // 1b · Als Attribut, dessen Wert ein Ausdruck ist:
+  // `label={gesperrt ? 'Entsperren' : 'Sperren'}`. Beide Zweige stehen vor
+  // Augen, und beide entkamen: der Ausdruck oben verlangt genau `{'…'}`, und
+  // das Satz-Sieb unten wertet nur, was zwei Wörter hat.
+  for (const match of source.matchAll(
+    /(?:label|title|placeholder|aria-label|hint|alt)=\{([^}]{2,200})\}/g,
+  )) {
+    for (const teil of match[1].matchAll(/'([^'\n]{2,120})'|"([^"\n]{2,120})"/g)) {
+      out.push(teil[1] ?? teil[2]);
+    }
   }
 
   // 2 · Als Eigenschaft eines Objekts: `{ value: 'fit', label: 'Passend' }`.
@@ -198,7 +252,7 @@ describe('die Oberfläche spricht Deutsch', () => {
     const treffer: string[] = [];
     for (const file of quellen(ROOT)) {
       const name = file.split('/').pop() ?? '';
-      for (const text of sichtbareTexte(ohneKommentare(readFileSync(file, 'utf8')))) {
+      for (const text of sichtbareTexte(nurOberflaeche(readFileSync(file, 'utf8')))) {
         if (istEnglisch(text)) treffer.push(`${name}: ${text}`);
       }
     }
@@ -224,6 +278,12 @@ describe('die Oberfläche spricht Deutsch', () => {
     // Die zwei, die das Urteil durchließ, obwohl das Sieb sie hatte.
     expect(istEnglisch('Nothing selected.')).toBe(true);
     expect(istEnglisch('Embed a file')).toBe(true);
+    // Und die zwei aus dem Sperren-Knopf, die als Zweige eines Ausdrucks in
+    // einem Attribut standen.
+    expect(istEnglisch('Lock')).toBe(true);
+    expect(istEnglisch('Unlock')).toBe(true);
+    expect(istEnglisch(' × vectors')).toBe(true);
+    expect(istEnglisch(' × , echte Pfade')).toBe(false);
     // Und die deutschen Beschriftungen daneben bleiben deutsch.
     expect(istEnglisch('Nichts ausgewählt.')).toBe(false);
     expect(istEnglisch('Datei einbetten')).toBe(false);
@@ -244,6 +304,7 @@ describe('die Oberfläche spricht Deutsch', () => {
       "<p>{notiz || 'Als Rückfall in einem Ausdruck.'}</p>",
       "<p>{kopiert ? 'Erster Zweig hier' : 'Zweiter Zweig hier'}</p>",
       '<Field hint={`Als Vorlage mit ${wert} darin.`} />',
+      "<IconButton label={gesperrt ? 'Erster Zweig im Attribut' : 'Zweiter Zweig im Attribut'} />",
     ].join('\n');
 
     const gefunden = sichtbareTexte(quelle);
@@ -255,6 +316,8 @@ describe('die Oberfläche spricht Deutsch', () => {
       'Als Rückfall in einem Ausdruck.',
       'Erster Zweig hier',
       'Zweiter Zweig hier',
+      'Erster Zweig im Attribut',
+      'Zweiter Zweig im Attribut',
     ]) {
       expect(gefunden, erwartet).toContain(erwartet);
     }

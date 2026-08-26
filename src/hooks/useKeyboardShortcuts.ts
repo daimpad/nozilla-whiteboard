@@ -32,7 +32,8 @@ export function useKeyboardShortcuts(): void {
       /* -------------------------------------------------- always available */
 
       if (event.key === 'Escape') {
-        if (store.promptOpen) store.togglePrompt(false);
+        if (store.searchOpen) store.toggleSearch(false);
+        else if (store.promptOpen) store.togglePrompt(false);
         else if (store.overviewOpen) store.toggleOverview(false);
         else if (store.mode === 'present') store.setMode('edit');
         else if (store.selection.length > 0) store.clearSelection();
@@ -71,6 +72,16 @@ export function useKeyboardShortcuts(): void {
       if (mod && event.key.toLowerCase() === 'k') {
         event.preventDefault();
         store.toggleOverview();
+        return;
+      }
+
+      // Steht vor der Tipp-Sperre, und zwar mit Absicht: wer in einem Feld
+      // steht und ⌘F drückt, meint das Deck. Der Browser bietet dafür nichts
+      // anderes an, und die Suche des Browsers fände nur, was gerade auf dem
+      // Bildschirm steht — also die eine Folie, die man ohnehin sieht.
+      if (mod && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        store.toggleSearch(true);
         return;
       }
 
@@ -143,6 +154,13 @@ export function useKeyboardShortcuts(): void {
       if (mod && event.key.toLowerCase() === 'd') {
         event.preventDefault();
         store.duplicateSelection();
+        return;
+      }
+
+      if (mod && event.key.toLowerCase() === 'g') {
+        event.preventDefault();
+        if (event.shiftKey) store.ungroupSelection();
+        else store.groupSelection();
         return;
       }
 
