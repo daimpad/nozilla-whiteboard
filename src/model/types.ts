@@ -276,6 +276,19 @@ export interface SlideMeta {
   notes?: string;
   /** Fußzeile und Foliennummer auf dieser Folie ausblenden. */
   bare?: boolean;
+  /**
+   * Der Rohtext eines `nzl`-Blocks, der sich nicht lesen ließ.
+   *
+   * Ein Tippfehler im YAML — ein Doppelpunkt zu viel in einem `text:` genügt —
+   * machte diese Folie früher lautlos leer: Layout auf Vorgabe, Elemente weg,
+   * und beim nächsten Sichern war der Block aus der Datei verschwunden. Der
+   * Fließtext blieb stehen, die Folie sah also nicht kaputt aus, sondern leer.
+   *
+   * Steht hier etwas, wird beim Sichern **genau dieser Text** wieder
+   * ausgegeben, unverändert. Dieselbe Linie wie bei einem unbekannten
+   * `theme:` im Frontmatter: den Wert behalten, die Lücke zeigen.
+   */
+  unreadable?: string;
 }
 
 export interface Slide {

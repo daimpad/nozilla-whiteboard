@@ -280,3 +280,67 @@ describe('das Erscheinungsbild im Frontmatter', () => {
     expect(serializeDeck(deck)).toContain('theme: gibt-es-hier-nicht');
   });
 });
+
+describe('ein `nzl`-Block, der sich nicht lesen lässt', () => {
+  /*
+     Ein Doppelpunkt zu viel — hier im Text einer Karte, und das ist die
+     wahrscheinlichste Stelle, weil dort deutsche Sätze stehen. YAML liest
+     `text: Achtung: hier` als Zuordnung in einer Zuordnung und bricht ab.
+  */
+  const KAPUTT = [
+    '<!-- nzl',
+    'layout: canvas',
+    'elements:',
+    '  - id: card-1',
+    '    kind: card',
+    '    x: 80',
+    '    y: 80',
+    '    w: 400',
+    '    h: 200',
+    '    text: Achtung: hier steht ein Doppelpunkt zu viel',
+    '-->',
+    '',
+    '# Eine Folie',
+    '',
+  ].join('\n');
+
+  it('nimmt den Rohtext mit, statt ihn zu verwerfen', () => {
+    const deck = parseDeck(KAPUTT);
+    expect(deck.slides[0].meta.unreadable).toContain('text: Achtung: hier steht');
+  });
+
+  it('schreibt ihn beim Sichern wortgleich zurück', () => {
+    /*
+       Das ist die Prüfung, um die es geht. Vorher fiel der Block beim Parsen
+       durch — Layout auf Vorgabe, keine Elemente — und wurde beim Sichern
+       nicht wieder gebaut. Wer eine solche Datei öffnete und speicherte,
+       verlor seine Folie, ohne dass irgendwo etwas rot geworden wäre.
+    */
+    const gesichert = serializeDeck(parseDeck(KAPUTT));
+    expect(gesichert).toContain('text: Achtung: hier steht ein Doppelpunkt zu viel');
+    expect(gesichert).toContain('- id: card-1');
+  });
+
+  it('bleibt über beliebig viele Runden derselbe Text', () => {
+    // Ein Deck, das bei jedem Sichern anders aussieht, macht jede Versionierung
+    // unbrauchbar — und dieser Weg baut den Block nicht, er reicht ihn durch.
+    const einmal = serializeDeck(parseDeck(KAPUTT));
+    const zweimal = serializeDeck(parseDeck(einmal));
+    expect(zweimal).toBe(einmal);
+  });
+
+  it('lässt einen lesbaren Block unberührt', () => {
+    // Das Gegenstück: der Vermerk darf nicht an jeder Folie kleben, sonst
+    // würde nie wieder ein Block aus dem Modell gebaut.
+    const deck = parseDeck(['<!-- nzl', 'layout: canvas', '-->', '', '# Eins', ''].join('\n'));
+    expect(deck.slides[0].meta.unreadable).toBeUndefined();
+    expect(deck.slides[0].meta.layout).toBe('canvas');
+  });
+
+  it('hält einen leeren Block nicht für kaputt', () => {
+    // `<!-- nzl -->` sagt dasselbe wie gar kein Block. Eine Warnung dafür wäre
+    // ein Fehlalarm, und Fehlalarme bringen echte Warnungen um ihre Wirkung.
+    const deck = parseDeck(['<!-- nzl', '-->', '', '# Eins', ''].join('\n'));
+    expect(deck.slides[0].meta.unreadable).toBeUndefined();
+  });
+});

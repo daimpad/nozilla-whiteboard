@@ -196,6 +196,13 @@ liegt ein Strich auf der Unterkante und der Inspektor sagt, um wie viel — mit
 einem Knopf, der den Kasten anpasst. Auf der Fläche sähe man die Zeile sonst
 noch, im PDF stünde sie über dem Rand, und PowerPoint schnitte sie ab.
 
+**Ein Tippfehler im Dateiformat löscht nichts.** Eine Folie trägt ihre Elemente
+in einem YAML-Block im Markdown, und der lässt sich von Hand verderben — ein
+Doppelpunkt zu viel in einem Text genügt. Früher war die Folie danach leer, und
+beim nächsten Sichern war der Block fort. Jetzt bleibt er Zeichen für Zeichen
+stehen, der Inspektor sagt, dass er nicht lesbar war, und wer den Tippfehler
+geradebiegt, hat seine Folie zurück.
+
 **Nichts wird ersetzt, ohne zu fragen.** Wer ein neues Deck anlegt, eines
 öffnet, eine Datei ins Fenster zieht oder einen Entwurf aus dem Prompt
 übernimmt, wird gefragt — aber nur, wenn wirklich ungesicherte Arbeit im Weg
@@ -517,8 +524,8 @@ CI-Konformität aller 554 Icons.
 
 Das prüft alles, was das Werkzeug **herstellt**. Ob man es **bedienen** kann,
 prüft `npm run test:ui`: Playwright klickt gegen `vite preview`, also gegen
-das gebaute Verzeichnis. Neun Handgriffe, jeder für einen Fehler, der einmal
-durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
+das gebaute Verzeichnis. Sechsundzwanzig Handgriffe, jeder für einen Fehler,
+der einmal durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
 ihrem Kasten, eine Vorschau schwarz auf dunkelgrau. Beides läuft bei jedem
 Pull Request.
 

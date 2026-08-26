@@ -210,8 +210,8 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Neun Handgriffe, die je einen Fehler abbilden,
-  der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
+  gegen das gebaute Verzeichnis. Sechsundzwanzig Handgriffe, die je einen
+  Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
   `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
   Fassung passt nicht zur Bibliothek, deshalb
   `SMOKE_CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
@@ -431,6 +431,28 @@ richtigen Glyphen da sind. `src/theme/fonts.ts` fordert deshalb jeden Schnitt
 mit `document.fonts.load()` an und zählt danach einen Zähler hoch, an dem die
 Fläche hängt — den Messpuffer zu leeren reicht nicht, ohne Zustandsänderung
 zeichnet React nicht neu.
+
+**Ein unlesbarer `nzl`-Block war ein stiller Löschbefehl.** Ein Doppelpunkt zu
+viel im YAML — im deutschen Text einer Karte die wahrscheinlichste Stelle —
+und `parseSlide` fiel auf die Vorgaben zurück: Layout `default`, keine
+Elemente. Der Fließtext blieb stehen, die Folie sah also nicht kaputt aus,
+sondern *leer*. Und weil der Block beim Sichern aus dem Modell neu gebaut wird,
+stand er danach in keiner Datei mehr: Öffnen und Speichern genügte, um eine
+Folie voller Arbeit endgültig zu verlieren.
+
+Der Rohtext bleibt jetzt in `SlideMeta.unreadable` liegen und wird wortgleich
+zurückgeschrieben — dieselbe Linie wie bei einem unbekannten `theme:` im
+Frontmatter: den Wert behalten, die Lücke zeigen. Daran hängen zwei Dinge, die
+leicht zu vergessen sind. Der Inspektor *sagt* es, denn eine Folie ohne
+Elemente, ohne einen Hinweis warum, ist der halbe Fehler. Und `mapSlide` lässt
+den Rohtext fallen, sobald jemand die Folie ändert — sonst stünde beim nächsten
+Öffnen wieder der kaputte Block da und die eben gemachte Änderung nirgends.
+
+Geprüft wird an der **gesicherten Datei**, nicht am Modell: das Modell wusste
+schon vorher nichts von dem Block, und trotzdem wäre nichts verloren gewesen,
+wenn er beim Schreiben wieder dagestanden hätte. Der Rauchtest legt die Sitzung
+deshalb über ein Startskript und nicht kurz vor dem Neuladen — dazwischen liegt
+`beforeunload`, und dort schreibt die Selbstsicherung den offenen Stand darüber.
 
 ---
 

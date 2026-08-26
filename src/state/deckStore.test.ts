@@ -541,3 +541,52 @@ describe('document lifecycle', () => {
     });
   });
 });
+
+describe('eine Folie mit unlesbarem `nzl`-Block', () => {
+  const KAPUTT = [
+    '<!-- nzl',
+    'layout: canvas',
+    'elements:',
+    '  - id: card-1',
+    '    kind: card',
+    '    text: Achtung: hier steht ein Doppelpunkt zu viel',
+    '-->',
+    '',
+    '# Eine Folie',
+    '',
+  ].join('\n');
+
+  it('behält den Rohtext, solange niemand sie anfasst', () => {
+    store().loadMarkdown(KAPUTT);
+    expect(serializeDeck(store().deck)).toContain('text: Achtung: hier steht');
+  });
+
+  it('gibt ihn auf, sobald jemand die Folie ändert', () => {
+    /*
+       Das ist die Falle, die der Rundlauf aufstellt: der Rohtext wird
+       *wortgleich* zurückgeschrieben, und in ihm steht kein Wort von dem, was
+       gerade geändert wurde. Ohne dieses Fallenlassen setzte der Benutzer ein
+       Layout, sähe es auf der Fläche — und fände beim nächsten Öffnen wieder
+       den kaputten Block. Von zwei Wahrheiten in einer Datei ist die neuere
+       die, die der Mensch gerade wollte.
+    */
+    store().loadMarkdown(KAPUTT);
+    store().setSlideMeta({ layout: 'split' });
+
+    const gesichert = serializeDeck(store().deck);
+    expect(gesichert).not.toContain('Doppelpunkt zu viel');
+    expect(gesichert).toContain('layout: split');
+  });
+
+  it('gibt ihn auch beim Tippen im Fließtext auf', () => {
+    // Derselbe Weg, andere Tür: `mapSlide` ist die eine Stelle, durch die
+    // jede Folienänderung geht — deshalb steht das Fallenlassen dort und
+    // nicht in den einzelnen Aktionen.
+    store().loadMarkdown(KAPUTT);
+    store().setSlideMarkdown('# Etwas Neues');
+
+    const gesichert = serializeDeck(store().deck);
+    expect(gesichert).not.toContain('Doppelpunkt zu viel');
+    expect(gesichert).toContain('# Etwas Neues');
+  });
+});

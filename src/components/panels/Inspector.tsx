@@ -145,6 +145,18 @@ function SlidePanel() {
 
   return (
     <div className="space-y-3 p-3">
+      {slide.meta.unreadable !== undefined ? (
+        <p className="flex items-start gap-2 border border-ui-warn bg-ui-warn-bg px-2 py-1.5 text-ui-body text-ui-ink">
+          <Icon name="triangle-exclamation" size={14} className="mt-0.5 shrink-0 text-ui-warn" />
+          <span>
+            Der <code className="font-mono">nzl</code>-Block dieser Folie ließ sich nicht lesen —
+            meist ein Doppelpunkt zu viel im YAML. Layout und Elemente fehlen deshalb hier, der
+            Block selbst bleibt beim Sichern <strong>unverändert erhalten</strong>. Wer ihn
+            geradebiegt, bekommt die Folie zurück; wer hier etwas ändert, ersetzt ihn.
+          </span>
+        </p>
+      ) : null}
+
       <Field label="Layout" hint={layoutDescriptions[slide.meta.layout]}>
         <Select
           value={slide.meta.layout}

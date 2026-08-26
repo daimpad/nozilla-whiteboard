@@ -222,14 +222,32 @@ export const useDeckStore = create<EditorState>()((set, get) => {
   const currentSlide = (state: EditorState): Slide | undefined =>
     state.deck.slides[state.slideIndex];
 
-  /** Replace the current slide via a producer, keeping everything else intact. */
+  /** Den Rohtext eines unlesbaren Blocks fallen lassen — siehe `mapSlide`. */
+  const ohneRohblock = (slide: Slide): Slide => {
+    if (slide.meta.unreadable === undefined) return slide;
+    const meta = { ...slide.meta };
+    delete meta.unreadable;
+    return { ...slide, meta };
+  };
+
+  /**
+   * Replace the current slide via a producer, keeping everything else intact.
+   *
+   * Wer eine Folie ändert, gibt damit ihren unlesbaren Block auf — und das ist
+   * richtig so. Der Rohtext wird beim Sichern wortgleich zurückgeschrieben,
+   * solange niemand die Folie angefasst hat; danach stünde er dort und die
+   * eben gemachte Änderung nirgends. Von zwei Wahrheiten in einer Datei ist
+   * die neuere die, die der Mensch gerade wollte.
+   */
   const mapSlide = (
     state: EditorState,
     index: number,
     producer: (slide: Slide) => Slide,
   ): Deck => ({
     ...state.deck,
-    slides: state.deck.slides.map((slide, i) => (i === index ? producer(slide) : slide)),
+    slides: state.deck.slides.map((slide, i) =>
+      i === index ? ohneRohblock(producer(slide)) : slide,
+    ),
   });
 
   const withElements = (

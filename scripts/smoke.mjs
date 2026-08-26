@@ -3,7 +3,7 @@
  *
  * ## Warum es ihn gibt
  *
- * Die 3589 Unit-Tests prüfen, was das Werkzeug *herstellt* — Szene, Markup,
+ * Die rund 3700 Unit-Tests prüfen, was das Werkzeug *herstellt* — Szene, Markup,
  * PDF, PPTX. Sie prüfen nicht, ob man es *bedienen* kann. Der Unterschied ist
  * nicht theoretisch: die vier Fehler, die zuletzt gefunden wurden, waren alle
  * grün.
@@ -845,6 +845,78 @@ async function main() {
     await seite.waitForTimeout(900);
     seite.off('dialog', annehmen);
     gleich(await folien(), 1, 'das neue Deck kam nicht');
+  });
+
+  await pruefe('ein unlesbarer Block überlebt das Sichern', async () => {
+    /*
+       Der Fehler, gegen den das hier steht: ein Doppelpunkt zu viel im YAML
+       eines `nzl`-Blocks — im deutschen Text einer Karte die wahrscheinlichste
+       Stelle — machte die Folie lautlos leer. Layout auf Vorgabe, Elemente
+       weg, und beim nächsten Sichern stand der Block in keiner Datei mehr.
+       Der Fließtext blieb stehen; die Folie sah deshalb nicht kaputt aus,
+       sondern nur leer.
+
+       Geprüft wird die *gesicherte Datei*, nicht das Modell. Der Unterschied
+       ist genau der Fehler: das Modell wusste schon vorher nichts von dem
+       Block, und trotzdem hätte niemand etwas verloren, wenn er beim
+       Schreiben wieder dagestanden hätte.
+    */
+    const ZEILE = 'text: Achtung: hier steht ein Doppelpunkt zu viel';
+    const KAPUTT = [
+      '<!-- nzl',
+      'layout: canvas',
+      'elements:',
+      '  - id: card-1',
+      '    kind: card',
+      '    x: 80',
+      '    y: 80',
+      '    w: 480',
+      '    h: 220',
+      `    ${ZEILE}`,
+      '-->',
+      '',
+      '# Eine Folie, deren Block nicht lesbar ist',
+      '',
+    ].join('\n');
+
+    /*
+       Gelegt wird die Sitzung über ein Startskript und nicht über ein
+       `evaluate` vor dem Neuladen — dazwischen liegt `beforeunload`, und dort
+       schreibt die Selbstsicherung den *offenen* Stand über das eben Gelegte.
+       Der erste Anlauf las danach das Willkommens-Deck und meldete, der
+       Inspektor sage nichts.
+
+       Das Startskript gilt von hier an für jede Navigation; deshalb steht
+       diese Prüfung am Ende.
+    */
+    await seite.addInitScript((md) => {
+      localStorage.setItem(
+        'nozilla-whiteboard:session:v1',
+        JSON.stringify({ markdown: md, fileName: 'kaputt.md', slideIndex: 0, savedAt: 1 }),
+      );
+    }, KAPUTT);
+    await seite.reload({ waitUntil: 'networkidle' });
+    await seite.waitForTimeout(1500);
+
+    // Sichtbar sein muss es auch: eine Folie, der die Elemente fehlen, ohne
+    // dass irgendwo steht warum, ist der halbe Fehler.
+    wahr(
+      (await seite.getByText('ließ sich nicht lesen').count()) === 1,
+      'der Inspektor sagt nichts über den unlesbaren Block',
+    );
+
+    // Etwas ändern, das die Folie *nicht* anfasst — sonst gäbe das Werkzeug
+    // den Rohtext zu Recht auf. Eine neue Folie reicht und stößt die
+    // Selbstsicherung an.
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(1400);
+
+    const gesichert = await seite.evaluate(() => {
+      const roh = localStorage.getItem('nozilla-whiteboard:session:v1');
+      return roh ? String(JSON.parse(roh).markdown) : '';
+    });
+    wahr(gesichert.length > 0, 'nichts gesichert');
+    wahr(gesichert.includes(ZEILE), 'der unlesbare Block fehlt in der gesicherten Datei');
   });
 
   await pruefe('nichts hat sich in der Konsole beschwert', async () => {
