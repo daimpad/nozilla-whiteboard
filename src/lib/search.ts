@@ -98,10 +98,31 @@ export function elementTexts(element: CanvasElement): [string, string][] {
     case 'image':
       if (element.alt) out.push(['Alternativtext', element.alt]);
       break;
+    case 'chart':
+      if (element.label) out.push(['Überschrift', element.label]);
+      out.push(['Zahlen', element.data]);
+      break;
+    case 'table':
+      if (element.label) out.push(['Überschrift', element.label]);
+      out.push(['Zellen', element.data]);
+      break;
     case 'icon':
     case 'connector':
     case 'wordmark':
       break;
+    default: {
+      /*
+         Der Zweig, der die Behauptung darüber erst wahr macht.
+
+         Ohne ihn zählt der `switch` bloß auf, und eine neue Elementart fällt
+         *nicht* beim Übersetzen auf — sie ist einfach nicht zu finden. Genau
+         das war beim Diagramm passiert: Überschrift und Zahlen standen im
+         Deck und die Suche schwieg dazu.
+      */
+      const unbekannt: never = element;
+      void unbekannt;
+      break;
+    }
   }
   return out;
 }

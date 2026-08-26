@@ -535,41 +535,65 @@ class Layout {
     const cellPadX = size * 0.7;
     const boxWidth = this.width - indent;
     const columns = Math.max(1, token.header.length);
-    const colWidth = boxWidth / columns;
 
-    this.gapBefore(base * 0.4);
-    let y = this.y;
-
-    const drawRow = (cells: Tokens.TableCell[], bold: boolean) => {
-      const spec = font({
+    const specFor = (bold: boolean) =>
+      font({
         family: style.family,
         size,
         weight: bold ? 600 : style.weight,
         tracking: style.tracking,
       });
+
+    const runsFor = (cell: Tokens.TableCell | undefined, bold: boolean) =>
+      flattenInline(
+        cell?.tokens ?? [],
+        specFor(bold),
+        bold ? this.palette.text : this.palette.muted,
+      );
+
+    const spalten = tableColumnWidths(
+      [token.header, ...token.rows].map((row) =>
+        Array.from({ length: columns }, (_, index) => runsFor(row[index], row === token.header)),
+      ),
+      boxWidth,
+      cellPadX,
+      size,
+    );
+    const links = spalten.map((_, index) => spalten.slice(0, index).reduce((a, b) => a + b, 0));
+
+    this.gapBefore(base * 0.4);
+    let y = this.y;
+
+    const drawRow = (cells: Tokens.TableCell[], bold: boolean) => {
       const lineHeight = size * style.lineHeight;
       let rowHeight = lineHeight;
       const rowTop = y;
 
-      cells.forEach((cell, index) => {
-        const runs = flattenInline(
-          cell.tokens ?? [],
-          spec,
-          bold ? this.palette.text : this.palette.muted,
-        );
-        const lines = wrapRuns(runs, colWidth - cellPadX * 2);
+      for (let index = 0; index < columns; index += 1) {
+        const runs = runsFor(cells[index], bold);
+        const innen = Math.max(size, spalten[index] - cellPadX * 2);
+        const lines = wrapRuns(runs, innen);
         rowHeight = Math.max(rowHeight, lines.length * lineHeight);
+        // Die Ausrichtung steht in der Trennzeile der Tabelle — `---:` heißt
+        // rechtsbündig, und genau so setzt man Zahlen.
+        const richtung = token.align?.[index] ?? null;
         lines.forEach((lineRuns, lineIndex) => {
           const lineWidth = lineRuns.reduce((sum, run) => sum + run.width, 0);
+          const versatz =
+            richtung === 'right'
+              ? innen - lineWidth
+              : richtung === 'center'
+                ? (innen - lineWidth) / 2
+                : 0;
           this.prims.push({
             t: 'text',
-            x: this.originX + indent + index * colWidth + cellPadX,
+            x: this.originX + indent + links[index] + cellPadX + Math.max(0, versatz),
             y: rowTop + cellPadY + lineIndex * lineHeight + baselineOffset(size, lineHeight),
             width: lineWidth,
             runs: lineRuns,
           });
         });
-      });
+      }
 
       y = rowTop + rowHeight + cellPadY * 2;
       this.prims.push({
@@ -810,6 +834,55 @@ function decodeEntities(text: string): string {
  * single word is wider than the line, in which case it is broken by character —
  * the same behaviour a browser gives with `overflow-wrap: anywhere`.
  */
+/**
+ * Wie breit jede Spalte einer Tabelle wird.
+ *
+ * **Nach dem, was in ihr steht.** Zu gleichen Teilen sah es lange aus wie ein
+ * Raster und las sich wie eines: „Was" bekam so viel Platz wie „Folie vor /
+ * zurück", die schmale Spalte stand als Loch daneben, und die breite brach um.
+ * Gewichtet wird deshalb nach der breitesten *ungebrochenen* Zelle — genau der
+ * Platz, den die Spalte gern hätte.
+ *
+ * Der Innenabstand wird dabei **vorweg** abgezogen und nicht mitgewichtet.
+ * Sonst verhungert die schmale Spalte: sie bekäme ihren Anteil an der
+ * *Gesamt*breite, und davon gingen noch zwei Innenabstände ab — „Wert" brach
+ * zu „Wer / t" um und „1.240" zu „1.24 / 0".
+ *
+ * Diese Funktion ist **öffentlich, weil sie zwei Kunden hat**: der Setzer
+ * zeichnet damit, und der PowerPoint-Export schreibt damit seine `a:gridCol`.
+ * Zwei Rechnungen für dieselbe Frage liefen irgendwann auseinander, und man
+ * sähe es erst in der fremden Datei.
+ */
+export function tableColumnWidths(
+  rows: readonly (readonly StyledRun[])[][],
+  boxWidth: number,
+  padX: number,
+  min: number,
+): number[] {
+  const columns = Math.max(1, ...rows.map((row) => row.length));
+  const roheBreite = (runs: readonly StyledRun[] | undefined) =>
+    (runs ?? []).reduce((sum, run) => sum + measureText(run.text, run.font), 0);
+
+  // Eine leere Spalte darf nicht auf null fallen: ihre Zeilenlinie liefe sonst
+  // durch die Nachbarspalte.
+  const wunsch = Array.from({ length: columns }, (_, index) =>
+    Math.max(min, ...rows.map((row) => roheBreite(row[index]))),
+  );
+  const summe = wunsch.reduce((a, b) => a + b, 0);
+
+  const luft = padX * 2;
+  const bedarf = wunsch.map((w) => w + luft);
+  const gesamt = bedarf.reduce((a, b) => a + b, 0);
+
+  return gesamt <= boxWidth
+    ? // Es passt: jede Spalte bekommt, was sie braucht, und der Rest geht an
+      // die, in denen am meisten steht.
+      bedarf.map((b, index) => b + ((boxWidth - gesamt) * wunsch[index]) / summe)
+    : // Es passt nicht: umbrochen wird ohnehin, also wird der Platz nach dem
+      // Bedarf verteilt — die lange Spalte bricht, die kurze nicht.
+      wunsch.map((w) => luft + (Math.max(min * columns, boxWidth - luft * columns) * w) / summe);
+}
+
 export function wrapRuns(runs: readonly StyledRun[], maxWidth: number): PositionedRun[][] {
   const lines: PositionedRun[][] = [];
   let current: PositionedRun[] = [];

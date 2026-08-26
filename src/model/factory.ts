@@ -55,6 +55,9 @@ const defaultFill: Record<ElementKind, FillStyle> = {
   image: 'outline',
   wordmark: 'none',
   chart: 'framed',
+  // Ein Rahmen um eine Tabelle, deren Zeilen schon Linien haben, sind zwei
+  // Gitter übereinander.
+  table: 'none',
 };
 
 const defaultShadow: Record<ElementKind, ShadowName> = {
@@ -68,6 +71,7 @@ const defaultShadow: Record<ElementKind, ShadowName> = {
   image: 'md',
   wordmark: 'none',
   chart: 'none',
+  table: 'none',
 };
 
 const defaultPadding: Record<ElementKind, number> = {
@@ -81,6 +85,7 @@ const defaultPadding: Record<ElementKind, number> = {
   image: 0,
   wordmark: 0,
   chart: elementDefaults.chart.padding,
+  table: elementDefaults.table.padding,
 };
 
 const defaultStroke: Record<ElementKind, StrokeName> = {
@@ -94,6 +99,7 @@ const defaultStroke: Record<ElementKind, StrokeName> = {
   image: 'rule',
   wordmark: 'hair',
   chart: elementDefaults.chart.strokeWeight,
+  table: elementDefaults.table.strokeWeight,
 };
 
 const defaultSize: Record<ElementKind, { w: number; h: number }> = {
@@ -107,6 +113,7 @@ const defaultSize: Record<ElementKind, { w: number; h: number }> = {
   image: { w: elementDefaults.image.width, h: elementDefaults.image.height },
   wordmark: { w: elementDefaults.wordmark.width, h: elementDefaults.wordmark.height },
   chart: { w: elementDefaults.chart.width, h: elementDefaults.chart.height },
+  table: { w: elementDefaults.table.width, h: elementDefaults.table.height },
 };
 
 const defaultTone: Record<ElementKind, ToneName> = {
@@ -120,6 +127,7 @@ const defaultTone: Record<ElementKind, ToneName> = {
   image: elementDefaults.image.tone,
   wordmark: elementDefaults.wordmark.tone,
   chart: elementDefaults.chart.tone,
+  table: elementDefaults.table.tone,
 };
 
 function baseFor(kind: ElementKind): ElementBase {
@@ -213,6 +221,17 @@ export function createElement<K extends ElementKind>(
         data: '2023  38\n2024  52\n* 2025  61',
         label: '',
         values: true,
+      };
+      break;
+    case 'table':
+      element = {
+        ...base,
+        kind: 'table',
+        // Wie beim Diagramm: drei Zeilen als Anschauung, damit man sieht, wie
+        // die Zellen hineinkommen, statt es nachschlagen zu müssen.
+        data: 'Was  Wert\nErste Zeile  12\nZweite Zeile  34',
+        header: true,
+        label: '',
       };
       break;
     default:
@@ -399,6 +418,14 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
         label: str(raw.label),
         values: bool(raw.values, true),
       };
+    case 'table':
+      return {
+        ...base,
+        kind: 'table',
+        data: str(raw.data),
+        header: bool(raw.header, true),
+        label: str(raw.label),
+      };
     default:
       return null;
   }
@@ -502,6 +529,11 @@ export function minimizeElement(element: CanvasElement): Record<string, unknown>
       out.data = element.data;
       if (element.label) out.label = element.label;
       keepIfChanged('values', element.values, true);
+      break;
+    case 'table':
+      out.data = element.data;
+      if (element.label) out.label = element.label;
+      keepIfChanged('header', element.header, true);
       break;
   }
 

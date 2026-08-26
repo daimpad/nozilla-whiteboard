@@ -417,6 +417,87 @@ async function main() {
     wahr(!nachher.includes('>2023<'), 'die alten Beschriftungen stehen noch da');
   });
 
+  await pruefe('eine Tabelle teilt ihre Spalten nach dem, was drinsteht', async () => {
+    /*
+       Die Spaltenbreiten sind der Grund für diese Prüfung.
+
+       Zu gleichen Teilen war es lange, und es sah aus wie ein Raster: die
+       schmale Spalte stand als Loch daneben, während die breite umbrach. Am
+       Markup ist das nicht zu sehen — wohl aber an den Kästen der Textknoten,
+       und die verrät `getBBox()`.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    await seite.locator('aside button').filter({ hasText: 'Tabelle' }).first().click();
+    await seite.waitForTimeout(900);
+
+    await seite.getByRole('button', { name: 'Element', exact: true }).click();
+    await seite.waitForTimeout(300);
+    const feld = seite.locator('aside[aria-label="Inspektor"] textarea').first();
+    await feld.fill(
+      [
+        'Was | Zahl | Rest',
+        '--- | ---: | ---',
+        'Ein deutlich längerer Zelleninhalt | 1.240 | ja',
+        'Kurz | 12 | nein',
+      ].join('\n'),
+    );
+    await seite.waitForTimeout(900);
+
+    const kaesten = await seite.evaluate(() => {
+      let groesstes = null;
+      for (const svg of document.querySelectorAll('svg')) {
+        const box = svg.getBoundingClientRect();
+        if (!groesstes || box.width * box.height > groesstes.flaeche) {
+          groesstes = { flaeche: box.width * box.height, svg };
+        }
+      }
+      return [...groesstes.svg.querySelectorAll('text')].map((node) => ({
+        text: node.textContent,
+        x: node.getBBox().x,
+        rechts: node.getBBox().x + node.getBBox().width,
+      }));
+    });
+
+    const finde = (text) => kaesten.find((k) => k.text === text);
+    for (const wort of [
+      'Was',
+      'Zahl',
+      'Kurz',
+      '1.240',
+      'ja',
+      'Ein deutlich längerer Zelleninhalt',
+    ]) {
+      wahr(finde(wort), `„${wort}" fehlt in der Tabelle`);
+    }
+
+    /*
+       Gemessen wird die *letzte* Spalte, und zwar eine linksbündige.
+
+       Die erste Fassung sah auf die Zahlenspalte — und die überlebte die
+       Gegenprobe: rechtsbündig steht sie an der rechten Kante der Tabelle, und
+       die ist bei gleichen Teilen dieselbe. Eine linksbündige Spalte verrät,
+       wo ihre Spalte *anfängt*, und genau darum geht es: bei drei gleichen
+       Teilen bei 69 % der Breite, nach Inhalt bei über 90 %.
+    */
+    // Die Kanten kommen aus den Zellen und nicht aus allen Textknoten der
+    // Folie: die Fußzeile steht weiter links und weiter rechts als die Tabelle
+    // und verschöbe jedes Verhältnis.
+    const linkeKante = finde('Was').x;
+    const rechteKante = Math.max(finde('Rest').rechts, finde('nein').rechts);
+    const anteil = (finde('ja').x - linkeKante) / (rechteKante - linkeKante);
+    wahr(anteil > 0.8, `die Spalten sind gleich breit statt nach Inhalt (${anteil.toFixed(2)})`);
+
+    // Und `---:` heißt rechtsbündig: die beiden Zahlen enden auf derselben
+    // Kante, obwohl sie verschieden lang sind.
+    const zahl = finde('1.240');
+    const kurz = finde('12');
+    wahr(
+      Math.abs(zahl.rechts - kurz.rechts) < 2,
+      `die Zahlen stehen nicht rechtsbündig (${Math.round(zahl.rechts)} / ${Math.round(kurz.rechts)})`,
+    );
+  });
+
   console.log('\nErscheinungsbild und Erscheinung:');
 
   await pruefe('ein anderes Erscheinungsbild färbt die Folie um', async () => {

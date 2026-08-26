@@ -124,6 +124,18 @@ export const assetPresets: AssetPreset[] = [
     'Ein Verlauf über die Zeit',
   ),
   preset(
+    'table',
+    'Tabelle',
+    'cards',
+    'table',
+    {
+      label: '',
+      data: 'Was  Tasten\nFolie vor / zurück  → ←\nÜbersicht  ⌘K\nPräsentieren  P',
+      header: true,
+    },
+    'Zellen tippen oder aus einer Tabellenkalkulation hineinkopieren',
+  ),
+  preset(
     'markdown-block',
     'Markdown-Block',
     'type',

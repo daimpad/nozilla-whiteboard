@@ -139,6 +139,7 @@ src/
               svg.ts pdf.ts   Szene → Datei
               png.ts          Szene → Bild (über das SVG, mit Umrissen)
               pptx*.ts zip.ts Szene + Modell → PowerPoint
+    chart.ts table.ts         Zahlen und Zellen lesen (kein eigener Zeichner)
     presenterChannel.ts       Was die beiden Vortragsfenster einander sagen
   state/      deckStore.ts    Zustand, Aktionen, Verlauf
   components/ canvas · panels · chrome · present · ui
@@ -341,6 +342,21 @@ ihrem Kasten, und die Punkte des zweiten Diagramms mitten im ersten. Flächen
 innerhalb eines Elements gehören als geschlossener Pfad emittiert; `rect`
 bleibt dem Folien-Beiwerk vorbehalten, das ohnehin in Folien-Koordinaten
 rechnet.
+
+**Gleich breite Tabellenspalten sehen aus wie ein Raster.** „Was" bekam so viel
+Platz wie „Folie vor / zurück"; die schmale Spalte stand als Loch daneben,
+während die breite umbrach. Gewichtet wird jetzt nach der breitesten
+*ungebrochenen* Zelle — und der Innenabstand wird dabei **vorweg** abgezogen,
+nicht mitgewichtet: sonst verhungert die schmale Spalte und „1.240" bricht zu
+„1.24 / 0". Die Rechnung steht in `tableColumnWidths()` und ist öffentlich,
+weil der PPTX-Weg dieselbe braucht — zwei Rechnungen für dieselbe Frage liefen
+auseinander, und man sähe es erst in der fremden Datei.
+
+**Eine Prüfung an der rechtsbündigen Spalte beweist nichts über Spaltenbreiten.**
+Die erste Fassung der Rauchtest-Prüfung maß, wo die Zahlenspalte steht — und
+überlebte die Gegenprobe: rechtsbündig steht sie an der rechten Kante der
+Tabelle, und die ist bei gleich breiten Spalten dieselbe. Gemessen wird jetzt
+die *linksbündige* letzte Spalte, denn die verrät, wo ihre Spalte anfängt.
 
 **Ein zweites Fenster mit demselben Store überschreibt die Sitzung des
 ersten.** Die Referentenansicht läuft unter `?referent=1` in derselben

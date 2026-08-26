@@ -47,6 +47,7 @@ import {
 } from '@/lib/geometry/path';
 import { connectorGeometry, shapeGeometry } from '@/lib/geometry/shapes';
 import { chartScale, parseChartData } from '@/lib/chart';
+import { parseTable, toMarkdownTable } from '@/lib/table';
 import { flowFrame, flowOffsetY, footerFrame } from '@/lib/layout/slideLayout';
 import { font, measureText, type FontSpec } from '@/lib/text/measure';
 import { typesetMarkdown, typesetText, type TypesetResult } from '@/lib/text/typeset';
@@ -641,6 +642,11 @@ export function buildElementPrims(
       out.push(...chartScene(element, paint, matrix));
       break;
 
+    case 'table':
+      emitBody(boxSegs(), true);
+      out.push(...tableScene(element, paint, matrix, opacity));
+      break;
+
     case 'wordmark':
       out.push(...wordmarkScene(element, paint, bg, matrix, opacity));
       break;
@@ -1143,6 +1149,43 @@ function chartScene(
     );
   }
 
+  return out;
+}
+
+/**
+ * Eine Tabelle — und zwar **ohne einen einzigen eigenen Strich**.
+ *
+ * Gelesen wird großzügig, geschrieben wird eine Markdown-Tabelle, gezeichnet
+ * wird sie vom Setzer. Der zeichnet die Tabellen im Fließtext schon, samt
+ * fetter Kopfzeile und Haarlinie unter jeder Zeile; ein zweiter Tabellensatz
+ * daneben wäre ein zweiter Renderer, und der widerspricht dem ersten
+ * irgendwann.
+ */
+function tableScene(
+  element: Extract<CanvasElement, { kind: 'table' }>,
+  paint: ElementPaint,
+  matrix: Mat,
+  opacity: number,
+): ScenePrim[] {
+  const out: ScenePrim[] = [];
+  const quelle = toMarkdownTable(parseTable(element.data, element.header));
+  if (!quelle) return out;
+
+  const pad = element.padding;
+  const breite = element.w - pad * 2;
+  if (breite <= 0) return out;
+
+  let oben = pad;
+  if (element.label) {
+    oben += pushLabel(out, element.label, pad, oben, breite, paint, matrix, opacity);
+    oben += strokeWidthOf('rule') * 4;
+  }
+
+  const gesetzt = typesetMarkdown(quelle, {
+    width: breite,
+    palette: elementTypesetPalette(paint),
+  });
+  out.push(...typesetToScene(gesetzt, pad, oben, matrix, opacity));
   return out;
 }
 

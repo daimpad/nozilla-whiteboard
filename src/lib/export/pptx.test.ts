@@ -289,6 +289,52 @@ describe('Folieninhalt', () => {
     expect(xml).not.toContain('<p:pic>');
   });
 
+  it('macht aus einem Tabellen-Element eine echte PowerPoint-Tabelle', async () => {
+    /*
+       Der eigentliche Grund für diese Elementart.
+
+       Eine Tabelle in einem Markdown-Block kommt hier nur als Textrahmen an,
+       und `tableAsParagraphs()` macht daraus Zeilen mit Trennpunkten — in
+       PowerPoint kann eine Tabelle nicht im Textfluss stehen. Weil hier aber
+       *bekannt* ist, dass das Element eine Tabelle ist, lässt sich derselbe
+       `a:tbl` schreiben wie für den Fließtext.
+    */
+    const deck = parseDeck(
+      [
+        '<!-- nzl',
+        'elements:',
+        '  - kind: table',
+        '    x: 100',
+        '    y: 100',
+        '    w: 500',
+        '    h: 300',
+        '    label: Tastenkürzel',
+        '    data: |',
+        '      Was | Tasten',
+        '      Übersicht | ⌘K',
+        '-->',
+        '',
+        '# Zellen',
+      ].join('\n'),
+    );
+    // Ohne Fußzeile, weil die kleine Wortmarke unten rechts selbst ein
+    // `custGeom` ist — und die Prüfung darunter sonst nichts aussagte.
+    const xml = (await readZip(await deckToPptx(deck, { images: new Map(), chrome: false }))).get(
+      'ppt/slides/slide1.xml',
+    )!;
+
+    expect(xml).toContain('<a:tbl>');
+    expect(xml).toContain('<a:t>Übersicht</a:t>');
+    expect(xml).toContain('<a:t>⌘K</a:t>');
+    // Die Überschrift steht in der Label-Stufe und damit in Versalien.
+    expect(xml).toContain('<a:t>TASTENKÜRZEL</a:t>');
+    // Und nicht die Notlösung mit Trennpunkten, die ein Markdown-Block bekäme.
+    expect(xml).not.toContain('  ·  ');
+    // Die Linien des Setzers dürfen nicht mitkommen: die echte Tabelle bringt
+    // ihre eigenen mit, und zwei Gitter übereinander sieht man sofort.
+    expect(xml).not.toContain('<a:custGeom>');
+  });
+
   it('lässt PowerPoint umbrechen, ohne die Schrift zu verkleinern', () => {
     expect(slide1).toContain('wrap="square"');
     expect(slide1).toContain('<a:noAutofit/>');

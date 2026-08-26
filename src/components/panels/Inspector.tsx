@@ -642,6 +642,40 @@ function KindFields({ element, patch }: KindFieldsProps) {
         </>
       );
 
+    case 'table':
+      return (
+        <>
+          <Field label="Überschrift">
+            <input
+              className="nz-field"
+              value={element.label}
+              onChange={(event) => patch({ label: event.target.value } as Partial<CanvasElement>)}
+            />
+          </Field>
+          <Field
+            label="Zellen"
+            hint="Eine Zeile je Zeile. Getrennt wird an Tabulator, senkrechtem Strich oder zwei Leerzeichen — aus einer Tabellenkalkulation kann man hineinkopieren."
+          >
+            <textarea
+              rows={7}
+              className="nz-field resize-y font-mono text-ui-label"
+              value={element.data}
+              onChange={(event) => patch({ data: event.target.value } as Partial<CanvasElement>)}
+            />
+          </Field>
+          <label className="flex items-center gap-2 text-ui-body">
+            <input
+              type="checkbox"
+              checked={element.header}
+              onChange={(event) =>
+                patch({ header: event.target.checked } as Partial<CanvasElement>)
+              }
+            />
+            Erste Zeile ist die Kopfzeile
+          </label>
+        </>
+      );
+
     case 'text':
       return (
         <>

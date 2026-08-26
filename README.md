@@ -180,6 +180,17 @@ einem Diagramm zu lügen, und sie passiert meist aus Versehen. Weil ein
 Diagramm ein Kunde derselben `Scene` ist, tragen es SVG, PDF und PowerPoint
 ohne eine Zeile Zusatzarbeit — in der `.pptx` als echte Formen, nicht als Bild.
 
+**Tabellen als Elementart.** Zellen tippen oder aus einer Tabellenkalkulation
+hineinkopieren — getrennt wird an Tabulator, senkrechtem Strich oder zwei
+Leerzeichen, und eine Markdown-Trennzeile (`---:`) richtet eine Spalte rechts
+aus. Die Spalten teilen sich die Breite **nach dem, was in ihnen steht**, statt
+zu gleichen Teilen; das gilt auch für die Tabellen im Fließtext. Gezeichnet
+wird sie vom selben Setzer wie eine Markdown-Tabelle — es gibt keinen zweiten
+Tabellensatz. Der Gewinn liegt in der `.pptx`: dort steht eine **echte
+PowerPoint-Tabelle** mit bearbeitbaren Zellen, während eine Tabelle in einem
+Markdown-Block dort zu Zeilen mit Trennpunkten wird (PowerPoint kennt keine
+Tabelle im Textfluss).
+
 **Überlauf wird angezeigt.** Steht gesetzter Text tiefer als sein Kasten,
 liegt ein Strich auf der Unterkante und der Inspektor sagt, um wie viel — mit
 einem Knopf, der den Kasten anpasst. Auf der Fläche sähe man die Zeile sonst

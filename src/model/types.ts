@@ -37,6 +37,7 @@ export const elementKinds = [
   'image',
   'wordmark',
   'chart',
+  'table',
 ] as const;
 export type ElementKind = (typeof elementKinds)[number];
 
@@ -161,6 +162,30 @@ export interface ChartElement extends ElementBase {
   values: boolean;
 }
 
+/**
+ * Eine Tabelle.
+ *
+ * Sie zeichnet **nicht selbst**: gelesen wird großzügig, geschrieben wird eine
+ * Markdown-Tabelle, und die zeichnet der Setzer, der auch die Tabellen im
+ * Fließtext zeichnet. Der Gewinn gegenüber einem Markdown-Block ist nicht das
+ * Bild, sondern zweierlei — man kann aus einer Tabellenkalkulation
+ * hineinkopieren, ohne Striche zu tippen, und in der `.pptx` steht danach eine
+ * *echte* Tabelle statt einer Reihe von Zeilen mit Trennpunkten.
+ */
+export interface TableElement extends ElementBase {
+  kind: 'table';
+  /**
+   * Die Zellen, eine Zeile je Zeile. Getrennt wird an Tabulator, senkrechtem
+   * Strich oder zwei Leerzeichen; eine Markdown-Trennzeile (`---`, `---:`)
+   * setzt die Ausrichtung der Spalten.
+   */
+  data: string;
+  /** Die erste Zeile ist die Kopfzeile. */
+  header: boolean;
+  /** Überschrift über der Tabelle. Leer heißt: keine. */
+  label: string;
+}
+
 export interface MarkdownElement extends ElementBase {
   kind: 'markdown';
   markdown: string;
@@ -227,7 +252,8 @@ export type CanvasElement =
   | ConnectorElement
   | ImageElement
   | WordmarkElement
-  | ChartElement;
+  | ChartElement
+  | TableElement;
 
 /* -------------------------------------------------------------------------- */
 /* Folien & Deck                                                               */

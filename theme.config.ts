@@ -783,6 +783,18 @@ export const elementDefaults = {
     padding: space[5],
     strokeWeight: 'rule' as StrokeName,
   },
+  /**
+   * Eine Tabelle ist so breit wie die Einsetzspalte und so hoch, wie vier
+   * Zeilen brauchen. Höher aufzuziehen bringt nichts: sie wächst mit ihren
+   * Zeilen von oben nach unten und lässt darunter Luft, statt sie zu dehnen.
+   */
+  table: {
+    width: 530,
+    height: 220,
+    tone: 'paper' as ToneName,
+    padding: space[5],
+    strokeWeight: 'rule' as StrokeName,
+  },
   badge: {
     width: 168,
     height: 40,
