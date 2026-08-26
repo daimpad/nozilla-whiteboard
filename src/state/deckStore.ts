@@ -39,6 +39,7 @@ import {
   type Rect,
   type SnapOptions,
 } from '@/lib/geometry/snap';
+import { readPanels, writePanels, type PanelName, type PanelState } from './workspace';
 
 export type EditorMode = 'edit' | 'present';
 
@@ -57,6 +58,11 @@ export interface EditorState {
   notesOpen: boolean;
   promptOpen: boolean;
   searchOpen: boolean;
+  /**
+   * Welche Leisten offen stehen. Gehört dem Arbeitsplatz und nicht dem Deck —
+   * siehe `state/workspace.ts`, dort steht auch, wo es gemerkt wird.
+   */
+  panels: PanelState;
 
   /* Canvas */
   selection: string[];
@@ -89,6 +95,7 @@ export interface EditorState {
   toggleNotes: (open?: boolean) => void;
   togglePrompt: (open?: boolean) => void;
   toggleSearch: (open?: boolean) => void;
+  togglePanel: (name: PanelName, open?: boolean) => void;
 
   addSlide: (at?: number, patch?: Partial<Slide>) => void;
   deleteSlide: (index?: number) => void;
@@ -258,6 +265,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
     notesOpen: false,
     promptOpen: false,
     searchOpen: false,
+    panels: readPanels(),
 
     selection: [],
     guides: [],
@@ -376,6 +384,15 @@ export const useDeckStore = create<EditorState>()((set, get) => {
     togglePrompt: (open) => set((state) => ({ promptOpen: open ?? !state.promptOpen })),
 
     toggleSearch: (open) => set((state) => ({ searchOpen: open ?? !state.searchOpen })),
+
+    togglePanel: (name, open) =>
+      set((state) => {
+        const panels = { ...state.panels, [name]: open ?? !state.panels[name] };
+        // Gemerkt wird beim Umschalten, nicht bei jedem Bild: der Zustand
+        // ändert sich selten, und ein Schreibvorgang je Zeichnung wäre teuer.
+        writePanels(panels);
+        return { panels };
+      }),
 
     /* -------------------------------------------------------------- slides */
 

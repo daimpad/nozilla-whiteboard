@@ -42,6 +42,21 @@ export function useKeyboardShortcuts(): void {
         return;
       }
 
+      /*
+         Die drei Leisten. `⌘1` bis `⌘3` stehen in der Reihenfolge, in der sie
+         am Fenster liegen: links, unten, rechts.
+
+         Sie liegen bewusst *vor* der Tipp-Sperre — wer in einem Feld des
+         Inspektors steht und ihn zuklappen will, meint das auch. Dieselbe
+         Überlegung wie bei `⌘F`.
+      */
+      if (mod && !event.shiftKey && ['1', '2', '3'].includes(event.key)) {
+        event.preventDefault();
+        const welche = { '1': 'library', '2': 'rail', '3': 'inspector' } as const;
+        store.togglePanel(welche[event.key as '1' | '2' | '3']);
+        return;
+      }
+
       if (mod && event.key.toLowerCase() === 's') {
         event.preventDefault();
         void exportMarkdown(store.deck, {

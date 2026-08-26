@@ -143,6 +143,7 @@ src/
     chart.ts table.ts         Zahlen und Zellen lesen (kein eigener Zeichner)
     presenterChannel.ts       Was die beiden Vortragsfenster einander sagen
   state/      deckStore.ts    Zustand, Aktionen, Verlauf
+              workspace.ts    Welche Leisten offen stehen (gehört dem Arbeitsplatz)
   components/ canvas · panels · chrome · present · ui
 ```
 
