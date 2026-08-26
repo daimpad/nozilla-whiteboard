@@ -210,7 +210,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Neunundzwanzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Dreißig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
   `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
   Fassung passt nicht zur Bibliothek, deshalb
@@ -586,6 +586,23 @@ Sabotage entfernte den Ruf, ließ damit einen Import ungenutzt, `tsc` brach ab �
 und `npm run test:ui` lief wegen des `&&` gar nicht erst. Diesmal fiel es auf,
 weil gar keine Zahl kam. Eine Sabotage muss **bauen**, sonst prüft sie den
 vorigen Stand.
+
+**Ein fehlendes Bild fehlte auch in jeder Meldung.** `resolveOne()` fing jeden
+Ladefehler und gab `null` zurück, im PDF fing `drawImage` noch einmal — mit dem
+Kommentar „A broken image should never abort the whole export". Der Satz ist
+richtig: ein toter Pfad darf ein Deck von dreißig Folien nicht ungedruckt
+lassen. Nur erfuhr es niemand; das PDF kam ohne das Logo heraus, und wer nicht
+selbst nachsah, merkte es beim Vortrag. **Die Politik stimmte, das Schweigen
+nicht** — dasselbe Muster wie beim leeren `catch` der Selbstsicherung.
+
+Gemeldet wird über einen **Melder** und nicht über einen Import aus dem Store:
+`lib/` kennt `state/` nicht, und das soll so bleiben — der Ausgabeweg ist eine
+Rechnung, keine Oberfläche. Die eine Naht steht im Sitzungsstart von `App.tsx`.
+
+Und der Melder sitzt an der **einen** Stelle, an der Bilder geladen werden.
+Ein sechster Ausgabeweg bekommt ihn damit umsonst; die Alternative wäre, ihn
+durch jeden Weg einzeln durchzureichen, und wie das ausgeht, steht ein paar
+Absätze weiter oben unter „Sechs Wege ersetzten das Deck, einer fragte".
 
 ---
 

@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { starterDeck } from '@/decks';
 import { readDroppedFile } from '@/lib/export/download';
+import { beiFehlendenBildern } from '@/lib/export/images';
 import { imageElementFromFile } from '@/lib/imageElement';
 import { insertFrame } from '@/lib/layout/slideLayout';
 import { useDeckTheme } from '@/hooks/useDeckTheme';
@@ -26,6 +27,22 @@ import { SlideRail } from '@/components/chrome/SlideRail';
 import { PanelHandle } from '@/components/chrome/PanelHandle';
 import { PresentView } from '@/components/present/PresentView';
 import { cx } from '@/components/ui/controls';
+
+/**
+ * Der Satz, mit dem fehlende Bilder gemeldet werden.
+ *
+ * Die Namen stehen dabei, sonst ist die Meldung ein Schulterzucken — aber
+ * höchstens drei: eine Liste, die über den Rand läuft, sagt weniger als eine
+ * Zahl.
+ */
+export function fehlendeBilderText(fehlend: readonly string[]): string {
+  const namen = fehlend.slice(0, 3).join(', ');
+  const rest = fehlend.length - 3;
+  const liste = rest > 0 ? `${namen} und ${rest} weitere` : namen;
+  return fehlend.length === 1
+    ? `Ein Bild ließ sich nicht laden und fehlt in der Ausgabe: ${liste}`
+    : `${fehlend.length} Bilder ließen sich nicht laden und fehlen in der Ausgabe: ${liste}`;
+}
 
 export default function App() {
   // Das Deck bestimmt das Erscheinungsbild, nicht umgekehrt.
@@ -71,9 +88,24 @@ export default function App() {
     }
     const stopAutosave = startAutosave();
     const stopGuard = guardUnsavedChanges();
+
+    /*
+       Die eine Verdrahtung: der Ausgabeweg meldet fehlende Bilder, die
+       Oberfläche zeigt sie. `lib/` kennt `state/` nicht und soll es nicht
+       kennen — die Naht liegt deshalb hier.
+
+       Ein Bild, das sich nicht laden lässt, bricht keinen Export ab. Es fehlte
+       aber auch in jeder Meldung: das PDF kam ohne das Logo heraus, und wer
+       es nicht selbst nachsah, merkte es beim Vortrag.
+    */
+    beiFehlendenBildern((fehlend) => {
+      useDeckStore.getState().zeigeHinweis(fehlendeBilderText(fehlend));
+    });
+
     return () => {
       stopAutosave();
       stopGuard();
+      beiFehlendenBildern(null);
     };
     // Startup runs once; the store is the source of truth from then on.
     // eslint-disable-next-line react-hooks/exhaustive-deps

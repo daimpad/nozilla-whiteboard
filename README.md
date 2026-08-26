@@ -196,6 +196,10 @@ liegt ein Strich auf der Unterkante und der Inspektor sagt, um wie viel — mit
 einem Knopf, der den Kasten anpasst. Auf der Fläche sähe man die Zeile sonst
 noch, im PDF stünde sie über dem Rand, und PowerPoint schnitte sie ab.
 
+**Ein Bild, das fehlt, fehlt nicht in der Meldung.** Ein toter Bildpfad bricht
+keinen Export ab — das Deck kommt heraus, nur ohne dieses eine Bild. Welches
+es war, steht jetzt danach im Fenster, statt dass man es beim Vortrag merkt.
+
 **Was nicht klappt, sagt es.** Ein Export, der scheitert, eine Datei, die sich
 nicht öffnen lässt, ein Deck, das sich nicht sichern lässt — bisher stand das
 in der Browser-Konsole, und vor Augen kam ein Spinner, der wieder ausging.
@@ -545,7 +549,7 @@ CI-Konformität aller 554 Icons.
 
 Das prüft alles, was das Werkzeug **herstellt**. Ob man es **bedienen** kann,
 prüft `npm run test:ui`: Playwright klickt gegen `vite preview`, also gegen
-das gebaute Verzeichnis. Neunundzwanzig Handgriffe, jeder für einen Fehler,
+das gebaute Verzeichnis. Dreißig Handgriffe, jeder für einen Fehler,
 der einmal durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
 ihrem Kasten, eine Vorschau schwarz auf dunkelgrau. Beides läuft bei jedem
 Pull Request.

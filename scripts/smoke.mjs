@@ -1002,6 +1002,48 @@ async function main() {
     await seite.keyboard.press('Escape');
   });
 
+  await pruefe('ein fehlendes Bild fehlt nicht in der Meldung', async () => {
+    /*
+       Der Fehler, gegen den das steht: `resolveOne()` fing jeden Ladefehler
+       und gab `null` zurück, im PDF fing `drawImage` noch einmal — mit dem
+       Kommentar „A broken image should never abort the whole export". Die
+       Politik stimmt: ein toter Pfad darf ein Deck von dreißig Folien nicht
+       ungedruckt lassen. Nur erfuhr es niemand. Das PDF kam ohne das Logo
+       heraus, und wer nicht selbst nachsah, merkte es beim Vortrag.
+
+       Geprüft wird an der Meldung *nach* einem Export, der durchgeht — beides
+       gehört zusammen: die Datei kommt, und der Mangel wird genannt.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    const feld = seite.locator('aside[aria-label="Inspektor"] textarea').first();
+    await feld.click();
+    await seite.keyboard.press('Control+a');
+    await seite.keyboard.type('# Mit Loch\n\n![Logo](bilder/gibt-es-nicht.png)');
+    await seite.waitForTimeout(800);
+
+    const wartet = seite.waitForEvent('download', { timeout: 60000 });
+    await seite.getByRole('button', { name: 'Export', exact: true }).click();
+    await seite.waitForTimeout(300);
+    await seite
+      .locator('[role="menu"] button')
+      .filter({ hasText: 'SVG — diese Folie' })
+      .first()
+      .click();
+
+    // Die Datei kommt trotzdem — das ist die Hälfte, die stimmen muss.
+    const datei = await wartet;
+    wahr(Boolean(await datei.path()), 'kein SVG trotz vorhandener Folie');
+
+    await seite.waitForTimeout(800);
+    const meldung = await seite.getByRole('alert').first().innerText();
+    wahr(/nicht laden/i.test(meldung), `keine Meldung über das fehlende Bild: ${meldung}`);
+    wahr(meldung.includes('bilder/gibt-es-nicht.png'), `der Pfad fehlt in der Meldung: ${meldung}`);
+
+    await seite.getByRole('button', { name: 'Hinweis schließen' }).click();
+    await seite.waitForTimeout(300);
+  });
+
   await pruefe('ein gescheiterter Export sagt es', async () => {
     /*
        Der Fehler, gegen den das steht: `console.error` und der Spinner ging
