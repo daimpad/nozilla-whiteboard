@@ -672,6 +672,39 @@ steht trotzdem auf `group`, weil ein Bild mit Knöpfen darin dem ARIA-Modell
 widerspricht — aber sie ist nicht der Grund, warum es geht. Der Grund ist der
 `tabindex`, und daran hängt auch die Prüfung.
 
+**Ein Wert des Dateiformats, der nicht mehr sagt, was er malt.** Seit dem
+27. August 2026 malt der Untergrund `paper` das **Weiß**, und der warme
+Papierton hat mit `cream` einen eigenen Wert. Der alte Name blieb, weil er in
+jeder bestehenden `.md` steht — ihn umzubenennen hieße, jedes Deck unlesbar zu
+machen. Damit ist er aber eine Lüge geworden: wer `backgroundStyle` liest und
+`case 'paper'` sieht, weiß nicht mehr, welche Farbe herauskommt. Geprüft wird
+deshalb am **fertigen SVG** und nicht am Funktionsnamen.
+
+Und die eigentliche Falle saß nicht im Code, sondern im **Wort**. Der Inspektor
+führt Untergründe und Flächenrollen untereinander, und „Papier" *benennt in
+dieser CI den Cremeton* — `palette.paper` ist #FFFEE5, die Flächenrolle
+„Papier" malt genau ihn. Ein weißer Untergrund namens „Papier" hätte der
+Beschriftung zwei Zeilen tiefer widersprochen, und beide Listen hätten für sich
+stimmig ausgesehen. Er heißt deshalb „Weiß" — das ist die eine Stelle, an der
+Wert und Beschriftung auseinandergehen. Die Prüfung dazu ist eine **Regel und
+kein Einzelfall**: wer eine Farbe benennt, muss sie auch malen.
+
+Zwei Stellen hingen daran, und beide hätten geschwiegen. Die Kacheln der
+Bausteinbibliothek malten ihren Untergrund aus `ci.surface` statt aus
+`backgroundStyle('paper')` — sie wären cremefarben geblieben und hätten etwas
+anderes versprochen als die Folie hält, obwohl `buildElementPrims` ohne zweites
+Argument längst für genau diesen Untergrund zeichnet. Und der Hinweis der
+Flächenrolle „Weiß" lautete „hebt sich vom cremefarbenen Papier ab" — richtig,
+solange das Papier creme war.
+
+**Ein abgebrochener Befehl kann seine Sabotage überleben.** Die erste
+Gegenprobe an den Beschriftungen hatte ein unbalanciertes Anführungszeichen und
+brach mit einem Parse-Fehler ab — nur eben *nachdem* die Sicherung gezogen und
+die Sabotage geschrieben war. Der nächste Anlauf sicherte damit die sabotierte
+Fassung und stellte sie hinterher brav wieder her. Gefunden hat es der Test,
+nicht der Blick auf die Datei. Wer eine Sabotage zurücknimmt, prüft danach die
+Datei und nicht das Kommando.
+
 ---
 
 ## Git

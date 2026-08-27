@@ -457,6 +457,14 @@ elements:
 Drei Viertel der Meldungen betreffen ==zwei Module==.
 ```
 
+Ein Wort zu `background:`, weil der Wert seit dem 27. August 2026 nicht mehr
+sagt, was er malt: **`paper` ist das Weiß**, und der warme Papierton der Marke
+heißt jetzt **`cream`**. Der Inspektor beschriftet die beiden deshalb mit
+„Weiß" und „Creme" — „Papier" benennt in dieser CI den Cremeton, und ein weißer
+Untergrund unter diesem Namen widerspräche der Flächenrolle zwei Zeilen tiefer.
+Der Wert bleibt trotzdem `paper`: er steht in jeder bestehenden `.md`. `grid`
+ist dasselbe Weiß mit Punkten, `ink` und `signal` sind unverändert.
+
 Was der Schreiber dabei einhält:
 
 - **Nur Geändertes wird geschrieben.** Alles, was noch dem CI-Standard

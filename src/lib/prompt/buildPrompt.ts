@@ -327,6 +327,7 @@ layout:
 ${layouts}
 
 background:  ${list(slideBackgrounds)}
+             paper = weiß (Standard) · cream = warmer Papierton · grid = weiß mit Punktraster
 transition:  ${list(slideTransitions)}
 
 tone — die Farbrolle einer Fläche:

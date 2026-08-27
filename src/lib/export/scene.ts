@@ -164,14 +164,43 @@ function paperBase() {
   } as const;
 }
 
+/**
+ * Welche Farbe ein Folienuntergrund malt.
+ *
+ * Zwei helle gibt es, und die Namen führen leicht in die Irre: **`paper` malt
+ * das Weiß** des Erscheinungsbilds, **`cream` seinen warmen Papierton**. Das
+ * ist kein Versehen, sondern eine Entscheidung von August 2026 — eine Folie
+ * ist im Normalfall weiß, und das Creme steht daneben, wenn man es will. Der
+ * Wert im Dateiformat heißt weiter `paper`, weil er in jeder bestehenden
+ * `.md` so steht.
+ *
+ * Beide bleiben dabei **Rollen des Erscheinungsbilds** und keine festen
+ * Werte: ein Kunde, dessen CI ein gebrochenes Weiß führt, belegt `white` neu
+ * und bekommt es hier. Der Musterkunde führt für beides `#FFFFFF` — dann sind
+ * die zwei Untergründe bei ihm dieselbe Farbe, und das ist seine CI, nicht
+ * unser Fehler.
+ *
+ * Das Raster folgt dem Papier: „Raster" heißt *Papier mit Punkten*, und wenn
+ * das Papier weiß ist, ist das Raster es auch. Ein cremefarbenes Raster neben
+ * einem weißen Papier wäre ein dritter Ton, den niemand gewählt hat.
+ */
 export function backgroundStyle(background: SlideBackground): BackgroundStyle {
   switch (background) {
     case 'signal':
       return { ...paperBase(), fill: palette.signal, codeBackground: palette.signalSoft };
+    case 'cream':
+      /*
+         Der Code-Untergrund ist hier das Weiß, weil `paperAlt` derselbe Ton
+         wäre wie die Fläche — seit die drei Papiertöne der CI am 7. August zu
+         einem zusammengelegt wurden, hatte ein Codeblock auf Papier gar keinen
+         sichtbaren Untergrund mehr. Auf Weiß wäre er wieder da; hier ist er es
+         nur, wenn die beiden hellen Töne einander abwechseln.
+      */
+      return { ...paperBase(), fill: palette.paper, codeBackground: palette.white };
     case 'grid':
       return {
         ...paperBase(),
-        fill: palette.paper,
+        fill: palette.white,
         codeBackground: palette.paperAlt,
         dots: ci.grid,
       };
@@ -187,7 +216,10 @@ export function backgroundStyle(background: SlideBackground): BackgroundStyle {
       };
     case 'paper':
     default:
-      return { ...paperBase(), fill: palette.paper, codeBackground: palette.paperAlt };
+      // Der Code-Untergrund bleibt der Papierton und ist auf Weiß endlich zu
+      // sehen; auf dem alten cremefarbenen Papier war er dieselbe Farbe wie
+      // die Fläche.
+      return { ...paperBase(), fill: palette.white, codeBackground: palette.paperAlt };
   }
 }
 
