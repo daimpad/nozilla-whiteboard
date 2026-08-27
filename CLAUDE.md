@@ -697,6 +697,31 @@ Argument längst für genau diesen Untergrund zeichnet. Und der Hinweis der
 Flächenrolle „Weiß" lautete „hebt sich vom cremefarbenen Papier ab" — richtig,
 solange das Papier creme war.
 
+**Ein Test, der seinen eigenen Kommentar nicht prüft.** Über der Zusicherung
+stand: „Und zwar für jede Palette, nicht nur für die eigene: ein Kunde mit
+weißem Papier bekäme sonst zwei Töne, die dasselbe tun." Darunter stand
+`expect(gemischt.white.surface).toBe(musterkunde.palette.white)` — und das gilt
+immer, weil `tonesFromPalette` genau das tut. Der Musterkunde führte derweil
+für `paper` und `white` beide `#FFFFFF`; der Satz beschrieb also exakt den
+Fehler, der eine Datei weiter stand, und der Test war grün. Seit es den
+Untergrund `cream` gibt, kostete das vier Menüeinträge: zwei Untergründe und
+zwei Flächenrollen malten dieselbe Farbe. Nichts war kaputt, nichts sagte
+etwas — die Wahl tat nur nichts.
+
+Die Vorlage führt jetzt ein warmes Papier neben dem reinen Weiß, und die
+Prüfung geht **jedes angemeldete Erscheinungsbild** durch. Ein Kunde, dessen CI
+wirklich nur einen hellen Ton hat, wird dort rot und muss sich entscheiden —
+das ist der Sinn.
+
+Daran hing eine zweite Stelle, und die fand erst die Gegenprobe: `paperAlpha`
+gehört zum *Papier* und nicht zum Weiß. Es malt den gedämpften Text auf einer
+Folie in Tinte; blieb es beim alten `rgba(255, 255, 255, …)`, während das
+Papier warm wurde, hätte jeder Nebensatz eine andere Wärme als der Satz darüber
+— auf jeder dunklen Folie. `tonesOutsidePalette()` fängt das nicht: es fragt
+nur, ob ein Ton *aus* den eigenen Werten stammt, und die falsche Stufe stammt
+es. Die Stufen werden deshalb kanalweise gegen `palette.ink` und
+`palette.paper` gehalten.
+
 **Ein abgebrochener Befehl kann seine Sabotage überleben.** Die erste
 Gegenprobe an den Beschriftungen hatte ein unbalanciertes Anführungszeichen und
 brach mit einem Parse-Fehler ab — nur eben *nachdem* die Sicherung gezogen und

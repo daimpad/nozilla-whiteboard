@@ -24,13 +24,14 @@
  *   signal: '#E4003A',
  *   signalSoft: '#FFD6DE',
  *   signalDeep: '#A30029',
- *   paper: '#FFFFFF',
- *   paperAlt: '#F4F4F4',
- *   paperDeep: '#F4F4F4',
+ *   paper: '#FAF8F5',
+ *   paperAlt: '#F1EDE8',
+ *   paperDeep: '#E8E2DB',
+ *   white: '#FFFFFF',
  *   ink: '#111111',
  * };
  * const inkAlpha = { 70: 'rgba(17,17,17,.72)', 50: 'rgba(17,17,17,.5)', 20: 'rgba(17,17,17,.18)' };
- * const paperAlpha = { 70: 'rgba(255,255,255,.64)', 50: 'rgba(255,255,255,.4)', 20: 'rgba(255,255,255,.18)' };
+ * const paperAlpha = { 70: 'rgba(250,248,245,.64)', 50: 'rgba(250,248,245,.4)', 20: 'rgba(250,248,245,.18)' };
  *
  * export const musterkunde: BrandTheme = {
  *   ...nozillaTheme,
@@ -53,6 +54,18 @@
  *    daraus. Wer sie von Hand schreibt und eine vergisst, bekommt eine Folie,
  *    die fast stimmt — `registerTheme()` weist das ab und sagt, welche Rolle
  *    daneben liegt.
+ *
+ *    **`paper` und `white` müssen zwei sein.** `paper` ist das *Papier* der
+ *    Marke, `white` ihr reines Weiß; sie belegen je einen Untergrund („Creme"
+ *    und „Weiß") und je eine Flächenrolle. Wer beiden `#FFFFFF` gibt, bekommt
+ *    vier Menüeinträge, die dasselbe tun — nichts ist kaputt, nichts sagt
+ *    etwas, die Wahl tut nur nichts. Genau das stand hier einmal als Beispiel,
+ *    und der Musterkunde hatte es abgeschrieben. Führt eine CI wirklich nur
+ *    einen hellen Ton, wird `brandTheme.test.ts` rot — das ist der Ort, an dem
+ *    das eine Entscheidung wird und kein Versehen.
+ *
+ *    `paperAlpha` gehört dabei zum *Papier* und nicht zum Weiß: es malt den
+ *    gedämpften Text auf einer Folie in Tinte.
  * 2. **Schriften mitliefern.** Eigene Schnitte gehören nach `public/fonts/`
  *    und in `webfont.faces`; `fontFamily` nennt die Stapel. Ohne das setzt der
  *    Setzer weiter in Zilla Slab und Inter.

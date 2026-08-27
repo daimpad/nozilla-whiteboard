@@ -15,7 +15,7 @@
  * | Rolle          | nozilla                     | Musterkunde                 |
  * | -------------- | --------------------------- | --------------------------- |
  * | Signal         | Grün `#00FF9C`              | Orange `#FF5A1F`            |
- * | Papier         | Creme `#FFFEE5`             | Weiß, warmes Grau daneben   |
+ * | Papier         | Creme `#FFFEE5`             | Warmes Papier `#F6F3F0`     |
  * | Tinte          | Reines Schwarz              | Warmes Schwarz `#1A1614`    |
  * | Auszeichnung   | Zilla Slab (Slab-Serif)     | Inter (Grotesk), 10 % kleiner|
  * | Wortmarke      | Schriftzug mit grünem Punkt | Schriftzug mit orangem Block|
@@ -54,6 +54,14 @@ import wortmarke from './musterkunde-wortmarke.svg?raw';
  * „Fehler", „Hinweis" und gehören keiner Marke. Nur das Orange von `warn`
  * musste weichen — es stand dem neuen Signal zu nah, und zwei Farben, die
  * fast dasselbe sind, sind schlimmer als eine.
+ *
+ * **`paper` und `white` müssen zwei sein.** Hier stand für beide `#FFFFFF`,
+ * und das kostete diesen Kunden vier Menüeinträge: die Untergründe „Weiß" und
+ * „Creme" malten dieselbe Farbe, die Flächenrollen „Papier" und „Weiß" auch.
+ * Nichts war kaputt, nichts sagte etwas — die Wahl tat nur nichts. `paper` ist
+ * deshalb das *Papier* dieses Kunden und nicht sein Weiß: ein warmes, das
+ * neben dem reinen zu erkennen ist. Die drei Papierstufen bilden von da an
+ * eine Leiter, und `white` steht als reines Weiß daneben.
  */
 const palette = {
   signal: '#FF5A1F',
@@ -61,9 +69,9 @@ const palette = {
   signalSoft: '#FFDCCB',
   signalDeep: '#B23405',
 
-  paper: '#FFFFFF',
-  paperAlt: '#F6F3F0',
-  paperDeep: '#EDE8E3',
+  paper: '#F6F3F0',
+  paperAlt: '#EDE8E3',
+  paperDeep: '#E4DDD6',
   white: '#FFFFFF',
 
   ink: '#1A1614',
@@ -77,16 +85,24 @@ const palette = {
   info: nozillaTheme.palette.info,
 };
 
-/** Tinte und Papier mit Deckkraft — die Werte gehören zu *dieser* Palette. */
+/**
+ * Tinte und Papier mit Deckkraft — die Werte gehören zu *dieser* Palette.
+ *
+ * `paperAlpha` ist das Papier, nicht das Weiß: es malt den gedämpften Text auf
+ * einer Folie in Tinte, und der soll dieselbe Farbe haben wie der laute
+ * darüber. Stünde hier weiter `rgba(255, 255, 255, …)`, wäre der Unterton
+ * eines jeden Nebensatzes ein anderer als der des Satzes — auf jeder dunklen
+ * Folie, und niemand käme darauf, wo es herkommt.
+ */
 const inkAlpha = {
   70: 'rgba(26, 22, 20, 0.72)',
   50: 'rgba(26, 22, 20, 0.50)',
   20: 'rgba(26, 22, 20, 0.18)',
 };
 const paperAlpha = {
-  70: 'rgba(255, 255, 255, 0.64)',
-  50: 'rgba(255, 255, 255, 0.40)',
-  20: 'rgba(255, 255, 255, 0.18)',
+  70: 'rgba(246, 243, 240, 0.64)',
+  50: 'rgba(246, 243, 240, 0.40)',
+  20: 'rgba(246, 243, 240, 0.18)',
 };
 
 /* -------------------------------------------------------------------------- */

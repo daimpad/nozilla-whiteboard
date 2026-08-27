@@ -102,9 +102,15 @@ theme: musterkunde
 ```
 
 Mitgeliefert wird einer: **Musterkunde**, ein erfundenes Haus für Muster und
-Proben. Orange statt Grün, Weiß statt Creme, Inter statt Zilla Slab, eine eigene
-Wortmarke und zwölf eigene Zeichen. Er ist zum Ansehen da und zum Abschreiben —
-eine Kundendatei kopiert ihn und ersetzt die Werte.
+Proben. Orange statt Grün, warmes Papier statt Creme, Inter statt Zilla Slab,
+eine eigene Wortmarke und zwölf eigene Zeichen. Er ist zum Ansehen da und zum
+Abschreiben — eine Kundendatei kopiert ihn und ersetzt die Werte.
+
+Zwei helle Töne muss dabei jede Marke führen: `paper` ist ihr *Papier*, `white`
+ihr reines Weiß, und sie belegen je einen Untergrund und je eine Flächenrolle.
+Wer beiden denselben Wert gibt, bekommt vier Menüeinträge, die dasselbe tun —
+`brandTheme.test.ts` wird dann rot, damit das eine Entscheidung bleibt und kein
+Versehen.
 
 Dazu gehört ein **Deck**, das ihm gehört: *Beispiel öffnen → Probenhaus*. Es ist
 kein Schaustück, sondern der Beleg — die Willkommensmappe gehört nozilla, und

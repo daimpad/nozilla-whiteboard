@@ -7,6 +7,7 @@ import {
   tonesOutsidePalette,
 } from './brandTheme';
 import { musterkunde } from '@/themes/musterkunde';
+import { parseColor } from '@/lib/export/color';
 
 describe('der Vertrag eines Erscheinungsbilds', () => {
   it('mischt aus der nozilla-Palette genau deren Töne', () => {
@@ -34,14 +35,56 @@ describe('der Vertrag eines Erscheinungsbilds', () => {
     expect(elementTones.white.surface).toBe(palette.white);
     expect(elementTones.white.surface).not.toBe(elementTones.paper.surface);
 
-    // Und zwar für jede Palette, nicht nur für die eigene: ein Kunde mit
-    // weißem Papier bekäme sonst zwei Töne, die dasselbe tun.
-    const gemischt = tonesFromPalette(
-      musterkunde.palette,
-      musterkunde.inkAlpha,
-      musterkunde.paperAlpha,
-    );
-    expect(gemischt.white.surface).toBe(musterkunde.palette.white);
+    /*
+       Und zwar für **jedes angemeldete** Erscheinungsbild und nicht nur für
+       das eigene. Die vorige Fassung sagte diesen Satz im Kommentar und prüfte
+       darunter nur, dass der gemischte Ton aus der Palette kommt — was immer
+       gilt, weil `tonesFromPalette` genau das tut. Der Musterkunde führte
+       derweil für `paper` und `white` beide `#FFFFFF`, und der Test war grün:
+       zwei Flächenrollen und, seit es „Creme" gibt, zwei Untergründe, die
+       dieselbe Farbe malen. Nichts war kaputt, nichts sagte etwas — die Wahl
+       tat nur nichts.
+
+       Ein Kunde, dessen CI wirklich nur einen hellen Ton führt, wird hier rot
+       und muss sich entscheiden. Das ist der Sinn: vier tote Menüeinträge
+       sollen eine Entscheidung sein und kein Versehen.
+    */
+    for (const theme of [nozillaTheme, musterkunde]) {
+      const gemischt = tonesFromPalette(theme.palette, theme.inkAlpha, theme.paperAlpha);
+      expect(gemischt.white.surface, theme.id).toBe(theme.palette.white);
+      expect(gemischt.white.surface, theme.id).not.toBe(gemischt.paper.surface);
+    }
+  });
+
+  it('mischt die Deckkraftstufen aus derselben Tinte und demselben Papier', () => {
+    /*
+       `inkAlpha` und `paperAlpha` stehen als fertige `rgba(…)`-Zeichenketten in
+       der Datei, weil sie im Markup so gebraucht werden — und genau deshalb
+       kann ihre Farbe von der Palette abkommen, ohne dass etwas anschlägt.
+       `tonesOutsidePalette()` fängt das nicht: es fragt nur, ob ein Ton *aus*
+       den eigenen Werten stammt, und die falsche Stufe stammt es.
+
+       Der Schaden wäre leise. `paperAlpha` malt den gedämpften Text auf einer
+       Folie in Tinte; stimmte sein Unterton nicht mit `palette.paper` überein,
+       hätte jeder Nebensatz eine andere Wärme als der Satz darüber — auf jeder
+       dunklen Folie, und niemand käme darauf, wo es herkommt. Beim Musterkunden
+       stand genau das drin, nachdem sein Papier von Weiß auf einen warmen Ton
+       gewechselt war.
+    */
+    const kanaele = (wert: string) => {
+      const farbe = parseColor(wert);
+      expect(farbe, wert).not.toBeNull();
+      return [farbe?.r, farbe?.g, farbe?.b];
+    };
+
+    for (const theme of [nozillaTheme, musterkunde]) {
+      for (const stufe of Object.values(theme.inkAlpha)) {
+        expect(kanaele(stufe), `${theme.id} · inkAlpha`).toEqual(kanaele(theme.palette.ink));
+      }
+      for (const stufe of Object.values(theme.paperAlpha)) {
+        expect(kanaele(stufe), `${theme.id} · paperAlpha`).toEqual(kanaele(theme.palette.paper));
+      }
+    }
   });
 
   it('lässt die nozilla-CI ihre eigene Prüfung bestehen', () => {
