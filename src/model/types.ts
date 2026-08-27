@@ -260,12 +260,21 @@ export type CanvasElement =
 /* -------------------------------------------------------------------------- */
 
 /**
+ * Die Untergründe einer Folie.
+ *
+ * `paper` ist das **Weiß** des Erscheinungsbilds, `cream` sein warmer
+ * Papierton. Bis August 2026 waren beide dasselbe: `paper` malte
+ * `palette.paper`, und ein Weiß gab es als Folienuntergrund gar nicht. Der
+ * Wert heißt weiter `paper`, weil er in jeder bestehenden `.md` so steht —
+ * ihn umzubenennen hieße, jedes Deck unlesbar zu machen.
+ *
  * `paper-alt` und `paper-deep` standen hier, solange es drei Cremetöne gab.
  * Seit die CI einen führt, wären sie drei Einträge mit demselben Bild. Ein
  * älteres Deck, das sie noch nennt, fällt beim Einlesen auf `paper` zurück —
- * dasselbe Ergebnis, ohne die Auswahl, die keine war.
+ * und liegt damit auf Weiß. Wer den warmen Ton behalten will, schreibt
+ * `cream`.
  */
-export const slideBackgrounds = ['paper', 'ink', 'signal', 'grid'] as const;
+export const slideBackgrounds = ['paper', 'cream', 'ink', 'signal', 'grid'] as const;
 export type SlideBackground = (typeof slideBackgrounds)[number];
 
 export interface SlideMeta {

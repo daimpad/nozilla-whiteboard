@@ -50,8 +50,25 @@ export const layoutLabels: Record<string, string> = {
   canvas: 'Freie Fläche',
 };
 
+/*
+   Der Untergrund `paper` heißt hier **„Weiß"** und nicht „Papier", obwohl der
+   Wert im Dateiformat `paper` lautet. Das ist die eine Stelle, an der Wert und
+   Beschriftung auseinandergehen dürfen, und sie tut es aus einem Grund: „Papier"
+   *benennt in dieser CI den Cremeton* — `palette.paper` ist #FFFEE5, und die
+   Flächenrolle „Papier" gleich darunter im Inspektor malt genau ihn. Ein weißer
+   Untergrund namens „Papier" widerspräche also der Beschriftung zwei Zeilen
+   tiefer. Seit dem Tausch vom 27. August 2026 gilt: was „Weiß" heißt, ist weiß,
+   und was „Papier" heißt, ist creme — in beiden Listen.
+
+   Der Wert bleibt trotzdem `paper`. Er steht in jeder bestehenden `.md`, und ihn
+   umzubenennen hieße, jedes Deck unlesbar zu machen.
+*/
 export const backgroundLabels: Record<string, string> = {
-  paper: 'Papier',
+  paper: 'Weiß',
+  // „Creme" und nicht „Gelb": der Ton ist der Papierton der Marke, und wie
+  // warm er ist, entscheidet das Erscheinungsbild. Ein Name, der eine Farbe
+  // behauptet, wäre beim nächsten Kunden falsch.
+  cream: 'Creme',
   ink: 'Tinte',
   signal: 'Signal',
   grid: 'Raster',

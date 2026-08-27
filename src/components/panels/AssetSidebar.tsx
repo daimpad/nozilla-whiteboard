@@ -15,7 +15,7 @@ import {
   type PresetGroup,
 } from '@/assets/presets';
 import { iconsByCategory, searchIcons, type IconName, type ToolIconName } from '@/assets/icons';
-import { buildElementPrims } from '@/lib/export/scene';
+import { backgroundStyle, buildElementPrims } from '@/lib/export/scene';
 import { primsToSvgMarkup } from '@/lib/export/svg';
 import { createElement } from '@/model/factory';
 import type { CanvasElement, IconFrame } from '@/model/types';
@@ -222,15 +222,22 @@ const PresetTile = memo(function PresetTile({ preset, tone, onInsert }: PresetTi
       )}
     >
       {/*
-        Der Untergrund der Vorschau ist das Papier der Folie und nicht die
-        Fläche der Leiste: gezeigt wird, was gleich auf der Folie liegt, und
-        das liegt dort auf Papier. Bei dunkler Oberfläche ist der Unterschied
-        nicht mehr Geschmack — ein Element in Tinte auf grauer Leiste wäre
-        schwarz auf dunkelgrau und damit unsichtbar.
+        Der Untergrund der Vorschau ist der der Folie und nicht die Fläche der
+        Leiste: gezeigt wird, was gleich auf der Folie liegt. Bei dunkler
+        Oberfläche ist der Unterschied nicht mehr Geschmack — ein Element in
+        Tinte auf grauer Leiste wäre schwarz auf dunkelgrau und damit
+        unsichtbar.
+
+        Gefragt wird dabei dieselbe Funktion, mit der die Folie ihren
+        Untergrund malt, und nicht ein Token daneben. Als „Papier" am
+        27. August 2026 von Creme auf Weiß wechselte, stand hier `ci.surface`
+        — die Kacheln wären cremefarben geblieben und hätten etwas anderes
+        versprochen als die Folie hält. `buildElementPrims` ohne zweites
+        Argument zeichnet ohnehin für genau diesen Untergrund.
       */}
       <span
         className="flex h-[54px] items-center justify-center overflow-hidden"
-        style={{ background: ci.surface }}
+        style={{ background: backgroundStyle('paper').fill }}
         aria-hidden="true"
       >
         <svg

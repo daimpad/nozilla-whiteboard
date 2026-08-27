@@ -178,7 +178,7 @@ export const elementTones = {
   },
   white: {
     label: 'Weiß',
-    hint: 'Reines Weiß — hebt sich vom cremefarbenen Papier ab',
+    hint: 'Reines Weiß — hebt sich auf cremefarbenem Untergrund ab',
     surface: palette.white,
     surfaceAlt: palette.white,
     line: palette.ink,

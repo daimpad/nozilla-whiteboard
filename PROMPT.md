@@ -144,12 +144,13 @@ layout:
   blank      Ohne Fließtext
   canvas     Nur freie Fläche
 
-background:  paper · ink · signal · grid
+background:  paper · cream · ink · signal · grid
+             paper = weiß (Standard) · cream = warmer Papierton · grid = weiß mit Punktraster
 transition:  none · cut · fade · slide · push
 
 tone — die Farbrolle einer Fläche:
   paper     Standard — Papier mit Tintenkontur
-  white     Reines Weiß — hebt sich vom cremefarbenen Papier ab
+  white     Reines Weiß — hebt sich auf cremefarbenem Untergrund ab
   signal    Nur echte Handlungsaufforderungen — 5 % der Fläche
   ink       Invers — Tinte als Fläche, Papier als Schrift
 
