@@ -38,7 +38,16 @@ describe('die angemeldeten Erscheinungsbilder', () => {
     // `registerTheme()` wirft, wenn eine Tonrolle die eigene Palette verlässt.
     // Oben ist der Aufruf schon gelaufen — käme eine Datei nicht durch, stünde
     // hier gar kein Testlauf, sondern ein Fehler beim Laden des Moduls.
-    expect(availableThemes().map((entry) => entry.id)).toEqual(['nozilla', 'musterkunde']);
+    //
+    // Geprüft wird, was der Satz behauptet, und nicht die Länge der Liste: die
+    // vorige Fassung verlangte `toEqual(['nozilla', 'musterkunde'])` und wurde
+    // damit bei **jedem** neuen Kunden rot. Das ist das falsche Rot — es sagt
+    // „du hast einen Fehler gemacht", wo jemand das Richtige getan hat, und
+    // seit es den CI-Generator gibt, sagt es das jedem Neuling einmal.
+    const ids = availableThemes().map((entry) => entry.id);
+    expect(ids[0]).toBe('nozilla');
+    expect(ids).toContain('musterkunde');
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it('halten jede Farbrolle in der eigenen Palette', () => {

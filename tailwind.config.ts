@@ -66,7 +66,10 @@ const gridSpacing = Object.fromEntries(
 ) as Record<string, string>;
 
 const config: Config = {
-  content: ['./index.html', './src/**/*.{ts,tsx}'],
+  // Jede HTML-Datei einzeln: Klassen in einer nicht gelisteten Seite werden
+  // nicht gefunden und verpuffen lautlos — die ersetzte Skala meldet keine
+  // fehlende Utility.
+  content: ['./index.html', './ci.html', './src/**/*.{ts,tsx}'],
   theme: {
     colors: {
       transparent: 'transparent',

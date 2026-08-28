@@ -59,7 +59,8 @@ sechs Graustufen, Schwarz. Der Grund steht in `theme.config.ts` — ein
 cremefarbener Editor um eine cremefarbene Folie macht beides unlesbar.
 
 Dieselbe Leiter gibt es von unten gelesen als `uiDark`: die Einstellung
-*Erscheinung* (Zahnrad unten links) schaltet die Leisten auf dunkel um. Sie
+*Erscheinung* (Zahnrad in der Hauptleiste, rechts) schaltet die Leisten auf
+dunkel um. Sie
 gehört dem Arbeitsplatz und nicht dem Deck, bleibt deshalb im Browser und steht
 in keiner Datei. **Die Folie ändert sich dabei nie** — `surface.test.ts` prüft
 das am erzeugten Markup und nicht an der Zusicherung.
@@ -124,6 +125,11 @@ src/
                               der Konfiguration
   themes/     index.ts        Hier kommen die Erscheinungsbilder der Kunden an
               musterkunde.ts  Die Vorlage: jede wechselbare Rolle einmal belegt
+  ci/         main.tsx        Der CI-Generator — zweite Seite, eigener Einstieg
+              entwurf.ts      Wonach gefragt wird; alles andere wird gerechnet
+              pruefung.ts     Jede Regel, die eine Kundendatei bestehen muss
+              emitter.ts      Entwurf → src/themes/<id>.ts
+              Vorschau.tsx    Eine echte Folie, über die echte Zeichenstrecke
   decks/      index.ts        Die mitgelieferten Decks
               welcome.md      nozilla — jedes Layout, jede Elementart
               musterkunde.md  Ein Deck unter fremder Marke, als Beleg
@@ -721,6 +727,80 @@ Papier warm wurde, hätte jeder Nebensatz eine andere Wärme als der Satz darüb
 nur, ob ein Ton *aus* den eigenen Werten stammt, und die falsche Stufe stammt
 es. Die Stufen werden deshalb kanalweise gegen `palette.ink` und
 `palette.paper` gehalten.
+
+**Ein CI-Generator, der nach Ableitbarem fragt, baut die Fehlerklasse ein.**
+Ein Erscheinungsbild belegt weit über hundert Werte, und danach zu fragen wäre
+nicht Gründlichkeit, sondern genau der Fehler, den `colorsFromPalette()` und
+`tonesFromPalette()` verhindern: neunundzwanzig semantische Tokens und
+zweiunddreißig Tonwerte kommen aus der Palette, und wer sie erfragt, trifft
+achtundzwanzig und vergisst einen. Der Generator fragt deshalb nach sechzehn
+Farben und rechnet den Rest — die Deckkraftstufen eingeschlossen, deren
+Schlüssel doppelt lügen (Stufe `70` ist 0,72 bei der Tinte und 0,64 beim
+Papier, und `paperAlpha` gehört zum *Papier*, nicht zum Weiß).
+
+Und die Feldliste wird **gelesen und nicht geschrieben**: `Object.keys(
+nozillaTheme.palette)` statt einer getippten Liste. Eine getippte wäre eine
+zweite Wahrheit über die CI — käme morgen eine Rolle dazu, hätte das Formular
+sie nicht, und man sähe es erst am Compiler des Nächsten.
+
+**Der teuerste Rang der Prüfliste ist der mittlere.** „Fehler" heißt: übersetzt
+nicht. „Zu wissen" heißt: lies das. Dazwischen steht **„Läuft, ist aber
+falsch"** — vier Menüeinträge, die dieselbe Farbe malen; eine Schrift, die im
+Export still durch Helvetica ersetzt wird; schwarze Schrift auf dunklem Signal.
+Ein Generator, der nur zwischen „geht" und „geht nicht" unterscheidet, führt
+genau dorthin, wo dieses Projekt schon dreimal war.
+
+Der wichtigste dieser Fälle ist nicht zu reparieren, außer über die Palette:
+`elementTones.signal.text` ist fest `palette.ink`, `color.inkOnSignal` auch.
+Eine Marke mit dunkler Signalfarbe bekommt schwarz auf dunkel — auf jeder
+Signalfolie, in jedem Abzeichen. Die Rechnung dafür stand testlokal in
+`surface.test.ts` und galt nur den Leisten; sie steht jetzt in `lib/contrast.ts`
+und wird von beiden gerufen.
+
+**Zwei Wächter irrten sich an einem Zeichen und an einem Anführungszeichen.**
+Beide wurden beim Bau des Generators rot, und beide zu Recht laut — nur eben
+über das Falsche.
+
+`theme.test.ts` las `\b(palette|elementTones)\b` über die ganze Quelle. Das
+Werkzeug-Set führt ein Zeichen namens „palette", und `<Icon name="palette" />`
+in einer Datei, die ohnehin aus `@/theme` importiert, sah damit aus wie ein
+Griff in die Marken-Palette. Ein Marken-Token wird immer als *Bezeichner*
+benutzt und nie als Zeichenkette; die Benutzung wird jetzt an der Quelle *ohne
+Zeichenketten* geprüft, der Import an der rohen.
+
+`language.test.ts` suchte Beschriftungen mit `/'([^']{4,120})'/` und paarte die
+Anführungszeichen damit falsch: in `{ family: '', weight: 400, style: 'normal' }`
+nahm es das *schließende* Zeichen der leeren Zeichenkette als öffnendes und
+meldete „, weight: 400, style: " als englische Beschriftung. Literale werden
+jetzt von links nach rechts ganz verbraucht.
+
+**Und `theme.test.ts` las nur `src/components`.** Eine zweite Bedienfläche unter
+`src/ci/` entkam ihm ganz. Nachgezogen ist die Regel, auf die es ankommt: keine
+Marken-Utility in einer Bedienfläche — ein Formular, dessen Knöpfe die Farben
+tragen, die es gerade einstellt, wird beim ersten dunklen Kunden-CI unbedienbar.
+Die zweite Prüfung gilt dort ausdrücklich *nicht*: der Generator hantiert von
+Berufs wegen mit Paletten.
+
+**Zwei Prüfungen sahen eine erzeugte Kundendatei gar nicht an.**
+`brandTheme.test.ts` schleifte über `[nozillaTheme, musterkunde]` und
+`themes.test.ts:41` verlangte `toEqual(['nozilla', 'musterkunde'])`. Damit wäre
+der Generator ein Weg gewesen, ungeprüfte Erscheinungsbilder ins Repo zu legen,
+während die Prüfliste im Browser den Eindruck erweckt, es sei geprüft — und die
+feste Liste wäre bei *jedem* neuen Kunden rot geworden. Das ist das falsche Rot:
+es sagt „du hast einen Fehler gemacht", wo jemand das Richtige getan hat.
+Geschleift wird jetzt über `availableThemes()`, und geprüft wird, was der Satz
+behauptet: nozilla steht vorn, musterkunde ist dabei, kein Schlüssel doppelt.
+
+**Ein zweiter Vite-Einstieg ersetzt die Vorgabe.** `rollupOptions.input` mit nur
+`ci` darin nimmt `index.html` aus `dist/` — `npm run build` läuft durch, `vite
+preview` liefert eine Verzeichnisliste, und der Rauchtest bricht erst beim
+Starten der Vorschau ab. Drei Stellen hängen daran, und keine meldet sich von
+selbst: `tailwind.config.ts` listet jede HTML-Datei einzeln (fehlt eine,
+verpuffen ihre Klassen lautlos), `public/.htaccess` nimmt jede vom
+Zwischenspeicher aus (sonst nennt sie nach der nächsten Bereitstellung die alten
+Bündelnamen), und `pruefeStand()` im Rauchtest verglich nur `src/` und
+`theme.config.ts` gegen `dist/` — eine HTML-Datei im Wurzelverzeichnis liegt in
+keinem von beiden.
 
 **Ein abgebrochener Befehl kann seine Sabotage überleben.** Die erste
 Gegenprobe an den Beschriftungen hatte ein unbalanciertes Anführungszeichen und

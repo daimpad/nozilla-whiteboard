@@ -192,7 +192,16 @@ function pruefeStand() {
   } catch {
     throw new Error('Es gibt kein dist/ — erst `npm run build`.');
   }
-  const geschrieben = Math.max(juengstes('src'), statSync('theme.config.ts').mtimeMs);
+  /*
+     Die beiden Einstiegsseiten liegen weder in `src/` noch in
+     `theme.config.ts` — wer nur an `ci.html` ändert und den Bau auslässt,
+     bekäme sonst eine fröhliche grüne Zahl über den vorigen Stand. Genau die
+     Falle, gegen die diese Funktion überhaupt gebaut wurde.
+  */
+  const geschrieben = Math.max(
+    juengstes('src'),
+    ...['theme.config.ts', 'index.html', 'ci.html'].map((datei) => statSync(datei).mtimeMs),
+  );
   if (geschrieben > gebaut) {
     throw new Error(
       'dist/ ist älter als src/ — der Rauchtest liefe gegen den vorigen Stand. Erst `npm run build`.',
@@ -1358,6 +1367,121 @@ async function main() {
     });
     wahr(gesichert.length > 0, 'nichts gesichert');
     wahr(gesichert.includes(ZEILE), 'der unlesbare Block fehlt in der gesicherten Datei');
+  });
+
+  console.log('\nErscheinungsbild anlegen:');
+
+  await pruefe('das Zahnrad bleibt erreichbar, wenn die Bibliothek zu ist', async () => {
+    /*
+       Der eigentliche Grund für den Umzug in die Hauptleiste, und er ist an
+       einem Schalter zu sehen: die Bausteinleiste ist wegklappbar (⌘1), und
+       ihr Zustand überlebt im Browser. Solange das Zahnrad in ihrem Fuß saß,
+       war die Erscheinung des Arbeitsplatzes für jeden verloren, der die
+       Bibliothek einmal zugeklappt hatte.
+
+       Ein grüner Rauchtest allein beweist das nicht — die Prüfung darunter
+       greift über die zugängliche Beschriftung und die ist ortsunabhängig.
+       Geprüft wird deshalb gegen das *Ergebnis*: Bibliothek zu, Zahnrad noch
+       da.
+    */
+    await seite.keyboard.press('Control+Digit1');
+    await seite.waitForTimeout(500);
+    const bibliothek = await seite.getByRole('button', { name: 'Bausteine', exact: true }).count();
+    wahr(!bibliothek, 'die Bausteinleiste ließ sich nicht zuklappen');
+
+    const zahnrad = seite.getByRole('button', { name: 'Einstellungen', exact: true });
+    gleich(await zahnrad.count(), 1, 'das Zahnrad ist bei zugeklappter Bibliothek verschwunden');
+
+    await zahnrad.click();
+    await seite.waitForTimeout(400);
+    // Und das Feld geht nach *unten* auf. In der Kopfleiste ragte ein Feld
+    // mit `bottom-9` aus dem Fenster hinaus — sichtbar nur im Bild.
+    const kasten = await seite.getByRole('dialog', { name: 'Einstellungen' }).boundingBox();
+    wahr(kasten, 'das Einstellungsfeld ging nicht auf');
+    wahr(kasten.y > 0, `das Einstellungsfeld ragt oben heraus (y = ${kasten.y})`);
+
+    await seite.keyboard.press('Escape');
+    await seite.keyboard.press('Control+Digit1');
+    await seite.waitForTimeout(500);
+  });
+
+  await pruefe('der CI-Generator zeichnet eine Folie in fremden Farben', async () => {
+    /*
+       Die zweite Seite ist ein eigener Einstieg — `rollupOptions.input`
+       *ersetzt* die Vorgabe, und wer nur sie einträgt, verliert `index.html`
+       aus `dist/`. Dass beide da sind, sieht man nur, indem man beide öffnet.
+
+       Und die Vorschau ist der Kern: sie ruft dieselbe Zeichenstrecke wie der
+       SVG-Export. Ein Generator mit eigenem Zeichner verspräche etwas, das
+       keine Ausgabe hält.
+    */
+    const generator = await kontext.newPage();
+    const laut = [];
+    generator.on('pageerror', (fehler) => laut.push(String(fehler)));
+    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+    await generator.waitForTimeout(2500);
+    wahr(!laut.length, `die Generator-Seite warf: ${laut.join(' | ')}`);
+
+    // Ohne Wortmarke gibt es kein Erscheinungsbild — sie ist Pflicht, damit
+    // ein Kundendeck nicht die Marke von nozilla trägt.
+    const leer = await generator.locator('.nz-stage, main svg').count();
+    void leer;
+
+    await generator.getByLabel('Schlüssel').fill('rauchprobe');
+    await generator.getByLabel('Name in der Auswahl').fill('Rauchprobe');
+    await generator.getByLabel('Markenname').fill('rauch');
+
+    // Die Signalfarbe über das Hex-Feld, nicht über den Wähler: ein
+    // `input[type=color]` lässt sich nicht fernsteuern.
+    await generator.evaluate(() => {
+      const label = [...document.querySelectorAll('label')].find((element) =>
+        element.textContent?.trim().startsWith('signal '),
+      );
+      const feld = label && document.getElementById(label.htmlFor);
+      if (!feld) throw new Error('kein Feld für die Signalfarbe');
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      ).set;
+      setter.call(feld, '#E4003A');
+      feld.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const WORTMARKE =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48">' +
+      '<path fill="#000000" d="M4 8 L96 8 L96 40 L4 40 Z"/>' +
+      '<path fill="#E4003A" d="M108 24 L132 24 L132 40 L108 40 Z"/></svg>';
+    await generator.setInputFiles('input[type="file"]', {
+      name: 'rauchprobe-wortmarke.svg',
+      mimeType: 'image/svg+xml',
+      buffer: Buffer.from(WORTMARKE),
+    });
+    await generator.waitForTimeout(1500);
+
+    const markup = await generator.evaluate(() => {
+      const svg = document.querySelector('svg[role="img"]');
+      return svg ? svg.innerHTML : '';
+    });
+    wahr(markup.length > 200, 'die Vorschau blieb leer');
+    wahr(markup.includes('#E4003A'), 'die Signalfarbe des Kunden fehlt auf der Probefolie');
+    wahr(!markup.includes('#00FF9C'), 'das Grün von nozilla steht noch auf der Probefolie');
+
+    // Und die Kundendatei entsteht wirklich — nicht nur ein Knopf, der sie
+    // verspricht.
+    const quelle = await generator.evaluate(() => {
+      const bloecke = [...document.querySelectorAll('pre')];
+      return bloecke.map((block) => block.textContent ?? '').join('\n');
+    });
+    wahr(
+      quelle.includes('export const rauchprobe: BrandTheme'),
+      'die Kundendatei steht nicht auf der Seite',
+    );
+    wahr(
+      quelle.includes('colorsFromPalette(palette, inkAlpha)'),
+      'die Kundendatei schreibt die Farben ab, statt sie zu mischen',
+    );
+
+    await generator.close();
   });
 
   await pruefe('nichts hat sich in der Konsole beschwert', async () => {

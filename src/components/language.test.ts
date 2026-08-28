@@ -224,6 +224,21 @@ function nurOberflaeche(source: string): string {
 }
 
 /**
+ * Die Zeichenketten-Literale einer Quelle, in ihrer Reihenfolge.
+ *
+ * Von links nach rechts, jedes Literal ganz verbraucht. Ein Muster wie
+ * `/'([^']{4,120})'/` tut das *nicht*: es darf mitten in der Quelle anfangen
+ * und nimmt dann das schließende Zeichen des einen Literals als öffnendes des
+ * nächsten. Auf einer Zeile mit einer leeren Zeichenkette kippt damit die
+ * Parität, und das Sieb meldet den Code *zwischen* zwei Literalen als
+ * Beschriftung.
+ */
+function literale(source: string): string[] {
+  const muster = /'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g;
+  return [...source.matchAll(muster)].map((treffer) => treffer[0]);
+}
+
+/**
  * Was der Mensch sieht — und zwar auf vier Wegen, weil eine Beschriftung auf
  * vier Weisen im Code stehen kann.
  *
@@ -252,12 +267,20 @@ function sichtbareTexte(source: string): string[] {
     out.push(match[1].replace(/\$\{[^}]*\}/g, ' '));
   }
 
+  // 1c · Deutsche Prop-Namen. `Abschnitt titel="…"` und `hinweis="…"` sind
+  // die Beschriftungen des CI-Generators; ohne sie hier stünde ein ganzer
+  // Bautyp wieder außerhalb des Siebs — genau der Fehler, wegen dem `label:`
+  // als Objekt-Eigenschaft nachgetragen werden musste.
+  for (const match of source.matchAll(/(?:titel|hinweis|platzhalter)="([^"\n]{2,200})"/g)) {
+    out.push(match[1]);
+  }
+
   // 1b · Als Attribut, dessen Wert ein Ausdruck ist:
   // `label={gesperrt ? 'Entsperren' : 'Sperren'}`. Beide Zweige stehen vor
   // Augen, und beide entkamen: der Ausdruck oben verlangt genau `{'…'}`, und
   // das Satz-Sieb unten wertet nur, was zwei Wörter hat.
   for (const match of source.matchAll(
-    /(?:label|title|placeholder|aria-label|hint|alt)=\{([^}]{2,200})\}/g,
+    /(?:label|title|placeholder|aria-label|hint|alt|titel|hinweis|platzhalter)=\{([^}]{2,200})\}/g,
   )) {
     for (const teil of match[1].matchAll(/'([^'\n]{2,120})'|"([^"\n]{2,120})"/g)) {
       out.push(teil[1] ?? teil[2]);
@@ -268,7 +291,7 @@ function sichtbareTexte(source: string): string[] {
   // So ist jede Beschriftung eines `Segmented` geschrieben — ein ganzer
   // Bautyp, den das Sieb nie zu Gesicht bekam.
   for (const match of source.matchAll(
-    /\b(?:label|title|placeholder|hint|alt):\s*(?:'([^']{2,})'|"([^"]{2,})")/g,
+    /\b(?:label|title|placeholder|hint|alt|titel|hinweis|platzhalter):\s*(?:'([^']{2,})'|"([^"]{2,})")/g,
   )) {
     out.push(match[1] ?? match[2]);
   }
@@ -286,22 +309,35 @@ function sichtbareTexte(source: string): string[] {
     if (/[A-Za-zÄÖÜäöü]/.test(match[1])) out.push(match[1]);
   }
 
-  // 4 · Als Zeichenkette in einem Ausdruck: `{… || 'No notes for this slide.'}`
-  // oder `{copied ? 'Kopiert' : 'Kopieren'}`. Hier wird nur gewertet, was wie
-  // ein *Satz* aussieht — mindestens zwei durch Leerzeichen getrennte Wörter.
-  // Sonst geriete jeder Klassenname und jeder Schlüssel ins Sieb.
-  for (const match of source.matchAll(/'([^'\n]{4,120})'|"([^"\n]{4,120})"|`([^`\n]{4,120})`/g)) {
-    const text = (match[1] ?? match[2] ?? match[3]).replace(/\$\{[^}]*\}/g, ' ');
-    if (/\S\s+\S/.test(text) && /[A-Za-zÄÖÜäöü]/.test(text)) out.push(text);
-  }
+  /*
+     4 und 5 · Als Zeichenkette in einem Ausdruck — `{… || 'No notes …'}`,
+     `setBusy('Saving')`. Beide lesen dieselben Literale, und deshalb werden
+     sie **einmal getrennt und nicht zweimal gesucht**.
 
-  // 5 · Als *einzelnes* Wort in einem Ausdruck: `setBusy('Saving')`. Die
-  // Zeile darüber verlangt zwei Wörter, und aus gutem Grund — sonst geriete
-  // jeder Klassenname ins Sieb. „Saving…" stand deshalb monatelang sichtbar
-  // über der Leiste, während der Wächter grün war. Was Klempnerei ist, wird
-  // hier an der Schreibweise erkannt und nicht an der Wortzahl.
-  for (const match of source.matchAll(/'([A-Za-zÄÖÜäöü][^'\n]{2,40})'/g)) {
-    out.push(match[1]);
+     Der Grund ist ein Fehler, den die vorige Fassung machte: sie suchte mit
+     `/'([^'\n]{4,120})'/` und paarte die Anführungszeichen damit falsch. In
+     `{ family: '', weight: 400, style: 'normal' }` nahm sie das *schließende*
+     Zeichen der leeren Zeichenkette als öffnendes und meldete
+     „, weight: 400, style: " als englische Beschriftung. Ein Sieb, das
+     Klempnerei als Text ausgibt, wird abgeschaltet und bewacht dann gar nichts
+     mehr — genau davor warnt der Kopf dieser Datei.
+
+     `literale()` liest von links nach rechts und verbraucht jedes Literal
+     ganz; das nächste beginnt garantiert hinter dem vorigen.
+  */
+  for (const roh of literale(source)) {
+    const text = roh.slice(1, -1).replace(/\$\{[^}]*\}/g, ' ');
+    // Ein *Satz*: mindestens zwei durch Leerzeichen getrennte Wörter.
+    if (text.length >= 4 && /\S\s+\S/.test(text) && /[A-Za-zÄÖÜäöü]/.test(text)) {
+      out.push(text);
+      continue;
+    }
+    // Ein *einzelnes* Wort. Die Zeile darüber verlangt zwei, und aus gutem
+    // Grund — sonst geriete jeder Klassenname ins Sieb. „Saving…" stand
+    // deshalb monatelang sichtbar über der Leiste, während der Wächter grün
+    // war. Was Klempnerei ist, wird an der Schreibweise erkannt und nicht an
+    // der Wortzahl.
+    if (/^[A-Za-zÄÖÜäöü][^\n]{2,40}$/.test(text)) out.push(text);
   }
 
   // Klempnerei fällt hier heraus und nicht erst im Urteil: eine Liste von

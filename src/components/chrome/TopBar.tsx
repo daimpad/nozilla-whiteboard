@@ -23,6 +23,7 @@ import { Button, Divider, IconButton, Segmented, cx } from '@/components/ui/cont
 import { Icon } from '@/components/ui/Icon';
 import type { ToolIconName } from '@/assets/icons';
 import { Logo } from '@/components/chrome/Logo';
+import { SettingsMenu } from '@/components/panels/SettingsMenu';
 
 export function TopBar() {
   const deck = useDeckStore((state) => state.deck);
@@ -138,6 +139,13 @@ export function TopBar() {
         />
 
         <Divider />
+
+        {/*
+          Das Zahnrad kam aus dem Fuß der Bausteinleiste hierher. Es steht
+          bewusst *vor* „Vortragen": der eine dunkle Knopf pro Ansicht ist die
+          Hauptsache, und Einstellungen sind es nie.
+        */}
+        <SettingsMenu />
 
         <Button variant="primary" icon="play" onClick={() => setMode('present')}>
           Vortragen

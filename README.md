@@ -81,8 +81,11 @@ Auch Auswahlrahmen, Griffe und Hilfslinien laufen in derselben Schwarz-Familie.
 schlägt an, sobald eine Bedienfläche einen Marken-Ton benutzt — oder ein
 `ui`-Wert und ein Marken-Wert unbemerkt derselbe werden.
 
-Die Oberfläche gibt es hell und dunkel. Das Zahnrad unten links stellt es ein
-(*System*, *Hell*, *Dunkel*); daneben steht, welcher Stand gerade läuft. Die
+Die Oberfläche gibt es hell und dunkel. Das Zahnrad rechts in der Hauptleiste
+stellt es ein (*System*, *Hell*, *Dunkel*); daneben steht, welcher Stand gerade
+läuft. Es sitzt dort und nicht mehr im Fuß der Bausteinleiste, weil die
+wegklappbar ist — wer sie einmal zugeklappt hatte, kam an seine Einstellungen
+nicht mehr heran. Die
 Einstellung gehört dem Arbeitsplatz, bleibt im Browser und steht in keiner
 Datei — **die Folie sieht in beiden Fällen gleich aus**, und ein Export erst
 recht.
@@ -111,6 +114,34 @@ ihr reines Weiß, und sie belegen je einen Untergrund und je eine Flächenrolle.
 Wer beiden denselben Wert gibt, bekommt vier Menüeinträge, die dasselbe tun —
 `brandTheme.test.ts` wird dann rot, damit das eine Entscheidung bleibt und kein
 Versehen.
+
+### Der CI-Generator
+
+Ein Erscheinungsbild von Hand anzulegen heißt, sechzehn Farben, acht
+Größenstufen, drei Schriftstapel, neun Schnitte und eine Wortmarke richtig in
+eine Datei zu schreiben — und dabei elf Regeln einzuhalten, von denen
+`registerTheme()` genau eine prüft. Dafür gibt es eine eigene Seite:
+**Zahnrad → CI-Generator** (`ci.html`).
+
+Links steht jede Rolle als Feld — Farbwähler und Hex-Eingabe nebeneinander, die
+RGB-Kanäle daneben zum Wiedererkennen, Zahlenfelder für Leiter, Strichstärken
+und Schattenversätze, ein Dateifeld für die Wortmarke. Rechts steht eine
+**echte Folie**: der Generator ruft `buildSlideScene()` und
+`primsToSvgMarkup()`, also genau das Markup, das der SVG-Export erzeugt. Was
+dort steht, steht auch in der Datei.
+
+Darunter die Prüfliste, und die hat drei Ränge. *Fehler* heißt: die Datei
+übersetzt nicht. *Zu wissen* heißt: lies das. Dazwischen steht **„Läuft, ist
+aber falsch"** — zwei Töne, die dieselbe Farbe malen; ein Schriftstapel ohne
+zweite Marken-Schrift, dessen `⌘` still aus PNG und PDF fällt; schwarze Schrift
+auf einem dunklen Signal. Das ist die Klasse Fehler, die man sonst erst beim
+Kunden sieht.
+
+Gefragt wird dabei nur, was ein Mensch entscheiden muss. Die neunundzwanzig
+semantischen Tokens, die vier Flächenrollen und die Deckkraftstufen rechnet der
+Generator — danach zu fragen wäre nicht Gründlichkeit, sondern die Fehlerklasse.
+Heraus kommt eine fertige `src/themes/<id>.ts` plus die Zeilen, die zum
+Anmelden fehlen.
 
 Dazu gehört ein **Deck**, das ihm gehört: *Beispiel öffnen → Probenhaus*. Es ist
 kein Schaustück, sondern der Beleg — die Willkommensmappe gehört nozilla, und
@@ -405,6 +436,11 @@ src/
               index.ts        Die Fassade über CI und Laufzeit
   themes/     index.ts        Hier kommen die Erscheinungsbilder der Kunden an
               musterkunde.ts  Die Vorlage: jede wechselbare Rolle einmal belegt
+  ci/         main.tsx        Der CI-Generator — zweite Seite, eigener Einstieg
+              entwurf.ts      Wonach gefragt wird; alles andere wird gerechnet
+              pruefung.ts     Jede Regel, die eine Kundendatei bestehen muss
+              emitter.ts      Entwurf → src/themes/<id>.ts
+              Vorschau.tsx    Eine echte Folie, über die echte Zeichenstrecke
   model/      types.ts        Deck / Folie / Element
               factory.ts      Der einzige Weg, auf dem ein Element entsteht
   lib/
