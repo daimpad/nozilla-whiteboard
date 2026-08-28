@@ -121,7 +121,7 @@ Ein Erscheinungsbild von Hand anzulegen heißt, sechzehn Farben, acht
 Größenstufen, drei Schriftstapel, neun Schnitte und eine Wortmarke richtig in
 eine Datei zu schreiben — und dabei elf Regeln einzuhalten, von denen
 `registerTheme()` genau eine prüft. Dafür gibt es eine eigene Seite:
-**Zahnrad → CI-Generator** (`ci.html`).
+**Zahnrad → Eigenes Design erstellen** (`ci.html`).
 
 Sie führt in **acht Schritten**: Anfang, Marke, Farbe, Schrift, Maße,
 Wortmarke, Zeichen, Fertig. Links steht immer genau einer davon — die Rollen

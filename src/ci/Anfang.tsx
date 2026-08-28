@@ -85,9 +85,16 @@ export function AnfangSchritt({
 
   return (
     <>
+      {/*
+        Kurz gehalten, und das ist eine Entscheidung. Hier stand ein Absatz, der
+        erklärte, *warum* die nozilla-CI vorbelegt ist — richtig und an der
+        falschen Stelle: wer diese Seite zum ersten Mal öffnet, will wissen, was
+        er hier tun kann, nicht warum es so gebaut ist. Die Begründung steht im
+        Kopf von `entwurf.ts`, wo der Nächste sie sucht.
+      */}
       <Abschnitt
         titel="Anfang"
-        hinweis="Vorbelegt ist die nozilla-CI — nicht als Vorschlag, sondern damit nicht fünfzig leere Felder fünfzig Entscheidungen erzwingen, von denen vierzig keine sind. Wer von Hand anfängt, geht einfach weiter."
+        hinweis="Hier entsteht ein eigenes Theme: Farben, Schriften, Maße, Wortmarke. In acht Schritten, rechts immer die Folie dazu. Vorbelegt ist die nozilla-CI — geändert wird nur, was anders sein soll."
       >
         <Button variant="primary" icon="chevron-right" onClick={weiter}>
           Von Hand ausfüllen
@@ -96,7 +103,7 @@ export function AnfangSchritt({
 
       <Abschnitt
         titel="Oder: aus den Markenrichtlinien"
-        hinweis="Der Generator schreibt das Lastenheft, ein Sprachmodell füllt es aus den Richtlinien aus, und die Antwort kommt hier zurück. Nichts davon verlässt diesen Rechner von selbst — der Weg dazwischen ist die Zwischenablage."
+        hinweis="Den Prompt kopieren, einem Sprachmodell zusammen mit den Richtlinien geben, die Antwort hier einfügen. Der Weg dazwischen ist die Zwischenablage — nichts verlässt diesen Rechner von selbst."
       >
         <div className="flex items-center gap-2">
           <Button icon="copy" onClick={() => void kopiere()}>
