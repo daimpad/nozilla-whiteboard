@@ -41,6 +41,130 @@ function schluessel(name: string): string {
   return /^[A-Za-z_$][\w$]*$/.test(name) ? name : text(name);
 }
 
+/* -------------------------------------------------------------------------- */
+/* Der Name, unter dem das Erscheinungsbild exportiert wird                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Aus dem Schlüssel des Dateiformats wird ein Bezeichner.
+ *
+ * Diese Rechnung stand viermal in dieser Datei, und dreimal davon in einem
+ * Kommentar oder in der Anleitung, die jemand kopiert. Sie steht jetzt einmal
+ * hier — und `pruefung.ts` ruft **dieselbe**, denn ein Formular, das anders
+ * rechnet als der Erzeuger, gibt eine Datei frei, die nicht übersetzt.
+ *
+ * `-x` wird zu `X`, und sonst nichts. Das ist Absicht: eine Rechnung, die auch
+ * Ziffern und Sonderzeichen einebnete, machte aus zwei verschiedenen
+ * Schlüsseln denselben Namen.
+ */
+export function bezeichner(id: string): string {
+  return id.replace(/-([a-z])/g, (_, buchstabe: string) => buchstabe.toUpperCase());
+}
+
+/**
+ * Die Wörter, die in der erzeugten Datei schon vergeben sind.
+ *
+ * Zwei Gruppen, und beide gehören **hierher** und nicht in die Prüfung: die
+ * eine ist ECMAScript, die andere ist die Liste der Namen, die genau dieser
+ * Emitter ein paar Zeilen weiter unten selbst hinschreibt. Wer dort einen
+ * Namen ergänzt, sieht diese Liste daneben.
+ *
+ * Der Anlass: `kunde-2024` — die naheliegendste Form eines Kundenschlüssels
+ * überhaupt — kam durch die Prüfliste, weil `-2` kein `-x` ist, und wurde zu
+ * `export const kunde-2024: BrandTheme = {`. Ein Syntaxfehler, den erst der
+ * nächste `npm run build` von jemand anderem findet.
+ */
+const VERGEBENE_WOERTER = new Set([
+  // ECMAScript — reserviert, streng reserviert und für später vorgemerkt.
+  'break',
+  'case',
+  'catch',
+  'class',
+  'const',
+  'continue',
+  'debugger',
+  'default',
+  'delete',
+  'do',
+  'else',
+  'enum',
+  'export',
+  'extends',
+  'false',
+  'finally',
+  'for',
+  'function',
+  'if',
+  'import',
+  'in',
+  'instanceof',
+  'new',
+  'null',
+  'return',
+  'super',
+  'switch',
+  'this',
+  'throw',
+  'true',
+  'try',
+  'typeof',
+  'var',
+  'void',
+  'while',
+  'with',
+  'implements',
+  'interface',
+  'let',
+  'package',
+  'private',
+  'protected',
+  'public',
+  'static',
+  'yield',
+  'await',
+  'arguments',
+  'eval',
+  'undefined',
+  'NaN',
+  'Infinity',
+  // Was diese Datei selbst in denselben Gültigkeitsbereich schreibt.
+  'palette',
+  'inkAlpha',
+  'paperAlpha',
+  'textScale',
+  'sonderstufen',
+  'stufeMitWert',
+  'typeScale',
+  'faces',
+  'wortmarke',
+  'colorsFromPalette',
+  'nozillaIcons',
+  'nozillaTheme',
+  'tonesFromPalette',
+  'wordmarkFromSvg',
+  'withoutSignature',
+  'BrandTheme',
+  'TypeScale',
+  'TypeStyle',
+]);
+
+/**
+ * Taugt der Schlüssel als Exportname? `null`, wenn ja — sonst der Grund.
+ *
+ * Gibt Klartext zurück und keinen Wahrheitswert: die Prüfliste zeigt ihn dem
+ * Menschen, und „ungültig" ist keine Auskunft.
+ */
+export function bezeichnerProblem(id: string): string | null {
+  const name = bezeichner(id);
+  if (!/^[A-Za-z_$][\w$]*$/.test(name)) {
+    return `Aus „${id}" wird der Exportname „${name}", und das ist kein gültiger Bezeichner. Der Schlüssel darf Bindestriche tragen — aber nur vor einem Buchstaben, denn nur die zieht der Emitter zusammen.`;
+  }
+  if (VERGEBENE_WOERTER.has(name)) {
+    return `Aus „${id}" wird der Exportname „${name}", und der ist vergeben — entweder von JavaScript selbst oder von einem Namen, den die erzeugte Datei daneben schon benutzt.`;
+  }
+  return null;
+}
+
 function paletteBlock(entwurf: CiEntwurf): string {
   /*
      Gruppiert wie in `theme.config.ts` und in `musterkunde.ts`: die Signale
@@ -80,7 +204,7 @@ function facesBlock(entwurf: CiEntwurf): string {
   return entwurf.webfontFaces
     .map(
       (face) =>
-        `  { family: ${text(face.family)}, weight: ${face.weight}, style: ${text(face.style)}, file: ${text(face.file)} },`,
+        `  { family: ${text(face.family)}, weight: ${zahl(face.weight, `Gewicht von ${face.family}`)}, style: ${text(face.style)}, file: ${text(face.file)} },`,
     )
     .join('\n');
 }
@@ -99,7 +223,25 @@ function zahlenBlock(
   rollen: readonly string[],
   einzug = '  ',
 ): string {
-  return rollen.map((rolle) => `${einzug}${schluessel(rolle)}: ${werte[rolle]},`).join('\n');
+  return rollen
+    .map((rolle) => `${einzug}${schluessel(rolle)}: ${zahl(werte[rolle], rolle)},`)
+    .join('\n');
+}
+
+/**
+ * Eine Zahl, oder ein Wurf.
+ *
+ * Der letzte Riegel, und er sitzt bewusst hier und nicht nur in der Prüfung:
+ * `NaN` ist in JavaScript ein gültiger Bezeichner. Eine Datei mit `xl3: NaN`
+ * übersetzt, besteht Prettier und ESLint und setzt danach jahrelang leise
+ * falsch. Lieber gar keine Datei als diese — und die Prüfliste sagt schon
+ * vorher, welches Feld leer ist.
+ */
+function zahl(wert: number, name: string): number {
+  if (!Number.isFinite(wert)) {
+    throw new Error(`„${name}" trägt keine Zahl (${wert}) — daraus wird keine Kundendatei.`);
+  }
+  return wert;
 }
 
 /**
@@ -113,6 +255,7 @@ function zahlenBlock(
 export function kundendatei(entwurf: CiEntwurf): string {
   const marke = entwurf.wortmarke;
   const svgName = `${entwurf.id}-wortmarke.svg`;
+  const name = bezeichner(entwurf.id);
 
   const kopf = `/**
  * ${entwurf.label} — das Erscheinungsbild dieses Kunden.
@@ -128,8 +271,8 @@ export function kundendatei(entwurf: CiEntwurf): string {
  * Anmelden nicht vergessen — \`clientThemes\` in \`src/themes/index.ts\`:
  *
  * \`\`\`ts
- * import { ${entwurf.id.replace(/-([a-z])/g, (_, b: string) => b.toUpperCase())} } from './${entwurf.id}';
- * const clientThemes: BrandTheme[] = [musterkunde, ${entwurf.id.replace(/-([a-z])/g, (_, b: string) => b.toUpperCase())}];
+ * import { ${name} } from './${entwurf.id}';
+ * const clientThemes: BrandTheme[] = [musterkunde, ${name}];
  * \`\`\`
  *
  * Eine Datei, die hier liegt und nicht angemeldet ist, führt der Inspektor als
@@ -210,7 +353,7 @@ const typeScale = Object.fromEntries(
       {
         ...stil,
         size: stufe ? textScale[stufe] : (sonderstufen[name] ?? stil.size),
-        tracking: stil.family === 'display' ? stil.tracking - ${entwurf.auszeichnungEnger} : stil.tracking,
+        tracking: stil.family === 'display' ? stil.tracking - ${zahl(entwurf.auszeichnungEnger, 'Laufweite')} : stil.tracking,
       } satisfies TypeStyle,
     ];
   }),
@@ -225,7 +368,7 @@ const faces = [
 ${facesBlock(entwurf)}
 ];`;
 
-  const themeTeil = `export const ${entwurf.id.replace(/-([a-z])/g, (_, b: string) => b.toUpperCase())}: BrandTheme = {
+  const themeTeil = `export const ${name}: BrandTheme = {
   id: ${text(entwurf.id)},
   label: ${text(entwurf.label)},
 
@@ -309,7 +452,7 @@ ${zahlenBlock(entwurf.shadowOffset as Record<string, number>, schattenRollen, ' 
  * Projekt wieder und wieder feststellt, dass sie nicht hält.
  */
 export function anleitung(entwurf: CiEntwurf): string {
-  const name = entwurf.id.replace(/-([a-z])/g, (_, b: string) => b.toUpperCase());
+  const name = bezeichner(entwurf.id);
   return `1 · Die beiden Dateien ablegen
 
    src/themes/${entwurf.id}.ts

@@ -802,6 +802,70 @@ Bündelnamen), und `pruefeStand()` im Rauchtest verglich nur `src/` und
 `theme.config.ts` gegen `dist/` — eine HTML-Datei im Wurzelverzeichnis liegt in
 keinem von beiden.
 
+**Ein React-Schlüssel aus dem Feldinhalt macht ein Feld unbedienbar.** Die
+Zeilen der Schnittliste im CI-Generator trugen `key={`${family}-${weight}-${style}`}`
+— einen Schlüssel aus genau den Werten, die in derselben Zeile bearbeitet
+werden. Jeder Anschlag änderte ihn, React hängte die Zeile samt Eingabe aus dem
+Baum und setzte eine neue ein: das Zeichen stand im Wert, der Fokus auf
+`<body>`. Getippt „ Kunde", im Feld steht „Zilla Slab " — ein Zeichen von
+sechs. Das Nachbarfeld „Datei" steht nicht im Schlüssel und nimmt alles an.
+
+Kein Test sah es, und zwar aus einem lehrreichen Grund: der Rauchtest benutzte
+`fill()`, und das setzt den ganzen Wert in **einem** Ereignis. Geprüft wird
+jetzt mit echten Tastendrücken — wer eine Eingabe prüfen will, muss tippen.
+
+**Ein Kontrastverhältnis taugt nicht für die Frage „sind das zwei Farben".** Der
+Generator maß Unterscheidbarkeit mit WCAG und verurteilte damit im leeren
+Formular die **eigene CI**: nozillas `paper` #FFFEE5 gegen `white` #FFFFFF
+kommt auf 1,0214. Die beiden sind sichtbar zwei — WCAG wichtet Blau mit 0,0722,
+und genau dort liegt der Unterschied (Δ 0, 1, 26). Gemessen wird jetzt der
+größte Kanalunterschied, und die Schwelle ist kalibriert: der kleinste gewollte
+Abstand in den beiden mitgelieferten CIs ist 13, der ungewollte 0.
+
+Das Schlimme daran war nicht die falsche Zeile, sondern *welche*: es war
+ausgerechnet der Satz, der für einen echten historischen Fehler gebaut wurde.
+Wer ihn beim ersten Öffnen als Rauschen abtut, tut es beim Kunden wieder. Ein
+Wächter, der auf der eigenen CI anschlägt, bringt sich selbst um. Die Prüfung
+dazu geht deshalb **jedes mitgelieferte Erscheinungsbild** durch — und hält den
+Stand des Verzeichnisses *vor* dem ersten Test fest, denn die Vorschau meldet
+ihre Entwürfe wirklich an und `registerTheme()` nimmt nichts wieder heraus.
+
+**`NaN` ist ein gültiger Bezeichner.** Ein leeres Zahlenfeld gibt
+`Number.parseFloat('')` weiter, und die erzeugte Kundendatei trug danach
+`xl3: NaN` und `stil.tracking - NaN`. Sie übersetzte, bestand Prettier und
+ESLint und setzte von da an in jeder Ausgabe leise falsch. Die Prüfung sah es
+nicht, weil sie zwei Felder gar nicht durchging: die Laufweite darf null und
+negativ sein, der Schattenversatz `none` muss null sein — beide fielen durch
+die Bedingung `wert <= 0` und wurden übersprungen. **Endlich müssen sie
+trotzdem sein**, und das sind zwei Fragen und nicht eine.
+
+**Ein Schlüssel des Dateiformats ist nicht automatisch ein Bezeichner.**
+`kunde-2024` ist ein guter Wert für ein Frontmatter und ergab
+`export const kunde-2024: BrandTheme = {` — ein Syntaxfehler bei grüner
+Prüfliste. Die Rechnung `-x → X` greift nur vor einem Buchstaben, und sie stand
+viermal im Emitter, dreimal davon in einem Kommentar, den jemand kopiert. Sie
+steht jetzt einmal da, die Prüfliste ruft **dieselbe**, und die Liste der schon
+vergebenen Wörter liegt neben dem Emitter, der sie schreibt.
+
+**Wer ein Erscheinungsbild aktiviert, nimmt seine Schriften wieder mit.** Die
+Vorschau des Generators schaltet auf den Entwurf um und im `finally` zurück; an
+jedem Wechsel hängt der Abonnent aus `main.tsx`, der `installWebfonts()` ruft
+und dabei seine Regeln abräumt. Die Schnitte des Kunden standen deshalb genau
+so lange im Dokument, wie die Szene *gerechnet* wurde, und waren weg, bevor der
+Browser malte — die einzige Seite, deren Zweck es ist, eine fremde Schrift zu
+beurteilen, hat sie nie gezeigt. Sie stehen jetzt unter eigener Kennung
+daneben, und die Vorschau hängt an `useFontsVersion()`: ohne das bliebe die
+erste, gegen die Ersatzschrift gerechnete Fassung stehen, samt ihrer
+Wortpositionen und ihrer Überlaufwarnung.
+
+**Eine zweite Seite, die zurück auf `index.html` verlinkt, ist eine zweite
+Kopie des Werkzeugs.** Der Generator wird mit `target="_blank"` geöffnet, damit
+die offene Arbeit stehen bleibt — ein Rücklink machte aus dem Tab dann eine
+zweite Instanz mit eigenem Store, geladener Sitzung und laufender
+Selbstsicherung, und die schriebe ihren älteren Stand über die Arbeit der
+ersten. Wörtlich die Falle, derentwegen die Seite überhaupt ohne Store gebaut
+ist. Der Weg zurück schließt deshalb den Tab und navigiert nur ersatzweise.
+
 **Ein abgebrochener Befehl kann seine Sabotage überleben.** Die erste
 Gegenprobe an den Beschriftungen hatte ein unbalanciertes Anführungszeichen und
 brach mit einem Parse-Fehler ab — nur eben *nachdem* die Sicherung gezogen und

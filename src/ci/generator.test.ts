@@ -12,23 +12,42 @@
  * gegen die Regeln, an denen eine von Hand geschriebene auch gemessen wird.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { activeTheme, nozillaTheme, setActiveTheme, tonesOutsidePalette } from '@/theme';
-import { kontrast } from '@/lib/contrast';
+import {
+  activeTheme,
+  availableThemes,
+  nozillaTheme,
+  setActiveTheme,
+  tonesOutsidePalette,
+} from '@/theme';
+import { kanalabstand, kontrast, unterscheidbar } from '@/lib/contrast';
 import { registerThemes } from '@/themes';
 import { zeichneProbe } from './Vorschau';
 import {
   alphaStufen,
   leererEntwurf,
+  leererSchnitt,
   paletteRollen,
+  schnittstile,
   themeAusEntwurf,
   TINTE_STUFEN,
   typeScaleAusEntwurf,
   type CiEntwurf,
 } from './entwurf';
-import { pruefe, stapelNamen, traegtFehler } from './pruefung';
-import { anleitung, kundendatei } from './emitter';
+import { pruefe, stapelNamen, traegtFehler, trennbefunde } from './pruefung';
+import { anleitung, bezeichner, bezeichnerProblem, kundendatei } from './emitter';
 
 registerThemes();
+
+/**
+ * Die Erscheinungsbilder, die dieses Projekt **mitliefert**.
+ *
+ * Festgehalten *vor* dem ersten Test, und das ist keine Vorsicht ohne Grund:
+ * `zeichneProbe()` meldet seinen Entwurf wirklich an, und `registerTheme()`
+ * nimmt nichts wieder heraus. Nach der ersten Vorschau steht deshalb auch
+ * „probenhaus" im Verzeichnis — für die Seite folgenlos, für eine Prüfung
+ * über „jedes angemeldete Erscheinungsbild" aber irreführend.
+ */
+const MITGELIEFERT = availableThemes().map(({ id }) => id);
 
 afterEach(() => {
   setActiveTheme('nozilla');
@@ -305,6 +324,34 @@ describe('die Prüfliste', () => {
     expect(traegtFehler(kurz)).toBe(true);
   });
 
+  it('lässt jedes angemeldete Erscheinungsbild in Ruhe', () => {
+    /*
+       Der Wächter, der gefehlt hat — und der Grund, warum es ihn braucht:
+       die erste Fassung maß Unterscheidbarkeit am **Kontrastverhältnis** und
+       verurteilte damit die nozilla-CI selbst. `paper` #FFFEE5 gegen `white`
+       #FFFFFF kommt auf 1,0214, unter der damaligen Schwelle 1,04. Die beiden
+       sind aber zwei Farben, sichtbar zwei auf jeder Folie — WCAG wichtet Blau
+       mit 0,0722, und genau dort liegt der Unterschied.
+
+       Der erste Satz, den ein Neuling im leeren Formular las, war also falsch
+       — und zwar ausgerechnet der Satz, der für einen echten historischen
+       Fehler gebaut wurde. So lernt man in der ersten Minute, den teuersten
+       Rang der Liste als Rauschen zu behandeln.
+
+       Kein bestehender Test sah es: `probeEntwurf()` überschreibt `paper`, und
+       „lässt einen tragfähigen Entwurf durch" fragt nur nach dem Rang
+       „fehler". Diese Prüfung geht deshalb jedes angemeldete Erscheinungsbild
+       durch — die eigene CI eingeschlossen.
+    */
+    const vorher = activeTheme().id;
+    expect(MITGELIEFERT).toContain('nozilla');
+    for (const id of MITGELIEFERT) {
+      setActiveTheme(id);
+      expect(trennbefunde(activeTheme().palette), id).toEqual([]);
+    }
+    setActiveTheme(vorher);
+  });
+
   it('meldet zwei helle Töne, die dieselbe Farbe malen', () => {
     const gleich = pruefe(
       probeEntwurf({ palette: { ...probeEntwurf().palette, paper: '#FFFFFF' } }),
@@ -385,6 +432,137 @@ describe('die Prüfliste', () => {
 
 /* -------------------------------------------------------------------------- */
 
+describe('die Schnitte im Formular', () => {
+  it('tragen eine Kennung, die nicht aus ihrem Inhalt kommt', () => {
+    /*
+       Der Fehler, gegen den das steht: die Zeilen trugen als React-Schlüssel
+       ihren eigenen Inhalt. Jeder Anschlag im Feld „Familie" änderte damit den
+       Schlüssel, React hängte die Zeile aus dem Baum, und der Fokus fiel weg —
+       im Browser gemessen: von „ Kunde" kam ein Zeichen an. Wer eine
+       Kundenschrift eintragen wollte, kam pro Klick genau ein Zeichen weit.
+    */
+    const schnitte = leererEntwurf().webfontFaces;
+    const kennungen = schnitte.map((schnitt) => schnitt.kennung);
+    expect(new Set(kennungen).size).toBe(schnitte.length);
+
+    // Und zwei frische Zeilen sind zwei — vorher trugen beide „-400-normal".
+    const a = leererSchnitt();
+    const b = leererSchnitt();
+    expect(a.kennung).not.toBe(b.kennung);
+    expect({ ...a, kennung: '' }).toEqual({ ...b, kennung: '' });
+  });
+
+  it('lassen die Kennung nicht in die Kundendatei durch', () => {
+    // Sie gehört dem Formular. In einem `@font-face` hat sie nichts verloren,
+    // und in der erzeugten Datei stünde sie als Feld, das kein Typ kennt.
+    const theme = themeAusEntwurf(probeEntwurf());
+    for (const face of theme.webfont.faces) {
+      expect(Object.keys(face).sort()).toEqual(['family', 'file', 'style', 'weight']);
+    }
+    expect(kundendatei(probeEntwurf())).not.toContain('kennung');
+  });
+
+  it('lassen einen kursiven Schnitt zu', () => {
+    // `style` stand im Schlüssel, aber in keinem Feld — eine Marke mit einer
+    // Kursiven hätte sie von Hand nachtragen müssen.
+    expect(schnittstile).toContain('italic');
+    const kursiv = probeEntwurf({
+      webfontFaces: leererEntwurf().webfontFaces.map((schnitt, i) =>
+        i === 0 ? { ...schnitt, style: 'italic' } : schnitt,
+      ),
+    });
+    expect(traegtFehler(pruefe(kursiv))).toBe(false);
+    expect(kundendatei(kursiv)).toContain("style: 'italic'");
+  });
+});
+
+describe('die Zahlen eines Entwurfs', () => {
+  /*
+     Ein leeres Zahlenfeld gibt `Number.parseFloat('')` weiter, also `NaN`.
+     Und `NaN` ist ein gültiger *Bezeichner*: die erzeugte Datei trug
+     `xl3: NaN` und `stil.tracking - NaN`, übersetzte anstandslos und setzte
+     von da an in jeder Ausgabe leise falsch.
+  */
+  const mitNaN: Array<[string, Partial<CiEntwurf>]> = [
+    ['die Laufweite', { auszeichnungEnger: Number.NaN }],
+    ['eine Leiterstufe', { textScale: { ...leererEntwurf().textScale, xl3: Number.NaN } }],
+    [
+      'der Schattenversatz „none"',
+      { shadowOffset: { ...leererEntwurf().shadowOffset, none: Number.NaN } },
+    ],
+    [
+      'ein Schnittgewicht',
+      {
+        webfontFaces: leererEntwurf().webfontFaces.map((schnitt, i) =>
+          i === 0 ? { ...schnitt, weight: Number.NaN } : schnitt,
+        ),
+      },
+    ],
+  ];
+
+  for (const [was, patch] of mitNaN) {
+    it(`hält auf, wenn ${was} leer ist`, () => {
+      const entwurf = probeEntwurf(patch);
+      expect(traegtFehler(pruefe(entwurf)), 'die Prüfliste').toBe(true);
+      // Und der Emitter wirft, statt NaN zu schreiben — der letzte Riegel.
+      expect(() => kundendatei(entwurf)).toThrow();
+    });
+  }
+
+  it('lässt die Laufweite null und negativ sein', () => {
+    // Sie darf beides: null lässt die Leiter, wie sie ist, negativ macht die
+    // Auszeichnung enger. Nur eine Zahl muss sie sein. Die vorige Fassung
+    // sprang deshalb ganz über sie hinweg.
+    for (const wert of [0, -0.02, 0.01]) {
+      expect(traegtFehler(pruefe(probeEntwurf({ auszeichnungEnger: wert }))), `${wert}`).toBe(
+        false,
+      );
+    }
+  });
+
+  it('meldet ein Schnittgewicht außerhalb von 100 bis 900', () => {
+    const daneben = probeEntwurf({
+      webfontFaces: leererEntwurf().webfontFaces.map((schnitt, i) =>
+        i === 0 ? { ...schnitt, weight: 1200 } : schnitt,
+      ),
+    });
+    expect(traegtFehler(pruefe(daneben))).toBe(true);
+  });
+});
+
+describe('der Exportname der Kundendatei', () => {
+  /*
+     Die Prüfliste erlaubt Kleinschrift, Ziffern und Bindestriche — richtig für
+     einen Schlüssel, der im Frontmatter steht. Der Emitter macht daraus einen
+     Bezeichner, indem er `-x` zu `X` zieht, und das greift nur vor einem
+     Buchstaben. `kunde-2024` — die naheliegendste Form eines Kundenschlüssels
+     überhaupt — wurde damit zu `export const kunde-2024`, einem Syntaxfehler,
+     bei grüner Prüfliste und freigegebenem Knopf.
+  */
+  const untauglich = ['kunde-2024', 'default', 'class', 'palette', 'nozillaTheme', 'faces'];
+
+  for (const id of untauglich) {
+    it(`hält „${id}" auf`, () => {
+      expect(bezeichnerProblem(id)).not.toBeNull();
+      expect(traegtFehler(pruefe(probeEntwurf({ id })))).toBe(true);
+    });
+  }
+
+  it('lässt taugliche Schlüssel durch und zieht den Bindestrich zusammen', () => {
+    expect(bezeichner('alte-post')).toBe('altePost');
+    expect(bezeichnerProblem('alte-post')).toBeNull();
+    expect(kundendatei(probeEntwurf({ id: 'alte-post' }))).toContain('export const altePost:');
+  });
+
+  it('rechnet in Prüfung und Emitter dieselbe Formel', () => {
+    // Zwei Rechnungen für dieselbe Frage gäben eine Datei frei, die nicht
+    // übersetzt — die Prüfliste grün, der Compiler rot.
+    for (const id of ['probenhaus', 'alte-post', 'a1']) {
+      expect(kundendatei(probeEntwurf({ id }))).toContain(`export const ${bezeichner(id)}:`);
+    }
+  });
+});
+
 describe('die Bausteine der Rechnung', () => {
   it('trennt die Namen eines Schriftstapels', () => {
     expect(stapelNamen("'Zilla Slab', 'Inter', Georgia, serif")).toEqual([
@@ -393,6 +571,17 @@ describe('die Bausteine der Rechnung', () => {
       'Georgia',
       'serif',
     ]);
+  });
+
+  it('misst Unterscheidbarkeit kanalweise und nicht am Kontrast', () => {
+    // Der Fall, der die erste Fassung widerlegt hat: sichtbar zwei Farben,
+    // deren Kontrastverhältnis fast eins ist.
+    expect(kontrast('#FFFEE5', '#FFFFFF')).toBeLessThan(1.04);
+    expect(kanalabstand('#FFFEE5', '#FFFFFF')).toBe(26);
+    expect(unterscheidbar('#FFFEE5', '#FFFFFF')).toBe(true);
+    // Und die Gegenrichtung: derselbe Wert ist kein Paar.
+    expect(unterscheidbar('#FFFFFF', '#FFFFFF')).toBe(false);
+    expect(kanalabstand('#FFFFFF', '#FFFFFF')).toBe(0);
   });
 
   it('rechnet den Kontrast gegen die bekannten Eckwerte', () => {
