@@ -6,8 +6,33 @@ import {
   tonesFromPalette,
   tonesOutsidePalette,
 } from './brandTheme';
-import { musterkunde } from '@/themes/musterkunde';
 import { parseColor } from '@/lib/export/color';
+import { activeTheme, availableThemes, setActiveTheme } from './runtime';
+import { registerThemes } from '@/themes';
+
+/**
+ * Jedes angemeldete Erscheinungsbild, als Objekt.
+ *
+ * `availableThemes()` gibt nur Schlüssel und Beschriftung; an das ganze
+ * Erscheinungsbild kommt man über das Umschalten. Das ist kein Umweg, sondern
+ * genau der Weg, den die Anwendung auch geht.
+ *
+ * Geschleift wird über das Verzeichnis und nicht über eine getippte Liste, und
+ * daran hängt mehr, als es aussieht: **eine erzeugte Kundendatei wird sonst von
+ * keiner dieser Prüfungen angesehen.** Der CI-Generator legt Dateien an, die
+ * hier hereinkommen — eine feste Liste ließe sie ungeprüft durch und erweckte
+ * dabei den Eindruck, sie seien geprüft.
+ */
+function angemeldeteThemes() {
+  registerThemes();
+  const vorher = activeTheme().id;
+  const alle = availableThemes().map(({ id }) => {
+    setActiveTheme(id);
+    return activeTheme();
+  });
+  setActiveTheme(vorher);
+  return alle;
+}
 
 describe('der Vertrag eines Erscheinungsbilds', () => {
   it('mischt aus der nozilla-Palette genau deren Töne', () => {
@@ -49,7 +74,7 @@ describe('der Vertrag eines Erscheinungsbilds', () => {
        und muss sich entscheiden. Das ist der Sinn: vier tote Menüeinträge
        sollen eine Entscheidung sein und kein Versehen.
     */
-    for (const theme of [nozillaTheme, musterkunde]) {
+    for (const theme of angemeldeteThemes()) {
       const gemischt = tonesFromPalette(theme.palette, theme.inkAlpha, theme.paperAlpha);
       expect(gemischt.white.surface, theme.id).toBe(theme.palette.white);
       expect(gemischt.white.surface, theme.id).not.toBe(gemischt.paper.surface);
@@ -77,7 +102,7 @@ describe('der Vertrag eines Erscheinungsbilds', () => {
       return [farbe?.r, farbe?.g, farbe?.b];
     };
 
-    for (const theme of [nozillaTheme, musterkunde]) {
+    for (const theme of angemeldeteThemes()) {
       for (const stufe of Object.values(theme.inkAlpha)) {
         expect(kanaele(stufe), `${theme.id} · inkAlpha`).toEqual(kanaele(theme.palette.ink));
       }

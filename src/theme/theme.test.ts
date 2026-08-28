@@ -13,9 +13,34 @@ import { palette, ui, uiRadius, uiShadow, RADIUS, shadow } from '@/theme';
 
 const COMPONENT_ROOT = join(process.cwd(), 'src', 'components');
 
+/**
+ * Der CI-Generator (`ci.html`) ist eine zweite Bedienfläche und liegt nicht
+ * unter `src/components` — er entkäme diesem Sieb sonst ganz.
+ *
+ * Nachgezogen wird bewusst nur die **erste** Prüfung, und die dritte. Die
+ * zweite („liest Marken-Tokens nur dort, wo Inhalt gezeigt wird") gilt dort
+ * nicht: der Generator hantiert von Berufs wegen mit Paletten, das ist sein
+ * ganzer Zweck. Was für ihn gilt, ist dasselbe wie für jede andere Leiste —
+ * **seine eigenen Flächen tragen keine Marken-Utility.** Ein Formular, dessen
+ * Knöpfe die Farben tragen, die es gerade einstellt, wird beim ersten dunklen
+ * Kunden-CI unbedienbar.
+ */
+const CHROME_ROOTS = [COMPONENT_ROOT, join(process.cwd(), 'src', 'ci')];
+
 /** Kommentare heraus — sonst schlägt der Test auf seiner eigenen Erklärung an. */
 function code(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
+/**
+ * Zeichenketten heraus.
+ *
+ * Nur für die Frage „wird hier ein Marken-Token *benutzt*". Ein Token wird als
+ * Bezeichner benutzt; steht sein Name in Anführungszeichen, ist er der Name
+ * von etwas anderem — eines Zeichens zum Beispiel.
+ */
+function ohneText(source: string): string {
+  return source.replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"/g, "''");
 }
 
 function sourceFiles(dir: string): string[] {
@@ -65,7 +90,7 @@ const PREVIEWS_BRAND_CONTENT = new Set([
 describe('Marke und Werkzeug sind getrennt', () => {
   it('färbt keine Bedienfläche mit einem Marken-Ton', () => {
     const offenders: string[] = [];
-    for (const file of sourceFiles(COMPONENT_ROOT)) {
+    for (const file of CHROME_ROOTS.flatMap(sourceFiles)) {
       const source = code(readFileSync(file, 'utf8'));
       for (const className of BRAND_ONLY_CLASSES) {
         // Nur als ganze Utility, nicht als Präfix von `bg-ui-surface` o. ä.
@@ -82,7 +107,16 @@ describe('Marke und Werkzeug sind getrennt', () => {
       const name = file.split('/').pop() ?? '';
       if (PREVIEWS_BRAND_CONTENT.has(name)) continue;
       const source = code(readFileSync(file, 'utf8'));
-      if (/from '@\/theme'/.test(source) && /\b(palette|elementTones)\b/.test(source)) {
+      /*
+         Der Import wird an der rohen Quelle geprüft, die Benutzung an der
+         *ohne Zeichenketten*. Der Grund ist ein Zeichen: das Werkzeug-Set
+         führt eines namens „palette", und `<Icon name="palette" />` in einer
+         Datei, die ohnehin aus `@/theme` importiert, sah für die vorige
+         Fassung aus wie ein Griff in die Marken-Palette. Ein Marken-Token wird
+         immer als *Bezeichner* benutzt — `palette.signal`, `elementTones.ink` —
+         und nie als Zeichenkette; genau diese Unterscheidung fehlte.
+      */
+      if (/from '@\/theme'/.test(source) && /\b(palette|elementTones)\b/.test(ohneText(source))) {
         offenders.push(name);
       }
     }
@@ -107,7 +141,7 @@ describe('Marke und Werkzeug sind getrennt', () => {
     const ON_SLIDE = new Set(['select', 'selectWash', 'grid', 'warn']);
     const offenders: string[] = [];
 
-    for (const file of sourceFiles(COMPONENT_ROOT)) {
+    for (const file of CHROME_ROOTS.flatMap(sourceFiles)) {
       const source = code(readFileSync(file, 'utf8'));
       if (!/from '@\/theme'/.test(source)) continue;
       for (const match of source.matchAll(/\bui\.([A-Za-z]+)/g)) {

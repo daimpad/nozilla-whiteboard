@@ -58,6 +58,24 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      /*
+         Zwei Einstiege, und beide müssen hier stehen: `input` *ersetzt* die
+         Vorgabe. Wer nur `ci` einträgt, bekommt ein `dist/` ohne
+         `index.html` — `npm run build` läuft durch, `vite preview` liefert
+         eine Verzeichnisliste, und der Rauchtest bricht erst beim Starten der
+         Vorschau ab.
+
+         Beide liegen dabei im Wurzelverzeichnis von `dist/` und nicht in
+         Unterordnern. `base: './'` löst jede URL gegen die Dokumentadresse
+         auf — aus `/ci/index.html` würde `/ci/fonts/…`, und jede
+         Marken-Schrift fehlte still, mit Ersatzschrift und ohne Fehler.
+      */
+      input: {
+        index: fileURLToPath(new URL('./index.html', import.meta.url)),
+        ci: fileURLToPath(new URL('./ci.html', import.meta.url)),
+      },
+    },
   },
   test: {
     environment: 'jsdom',

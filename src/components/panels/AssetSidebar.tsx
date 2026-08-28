@@ -23,7 +23,6 @@ import { useDeckStore } from '@/state/deckStore';
 import { useThemeVersion } from '@/hooks/useTheme';
 import { BrandIcon, Icon } from '@/components/ui/Icon';
 import { cx, SectionTitle } from '@/components/ui/controls';
-import { SettingsMenu } from './SettingsMenu';
 
 type Tab = 'elements' | 'icons';
 
@@ -143,14 +142,12 @@ export function AssetSidebar() {
       </div>
 
       {/*
-        Hier stand ein Hinweis, den man einmal liest und danach nie wieder.
-        Jetzt steht dort nur das Zahnrad: welcher Stand läuft, schlägt man
-        selten nach — und dann sucht man ihn in den Einstellungen und nicht
-        am Rand einer Bausteinliste.
+        Hier stand bis zum 28. August 2026 das Zahnrad. Es ist in die
+        Hauptleiste gewandert, und der Grund ist der Schalter über dieser
+        Leiste: sie ist wegklappbar (⌘1), und ihr Zustand überlebt im Browser.
+        Wer sie einmal zugeklappt hatte, kam an die Einstellungen seines
+        Arbeitsplatzes nicht mehr heran.
       */}
-      <div className="flex items-center justify-end border-t border-ui px-2 py-1.5">
-        <SettingsMenu />
-      </div>
     </aside>
   );
 }

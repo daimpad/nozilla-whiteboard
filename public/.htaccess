@@ -45,9 +45,12 @@ AddType image/svg+xml .svg
     Header set Cache-Control "public, max-age=604800"
   </FilesMatch>
 
-  # `index.html` nennt die Bündelnamen. Wird sie zwischengespeichert, holt der
-  # Browser nach einer Bereitstellung die alten Namen und bekommt 404.
-  <FilesMatch "^index\.html$">
+  # Jede Einstiegsseite nennt die Bündelnamen. Wird sie zwischengespeichert,
+  # holt der Browser nach einer Bereitstellung die alten Namen und bekommt 404
+  # — eine weiße Seite, deren Grund nur in der Konsole steht. Deshalb *jede*
+  # HTML-Datei und nicht nur die erste: `ci.html` ist die zweite, und eine
+  # dritte wäre wieder eine Zeile Nachtrag, an die niemand denkt.
+  <FilesMatch "\.html$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 

@@ -6,6 +6,7 @@ import { buildSlideScene } from '@/lib/export/scene';
 import { primsToSvgMarkup } from '@/lib/export/svg';
 import { parseDeck } from '@/lib/markdown/deck';
 import welcome from '@/decks/welcome.md?raw';
+import { kontrast } from '@/lib/contrast';
 
 /**
  * Die Erscheinung des Werkzeugs ist eine Einstellung des Arbeitsplatzes, das
@@ -15,19 +16,15 @@ import welcome from '@/decks/welcome.md?raw';
  */
 const deck = parseDeck(welcome);
 
-/** Kontrastverhältnis nach WCAG 2.1, aus zwei `#RRGGBB`. */
-function contrast(a: string, b: string): number {
-  const luminance = (hex: string) => {
-    const value = Number.parseInt(hex.slice(1), 16);
-    const channels = [(value >> 16) & 255, (value >> 8) & 255, value & 255].map((raw) => {
-      const c = raw / 255;
-      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-    });
-    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-  };
-  const [hell, dunkel] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return (hell + 0.05) / (dunkel + 0.05);
-}
+/*
+   Die Kontrastrechnung stand hier als eigene Funktion und galt damit nur den
+   Leisten. Für die Palette eines Erscheinungsbilds gab es keine — und das ist
+   die teurere Lücke von beiden, weil die kritischen Paare dort im Mischer fest
+   verdrahtet sind. Sie liegt jetzt in `lib/contrast.ts`, und der CI-Generator
+   prüft eine Kundenpalette mit derselben. Zwei Rechnungen für dieselbe Frage
+   liefen auseinander, und man sähe es erst an der fremden Marke.
+*/
+const contrast = kontrast;
 
 afterEach(() => {
   setSurfaceMode('system');

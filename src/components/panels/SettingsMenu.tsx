@@ -7,6 +7,14 @@
  * Helligkeit der Leisten ist eine Eigenschaft des Arbeitsplatzes.
  *
  * Deshalb sind das zwei Auswahlfelder an zwei Orten und nicht eines an einem.
+ *
+ * ## Das Zahnrad sitzt in der Hauptleiste
+ *
+ * Es saß bis zum 28. August 2026 im Fuß der Bausteinleiste, und das war ein
+ * Fehler mit einem Schalter davor: **die Bausteinleiste ist wegklappbar**
+ * (⌘1), und ihr Zustand überlebt im Browser. Wer sie einmal zugeklappt hatte,
+ * kam an die Erscheinung seines Arbeitsplatzes nicht mehr heran — und suchte
+ * sie dort, wo Einstellungen sonst stehen. Genau dort steht sie jetzt.
  */
 import { useEffect, useRef, useState } from 'react';
 import { setSurfaceMode, surfaceModes, type SurfaceMode } from '@/theme';
@@ -56,7 +64,14 @@ export function SettingsMenu() {
 
       {open ? (
         <div
-          className="nz-panel absolute bottom-9 left-0 z-popover w-60 animate-pop-in p-1 shadow-ui-lg"
+          /*
+             `top-9 right-0` und nicht `bottom-9 left-0`: das ist keine
+             Vorzeichenfrage, sondern die Entscheidung, in welche Richtung das
+             Feld aufgeht. Am Fuß der Leiste ging es nach oben auf; in der
+             Kopfleiste ragte es damit aus dem Fenster hinaus — sichtbar nur im
+             Bild, kein Test schlüge an.
+          */
+          className="nz-panel absolute right-0 top-9 z-popover w-64 animate-pop-in p-1 shadow-ui-lg"
           role="dialog"
           aria-label="Einstellungen"
         >
@@ -87,6 +102,37 @@ export function SettingsMenu() {
               ? ` Das System steht gerade auf ${resolved === 'dark' ? 'dunkel' : 'hell'}.`
               : ''}
           </p>
+
+          <div className="border-t border-ui">
+            <SectionTitle>Erscheinungsbild</SectionTitle>
+            {/*
+              Der Generator ist eine eigene Seite und kein Panel: er meldet ein
+              Erscheinungsbild an und aktiviert es, um damit ein Probedeck zu
+              zeichnen. Täte er das im laufenden Werkzeug, führe die offene
+              Folie bei jedem Tastendruck mit.
+
+              `target="_blank"` mit `rel`, damit die offene Arbeit stehen
+              bleibt — wer eine CI anlegt, will danach zurück und nicht neu
+              laden.
+            */}
+            <a
+              href="./ci.html"
+              target="_blank"
+              rel="noreferrer"
+              className={cx(
+                'mx-1 flex items-center gap-2 rounded-sm px-2 py-1.5',
+                'text-ui-body text-ui-ink transition-colors duration-fast ease-standard',
+                'hover:bg-ui-subtle',
+              )}
+            >
+              <Icon name="palette" size={15} />
+              CI-Generator
+            </a>
+            <p className="px-2 pb-2 pt-1 text-[11px] leading-snug text-ui-faint">
+              Ein Erscheinungsbild für einen Kunden anlegen — Farben, Schriften, Maße, Wortmarke.
+              Öffnet sich in einem eigenen Fenster.
+            </p>
+          </div>
 
           <div className="border-t border-ui">
             <SectionTitle>Stand</SectionTitle>
