@@ -21,7 +21,7 @@ const deck = parseDeck(welcome);
    Leisten. Für die Palette eines Erscheinungsbilds gab es keine — und das ist
    die teurere Lücke von beiden, weil die kritischen Paare dort im Mischer fest
    verdrahtet sind. Sie liegt jetzt in `lib/contrast.ts`, und der CI-Generator
-   prüft eine Kundenpalette mit derselben. Zwei Rechnungen für dieselbe Frage
+   prüft eine fremde Palette mit derselben. Zwei Rechnungen für dieselbe Frage
    liefen auseinander, und man sähe es erst an der fremden Marke.
 */
 const contrast = kontrast;

@@ -230,7 +230,7 @@ const PROMPT_ICON_LIMIT = 150;
 /**
  * Die Namen, die im Prompt stehen dürfen.
  *
- * Die kuratierte Auswahl gilt für das nozilla-Set. Trägt ein Kunde ein eigenes
+ * Die kuratierte Auswahl gilt für das nozilla-Set. Trägt eine Marke ein eigenes
  * Set, gehen die meisten dieser Namen ins Leere — dann zählt der Prompt lieber
  * dessen eigene Zeichen auf als eine Liste, die zu nichts führt. Die Grenze
  * liegt bei einem Fünftel: was darüber übrig bleibt, ist ein ergänztes Set und

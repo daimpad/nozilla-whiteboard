@@ -3,7 +3,7 @@
  *
  * `Icon` zeichnet aus dem Satz des **Werkzeugs**: Leisten, Knöpfe, Listen,
  * Reiter. Er wechselt nicht mit dem Erscheinungsbild, aus demselben Grund, aus
- * dem die Leiste ihre Farbe nicht wechselt. Ein Kunden-Set, dem `chevron-right`
+ * dem die Leiste ihre Farbe nicht wechselt. Ein fremdes Set, dem `chevron-right`
  * fehlt, dürfte keinen Knopf leeren.
  *
  * `BrandIcon` zeichnet aus dem Satz des gerade gültigen **Erscheinungsbilds**.

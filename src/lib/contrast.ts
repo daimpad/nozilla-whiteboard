@@ -4,7 +4,7 @@
  * Die Rechnung stand testlokal in `theme/surface.test.ts` und galt dort nur
  * den Leisten — für die Palette eines Erscheinungsbilds gab es keine einzige
  * Prüfung. Das ist die teurere Lücke von beiden: **die kritischen Paare sind
- * im Mischer fest verdrahtet und lassen sich vom Kunden gar nicht reparieren.**
+ * im Mischer fest verdrahtet und lassen sich in der Datei gar nicht reparieren.**
  * `elementTones.signal.text` ist `palette.ink` auf `palette.signal`,
  * `color.inkOnSignal` ebenso, `elementTones.ink.text` ist `palette.paper` auf
  * `palette.ink`. Eine Marke mit dunkler Signalfarbe bekommt damit schwarze

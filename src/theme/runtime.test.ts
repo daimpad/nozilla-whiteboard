@@ -34,7 +34,7 @@ import welcome from '@/decks/welcome.md?raw';
  */
 
 /**
- * Dasselbe Regelwerk, andere Belegung. Kein echter Kunde, nur ein Prüfstein —
+ * Dasselbe Regelwerk, andere Belegung. Keine echte Marke, nur ein Prüfstein —
  * und zugleich das Muster, nach dem ein Erscheinungsbild angelegt wird: Farben
  * einmal nennen, Töne daraus mischen lassen.
  */
@@ -153,7 +153,7 @@ describe('das Erscheinungsbild zur Laufzeit', () => {
 
   it('zeichnet die Wortmarke des Erscheinungsbilds, nicht die von nozilla', () => {
     // Der auffälligste Fehler, den dieses Werkzeug machen könnte: die Marke
-    // eines Kunden auf der Folie eines anderen.
+    // einer Marke auf der Folie einer anderen.
     //
     // Verglichen werden die Primitive und nicht das Markup: der Pfad wird vor
     // der Ausgabe in Folien-Koordinaten gerechnet, die Zeichenkette aus dem

@@ -332,7 +332,7 @@ describe('Zeichen, die die gesetzte Schrift nicht führt', () => {
        der Schriftstapel nennt die Geschwister-Schriften vor denen des
        Systems. Ein Erscheinungsbild, das `fontFamily` neu belegt und das
        vergisst, hat den Fehler wieder — und das war beim Musterkunden auch
-       so, obwohl er als Vorlage für jeden Kunden dasteht.
+       so, obwohl er als Vorlage für jede Marke dasteht.
     */
     registerThemes();
     for (const { id } of availableThemes()) {

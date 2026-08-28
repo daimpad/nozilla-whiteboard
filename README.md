@@ -94,7 +94,7 @@ recht.
 
 Die linke Spalte ist wechselbar. Ein **Erscheinungsbild** belegt Farben,
 Typo-Leiter, Schriften, Strichstärken, Schattenversätze, die Wortmarke und das
-Icon-Set; angelegt wird es in `src/themes/` (eine Datei je Kunde), gewählt im
+Icon-Set; angelegt wird es in `src/themes/` (eine Datei je Marke), gewählt im
 Inspektor unter *Brand theme*, gemerkt im Frontmatter:
 
 ```md
@@ -107,7 +107,7 @@ theme: musterkunde
 Mitgeliefert wird einer: **Musterkunde**, ein erfundenes Haus für Muster und
 Proben. Orange statt Grün, warmes Papier statt Creme, Inter statt Zilla Slab,
 eine eigene Wortmarke und zwölf eigene Zeichen. Er ist zum Ansehen da und zum
-Abschreiben — eine Kundendatei kopiert ihn und ersetzt die Werte.
+Abschreiben — eine Designdatei kopiert ihn und ersetzt die Werte.
 
 Zwei helle Töne muss dabei jede Marke führen: `paper` ist ihr *Papier*, `white`
 ihr reines Weiß, und sie belegen je einen Untergrund und je eine Flächenrolle.
@@ -123,19 +123,52 @@ eine Datei zu schreiben — und dabei elf Regeln einzuhalten, von denen
 `registerTheme()` genau eine prüft. Dafür gibt es eine eigene Seite:
 **Zahnrad → CI-Generator** (`ci.html`).
 
-Links steht jede Rolle als Feld — Farbwähler und Hex-Eingabe nebeneinander, die
-RGB-Kanäle daneben zum Wiedererkennen, Zahlenfelder für Leiter, Strichstärken
-und Schattenversätze, ein Dateifeld für die Wortmarke. Rechts steht eine
-**echte Folie**: der Generator ruft `buildSlideScene()` und
-`primsToSvgMarkup()`, also genau das Markup, das der SVG-Export erzeugt. Was
-dort steht, steht auch in der Datei.
+Sie führt in **acht Schritten**: Anfang, Marke, Farbe, Schrift, Maße,
+Wortmarke, Zeichen, Fertig. Links steht immer genau einer davon — die Rollen
+als Felder, Farbwähler und Hex-Eingabe nebeneinander, die RGB-Kanäle daneben
+zum Wiedererkennen. Rechts steht die ganze Zeit eine **echte Folie**: der
+Generator ruft `buildSlideScene()` und `primsToSvgMarkup()`, also genau das
+Markup, das der SVG-Export erzeugt. Was dort steht, steht auch in der Datei.
+
+Der Schrittbalken oben zählt je Schritt, was dort offen ist, und **hält
+niemanden auf**: jeder Schritt ist jederzeit anspringbar. Ein Wizard, der erst
+weiterlässt, wenn alles stimmt, sperrt genau den ein, der nachsehen will, wie
+sich sein halb gefüllter Entwurf auf der Folie macht — und das ist der Zweck
+dieser Seite. Solange die Wortmarke noch fehlt, zeichnet die Folie mit einem
+sichtbar benannten Platzhalter weiter; die Datei entsteht deswegen trotzdem
+nicht.
 
 Darunter die Prüfliste, und die hat drei Ränge. *Fehler* heißt: die Datei
 übersetzt nicht. *Zu wissen* heißt: lies das. Dazwischen steht **„Läuft, ist
 aber falsch"** — zwei Töne, die dieselbe Farbe malen; ein Schriftstapel ohne
 zweite Marken-Schrift, dessen `⌘` still aus PNG und PDF fällt; schwarze Schrift
-auf einem dunklen Signal. Das ist die Klasse Fehler, die man sonst erst beim
-Kunden sieht.
+auf einem dunklen Signal. Das ist die Klasse Fehler, die man sonst erst im
+fertigen Deck sieht.
+
+### Und der Weg über ein Sprachmodell
+
+Was vorliegt, ist selten die Form, die dieses Formular verlangt: ein PDF mit
+Markenrichtlinien, eine Webseite, ein paar Screenshots. Daraus sechzehn
+Palettenrollen und drei Schriftstapel zu destillieren, kann ein Sprachmodell gut
+und dieses Werkzeug gar nicht — es hat keinen Zugang zum Netz und soll auch
+keinen bekommen.
+
+Schritt 1 händigt deshalb einen **Prompt** aus, der aus denselben Quellen
+geschrieben ist wie das Formular. Die Antwort kommt in ein Feld daneben zurück;
+der Weg dazwischen ist die Zwischenablage, kein Aufruf und kein Dienst.
+
+Was dabei hereinkommt, ist fast nie reines JSON — ein Codezaun, ein Satz davor,
+ein `//`-Kommentar, ein Komma zu viel, typografische Anführungszeichen. Der
+Generator repariert das **stufenweise und laut**: jede Stufe, die wirklich etwas
+verändert hat, steht danach im Bericht, und daneben steht, was er sonst noch tun
+musste — `rgb(228, 0, 58)` zu `#E4003A`, `"48px"` zu `48`. Was er *nicht* tut,
+steht auch dort: `"48pt"` wird abgelehnt, denn eine Folien-Einheit ist ¾ Punkt,
+und ob „pt" so gemeint war oder nur hingeschrieben, lässt sich nicht entscheiden.
+
+Der wichtigste Rang des Berichts ist **„Kam nicht"**. Ein Modell, das zwölf von
+sechzehn Palettenrollen liefert, sieht aus, als hätte es geliefert; die vier
+fehlenden stünden danach in nozilla-Grün auf der Folie einer fremden Marke, und
+niemand hätte je gesagt, dass sie fehlen.
 
 Gefragt wird dabei nur, was ein Mensch entscheiden muss. Die neunundzwanzig
 semantischen Tokens, die vier Flächenrollen und die Deckkraftstufen rechnet der
@@ -434,11 +467,11 @@ src/
   theme/      brandTheme.ts   Was ein Erscheinungsbild ausmacht — und was nicht
               runtime.ts      Welches gerade gilt (lebendige Bindungen)
               index.ts        Die Fassade über CI und Laufzeit
-  themes/     index.ts        Hier kommen die Erscheinungsbilder der Kunden an
+  themes/     index.ts        Hier kommen die eigenen Erscheinungsbilder an
               musterkunde.ts  Die Vorlage: jede wechselbare Rolle einmal belegt
   ci/         main.tsx        Der CI-Generator — zweite Seite, eigener Einstieg
               entwurf.ts      Wonach gefragt wird; alles andere wird gerechnet
-              pruefung.ts     Jede Regel, die eine Kundendatei bestehen muss
+              pruefung.ts     Jede Regel, die eine Designdatei bestehen muss
               emitter.ts      Entwurf → src/themes/<id>.ts
               Vorschau.tsx    Eine echte Folie, über die echte Zeichenstrecke
   model/      types.ts        Deck / Folie / Element
@@ -620,7 +653,7 @@ CI-Konformität aller 554 Icons.
 
 Das prüft alles, was das Werkzeug **herstellt**. Ob man es **bedienen** kann,
 prüft `npm run test:ui`: Playwright klickt gegen `vite preview`, also gegen
-das gebaute Verzeichnis. Dreiunddreißig Handgriffe, jeder für einen Fehler,
+das gebaute Verzeichnis. Vierzig Handgriffe, jeder für einen Fehler,
 der einmal durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
 ihrem Kasten, eine Vorschau schwarz auf dunkelgrau. Beides läuft bei jedem
 Pull Request.

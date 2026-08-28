@@ -69,7 +69,7 @@ export function PresenterView() {
   /*
      Das Deck bestimmt auch hier das Erscheinungsbild — dieselbe Richtung wie
      im Werkzeug, nur ohne Store. Ohne das zeichnete die Referentenansicht ein
-     Kunden-Deck in den Farben von nozilla, und der Vortragende sähe etwas
+     fremdes Deck in den Farben von nozilla, und der Vortragende sähe etwas
      anderes als sein Publikum.
   */
   useEffect(() => {

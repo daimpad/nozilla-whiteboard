@@ -119,7 +119,7 @@ describe('das nozilla-Icon-Set', () => {
   it('streicht die Signatur nur, wo eine steht', () => {
     // Für kleine Knöpfe wird der Punkt unten rechts weggelassen. Blind das
     // letzte Primitiv zu nehmen, nähme einem Zeichen ohne Signatur seinen
-    // letzten Strich — ein Kunden-Set muss keine tragen.
+    // letzten Strich — ein fremdes Set muss keine tragen.
     const mitSignatur = icons.rocket.prims;
     expect(withoutSignature(mitSignatur)).toHaveLength(mitSignatur.length - 1);
 

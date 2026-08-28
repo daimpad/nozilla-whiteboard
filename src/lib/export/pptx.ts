@@ -1072,7 +1072,7 @@ function runXml(run: StyledRun, para: Paragraph, opacity?: number): string {
   // täte das nicht.
   //
   // Die Farbe wird beim Schreiben gelesen und stand hier einmal als Grün im
-  // Klartext. Das fiel erst auf, als ein Kunde mit orangem Signal exportierte
+  // Klartext. Das fiel erst auf, als eine Marke mit orangem Signal exportierte
   // und in der .pptx grüne Marker standen — im SVG und im PDF nicht, weil die
   // über die Szene laufen und nicht über diese Zeile.
   if (run.mark) parts.push(`<a:highlight>${srgb(palette.signal)}</a:highlight>`);
@@ -1409,7 +1409,8 @@ function appProps(deck: Deck): string {
     XML_DECL +
     '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" ' +
     'xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">' +
-    `<Application>${escapeXml(brand.product)}</Application>` +
+    // Leer weglassen statt leer schreiben — siehe `sceneToSvg()`.
+    (brand.product.trim() ? `<Application>${escapeXml(brand.product)}</Application>` : '') +
     `<Slides>${deck.slides.length}</Slides>` +
     '<TitlesOfParts>' +
     `<vt:vector size="${titles.length}" baseType="lpstr">` +

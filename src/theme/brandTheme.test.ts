@@ -18,7 +18,7 @@ import { registerThemes } from '@/themes';
  * genau der Weg, den die Anwendung auch geht.
  *
  * Geschleift wird über das Verzeichnis und nicht über eine getippte Liste, und
- * daran hängt mehr, als es aussieht: **eine erzeugte Kundendatei wird sonst von
+ * daran hängt mehr, als es aussieht: **eine erzeugte Designdatei wird sonst von
  * keiner dieser Prüfungen angesehen.** Der CI-Generator legt Dateien an, die
  * hier hereinkommen — eine feste Liste ließe sie ungeprüft durch und erweckte
  * dabei den Eindruck, sie seien geprüft.
@@ -38,8 +38,8 @@ describe('der Vertrag eines Erscheinungsbilds', () => {
   it('mischt aus der nozilla-Palette genau deren Töne', () => {
     // Der Riegel gegen zwei Wahrheiten: `tonesFromPalette` beschreibt dasselbe
     // Muster wie `theme.config.ts`. Ändert jemand dort eine Rolle und hier
-    // nicht, legt jeder neue Kunde ein Erscheinungsbild an, das anders gebaut
-    // ist als das, an dem es sich orientiert.
+    // nicht, entsteht jedes neue Erscheinungsbild anders gebaut als das,
+    // an dem es sich orientiert.
     expect(tonesFromPalette(palette, inkAlpha, paperAlpha)).toEqual(elementTones);
   });
 
@@ -70,7 +70,7 @@ describe('der Vertrag eines Erscheinungsbilds', () => {
        dieselbe Farbe malen. Nichts war kaputt, nichts sagte etwas — die Wahl
        tat nur nichts.
 
-       Ein Kunde, dessen CI wirklich nur einen hellen Ton führt, wird hier rot
+       Eine Marke, deren CI wirklich nur einen hellen Ton führt, wird hier rot
        und muss sich entscheiden. Das ist der Sinn: vier tote Menüeinträge
        sollen eine Entscheidung sein und kein Versehen.
     */

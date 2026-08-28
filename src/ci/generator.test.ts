@@ -34,7 +34,7 @@ import {
   type CiEntwurf,
 } from './entwurf';
 import { pruefe, stapelNamen, traegtFehler, trennbefunde } from './pruefung';
-import { anleitung, bezeichner, bezeichnerProblem, kundendatei } from './emitter';
+import { anleitung, bezeichner, bezeichnerProblem, designdatei } from './emitter';
 
 registerThemes();
 
@@ -162,7 +162,7 @@ describe('das erzeugte Erscheinungsbild', () => {
     expect(eigen.typeScale.codeInline.size).toBe(14);
   });
 
-  it('zeichnet damit eine Folie in den Farben des Kunden', () => {
+  it('zeichnet damit eine Folie in den Farben der neuen Marke', () => {
     /*
        Der Beleg, auf den es ankommt: nicht die Zusicherung über ein Objekt,
        sondern das Markup, das auch im Export steht. Gerufen wird dafür
@@ -195,16 +195,16 @@ describe('das erzeugte Erscheinungsbild', () => {
   it('läuft mit der Leiter dieser Marke nicht über', () => {
     // Das Probedeck ist für diese Prüfung gebaut: keine von Hand gelegten
     // Titel, großzügige Kästen. Liefe es schon bei nozilla über, zeigte es
-    // jedem Kunden Überläufe, die nicht seine sind.
+    // jeder fremden Marke Überläufe, die nicht ihre sind.
     for (const blatt of zeichneProbe(nozillaTheme)) expect(blatt.ueberlauf).toEqual([]);
   });
 });
 
 /* -------------------------------------------------------------------------- */
 
-describe('die erzeugte Kundendatei', () => {
+describe('die erzeugte Designdatei', () => {
   const entwurf = probeEntwurf();
-  const quelle = kundendatei(entwurf);
+  const quelle = designdatei(entwurf);
 
   it('nennt jede Farbe genau einmal', () => {
     /*
@@ -235,7 +235,7 @@ describe('die erzeugte Kundendatei', () => {
   });
 
   it('lässt den Akzent weg, wenn die Marke keinen hat', () => {
-    const ohne = kundendatei(
+    const ohne = designdatei(
       probeEntwurf({
         wortmarke: {
           svg: WORTMARKE,
@@ -252,14 +252,14 @@ describe('die erzeugte Kundendatei', () => {
     // Eine Datei, die hier liegt und nicht angemeldet ist, führt der Inspektor
     // als „nicht installiert" — das Deck sieht dann nach einem Fehler des
     // Werkzeugs aus, obwohl nur eine Zeile fehlt.
-    expect(quelle).toContain('clientThemes');
+    expect(quelle).toContain('brandThemes');
     expect(anleitung(entwurf)).toContain("import { probenhaus } from './probenhaus'");
     expect(anleitung(entwurf)).toContain('theme: probenhaus');
   });
 
   it('schreibt einen Schlüssel mit Bindestrich als gültigen Bezeichner', () => {
     // `alte-post` ist ein guter Schlüssel und ein schlechter Variablenname.
-    const quelle = kundendatei(probeEntwurf({ id: 'alte-post', label: 'Alte Post' }));
+    const quelle = designdatei(probeEntwurf({ id: 'alte-post', label: 'Alte Post' }));
     expect(quelle).toContain('export const altePost: BrandTheme');
     expect(quelle).toContain("id: 'alte-post'");
     expect(quelle).not.toContain('export const alte-post');
@@ -363,7 +363,7 @@ describe('die Prüfliste', () => {
   it('meldet schwarze Schrift auf dunklem Signal', () => {
     /*
        Der eine CI-Fehler, der bei einer neuen Marke fast sicher vorkommt und
-       den der Kunde gar nicht reparieren kann: `elementTones.signal.text` ist
+       der sich in der erzeugten Datei gar nicht reparieren lässt: `elementTones.signal.text` ist
        fest `palette.ink`. Ein dunkles Signal heißt schwarz auf dunkel — auf
        jeder Signalfolie, in jedem Abzeichen.
     */
@@ -439,7 +439,7 @@ describe('die Schnitte im Formular', () => {
        ihren eigenen Inhalt. Jeder Anschlag im Feld „Familie" änderte damit den
        Schlüssel, React hängte die Zeile aus dem Baum, und der Fokus fiel weg —
        im Browser gemessen: von „ Kunde" kam ein Zeichen an. Wer eine
-       Kundenschrift eintragen wollte, kam pro Klick genau ein Zeichen weit.
+       eigene Schrift eintragen wollte, kam pro Klick genau ein Zeichen weit.
     */
     const schnitte = leererEntwurf().webfontFaces;
     const kennungen = schnitte.map((schnitt) => schnitt.kennung);
@@ -452,14 +452,14 @@ describe('die Schnitte im Formular', () => {
     expect({ ...a, kennung: '' }).toEqual({ ...b, kennung: '' });
   });
 
-  it('lassen die Kennung nicht in die Kundendatei durch', () => {
+  it('lassen die Kennung nicht in die Designdatei durch', () => {
     // Sie gehört dem Formular. In einem `@font-face` hat sie nichts verloren,
     // und in der erzeugten Datei stünde sie als Feld, das kein Typ kennt.
     const theme = themeAusEntwurf(probeEntwurf());
     for (const face of theme.webfont.faces) {
       expect(Object.keys(face).sort()).toEqual(['family', 'file', 'style', 'weight']);
     }
-    expect(kundendatei(probeEntwurf())).not.toContain('kennung');
+    expect(designdatei(probeEntwurf())).not.toContain('kennung');
   });
 
   it('lassen einen kursiven Schnitt zu', () => {
@@ -472,7 +472,7 @@ describe('die Schnitte im Formular', () => {
       ),
     });
     expect(traegtFehler(pruefe(kursiv))).toBe(false);
-    expect(kundendatei(kursiv)).toContain("style: 'italic'");
+    expect(designdatei(kursiv)).toContain("style: 'italic'");
   });
 });
 
@@ -505,7 +505,7 @@ describe('die Zahlen eines Entwurfs', () => {
       const entwurf = probeEntwurf(patch);
       expect(traegtFehler(pruefe(entwurf)), 'die Prüfliste').toBe(true);
       // Und der Emitter wirft, statt NaN zu schreiben — der letzte Riegel.
-      expect(() => kundendatei(entwurf)).toThrow();
+      expect(() => designdatei(entwurf)).toThrow();
     });
   }
 
@@ -530,12 +530,12 @@ describe('die Zahlen eines Entwurfs', () => {
   });
 });
 
-describe('der Exportname der Kundendatei', () => {
+describe('der Exportname der Designdatei', () => {
   /*
      Die Prüfliste erlaubt Kleinschrift, Ziffern und Bindestriche — richtig für
      einen Schlüssel, der im Frontmatter steht. Der Emitter macht daraus einen
      Bezeichner, indem er `-x` zu `X` zieht, und das greift nur vor einem
-     Buchstaben. `kunde-2024` — die naheliegendste Form eines Kundenschlüssels
+     Buchstaben. `kunde-2024` — die naheliegendste Form eines Markenschlüssels
      überhaupt — wurde damit zu `export const kunde-2024`, einem Syntaxfehler,
      bei grüner Prüfliste und freigegebenem Knopf.
   */
@@ -551,14 +551,14 @@ describe('der Exportname der Kundendatei', () => {
   it('lässt taugliche Schlüssel durch und zieht den Bindestrich zusammen', () => {
     expect(bezeichner('alte-post')).toBe('altePost');
     expect(bezeichnerProblem('alte-post')).toBeNull();
-    expect(kundendatei(probeEntwurf({ id: 'alte-post' }))).toContain('export const altePost:');
+    expect(designdatei(probeEntwurf({ id: 'alte-post' }))).toContain('export const altePost:');
   });
 
   it('rechnet in Prüfung und Emitter dieselbe Formel', () => {
     // Zwei Rechnungen für dieselbe Frage gäben eine Datei frei, die nicht
     // übersetzt — die Prüfliste grün, der Compiler rot.
     for (const id of ['probenhaus', 'alte-post', 'a1']) {
-      expect(kundendatei(probeEntwurf({ id }))).toContain(`export const ${bezeichner(id)}:`);
+      expect(designdatei(probeEntwurf({ id }))).toContain(`export const ${bezeichner(id)}:`);
     }
   });
 });
@@ -588,7 +588,7 @@ describe('die Bausteine der Rechnung', () => {
     // Die Norm gibt zwei Werte vor, an denen sich jede Umsetzung messen lässt:
     // Schwarz auf Weiß ist 21 : 1, eine Farbe auf sich selbst ist 1 : 1. Ohne
     // sie stünde hier eine Rechnung, die niemand nachgeprüft hat — und sie
-    // entscheidet jetzt über jede Kundenpalette.
+    // entscheidet jetzt über jede fremde Palette.
     expect(kontrast('#000000', '#FFFFFF')).toBeCloseTo(21, 2);
     expect(kontrast('#FF5A1F', '#FF5A1F')).toBeCloseTo(1, 5);
     // Und sie ist symmetrisch: welche Farbe vorn steht, ändert nichts.

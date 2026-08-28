@@ -2,7 +2,7 @@
  * Die Decks, die mitgeliefert werden.
  *
  * Zwei, und der Unterschied ist der Punkt: das eine gehört nozilla, das andere
- * einem erfundenen Kunden. Ein Werkzeug, das mehrere Erscheinungsbilder kann,
+ * einer erfundenen Marke. Ein Werkzeug, das mehrere Erscheinungsbilder kann,
  * aber nur ein Deck der eigenen Marke zeigt, belegt seine Behauptung nicht —
  * man sieht dem nozilla-Deck unter fremder Marke an, dass es dafür nicht
  * gemacht wurde, weil jeder von Hand gelegte Titel für *diese* Schrift
@@ -33,7 +33,7 @@ export const bundledDecks: readonly BundledDeck[] = [
   {
     file: 'musterkunde.md',
     label: 'Probenhaus',
-    hint: 'Musterkunde — ein Deck unter fremder Marke',
+    hint: 'Muster — ein Deck unter fremder Marke',
     source: musterkunde,
   },
 ];

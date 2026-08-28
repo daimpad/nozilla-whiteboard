@@ -1,5 +1,5 @@
 /**
- * Aus einem Entwurf wird eine Kundendatei.
+ * Aus einem Entwurf wird eine Designdatei.
  *
  * Geschrieben wird `src/themes/<id>.ts` — und zwar so, wie `musterkunde.ts`
  * geschrieben ist: **die Palette einmal genannt, alles andere gemischt.** Der
@@ -29,11 +29,50 @@ import {
   type CiEntwurf,
 } from './entwurf';
 
-/** Ein Zeichenkettenliteral in der Form, die Prettier schreibt. */
-function text(wert: string): string {
-  // Prettier bevorzugt einfache Anführungszeichen und wechselt nur, wenn der
-  // Inhalt dadurch weniger Maskierung braucht — genau wie hier.
-  return wert.includes("'") ? `"${wert.replace(/"/g, '\\"')}"` : `'${wert}'`;
+/**
+ * Ein Zeichenkettenliteral in der Form, die Prettier schreibt.
+ *
+ * Die vorige Fassung maskierte **nur** das doppelte Anführungszeichen, und das
+ * riss auf drei Größenordnungen:
+ *
+ * - Laut: ein Wert, der auf einem Backslash endet (`C:\fonts\`), machte aus
+ *   dem schließenden Anführungszeichen ein maskiertes — „Unterminated string
+ *   literal", und `tsc` bricht ab.
+ * - Still und darum schlimmer: ein Backslash *mitten* im Wert wurde zur
+ *   Escape-Sequenz. `C:\fonts\Inter.woff2` bestand jede Prüfung, übersetzte
+ *   sauber und ergab zur Laufzeit `C:<FF>ontsInter.woff2` — die Schrift lud
+ *   nie, und der Export fiel still auf die Ersatzschrift zurück.
+ * - Und ein Wert mit beiden Anführungszeichen erzeugte beim nächsten
+ *   `npm run format` einen Diff, den niemand bestellt hat.
+ *
+ * Maskiert wird deshalb über `JSON.stringify` — der kennt Backslash,
+ * Zeilenumbruch, Tabulator und die Steuerzeichen. Gewählt wird das
+ * Anführungszeichen danach so, wie Prettier es wählt: das seltenere, bei
+ * Gleichstand das einfache.
+ */
+export function text(wert: string): string {
+  const einfach = (wert.match(/'/g) ?? []).length;
+  const doppelt = (wert.match(/"/g) ?? []).length;
+  // JSON.stringify liefert ein doppelt begrenztes Literal mit maskierten
+  // Backslashes und Steuerzeichen — die Grundlage stimmt damit schon.
+  const roh = JSON.stringify(wert);
+  if (einfach > doppelt) return roh;
+
+  // Auf einfache Anführungszeichen umstellen: die maskierten doppelten dürfen
+  // wieder nackt stehen, die einfachen müssen maskiert werden.
+  return `'${roh.slice(1, -1).replace(/\\"/g, '"').replace(/'/g, "\\'")}'`;
+}
+
+/**
+ * Text für einen Blockkommentar.
+ *
+ * Ein `*` gefolgt von `/` im Markennamen beendete den Kopfkommentar mitten im
+ * Satz, und alles danach war Code. Ein schmales Leerzeichen dazwischen bricht
+ * die Folge, ohne den Namen zu verfälschen — er steht dort ohnehin nur zum
+ * Lesen.
+ */
+function imKommentar(wert: string): string {
+  return wert.replace(/\*\//g, '*\u2009/');
 }
 
 /** Ein Feld, dessen Schlüssel in TypeScript ein Bezeichner sein darf. */
@@ -69,7 +108,7 @@ export function bezeichner(id: string): string {
  * Emitter ein paar Zeilen weiter unten selbst hinschreibt. Wer dort einen
  * Namen ergänzt, sieht diese Liste daneben.
  *
- * Der Anlass: `kunde-2024` — die naheliegendste Form eines Kundenschlüssels
+ * Der Anlass: `kunde-2024` — die naheliegendste Form eines Markenschlüssels
  * überhaupt — kam durch die Prüfliste, weil `-2` kein `-x` ist, und wurde zu
  * `export const kunde-2024: BrandTheme = {`. Ein Syntaxfehler, den erst der
  * nächste `npm run build` von jemand anderem findet.
@@ -239,7 +278,7 @@ function zahlenBlock(
  */
 function zahl(wert: number, name: string): number {
   if (!Number.isFinite(wert)) {
-    throw new Error(`„${name}" trägt keine Zahl (${wert}) — daraus wird keine Kundendatei.`);
+    throw new Error(`„${name}" trägt keine Zahl (${wert}) — daraus wird keine Designdatei.`);
   }
   return wert;
 }
@@ -252,13 +291,32 @@ function zahl(wert: number, name: string): number {
  * Herkunftsvermerk wird von Hand geändert, und beim nächsten Lauf des
  * Generators ist die Änderung weg.
  */
-export function kundendatei(entwurf: CiEntwurf): string {
+export function designdatei(entwurf: CiEntwurf): string {
+  /*
+     Die Riegel sitzen hier und nicht nur in der Prüfliste — dieselbe
+     Entscheidung wie bei `zahl()` und dem `NaN`. Die Prüfliste war der einzige
+     Wächter, solange das Formular der einzige Weg zu einem Entwurf war; seit
+     der Rücklauf eines Sprachmodells daneben schreibt, ist sie es nicht mehr.
+
+     Und der Schlüssel braucht seinen eigenen: er geht als **roher Text** in den
+     Importpfad und in den Exportnamen, und dort hilft `text()` nichts. Ein
+     Schlüssel mit einem Anführungszeichen darin bräche die Datei, einer mit
+     einem Schrägstrich zeigte auf ein fremdes Verzeichnis.
+  */
+  const problem = bezeichnerProblem(entwurf.id);
+  if (problem) throw new Error(problem);
+
   const marke = entwurf.wortmarke;
-  const svgName = `${entwurf.id}-wortmarke.svg`;
+  if (!marke) {
+    throw new Error(
+      'Ohne Wortmarke gibt es keine Designdatei. Sie ist Pflicht und hat mit Absicht keine Voreinstellung — die erzeugte Datei trüge sonst eine leere Füllfarbe und zeichnete nichts.',
+    );
+  }
+  const svgName = wortmarkeDateiname(entwurf.id);
   const name = bezeichner(entwurf.id);
 
   const kopf = `/**
- * ${entwurf.label} — das Erscheinungsbild dieses Kunden.
+ * ${imKommentar(entwurf.label)} — dieses Erscheinungsbild.
  *
  * Angelegt mit dem CI-Generator (ci.html). Wer hier von Hand ändert, ändert
  * die Wahrheit — der Generator liest diese Datei nicht zurück.
@@ -268,11 +326,11 @@ export function kundendatei(entwurf: CiEntwurf): string {
  * harte Versatzschatten, 1280 × 720 und das 64 × 64-Raster der Zeichen bei
  * 4 px Strich.
  *
- * Anmelden nicht vergessen — \`clientThemes\` in \`src/themes/index.ts\`:
+ * Anmelden nicht vergessen — \`brandThemes\` in \`src/themes/index.ts\`:
  *
  * \`\`\`ts
  * import { ${name} } from './${entwurf.id}';
- * const clientThemes: BrandTheme[] = [musterkunde, ${name}];
+ * const brandThemes: BrandTheme[] = [musterkunde, ${name}];
  * \`\`\`
  *
  * Eine Datei, die hier liegt und nicht angemeldet ist, führt der Inspektor als
@@ -385,7 +443,7 @@ ${facesBlock(entwurf)}
      Zeichensoftware sortiert Pfade um, wie sie will.
   */
   wordmark: wordmarkFromSvg(wortmarke, {
-    letters: ${text(marke?.letters ?? '')},${marke?.accent ? `\n    accent: ${text(marke.accent)},` : ''}
+    letters: ${text(marke.letters)},${marke.accent ? `\n    accent: ${text(marke.accent)},` : ''}
   }),
   ${
     entwurf.zeichen === 'nozilla'
@@ -445,6 +503,19 @@ ${zahlenBlock(entwurf.shadowOffset as Record<string, number>, schattenRollen, ' 
 }
 
 /**
+ * Wie die Wortmarken-Datei heißt.
+ *
+ * Öffentlich und an einer Stelle, weil zwei sie brauchen: die `import`-Zeile
+ * der erzeugten Datei und der Knopf, der die Datei aushändigt. Zwei Rechnungen
+ * für einen Dateinamen laufen auseinander, und man sähe es erst an der
+ * abgelegten Datei — genau dort, wo Umbenennen der Handgriff ist, der am
+ * ehesten schiefgeht.
+ */
+export function wortmarkeDateiname(id: string): string {
+  return `${id}-wortmarke.svg`;
+}
+
+/**
  * Die Zeilen, die von Hand nachzutragen sind.
  *
  * Sie stehen getrennt und nicht im Kopf der Datei, weil sie *woanders*
@@ -456,12 +527,12 @@ export function anleitung(entwurf: CiEntwurf): string {
   return `1 · Die beiden Dateien ablegen
 
    src/themes/${entwurf.id}.ts
-   src/themes/${entwurf.id}-wortmarke.svg
+   src/themes/${wortmarkeDateiname(entwurf.id)}
 
 2 · Anmelden — src/themes/index.ts
 
    import { ${name} } from './${entwurf.id}';
-   const clientThemes: BrandTheme[] = [musterkunde, ${name}];
+   const brandThemes: BrandTheme[] = [musterkunde, ${name}];
 
 3 · Die Schriften
 

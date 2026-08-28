@@ -19,7 +19,7 @@ import { installWebfonts } from '@/theme/fonts';
 import { registerThemes } from '@/themes';
 import '@/index.css';
 
-// Die Erscheinungsbilder der Kunden anmelden: die Vorschau meldet ihren Entwurf
+// Die angelegten Erscheinungsbilder anmelden: die Vorschau meldet ihren Entwurf
 // dazu an und stellt hinterher zurück — ohne das Verzeichnis fiele sie ins
 // Leere.
 registerThemes();

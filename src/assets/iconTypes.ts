@@ -48,7 +48,7 @@ export const ICON_STROKE = 4;
  * Sie steht hier als Wert und nicht als Zahlenfolge in drei Dateien, weil drei
  * Stellen sie brauchen: der Test, der sie einfordert, die Oberfläche, die sie in
  * kleinen Knöpfen weglässt, und der Übersetzer, der sie anhängt. Sie gehört zum
- * Set und nicht zum Dialekt — ein Kunden-Set darf ohne sie auskommen.
+ * Set und nicht zum Dialekt — ein fremdes Set darf ohne sie auskommen.
  */
 export const ICON_SIGNATURE = {
   t: 'rect',

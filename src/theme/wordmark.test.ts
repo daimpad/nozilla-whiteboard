@@ -9,9 +9,9 @@ const logo = readFileSync(join(process.cwd(), 'public', 'brand', 'nozilla-logo.s
 describe('die Wortmarke als Geometrie', () => {
   it('liest aus der Quelldatei genau das, was der Erzeuger schreibt', () => {
     // Der Riegel gegen zwei Wahrheiten: `scripts/sync-ci.mjs` erzeugt die
-    // nozilla-Wortmarke beim Sync, `wordmarkFromSvg` liest die eines Kunden
-    // zur Laufzeit. Lesen beide dieselbe Datei verschieden, bekommt ein Kunde
-    // eine andere Behandlung als die eigene Marke.
+    // nozilla-Wortmarke beim Sync, `wordmarkFromSvg` liest die einer fremden
+    // Marke zur Laufzeit. Lesen beide dieselbe Datei verschieden, bekommt die
+    // fremde eine andere Behandlung als die eigene.
     const gelesen = wordmarkFromSvg(logo, { letters: '#000000', accent: '#00FF9C' });
     expect(gelesen.viewBox).toEqual(generated.viewBox);
     expect(gelesen.letters).toBe(generated.letters);

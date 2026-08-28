@@ -10,7 +10,7 @@
  *   Erscheinungsbild vom Start ein.
  *
  *   **Werkzeug** kommt weiter aus `theme.config.ts`. `ui`, `uiRadius`,
- *   `uiShadow`, `uiType` sind für jeden Kunden dieselben, und das ist
+ *   `uiShadow`, `uiType` sind für jede Marke dieselben, und das ist
  *   Absicht: die Leiste soll nicht mitfärben.
  *
  * Was strukturell ist — Radius, Foliengröße, Raster, Layouts, Übergänge —
@@ -41,6 +41,7 @@ export {
   isThemeId,
   registerTheme,
   setActiveTheme,
+  withTheme,
   subscribeTheme,
   themeVersion,
 } from './runtime';
@@ -59,7 +60,7 @@ export {
 } from './surface';
 export type { Surface, SurfaceMode } from './surface';
 
-export { wordmarkFromSvg } from './wordmark';
+export { readPaths, readViewBox, wordmarkFromSvg } from './wordmark';
 export type { Wordmark } from './wordmark';
 
 // Ein Icon-Set ist eine Belegung des Erscheinungsbilds wie die Palette. Der
@@ -68,7 +69,7 @@ export type { Wordmark } from './wordmark';
 export { nozillaIcons } from '@/assets/iconSet';
 export type { IconDef, IconSet } from '@/assets/iconSet';
 
-// Die Bausteine, aus denen eine Kundendatei ein Erscheinungsbild
+// Die Bausteine, aus denen eine Designdatei ein Erscheinungsbild
 // zusammensetzt. Sie stehen in `brandTheme.ts`, weil dort auch die Grenze
 // steht, die sie einhalten.
 export {

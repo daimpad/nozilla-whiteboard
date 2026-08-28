@@ -339,7 +339,19 @@ const faces = nozillaTheme.webfont.faces.filter((face) => face.family !== 'Zilla
 
 export const musterkunde: BrandTheme = {
   id: 'musterkunde',
-  label: 'Musterkunde',
+  /*
+     „Muster" und nicht „Musterkunde": diese Zeile ist die Beschriftung in der
+     Auswahlliste des Inspektors, und sie soll das Erscheinungsbild benennen und
+     nicht seine Rolle im Verkaufsgespräch. Das erfundene Haus heißt in seiner
+     eigenen CI `brand.name: 'muster'` und im Beispiel-Menü „Probenhaus"; nur
+     diese eine Liste nannte es anders.
+
+     Der **Schlüssel** bleibt `musterkunde`. Er steht im Frontmatter jedes
+     Beispiel-Decks und in vier Dateinamen; ihn umzubenennen hieße, jede Datei
+     anzufassen — dieselbe Linie wie beim Untergrund `paper`, der das Weiß malt.
+     Wert und Beschriftung dürfen auseinandergehen.
+  */
+  label: 'Muster',
 
   brand: {
     name: 'muster',

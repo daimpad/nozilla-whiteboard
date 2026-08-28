@@ -202,7 +202,7 @@ describe('serializeDeck', () => {
   });
 
   it('keeps an icon name that the active icon set does not know', () => {
-    // Ein Deck darf ein Zeichen aus dem Set eines anderen Kunden nennen.
+    // Ein Deck darf ein Zeichen aus dem Set einer anderen Marke nennen.
     // Würde es beim Einlesen verworfen, verlöre eine Sitzung ohne dieses Set
     // beim ersten Speichern jedes Icon — genau wie bei einem unbekannten
     // Erscheinungsbild bleibt der Wert stehen.

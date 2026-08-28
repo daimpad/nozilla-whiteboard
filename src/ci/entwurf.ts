@@ -24,6 +24,7 @@
 import {
   colorsFromPalette,
   nozillaTheme,
+  readPaths,
   tonesFromPalette,
   wordmarkFromSvg,
   type BrandTheme,
@@ -128,7 +129,7 @@ export interface CiEntwurf {
  * *eigenen Inhalt* (`${family}-${weight}-${style}`). Jeder Anschlag im Feld
  * „Familie" änderte damit den Schlüssel, React hängte die Zeile samt Eingabe
  * aus dem Baum und setzte eine neue ein — das Zeichen stand im Wert, der
- * Fokus auf dem Rumpf. Wer eine Kundenschrift eintragen wollte, kam pro Klick
+ * Fokus auf dem Rumpf. Wer eine eigene Schrift eintragen wollte, kam pro Klick
  * genau ein Zeichen weit. Zwei frische Zeilen trugen zudem denselben
  * Schlüssel.
  *
@@ -235,7 +236,7 @@ export const PAPIER_STUFEN: [number, number, number] = [0.64, 0.4, 0.18];
  * werden nur die Größen und die Laufweite der Auszeichnung.
  *
  * Zugeordnet wird über den **Wert**: jede nozilla-Größe wird in der
- * nozilla-Leiter gesucht, und steht sie dort, nimmt der Kunde seinen Wert für
+ * nozilla-Leiter gesucht, und steht sie dort, nimmt der Entwurf seinen Wert für
  * dieselbe Stufe. Das ist keine Bequemlichkeit — es ist der einzige Weg, der
  * ohne eine getippte Zuordnungstabelle auskommt, und eine solche Tabelle war
  * hier schon einmal eine eingefrorene CI.
@@ -267,8 +268,8 @@ export function typeScaleAusEntwurf(entwurf: CiEntwurf): TypeScale {
  * Aus dem Entwurf ein `BrandTheme`.
  *
  * Wirft, wenn die Wortmarke fehlt oder nicht lesbar ist — sie ist Pflicht und
- * hat mit Absicht keine Voreinstellung: fehlte sie, trüge ein Kundendeck die
- * Marke von nozilla, und das wäre der auffälligste Fehler, den dieses Werkzeug
+ * hat mit Absicht keine Voreinstellung: fehlte sie, trüge ein Deck unter fremder
+ * Marke die von nozilla, und das wäre der auffälligste Fehler, den dieses Werkzeug
  * machen kann.
  */
 export function themeAusEntwurf(entwurf: CiEntwurf): BrandTheme {
@@ -317,11 +318,102 @@ export function themeAusEntwurf(entwurf: CiEntwurf): BrandTheme {
 }
 
 /**
+ * Aus einer SVG-Datei ein Wortmarken-Entwurf — samt Vorschlag für die beiden
+ * Füllfarben.
+ *
+ * Die Farben werden **aus der Datei gelesen** und nicht geraten: das wäre der
+ * Punkt, an dem der Generator anfängt, Werte zu erfinden. Gelesen wird dabei
+ * mit `readPaths()`, also mit demselben Leser, den `wordmarkFromSvg()` benutzt.
+ * Die vorige Fassung hatte einen eigenen Ausdruck, der nur `fill="…"` kannte —
+ * eine Datei in einfachen Anführungszeichen kam mit zwei leeren Farbfeldern an,
+ * und die Prüfliste beklagte eine Datei, die in Ordnung war.
+ */
+export function wortmarkeAusSvg(svg: string, dateiname: string): Wortmarkenentwurf {
+  const gefunden = [
+    ...new Set(
+      readPaths(svg)
+        .map((pfad) => pfad.fill)
+        .filter(Boolean),
+    ),
+  ];
+  return { svg, dateiname, letters: gefunden[0] ?? '', accent: gefunden[1] ?? '' };
+}
+
+/**
+ * Was die Vorschau zeigt — der frische Stand oder der letzte, der trug.
+ *
+ * Eine reine Funktion und keine drei Zeilen in der Komponente, weil der Fehler,
+ * gegen den sie steht, für `tsc`, ESLint und vitest **unsichtbar** ist. Die
+ * Gegenprobe hat es vorgeführt: `const theme = frisch;` lässt den Merker
+ * beschrieben und ungelesen, `const veraltet = false && …` bleibt ein gültiger
+ * `boolean` und wird weiter benutzt — kein ungenutzter Import, kein Diff bei
+ * Prettier, und eine Sabotage, die **baut**. Der einzige Zeuge war der
+ * Rauchtest, und ein einziger Zeuge ist in diesem Projekt schon zweimal zu
+ * wenig gewesen.
+ *
+ * Das eine, was nicht passieren darf, ist ein alter Stand, der sich für den
+ * aktuellen ausgibt — deshalb kommt `veraltet` aus derselben Rechnung und
+ * nicht aus einer zweiten daneben.
+ */
+export function vorschaustand<T>(
+  frisch: T | null,
+  letzter: T | null,
+): { stand: T | null; veraltet: boolean } {
+  if (frisch !== null) return { stand: frisch, veraltet: false };
+  return { stand: letzter, veraltet: letzter !== null };
+}
+
+/**
+ * Das Erscheinungsbild, mit dem die *Vorschau* zeichnet.
+ *
+ * Es unterscheidet sich von `themeAusEntwurf()` an genau einer Stelle: fehlt
+ * die Wortmarke, setzt es einen sichtbaren Platzhalter ein, statt zu werfen.
+ *
+ * Der Grund ist der Wizard. Die Wortmarke ist die einzige Angabe, für die man
+ * eine Datei suchen muss, und sie steht deshalb spät — wer den Generator zum
+ * ersten Mal öffnet, hat sie nicht bereitliegen. Ohne den Platzhalter wären
+ * fünf von acht Schritten ohne Bild, und ausgerechnet der Schritt „Farbe" wäre
+ * blind: die sechs fest verdrahteten Lesepaare sind auf der Probefolie zu
+ * sehen und sonst nirgends.
+ *
+ * Und die Grenze, ohne die daraus ein stiller Ersatz würde: `themeAusEntwurf()`
+ * **wirft weiter**, der Fehler bleibt in der Prüfliste, der Knopf „Designdatei"
+ * bleibt gesperrt, und die Vorschau schreibt daneben, dass sie einen
+ * Platzhalter zeigt. Er ist ein Bild und keine Zusage.
+ */
+export function vorschauTheme(entwurf: CiEntwurf): BrandTheme {
+  if (entwurf.wortmarke) return themeAusEntwurf(entwurf);
+  return themeAusEntwurf({ ...entwurf, wortmarke: PLATZHALTER_WORTMARKE });
+}
+
+/**
+ * Ein Schriftzug, der wie einer aussieht und keiner ist.
+ *
+ * Zwei Pfade in zwei Füllfarben, damit die Zuordnung über die Farbe dasselbe
+ * tut wie bei einer echten Datei: ein Balken als Wortkörper und ein Quadrat als
+ * Akzent am Wortende. Die Farben sind erfunden — sie stehen nur *in dieser
+ * Datei* und werden von `wordmarkFromSvg` gegen die Pfade gehalten; auf der
+ * Folie malt die Marke ohnehin in Tinte und Signal.
+ */
+const PLATZHALTER_WORTMARKE: Wortmarkenentwurf = {
+  svg: [
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48">',
+    '<path fill="#111111" d="M0 14 H24 V34 H0 Z M32 14 H56 V34 H32 Z M64 14 H88 V34 H64 Z',
+    ' M96 14 H120 V34 H96 Z M128 14 H152 V34 H128 Z"/>',
+    '<path fill="#E4003A" d="M164 26 H176 V38 H164 Z"/>',
+    '</svg>',
+  ].join(''),
+  dateiname: '(Platzhalter)',
+  letters: '#111111',
+  accent: '#E4003A',
+};
+
+/**
  * Der Zeichensatz zur getroffenen Wahl.
  *
  * „Ohne Signatur" nimmt den 6 × 6 großen Punkt unten rechts heraus. Er ist
  * nozillas Erkennungszeichen und keine Eigenschaft des Dialekts — er nähme die
- * Signalfarbe des Kunden an und setzte trotzdem eine fremde Handschrift auf
+ * Signalfarbe der neuen Marke an und setzte trotzdem eine fremde Handschrift auf
  * jede Folie.
  */
 export function zeichensatz(wahl: Zeichenwahl) {

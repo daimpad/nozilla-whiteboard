@@ -21,10 +21,10 @@ import { musterkunde } from './musterkunde';
 /**
  * Der Musterkunde ist die Vorlage, an der eine Kundendatei abgeschrieben wird.
  * Eine Vorlage, die niemand prüft, stimmt nach dem zweiten Umbau nicht mehr —
- * und dann schreibt der nächste Kunde einen Fehler ab.
+ * und dann schreibt das nächste Erscheinungsbild einen Fehler ab.
  *
  * Geprüft wird deshalb nicht, ob die Datei *existiert*, sondern ob sie tut,
- * was eine Kundendatei tun muss: eigene Farben durchhalten, eine eigene Marke
+ * was eine Designdatei tun muss: eigene Farben durchhalten, eine eigene Marke
  * zeichnen, eigene Zeichen mitbringen.
  */
 registerThemes();
@@ -41,7 +41,7 @@ describe('die angemeldeten Erscheinungsbilder', () => {
     //
     // Geprüft wird, was der Satz behauptet, und nicht die Länge der Liste: die
     // vorige Fassung verlangte `toEqual(['nozilla', 'musterkunde'])` und wurde
-    // damit bei **jedem** neuen Kunden rot. Das ist das falsche Rot — es sagt
+    // damit bei **jedem** neuen Erscheinungsbild rot. Das ist das falsche Rot — es sagt
     // „du hast einen Fehler gemacht", wo jemand das Richtige getan hat, und
     // seit es den CI-Generator gibt, sagt es das jedem Neuling einmal.
     const ids = availableThemes().map((entry) => entry.id);
@@ -75,7 +75,7 @@ describe('die angemeldeten Erscheinungsbilder', () => {
     setActiveTheme('musterkunde');
     expect(fontFamily[typeScale.h1.family]).toContain('Inter');
     expect(fontFamily[typeScale.h1.family]).not.toContain('Zilla Slab');
-    // Eine Grotesk läuft breiter — die Leiter dieses Kunden steht darum tiefer.
+    // Eine Grotesk läuft breiter — die Leiter dieser Marke steht darum tiefer.
     expect(typeScale.h1.size).toBeLessThan(nozillaTheme.typeScale.h1.size);
     expect(typeScale.h1.tracking).toBeLessThan(nozillaTheme.typeScale.h1.tracking);
     // Fließtext und Labels bleiben, wo sie waren: sie setzen ohnehin in Inter
@@ -113,7 +113,7 @@ describe('die angemeldeten Erscheinungsbilder', () => {
 
   it('lassen die Signatur von nozilla auf keiner Folie erscheinen', () => {
     // Der 6 × 6-Punkt unten rechts ist nozillas Erkennungszeichen und nicht
-    // Teil des Dialekts. Er nähme die Signalfarbe dieses Kunden an und setzte
+    // Teil des Dialekts. Er nähme die Signalfarbe dieser Marke an und setzte
     // trotzdem eine fremde Handschrift auf jede Folie.
     expect(nozillaTheme.icons?.icons.rocket.prims.some(isSignature)).toBe(true);
 

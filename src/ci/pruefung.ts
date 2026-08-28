@@ -23,17 +23,36 @@
  *
  * `hinweis` ist das, was der Nächste wissen muss und nicht raten soll.
  */
-import { nozillaTheme, type FamilyRole } from '@/theme';
+import { nozillaTheme, readPaths, readViewBox } from '@/theme';
 import { AA, AA_GROSS, kanaele, kontrast, unterscheidbar } from '@/lib/contrast';
 import { paletteRollen, pdfSchriften, schriftRollen, textStufen, type CiEntwurf } from './entwurf';
 import { bezeichnerProblem } from './emitter';
 
 export type Rang = 'fehler' | 'warnung' | 'hinweis';
 
+/**
+ * Die Abschnitte, zu denen ein Befund gehören kann.
+ *
+ * Eine Union und keine freie Zeichenkette, weil an dieser Achse der
+ * Schrittbalken hängt: er zählt je Schritt, was dort offen ist, und ein Befund,
+ * dessen Feld keinem Schritt gehört, taucht in keinem Zähler auf — die Zahl
+ * daneben behauptete dann, es sei nichts offen. Mit der Union macht der
+ * Compiler daraus einen Übersetzungsfehler statt eines grünen Tests.
+ *
+ * „Rücklauf" gehört dem Leser der Modellantwort und nicht dieser Prüfung.
+ * Er steht trotzdem hier, weil die *Achse* geteilt wird — der Schrittbalken
+ * zählt beide Sorten. Geteilt wird ausdrücklich nur sie: `Ruecklaufrang` bleibt
+ * getrennt von `Rang`, und `traegtFehler()` bleibt allein auf `pruefe()`.
+ * Zusammengelegt sperrte ein unlesbarer Rücklauf den Knopf „Designdatei",
+ * obwohl der Entwurf tadellos ist.
+ */
+export type Feld =
+  'Marke' | 'Farbe' | 'Schrift' | 'Maße' | 'Wortmarke' | 'Zeichen' | 'Werkzeug' | 'Rücklauf';
+
 export interface Befund {
   rang: Rang;
   /** Der Abschnitt des Formulars, zu dem der Befund gehört. */
-  feld: string;
+  feld: Feld;
   text: string;
 }
 
@@ -46,7 +65,7 @@ export interface Befund {
  *
  * `nozilla` ist der gefährlichste: ein bereits vergebener Schlüssel **ersetzt
  * das angemeldete Erscheinungsbild kommentarlos**, und `activate()` zieht die
- * Änderung sofort in die laufende Oberfläche. Wer sein Kunden-CI `nozilla`
+ * Änderung sofort in die laufende Oberfläche. Wer sein eigenes CI `nozilla`
  * nennt, überschreibt damit die eigene.
  */
 const VERGEBEN = new Set(['nozilla', 'musterkunde']);
@@ -91,6 +110,16 @@ function pruefeMarke(entwurf: CiEntwurf): Befund[] {
       text: 'Ohne Markennamen steht in jedem exportierten PDF und jeder PPTX ein leerer Urheber.',
     });
   }
+  if (!entwurf.produkt.trim()) {
+    // Dieselbe Klasse wie der Markenname, und lange ohne Warnung: der leere
+    // Wert landet ungefragt als `desc` in jedem SVG, als Titel und Ersteller im
+    // PDF und als `Application` in jeder PPTX.
+    befunde.push({
+      rang: 'warnung',
+      feld,
+      text: 'Ohne Produktnamen steht in jedem SVG eine leere Beschreibung und in jeder PPTX eine leere Anwendung.',
+    });
+  }
 
   return befunde;
 }
@@ -100,8 +129,8 @@ function pruefeMarke(entwurf: CiEntwurf): Befund[] {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Die Paare, deren Kontrast über Lesbarkeit entscheidet — und die der Kunde
- * **nicht reparieren kann**.
+ * Die Paare, deren Kontrast über Lesbarkeit entscheidet — und die sich in der
+ * erzeugten Datei **nicht reparieren lassen**.
  *
  * Sie sind im Mischer fest verdrahtet: `elementTones.signal.text` ist
  * `palette.ink` auf `palette.signal`, `color.inkOnSignal` ebenso,
@@ -156,12 +185,18 @@ const TRENNPAARE: Array<{ a: string; b: string; wo: string }> = [
  * CI anschlägt, lehrt in der ersten Minute, den teuersten Rang der Liste zu
  * überlesen.
  */
-export function trennbefunde(palette: Record<string, string>): Befund[] {
+export function trennbefunde(
+  palette: Record<string, string>,
+  kaputt: ReadonlySet<string> = new Set(),
+): Befund[] {
   const befunde: Befund[] = [];
   for (const paar of TRENNPAARE) {
     const a = palette[paar.a];
     const b = palette[paar.b];
     if (!a || !b) continue;
+    // „Ist das dieselbe Farbe" sagt nichts über eine Rolle, die gar keine
+    // Farbe trägt — dort steht der Fehler schon eine Zeile weiter oben.
+    if (kaputt.has(paar.a) || kaputt.has(paar.b)) continue;
     if (!unterscheidbar(a, b)) {
       befunde.push({
         rang: 'warnung',
@@ -175,12 +210,24 @@ export function trennbefunde(palette: Record<string, string>): Befund[] {
 
 function pruefeFarbe(entwurf: CiEntwurf): Befund[] {
   const befunde: Befund[] = [];
-  const feld = 'Farbe';
+  const feld: Feld = 'Farbe';
   const p = entwurf.palette;
 
+  /*
+     Die kaputten Rollen werden **gesammelt** und nicht als Abbruch benutzt.
+
+     Die vorige Fassung stieg hier aus (`if (befunde.length > 0) return`), und
+     das war teurer, als es aussieht: ein einziges vertipptes Hex — eine Raute
+     zu wenig, mitten in sechzehn Feldern — brachte jeden Kontrast- und jeden
+     Trennbefund zum Schweigen. Die Liste sah kürzer aus und wurde kürzer
+     genannt, während die schwarze Schrift auf dunklem Signal weiter dastand.
+     Übersprungen wird jetzt nur, was diese eine Rolle wirklich betrifft.
+  */
+  const kaputt = new Set<string>();
   for (const rolle of paletteRollen) {
     const wert = (p[rolle] ?? '').trim();
     if (!kanaele(wert)) {
+      kaputt.add(rolle);
       befunde.push({
         rang: 'fehler',
         feld,
@@ -188,12 +235,11 @@ function pruefeFarbe(entwurf: CiEntwurf): Befund[] {
       });
     }
   }
-  // Ohne vollständige Palette sagen die Rechnungen darunter nichts.
-  if (befunde.length > 0) return befunde;
 
-  befunde.push(...trennbefunde(p));
+  befunde.push(...trennbefunde(p, kaputt));
 
   for (const paar of LESEPAARE) {
+    if (kaputt.has(paar.vorn) || kaputt.has(paar.hinten)) continue;
     const wert = kontrast(p[paar.vorn as never], p[paar.hinten as never]);
     if (wert < paar.schwelle) {
       befunde.push({
@@ -260,6 +306,22 @@ function pruefeSchrift(entwurf: CiEntwurf): Befund[] {
         rang: 'warnung',
         feld,
         text: `Der Stapel für „${rolle}" nennt nur eine Marken-Schrift. Keine Schrift führt jedes Zeichen — Space Mono kennt ⌘, ⌫, ⇧ und ⌥ nicht —, und der Export sucht ein fehlendes Zeichen in genau dieser Reihenfolge. Ohne eine zweite fällt es aus PNG und PDF heraus, während der Bildschirm es aus einer Systemschrift holt und richtig aussieht.`,
+      });
+    }
+  }
+
+  /*
+     Eine Familie, die kein Stapel nennt, wird in jeder Sitzung geladen und nie
+     gezeichnet. Der Musterkunde tut das Gegenteil und schreibt den Grund dazu:
+     wer Zilla Slab nicht mehr setzt, nimmt seine drei Schnitte heraus.
+  */
+  const genannt = new Set(schriftRollen.flatMap((rolle) => stapelNamen(entwurf.fontFamily[rolle])));
+  for (const familie of familien) {
+    if (familie.trim() && !genannt.has(familie)) {
+      befunde.push({
+        rang: 'warnung',
+        feld,
+        text: `„${familie}" hat Schnitte, aber kein Stapel nennt sie. Die Dateien werden in jeder Sitzung geladen und nie gezeichnet.`,
       });
     }
   }
@@ -346,7 +408,7 @@ function pruefeMasse(entwurf: CiEntwurf): Befund[] {
     befunde.push({
       rang: 'fehler',
       feld: 'Maße',
-      text: `„${name}" trägt keine Zahl. Ein leeres Zahlenfeld schreibt NaN in die Kundendatei, und die übersetzt damit anstandslos.`,
+      text: `„${name}" trägt keine Zahl. Ein leeres Zahlenfeld schreibt NaN in die Designdatei, und die übersetzt damit anstandslos.`,
     });
     return false;
   };
@@ -360,13 +422,59 @@ function pruefeMasse(entwurf: CiEntwurf): Befund[] {
     return true;
   };
 
-  for (const stufe of textStufen) groesse(entwurf.textScale[stufe], stufe);
-  for (const [name, wert] of Object.entries(entwurf.stroke)) groesse(wert, name);
-  for (const [name, wert] of Object.entries(entwurf.sonderstufen)) groesse(wert, name);
+  /*
+     Und die Bereiche. Sie fehlten, und das ist eine andere Frage als „ist es
+     eine Zahl": eine Strichstärke von 200 stürzt nicht ab, sie füllt die Folie;
+     eine Größe von 3 übersetzt und ist auf keiner Leinwand mehr zu lesen.
+     Genau der Rang „läuft, ist aber falsch", und ohne Warnung sieht man ihn
+     erst am ersten Deck.
+
+     Die Grenzen sind großzügig gesetzt. Sie sollen das Absurde fangen und
+     keinen Geschmack durchsetzen — 1280 × 720 ist die Folie, und was darauf
+     größer als 400 ist, ist keine Schrift mehr.
+  */
+  const bereich = (wert: number, name: string, min: number, max: number, warum: string) => {
+    if (!Number.isFinite(wert) || (wert >= min && wert <= max)) return;
+    befunde.push({
+      rang: 'warnung',
+      feld: 'Maße',
+      text: `„${name}" trägt ${wert}. ${warum} Die Datei entsteht trotzdem — zu sehen ist es erst auf der Folie.`,
+    });
+  };
+
+  for (const stufe of textStufen) {
+    if (groesse(entwurf.textScale[stufe], stufe)) {
+      bereich(
+        entwurf.textScale[stufe],
+        stufe,
+        6,
+        400,
+        'Die Folie ist 1280 × 720 groß; darunter liest es niemand mehr, darüber ist es keine Schrift mehr.',
+      );
+    }
+  }
+  for (const [name, wert] of Object.entries(entwurf.stroke)) {
+    if (groesse(wert, name)) {
+      bereich(wert, name, 0.25, 20, 'Ein Strich von dieser Stärke ist eine Fläche.');
+    }
+  }
+  for (const [name, wert] of Object.entries(entwurf.sonderstufen)) {
+    if (groesse(wert, name)) {
+      bereich(wert, name, 6, 400, 'Dieselbe Spanne wie für die Leiter.');
+    }
+  }
 
   // Die Laufweite darf null sein (die Leiter bleibt, wie sie ist) und negativ
   // (eine Grotesk verträgt mehr Enge). Nur eine Zahl muss sie sein.
-  endlich(entwurf.auszeichnungEnger, 'Laufweite der Auszeichnung');
+  if (endlich(entwurf.auszeichnungEnger, 'Laufweite der Auszeichnung')) {
+    bereich(
+      entwurf.auszeichnungEnger,
+      'Laufweite der Auszeichnung',
+      -0.1,
+      0.1,
+      'Sie steht in em und verschiebt die Laufweite der Hierarchie; ein Zehntel Geviert ist bereits sehr viel.',
+    );
+  }
 
   for (const [name, wert] of Object.entries(entwurf.shadowOffset)) {
     if (name === 'none') {
@@ -381,7 +489,9 @@ function pruefeMasse(entwurf: CiEntwurf): Befund[] {
       }
       continue;
     }
-    groesse(wert, name);
+    if (groesse(wert, name)) {
+      bereich(wert, name, 1, 64, 'Ein Versatz von dieser Größe schiebt die Fläche aus der Folie.');
+    }
   }
 
   // Die Leiter muss steigen. Eine, die es nicht tut, ist keine Hierarchie mehr:
@@ -409,6 +519,19 @@ function pruefeMasse(entwurf: CiEntwurf): Befund[] {
 /* Wortmarke                                                                   */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Wie viel SVG dieses Formular liest.
+ *
+ * Der Rohtext liegt im Entwurf, und drei Merker fahren bei jeder Änderung
+ * darüber. Gemessen: 372 ms je Anschlag bei 0,43 MB, 8767 ms bei 2,9 MB — das
+ * Formular fror ein. Ein nachgezeichnetes Logo hat regelmäßig ein bis drei
+ * Megabyte; ein *Schriftzug* aus ein paar Pfaden hat wenige Kilobyte.
+ *
+ * Gemeldet wird die Grenze, statt sie stumm zu schlucken — dieselbe Linie wie
+ * beim eingebetteten Bild: eine Politik ist kein Grund zu schweigen.
+ */
+export const WORTMARKE_HOECHSTLAENGE = 256 * 1024;
+
 function pruefeWortmarke(entwurf: CiEntwurf): Befund[] {
   const feld = 'Wortmarke';
   const marke = entwurf.wortmarke;
@@ -418,20 +541,39 @@ function pruefeWortmarke(entwurf: CiEntwurf): Befund[] {
       {
         rang: 'fehler',
         feld,
-        text: 'Die Wortmarke fehlt. Sie ist Pflicht und hat mit Absicht keine Voreinstellung — fehlte sie, trüge ein Kundendeck die Marke von nozilla.',
+        text: 'Die Wortmarke fehlt. Sie ist Pflicht und hat mit Absicht keine Voreinstellung — fehlte sie, trüge ein Deck unter fremder Marke die von nozilla.',
       },
     ];
   }
 
   const befunde: Befund[] = [];
-  const box = /viewBox="([^"]+)"/.exec(marke.svg)?.[1].trim().split(/\s+/).map(Number);
-  if (!box || box.length !== 4 || box.some((wert) => !Number.isFinite(wert))) {
-    befunde.push({ rang: 'fehler', feld, text: 'Die SVG-Datei hat keine lesbare viewBox.' });
+
+  if (marke.svg.length > WORTMARKE_HOECHSTLAENGE) {
+    befunde.push({
+      rang: 'fehler',
+      feld,
+      text: `Die Datei ist ${Math.round(marke.svg.length / 1024)} kB groß; mehr als ${Math.round(WORTMARKE_HOECHSTLAENGE / 1024)} kB liest dieses Formular nicht. Eine Wortmarke ist ein Schriftzug aus ein paar Pfaden — so viel Inhalt kommt von eingebetteten Bildern oder einem nachgezeichneten Verlauf, und beides landet nicht auf der Folie.`,
+    });
+    return befunde;
   }
 
-  const pfade = [...marke.svg.matchAll(/<path[^>]*\sd="([^"]+)"[^>]*>/g)].map(
-    (treffer) => /fill="([^"]+)"/.exec(treffer[0])?.[1] ?? '',
-  );
+  const box = readViewBox(marke.svg);
+  if (!box) {
+    befunde.push({ rang: 'fehler', feld, text: 'Die SVG-Datei hat keine lesbare viewBox.' });
+  } else if (box[2] <= 0 || box[3] <= 0) {
+    /*
+       Vier endliche Zahlen genügten der vorigen Fassung — `viewBox="0 0 0 0"`
+       kam damit durch, und im Markup stand danach `MNaN NaN`: die Marke fehlte
+       in jeder Ausgabe, bei grüner Prüfliste.
+    */
+    befunde.push({
+      rang: 'fehler',
+      feld,
+      text: `Die viewBox hat die Größe ${box[2]} × ${box[3]}. Daraus lässt sich nichts zeichnen — die Marke fiele aus jeder Ausgabe heraus, ohne dass etwas anschlägt.`,
+    });
+  }
+
+  const pfade = readPaths(marke.svg).map((pfad) => pfad.fill);
   const gleich = (a: string, b: string) => a.toUpperCase() === b.toUpperCase();
 
   if (!pfade.some((fuellung) => gleich(fuellung, marke.letters))) {
@@ -514,10 +656,3 @@ export function pruefe(entwurf: CiEntwurf): Befund[] {
 export function traegtFehler(befunde: Befund[]): boolean {
   return befunde.some((befund) => befund.rang === 'fehler');
 }
-
-/** Die Rollen der Schriften, für die Anzeige. */
-export const schriftRollenTitel: Record<FamilyRole, string> = {
-  display: 'Auszeichnung',
-  body: 'Fließtext',
-  mono: 'Monospace',
-};

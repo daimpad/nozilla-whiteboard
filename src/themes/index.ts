@@ -1,13 +1,13 @@
 /**
- * Hier kommen die Erscheinungsbilder der Kunden an.
+ * Hier kommen die eigenen Erscheinungsbilder an.
  *
  * Die nozilla-CI ist schon angemeldet — sie steht in `theme.config.ts`, weil
  * `tailwind.config.ts` sie zur Bauzeit liest. Alles Weitere gehört hierher:
- * eine Datei je Kunde, ein Aufruf in `registerThemes()`.
+ * eine Datei je Erscheinungsbild, ein Aufruf in `registerThemes()`.
  *
  * `musterkunde.ts` liegt schon hier und belegt jede wechselbare Rolle einmal —
- * Farben, Wortmarke, Icons, Schriften. Der schnellste Weg zu einem echten
- * Kunden ist, die Datei zu kopieren und die Werte zu ersetzen. Was unten steht,
+ * Farben, Wortmarke, Icons, Schriften. Der schnellste Weg zu einer echten
+ * Marke ist, die Datei zu kopieren und die Werte zu ersetzen. Was unten steht,
  * ist dieselbe Sache in kurz.
  *
  * ## Ein Erscheinungsbild anlegen
@@ -83,8 +83,8 @@
  *    die Reihenfolge der Pfade. Eine Marke ohne Akzent am Wortende lässt
  *    `accent` weg — dann wird auch keiner gezeichnet.
  *
- *    Sie ist Pflicht und hat keine Voreinstellung. Fehlte sie, trüge ein
- *    Kundendeck die Marke von nozilla, und das wäre der auffälligste Fehler,
+ *    Sie ist Pflicht und hat keine Voreinstellung. Fehlte sie, trüge ein Deck
+ *    unter fremder Marke die von nozilla, und das wäre der auffälligste Fehler,
  *    den dieses Werkzeug machen kann.
  * 4. **Das Icon-Set ist wechselbar, aber nicht Pflicht.** Ohne Angabe zeichnet
  *    ein Erscheinungsbild aus den 554 nozilla-Zeichen. Das ist Absicht: ein
@@ -130,16 +130,16 @@
  * },
  * ```
  *
- * Stilles Zusammenlegen wäre bequemer und falsch: ein Kundendeck böte dann 554
+ * Stilles Zusammenlegen wäre bequemer und falsch: ein fremdes Deck böte dann 554
  * fremde Zeichen an, ohne dass jemand das entschieden hat.
  */
 import { registerTheme, type BrandTheme } from '@/theme';
 import { musterkunde } from './musterkunde';
 
-/** Ein Eintrag je Kunde. Die Reihenfolge ist die der Auswahl im Inspektor. */
-const clientThemes: BrandTheme[] = [musterkunde];
+/** Ein Eintrag je Marke. Die Reihenfolge ist die der Auswahl im Inspektor. */
+const brandThemes: BrandTheme[] = [musterkunde];
 
 /** Beim Start einmal aufrufen, bevor ein Deck sein Erscheinungsbild verlangt. */
 export function registerThemes(): void {
-  for (const theme of clientThemes) registerTheme(theme);
+  for (const theme of brandThemes) registerTheme(theme);
 }

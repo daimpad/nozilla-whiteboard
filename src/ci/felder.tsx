@@ -4,11 +4,12 @@
  * Sie benutzen ausschließlich den `ui-*`-Namensraum. Das ist hier nicht bloß
  * Konvention, sondern der Kern der Seite: ein Formular, dessen eigene Flächen
  * die Farben tragen, die es gerade einstellt, wird beim ersten dunklen
- * Kunden-CI unbedienbar. Die Marke gehört in die Vorschau daneben, nirgendwo
+ * fremden CI unbedienbar. Die Marke gehört in die Vorschau daneben, nirgendwo
  * sonst.
  */
 import { useId, type ReactNode } from 'react';
 import { cx } from '@/components/ui/controls';
+import { normalisiereFarbe } from './farbwert';
 
 export function Abschnitt({
   titel,
@@ -105,6 +106,22 @@ export function Zahlenfeld({
  * Nachbarton wird geschoben. Und die RGB-Zeile daneben ist kein Schmuck — ein
  * Styleguide nennt seine Farben oft als `rgb(…)`, und wer sie hier wiedererkennt,
  * hat sich nicht vertippt.
+ *
+ * ## Zwei Kleinigkeiten, die beide einmal falsch waren
+ *
+ * **Aufgeräumt wird beim Verlassen, nicht beim Tippen.** Die vorige Fassung
+ * rief `trim().toUpperCase()` bei jedem Anschlag. Das klingt harmlos und
+ * machte das Feld unbedienbar für den häufigsten Fall überhaupt: wer
+ * `rgb(228, 0, 58)` hineinkopierte, konnte danach kein Leerzeichen mehr tippen
+ * — der `trim()` fraß es, sobald es am Rand stand —, und ein Wert, den man in
+ * Kleinschrift kennt, sprang unter den Fingern in Versalien. Beim Verlassen
+ * ist es dagegen genau richtig: dort steht der Wert fest.
+ *
+ * **Und ein unlesbarer Wert färbt den Wähler nicht schwarz.** `value` eines
+ * `input[type=color]` *muss* ein `#RRGGBB` sein; stand dort etwas anderes,
+ * zeigte der Browser `#000000`. Ein Schwarz, das niemand gewählt hat, sieht
+ * aus wie eine Entscheidung — und wer daneben klickt, hat sie getroffen. Der
+ * Wähler bleibt deshalb ausgeblendet, solange der Wert nicht steht.
  */
 export function Farbfeld({
   label,
@@ -125,15 +142,35 @@ export function Farbfeld({
     ? [1, 3, 5].map((i) => Number.parseInt(wert.slice(i, i + 2), 16)).join(', ')
     : '—';
 
+  /*
+     Was beim Verlassen geschieht: `rgb(…)`, eine Kurzform und eine fehlende
+     Raute werden zu dem einen Format, das sich anmelden lässt. Was sich nicht
+     lesen lässt, bleibt stehen, wie es dasteht — der Rahmen ist rot, die
+     Prüfliste nennt die Rolle, und ein stiller Ersatz behauptete, es sei etwas
+     anderes gemeint gewesen.
+  */
+  const raeumeAuf = () => {
+    const korrektur = normalisiereFarbe(wert);
+    if (korrektur && korrektur.wert !== wert) auf(korrektur.wert);
+  };
+
   return (
     <div className="flex items-start gap-2">
-      <input
-        type="color"
-        aria-label={`${label} wählen`}
-        value={gueltig ? wert : '#000000'}
-        onChange={(event) => auf(event.target.value.toUpperCase())}
-        className="mt-0.5 h-8 w-8 shrink-0 cursor-pointer rounded-sm border border-ui bg-ui-surface p-0.5"
-      />
+      {gueltig ? (
+        <input
+          type="color"
+          aria-label={`${label} wählen`}
+          value={wert}
+          onChange={(event) => auf(event.target.value.toUpperCase())}
+          className="mt-0.5 h-8 w-8 shrink-0 cursor-pointer rounded-sm border border-ui bg-ui-surface p-0.5"
+        />
+      ) : (
+        <span
+          aria-hidden="true"
+          title="Kein lesbarer Wert — der Wähler zeigte sonst ein Schwarz, das niemand gewählt hat."
+          className="mt-0.5 h-8 w-8 shrink-0 rounded-sm border border-ui-danger bg-ui-sunken"
+        />
+      )}
       <div className="min-w-0 flex-1">
         <label htmlFor={id} className="block text-[11px] font-medium text-ui-muted">
           {label} <span className="font-mono text-ui-faint">{rolle}</span>
@@ -144,7 +181,8 @@ export function Farbfeld({
             type="text"
             value={wert}
             spellCheck={false}
-            onChange={(event) => auf(event.target.value.trim().toUpperCase())}
+            onChange={(event) => auf(event.target.value)}
+            onBlur={raeumeAuf}
             className={cx(
               'h-8 w-28 shrink-0 rounded-sm border bg-ui-surface px-2 font-mono text-ui-body focus:outline-none',
               gueltig

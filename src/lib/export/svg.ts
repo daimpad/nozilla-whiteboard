@@ -41,7 +41,14 @@ export function sceneToSvg(scene: Scene, options: SvgOptions = {}): string {
       `width="${scene.width}" height="${scene.height}" viewBox="0 0 ${scene.width} ${scene.height}" ` +
       `role="img" aria-label="${escapeXml(scene.title)}">`,
     `${pad}<title>${escapeXml(scene.title)}</title>`,
-    `${pad}<desc>Exported from ${escapeXml(brand.product)}</desc>`,
+    /*
+       Ohne Produktnamen fällt die Zeile weg, statt „Exported from " zu
+       schreiben. Dasselbe Argument wie beim leeren `descr` eines
+       Alternativtexts: eine leere Beschreibung behauptet, es gäbe eine, und ist
+       damit schlechter als keine. Der Generator warnt beim Anlegen; das hier
+       ist die andere Hälfte, und sie liegt außerhalb seiner Reichweite.
+    */
+    brand.product.trim() ? `${pad}<desc>Exported from ${escapeXml(brand.product)}</desc>` : '',
     fontStyleBlock(options.fontCss, pad),
     body,
     '</svg>',
