@@ -30,6 +30,7 @@
  *    unten, an dem die Fläche hängt.
  */
 import { fontFamily, webfont } from './runtime';
+import type { WebfontFace } from './brandTheme';
 import { resetMeasurementCache } from '@/lib/text/measure';
 
 const STYLE_ID = 'nz-webfonts';
@@ -70,20 +71,19 @@ function announce(): void {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Die Schnitte des gerade gewählten Erscheinungsbilds einbinden.
+ * Die `@font-face`-Regeln zu einer Schnittliste.
  *
- * Mehrfach aufrufbar, und das ist keine Bequemlichkeit: ein Kunde bringt seine
- * eigenen Schriften mit. Die alten `@font-face`-Regeln werden dabei ersetzt
- * und nicht ergänzt — sonst blieben die Schnitte des vorigen Erscheinungsbilds
- * im Dokument stehen und der Setzer könnte sie treffen.
+ * Öffentlich, weil ein zweiter Leser sie braucht: der CI-Generator bindet die
+ * Schnitte eines *Entwurfs* ein, der noch in keinem Erscheinungsbild steht.
+ * Zwei Stellen, die dieselbe Regel schreiben, liefen auseinander — und man
+ * sähe es erst an einer fremden Schrift, die nicht lädt.
  */
-export function installWebfonts(base = import.meta.env.BASE_URL ?? '/'): void {
-  if (!webfont.enabled) return;
-  if (typeof document === 'undefined') return;
-  document.getElementById(STYLE_ID)?.remove();
-
+export function fontFaceRules(
+  faces: readonly WebfontFace[],
+  base = import.meta.env.BASE_URL ?? '/',
+): string {
   const prefix = `${base.replace(/\/$/, '')}/${webfont.directory}`;
-  const rules = webfont.faces
+  return faces
     .map(
       (face) => `@font-face {
   font-family: '${face.family}';
@@ -94,13 +94,56 @@ export function installWebfonts(base = import.meta.env.BASE_URL ?? '/'): void {
 }`,
     )
     .join('\n');
+}
+
+/**
+ * Regeln unter einer eigenen Kennung ins Dokument legen.
+ *
+ * Getrennte Kennungen, damit sich zwei Sätze nicht gegenseitig entfernen: der
+ * Generator schreibt die Schnitte seines Entwurfs neben die des gültigen
+ * Erscheinungsbilds und nicht darüber. Genau daran ist die Vorschau vorher
+ * gescheitert — `installWebfonts()` räumt bei jedem Wechsel auf, und die
+ * Kundenschrift war weg, bevor der Browser malte.
+ */
+export function setzeSchriftregeln(id: string, regeln: string): void {
+  if (typeof document === 'undefined') return;
+  const vorhanden = document.getElementById(id);
+  if (vorhanden) {
+    // Nur schreiben, wenn sich etwas geändert hat: ein Austausch fordert die
+    // Dateien erneut an, und das Formular ruft hier bei jedem Anschlag vorbei.
+    if (vorhanden.textContent === regeln) return;
+    vorhanden.textContent = regeln;
+    return;
+  }
+  const style = document.createElement('style');
+  style.id = id;
+  style.textContent = regeln;
+  document.head.appendChild(style);
+}
+
+/**
+ * Die Schnitte des gerade gewählten Erscheinungsbilds einbinden.
+ *
+ * Mehrfach aufrufbar, und das ist keine Bequemlichkeit: ein Kunde bringt seine
+ * eigenen Schriften mit. Die alten `@font-face`-Regeln werden dabei ersetzt
+ * und nicht ergänzt — sonst blieben die Schnitte des vorigen Erscheinungsbilds
+ * im Dokument stehen und der Setzer könnte sie treffen.
+ *
+ * Ersetzt wird dabei nur, was unter `STYLE_ID` steht. Ein Satz unter einer
+ * anderen Kennung — die Entwurfsschnitte des CI-Generators — bleibt liegen;
+ * das ist der Sinn der Trennung.
+ */
+export function installWebfonts(base = import.meta.env.BASE_URL ?? '/'): void {
+  if (!webfont.enabled) return;
+  if (typeof document === 'undefined') return;
+  document.getElementById(STYLE_ID)?.remove();
 
   const style = document.createElement('style');
   style.id = STYLE_ID;
-  style.textContent = rules;
+  style.textContent = fontFaceRules(webfont.faces, base);
   document.head.appendChild(style);
 
-  loadFaces();
+  loadFaces(webfont.faces);
 }
 
 /**
@@ -110,10 +153,10 @@ export function installWebfonts(base = import.meta.env.BASE_URL ?? '/'): void {
  * setzt das Werkzeug in der Ersatzschrift, und das ist besser als eine Fläche,
  * die nie neu misst.
  */
-function loadFaces(): void {
-  if (!('fonts' in document)) return;
+export function loadFaces(faces: readonly WebfontFace[]): void {
+  if (typeof document === 'undefined' || !('fonts' in document)) return;
 
-  const requests = webfont.faces.map((face) =>
+  const requests = faces.map((face) =>
     document.fonts
       // Die Größe ist beliebig, aber Pflicht: `load()` erwartet eine
       // vollständige CSS-`font`-Kurzschreibweise.

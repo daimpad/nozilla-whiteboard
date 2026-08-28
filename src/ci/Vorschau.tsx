@@ -11,14 +11,29 @@
  * `theme.test.ts` führt sie deshalb als Vorschau-Datei; die Bedienfläche
  * daneben benutzt ausschließlich den `ui-*`-Namensraum.
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { activeTheme, registerTheme, setActiveTheme, type BrandTheme } from '@/theme';
 import { parseDeck } from '@/lib/markdown/deck';
 import { buildSlideScene } from '@/lib/export/scene';
 import { primsToSvgMarkup } from '@/lib/export/svg';
 import { overflowOf } from '@/lib/overflow';
 import { canvas } from '@/theme';
+import { fontFaceRules, loadFaces, setzeSchriftregeln } from '@/theme/fonts';
+import { useFontsVersion } from '@/hooks/useFonts';
 import { PROBEDECK } from './probedeck';
+
+/**
+ * Unter dieser Kennung stehen die Schnitte des Entwurfs.
+ *
+ * Eine eigene, und daran hing der Fehler: `zeichneProbe()` schaltet auf den
+ * Entwurf um und im `finally` zurück, und an jedem Wechsel hängt der Abonnent
+ * aus `main.tsx`, der `installWebfonts()` ruft. Der räumt seine eigenen Regeln
+ * ab und schreibt die des gültigen Erscheinungsbilds — die Kundenschrift stand
+ * also genau so lange im Dokument, wie die Szene *gerechnet* wurde, und war
+ * weg, bevor der Browser malte. Die einzige Seite, deren Zweck es ist, eine
+ * fremde Schrift zu beurteilen, hat sie nie gezeigt.
+ */
+const ENTWURFS_SCHNITTE = 'nz-ci-entwurf-fonts';
 
 export interface Blatt {
   markup: string;
@@ -67,6 +82,34 @@ export function zeichneProbe(theme: BrandTheme): Blatt[] {
 }
 
 export function Vorschau({ theme, blatt }: { theme: BrandTheme | null; blatt: number }) {
+  /*
+     Die Schnitte des Entwurfs einbinden — neben denen des Werkzeugs, unter
+     eigener Kennung. `setzeSchriftregeln()` schreibt nur, wenn sich wirklich
+     etwas geändert hat; sonst würde jeder Anschlag im Formular die Dateien
+     erneut anfordern.
+
+     `loadFaces()` fordert sie danach ausdrücklich an. Ein `@font-face` allein
+     lädt nichts: der Browser holt eine Datei erst, wenn ein gezeichnetes
+     Zeichen sie braucht — und der Setzer misst vorher.
+  */
+  const regeln = useMemo(() => (theme ? fontFaceRules(theme.webfont.faces) : ''), [theme]);
+
+  useEffect(() => {
+    if (!regeln || !theme) return;
+    const vorher = document.getElementById(ENTWURFS_SCHNITTE)?.textContent;
+    setzeSchriftregeln(ENTWURFS_SCHNITTE, regeln);
+    if (vorher !== regeln) loadFaces(theme.webfont.faces);
+  }, [regeln, theme]);
+
+  /*
+     Und danach wird neu gemessen. `useFontsVersion()` zählt hoch, sobald die
+     Schnitte angekommen sind; ohne diese Abhängigkeit bliebe die erste,
+     gegen die Ersatzschrift gerechnete Fassung stehen — samt ihrer
+     Wortpositionen und ihrer Überlaufwarnung. Dieselben drei Zeilen und
+     derselbe Grund wie in `SlideView`.
+  */
+  const schriftstand = useFontsVersion();
+
   const blaetter = useMemo(() => {
     if (!theme) return null;
     try {
@@ -77,7 +120,8 @@ export function Vorschau({ theme, blatt }: { theme: BrandTheme | null; blatt: nu
       // der Seite, und zweimal derselbe Satz liest sich wie zwei Fehler.
       return null;
     }
-  }, [theme]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme, schriftstand]);
 
   if (!blaetter) {
     return (

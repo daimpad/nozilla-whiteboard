@@ -17,7 +17,7 @@
  * versprach etwas, das keine Ausgabe hält; die erste Regel dieses Projekts
  * verbietet ihn deshalb.
  */
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { nozillaTheme, type BrandTheme, type FamilyRole, type PaletteRole } from '@/theme';
 import { saveText } from '@/lib/export/download';
 import { Button, IconButton, cx } from '@/components/ui/controls';
@@ -28,12 +28,15 @@ import {
   pdfSchriften,
   schattenRollen,
   schriftRollen,
+  leererSchnitt,
+  schnittstile,
   sonderstufen,
   strichRollen,
   textStufen,
   themeAusEntwurf,
   zeichenwahl,
   type CiEntwurf,
+  type Schnitt,
   type PdfSchrift,
   type Sonderstufe,
   type Zeichenwahl,
@@ -84,8 +87,52 @@ export function CiGenerator() {
   const [entwurf, setEntwurf] = useState<CiEntwurf>(leererEntwurf);
   const [blatt, setBlatt] = useState(0);
   const [hinweis, setHinweis] = useState<string | null>(null);
+  const [beruehrt, setBeruehrt] = useState(false);
 
-  const aendere = (teil: Partial<CiEntwurf>) => setEntwurf((alt) => ({ ...alt, ...teil }));
+  const aendere = (teil: Partial<CiEntwurf>) => {
+    setBeruehrt(true);
+    setEntwurf((alt) => ({ ...alt, ...teil }));
+  };
+
+  /*
+     Der Entwurf lebt allein in diesem Zustand — kein Store, keine Sitzung,
+     keine Selbstsicherung. Das ist Absicht (der Grund steht im Kopf dieser
+     Datei), hat aber einen Preis: ein ⌘R, ein Fehlklick, ein geschlossener
+     Tab, und rund vierzig ausgefüllte Felder samt der Wortmarke sind ohne
+     einen Ton weg.
+
+     Gemerkt wird deshalb nicht der Inhalt, sondern *dass* jemand etwas
+     angefasst hat. Ein Vergleich mit dem leeren Entwurf wäre genauer und
+     zugleich schlechter: wer tippt und wieder löscht, hat trotzdem gearbeitet.
+  */
+  useEffect(() => {
+    if (!beruehrt) return;
+    const frage = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', frage);
+    return () => window.removeEventListener('beforeunload', frage);
+  }, [beruehrt]);
+
+  /**
+   * Zurück ins Werkzeug — durch Schließen und nicht durch Navigieren.
+   *
+   * Die Seite wird aus den Einstellungen mit `target="_blank"` geöffnet, damit
+   * die offene Arbeit stehen bleibt. Ein Rücklink auf `index.html` machte aus
+   * diesem Tab deshalb eine **zweite Kopie des Werkzeugs**: zwei Instanzen mit
+   * eigenem Store, beide mit geladener Sitzung und laufender Selbstsicherung —
+   * und die zweite schriebe ihren älteren Stand über die Arbeit der ersten.
+   * Das ist wörtlich die Falle, derentwegen diese Seite überhaupt ohne Store
+   * gebaut ist.
+   *
+   * `window.close()` greift nicht überall (ein Tab, den jemand von Hand
+   * geöffnet hat, ist nicht schließbar). Bleibt er stehen, wird navigiert —
+   * dann ist die zweite Kopie das kleinere Übel gegenüber einer Sackgasse.
+   */
+  const zurueck = useCallback(() => {
+    window.close();
+    window.setTimeout(() => {
+      if (!window.closed) window.location.href = './index.html';
+    }, 150);
+  }, []);
 
   const befunde = useMemo(() => pruefe(entwurf), [entwurf]);
   const fehlerhaft = traegtFehler(befunde);
@@ -147,13 +194,27 @@ export function CiGenerator() {
           >
             Wortmarke
           </Button>
-          <a
-            href="./index.html"
-            className="inline-flex h-8 items-center gap-2 rounded-sm px-3 text-ui-body font-medium text-ui-muted transition-colors duration-fast ease-standard hover:bg-ui-sunken hover:text-ui-ink"
+          <Button
+            variant="ghost"
+            disabled={!beruehrt}
+            onClick={() => {
+              if (!window.confirm('Den Entwurf verwerfen und von vorn anfangen?')) return;
+              setEntwurf(leererEntwurf());
+              setBeruehrt(false);
+              setHinweis(null);
+              setBlatt(0);
+            }}
           >
-            <Icon name="chevron-right" size={15} className="-scale-x-100" />
+            Zurücksetzen
+          </Button>
+          <Button
+            variant="ghost"
+            icon="chevron-right"
+            className="[&>svg]:-scale-x-100"
+            onClick={zurueck}
+          >
             Zurück zum Werkzeug
-          </a>
+          </Button>
         </div>
       </header>
 
@@ -516,10 +577,16 @@ function Schnitte({
   entwurf: CiEntwurf;
   aendere: (teil: Partial<CiEntwurf>) => void;
 }) {
-  const setze = (index: number, teil: Partial<CiEntwurf['webfontFaces'][number]>) =>
+  /*
+     Angefasst wird über die **Kennung** und nicht über den Index. Der Index
+     wäre hier zwar ausreichend — die Liste wächst nur am Ende —, aber er ist
+     dieselbe Art Schlüssel, die diese Zeile schon einmal unbedienbar gemacht
+     hat: einer, der sich mit dem Inhalt bewegt. Die Kennung bewegt sich nie.
+  */
+  const setze = (kennung: string, teil: Partial<Schnitt>) =>
     aendere({
-      webfontFaces: entwurf.webfontFaces.map((face, i) =>
-        i === index ? { ...face, ...teil } : face,
+      webfontFaces: entwurf.webfontFaces.map((face) =>
+        face.kennung === kennung ? { ...face, ...teil } : face,
       ),
     });
 
@@ -536,39 +603,60 @@ function Schnitte({
 
       <div className="flex flex-col gap-1">
         {entwurf.webfontFaces.map((face, index) => (
-          <div key={`${face.family}-${face.weight}-${face.style}`} className="flex gap-1">
+          <div key={face.kennung} className="flex gap-1">
             <input
               type="text"
-              aria-label="Familie"
+              aria-label={`Familie des ${index + 1}. Schnitts`}
               value={face.family}
-              onChange={(event) => setze(index, { family: event.target.value })}
-              className="h-7 w-28 min-w-0 rounded-sm border border-ui bg-ui-surface px-1.5 text-[11px] text-ui-ink focus:border-ui-strong focus:outline-none"
+              onChange={(event) => setze(face.kennung, { family: event.target.value })}
+              className="h-7 w-24 min-w-0 rounded-sm border border-ui bg-ui-surface px-1.5 text-[11px] text-ui-ink focus:border-ui-strong focus:outline-none"
             />
             <input
               type="number"
-              aria-label="Schnitt"
-              value={face.weight}
+              aria-label={`Gewicht des ${index + 1}. Schnitts`}
+              value={Number.isFinite(face.weight) ? face.weight : ''}
               step={100}
               onChange={(event) =>
-                setze(index, { weight: Number.parseInt(event.target.value, 10) })
+                setze(face.kennung, { weight: Number.parseInt(event.target.value, 10) })
               }
-              className="h-7 w-16 rounded-sm border border-ui bg-ui-surface px-1.5 text-right tabular-nums text-[11px] text-ui-ink focus:border-ui-strong focus:outline-none"
+              className="h-7 w-14 rounded-sm border border-ui bg-ui-surface px-1.5 text-right tabular-nums text-[11px] text-ui-ink focus:border-ui-strong focus:outline-none"
             />
+            {/*
+              Kursive Schnitte waren bisher gar nicht anzulegen: `style` stand
+              im Schlüssel, aber in keinem Feld. Eine Marke mit einer Kursiven
+              hätte sie von Hand nachtragen müssen.
+            */}
+            <select
+              aria-label={`Stil des ${index + 1}. Schnitts`}
+              value={face.style}
+              onChange={(event) => setze(face.kennung, { style: event.target.value })}
+              className="h-7 w-20 rounded-sm border border-ui bg-ui-surface px-1 text-[11px] text-ui-ink focus:border-ui-strong focus:outline-none"
+            >
+              {schnittstile.map((stil) => (
+                <option key={stil} value={stil}>
+                  {stil === 'normal' ? 'aufrecht' : 'kursiv'}
+                </option>
+              ))}
+            </select>
             <input
               type="text"
-              aria-label="Datei"
+              aria-label={`Datei des ${index + 1}. Schnitts`}
               value={face.file}
-              onChange={(event) => setze(index, { file: event.target.value })}
+              onChange={(event) => setze(face.kennung, { file: event.target.value })}
               className="h-7 min-w-0 flex-1 rounded-sm border border-ui bg-ui-surface px-1.5 font-mono text-[11px] text-ui-ink focus:border-ui-strong focus:outline-none"
             />
             <IconButton
               icon="trash"
-              label={`${face.family} ${face.weight} entfernen`}
+              label={`${index + 1}. Schnitt entfernen${face.family ? ` (${face.family} ${face.weight})` : ''}`}
               tone="danger"
               size={13}
               className="h-7 w-7"
               onClick={() =>
-                aendere({ webfontFaces: entwurf.webfontFaces.filter((_, i) => i !== index) })
+                aendere({
+                  webfontFaces: entwurf.webfontFaces.filter(
+                    (andere) => andere.kennung !== face.kennung,
+                  ),
+                })
               }
             />
           </div>
@@ -578,14 +666,7 @@ function Schnitte({
       <Button
         icon="plus"
         className="mt-2 h-7"
-        onClick={() =>
-          aendere({
-            webfontFaces: [
-              ...entwurf.webfontFaces,
-              { family: '', weight: 400, style: 'normal', file: '' },
-            ],
-          })
-        }
+        onClick={() => aendere({ webfontFaces: [...entwurf.webfontFaces, leererSchnitt()] })}
       >
         Schnitt
       </Button>

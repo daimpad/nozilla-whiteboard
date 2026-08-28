@@ -1484,6 +1484,63 @@ async function main() {
     await generator.close();
   });
 
+  await pruefe('im CI-Generator lässt sich ein Schriftname tippen', async () => {
+    /*
+       Der Defekt, gegen den das steht, war die schwerste Stelle der Seite: der
+       React-Schlüssel der Schnitt-Zeile kam aus ihrem *eigenen Inhalt*. Jeder
+       Anschlag änderte den Schlüssel, React hängte die Zeile samt Eingabe aus
+       dem Baum, und der Fokus fiel auf den Rumpf — von „ Kunde" kam genau ein
+       Zeichen an. Wer eine Kundenschrift eintragen wollte, kam pro Klick ein
+       Zeichen weit, und das ist der einzige Weg, eine anzumelden.
+
+       Geprüft wird mit echten Tastendrücken und nicht mit `fill()`: `fill()`
+       setzt den ganzen Wert in einem Ereignis und wäre auch über dem kaputten
+       Stand grün geblieben.
+    */
+    const generator = await kontext.newPage();
+    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+    await generator.waitForTimeout(2200);
+
+    const familie = generator.locator('input[aria-label="Familie des 1. Schnitts"]');
+    await familie.click();
+    await generator.keyboard.press('End');
+    for (const zeichen of ' Kunde') await generator.keyboard.type(zeichen, { delay: 40 });
+    await generator.waitForTimeout(200);
+
+    gleich(await familie.inputValue(), 'Zilla Slab Kunde', 'der getippte Name kam nicht an');
+    const fokus = await generator.evaluate(() =>
+      document.activeElement?.getAttribute('aria-label'),
+    );
+    gleich(fokus, 'Familie des 1. Schnitts', 'der Fokus fiel beim Tippen weg');
+
+    // Und die Schnitte des Entwurfs bekommen eine eigene Schriftregel, die den
+    // Wechsel des Erscheinungsbilds überlebt — sonst beurteilte die Vorschau
+    // eine Schrift, die sie nie zeigt.
+    await generator.locator('input[aria-label="Familie des 2. Schnitts"]').fill('Zilla Slab Kunde');
+    await generator.getByLabel('Schlüssel').fill('rauchschrift');
+    await generator.getByLabel('Name in der Auswahl').fill('Rauchschrift');
+    await generator.setInputFiles('input[type="file"]', {
+      name: 'r.svg',
+      mimeType: 'image/svg+xml',
+      buffer: Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48">' +
+          '<path fill="#000000" d="M4 8 L96 8 L96 40 L4 40 Z"/></svg>',
+      ),
+    });
+    await generator.waitForTimeout(2000);
+
+    const eigen = await generator.evaluate(() => {
+      const style = document.getElementById('nz-ci-entwurf-fonts');
+      return style ? style.textContent : '';
+    });
+    wahr(
+      /Zilla Slab Kunde/.test(eigen ?? ''),
+      'die Schnitte des Entwurfs haben keine eigene Schriftregel',
+    );
+
+    await generator.close();
+  });
+
   await pruefe('nichts hat sich in der Konsole beschwert', async () => {
     gleich(fehler.join('\n'), '', 'Fehler in der Konsole');
   });

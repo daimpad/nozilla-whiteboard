@@ -115,10 +115,58 @@ export interface CiEntwurf {
   shadowOffset: Record<ShadowRole, number>;
   fontFamily: Record<FamilyRole, string>;
   pdfFontFamily: Record<FamilyRole, PdfSchrift>;
-  webfontFaces: WebfontFace[];
+  webfontFaces: Schnitt[];
   wortmarke: Wortmarkenentwurf | null;
   zeichen: Zeichenwahl;
 }
+
+/**
+ * Ein Schnitt im Formular — mit einer Kennung, die nur dem Formular gehört.
+ *
+ * Der Grund ist ein Fehler, der die Seite an ihrer wichtigsten Stelle
+ * unbedienbar machte: die Zeilen der Liste trugen als React-Schlüssel ihren
+ * *eigenen Inhalt* (`${family}-${weight}-${style}`). Jeder Anschlag im Feld
+ * „Familie" änderte damit den Schlüssel, React hängte die Zeile samt Eingabe
+ * aus dem Baum und setzte eine neue ein — das Zeichen stand im Wert, der
+ * Fokus auf dem Rumpf. Wer eine Kundenschrift eintragen wollte, kam pro Klick
+ * genau ein Zeichen weit. Zwei frische Zeilen trugen zudem denselben
+ * Schlüssel.
+ *
+ * `kennung` steht deshalb *neben* den Werten und wird nie mehr angefasst.
+ * Dieselbe Linie wie bei den Elementen im Deck-Modell: die Kennung ist die
+ * Identität, der Inhalt ist der Inhalt. In die erzeugte Datei geht sie nicht —
+ * dort steht der Schnitt so, wie ihn `webfont.faces` verlangt.
+ */
+export interface Schnitt extends WebfontFace {
+  kennung: string;
+}
+
+/**
+ * Die nächste Kennung.
+ *
+ * Ein hochzählender Zähler und kein `crypto.randomUUID()`: er ist
+ * reproduzierbar, und ein Test, der zweimal denselben Entwurf baut, bekommt
+ * zweimal dasselbe. Für eine Kennung, die nie eine Datei sieht, reicht das.
+ */
+let letzteKennung = 0;
+export function neueKennung(): string {
+  letzteKennung += 1;
+  return `s${letzteKennung}`;
+}
+
+/** Die Schnitte, die schon unter `public/fonts/` liegen. */
+export function nozillaSchnitte(): Schnitt[] {
+  return nozillaTheme.webfont.faces.map((face) => ({ ...face, kennung: neueKennung() }));
+}
+
+/** Eine leere Zeile für einen neuen Schnitt. */
+export function leererSchnitt(): Schnitt {
+  return { family: '', weight: 400, style: 'normal', file: '', kennung: neueKennung() };
+}
+
+/** Die Schnittstile, die ein `@font-face` kennt. */
+export const schnittstile = ['normal', 'italic'] as const;
+export type Schnittstil = (typeof schnittstile)[number];
 
 /**
  * Ein leerer Entwurf — belegt mit der nozilla-CI.
@@ -146,7 +194,7 @@ export function leererEntwurf(): CiEntwurf {
     shadowOffset: { ...nozillaTheme.shadowOffset },
     fontFamily: { ...nozillaTheme.fontFamily },
     pdfFontFamily: { ...nozillaTheme.pdfFontFamily } as Record<FamilyRole, PdfSchrift>,
-    webfontFaces: nozillaTheme.webfont.faces.map((face) => ({ ...face })),
+    webfontFaces: nozillaSchnitte(),
     wortmarke: null,
     zeichen: 'nozilla',
   };
@@ -251,7 +299,17 @@ export function themeAusEntwurf(entwurf: CiEntwurf): BrandTheme {
     textScale: { ...entwurf.textScale },
     typeScale: typeScaleAusEntwurf(entwurf),
     fontFamily: { ...entwurf.fontFamily },
-    webfont: { ...nozillaTheme.webfont, faces: entwurf.webfontFaces.map((face) => ({ ...face })) },
+    webfont: {
+      ...nozillaTheme.webfont,
+      // Ohne die Kennung: sie gehört dem Formular und hat in einem
+      // `@font-face` nichts verloren.
+      faces: entwurf.webfontFaces.map(({ family, weight, style, file }) => ({
+        family,
+        weight,
+        style,
+        file,
+      })),
+    },
     pdfFontFamily: { ...entwurf.pdfFontFamily },
     stroke: { ...entwurf.stroke },
     shadowOffset: { ...entwurf.shadowOffset },

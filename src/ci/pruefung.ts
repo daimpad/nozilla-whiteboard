@@ -26,6 +26,7 @@
 import { nozillaTheme, type FamilyRole } from '@/theme';
 import { AA, AA_GROSS, kanaele, kontrast, unterscheidbar } from '@/lib/contrast';
 import { paletteRollen, pdfSchriften, schriftRollen, textStufen, type CiEntwurf } from './entwurf';
+import { bezeichnerProblem } from './emitter';
 
 export type Rang = 'fehler' | 'warnung' | 'hinweis';
 
@@ -68,6 +69,16 @@ function pruefeMarke(entwurf: CiEntwurf): Befund[] {
       feld,
       text: `„${entwurf.id}" ist vergeben. Ein bereits angemeldeter Schlüssel ersetzt das dortige Erscheinungsbild kommentarlos — bei „nozilla" also die eigene CI.`,
     });
+  } else {
+    /*
+       Die Regel darüber lässt Ziffern und Bindestriche zu, und das ist
+       richtig — `kunde-2024` ist ein guter Schlüssel für eine `.md`. Er ist
+       nur kein guter *Bezeichner*, und der Emitter macht aus dem einen den
+       anderen. Gefragt wird deshalb der Emitter selbst: eine zweite Rechnung
+       hier gäbe eine Datei frei, die nicht übersetzt.
+    */
+    const problem = bezeichnerProblem(entwurf.id);
+    if (problem) befunde.push({ rang: 'fehler', feld, text: problem });
   }
 
   if (!entwurf.label.trim()) {
@@ -134,6 +145,34 @@ const TRENNPAARE: Array<{ a: string; b: string; wo: string }> = [
   { a: 'signalStrong', b: 'signal', wo: 'der gedrückte Zustand einer Signalfläche' },
 ];
 
+/**
+ * Die Trennbefunde zu einer Palette — für sich, damit ein Test sie an jedem
+ * angemeldeten Erscheinungsbild fahren kann.
+ *
+ * Das ist der Wächter, der gefehlt hat. Die erste Fassung dieser Prüfung
+ * verurteilte die nozilla-CI selbst, und kein Test sah es: der Probeentwurf
+ * überschreibt `paper`, und die Prüfung „lässt einen tragfähigen Entwurf
+ * durch" fragte nur nach dem Rang „fehler". Eine Warnung, die auf der eigenen
+ * CI anschlägt, lehrt in der ersten Minute, den teuersten Rang der Liste zu
+ * überlesen.
+ */
+export function trennbefunde(palette: Record<string, string>): Befund[] {
+  const befunde: Befund[] = [];
+  for (const paar of TRENNPAARE) {
+    const a = palette[paar.a];
+    const b = palette[paar.b];
+    if (!a || !b) continue;
+    if (!unterscheidbar(a, b)) {
+      befunde.push({
+        rang: 'warnung',
+        feld: 'Farbe',
+        text: `„${paar.a}" und „${paar.b}" sind dieselbe Farbe. Betroffen ist ${paar.wo} — nichts geht kaputt, die Wahl tut nur nichts.`,
+      });
+    }
+  }
+  return befunde;
+}
+
 function pruefeFarbe(entwurf: CiEntwurf): Befund[] {
   const befunde: Befund[] = [];
   const feld = 'Farbe';
@@ -152,15 +191,7 @@ function pruefeFarbe(entwurf: CiEntwurf): Befund[] {
   // Ohne vollständige Palette sagen die Rechnungen darunter nichts.
   if (befunde.length > 0) return befunde;
 
-  for (const paar of TRENNPAARE) {
-    if (!unterscheidbar(p[paar.a as never], p[paar.b as never])) {
-      befunde.push({
-        rang: 'warnung',
-        feld,
-        text: `„${paar.a}" und „${paar.b}" sind dieselbe Farbe. Betroffen ist ${paar.wo} — nichts geht kaputt, die Wahl tut nur nichts.`,
-      });
-    }
-  }
+  befunde.push(...trennbefunde(p));
 
   for (const paar of LESEPAARE) {
     const wert = kontrast(p[paar.vorn as never], p[paar.hinten as never]);
@@ -245,7 +276,28 @@ function pruefeSchrift(entwurf: CiEntwurf): Befund[] {
   }
 
   for (const face of entwurf.webfontFaces) {
-    if (!face.file.endsWith('.woff2')) {
+    if (!face.family.trim()) {
+      befunde.push({
+        rang: 'fehler',
+        feld,
+        text: 'Ein Schnitt ohne Familie gehört nicht in die Liste.',
+      });
+    }
+    if (!face.file.trim()) {
+      befunde.push({
+        rang: 'fehler',
+        feld,
+        text: `Der Schnitt „${face.family || '(ohne Familie)'} ${face.weight}" nennt keine Datei.`,
+      });
+    }
+    if (!Number.isInteger(face.weight) || face.weight < 100 || face.weight > 900) {
+      befunde.push({
+        rang: 'fehler',
+        feld,
+        text: `„${face.family || '(ohne Familie)'}" trägt das Gewicht ${face.weight}. Ein @font-face kennt 100 bis 900 — alles andere macht die Regel ungültig, und der Schnitt gilt still als 400.`,
+      });
+    }
+    if (face.file.trim() && !face.file.endsWith('.woff2')) {
       befunde.push({
         rang: 'fehler',
         feld,
@@ -275,20 +327,61 @@ function pruefeSchrift(entwurf: CiEntwurf): Befund[] {
 function pruefeMasse(entwurf: CiEntwurf): Befund[] {
   const befunde: Befund[] = [];
 
-  const zahl = (wert: number, name: string, feld: string) => {
-    if (!Number.isFinite(wert) || wert <= 0) {
-      befunde.push({ rang: 'fehler', feld, text: `„${name}" ist keine Größe: ${wert}.` });
+  /*
+     Zwei Fragen und nicht eine. `endlich()` fragt, ob überhaupt eine Zahl
+     dasteht; `groesse()` zusätzlich, ob sie positiv ist.
+
+     Der Unterschied ist der Anlass für diesen ganzen Abschnitt: ein leeres
+     Zahlenfeld gibt `Number.parseFloat('')` weiter, also `NaN`. Und `NaN` ist
+     in JavaScript ein gültiger *Bezeichner* — die erzeugte Datei trug
+     `xl3: NaN` und `stil.tracking - NaN`, übersetzte anstandslos und setzte
+     von da an in jeder Ausgabe leise falsch. Die vorige Fassung sah das nicht,
+     weil sie zwei Felder gar nicht durchging: die Laufweite darf null und
+     negativ sein, der Schattenversatz `none` muss null sein — beide fielen
+     durch die Bedingung `wert <= 0` und wurden deshalb übersprungen. Endlich
+     müssen sie trotzdem sein.
+  */
+  const endlich = (wert: number, name: string) => {
+    if (Number.isFinite(wert)) return true;
+    befunde.push({
+      rang: 'fehler',
+      feld: 'Maße',
+      text: `„${name}" trägt keine Zahl. Ein leeres Zahlenfeld schreibt NaN in die Kundendatei, und die übersetzt damit anstandslos.`,
+    });
+    return false;
+  };
+
+  const groesse = (wert: number, name: string) => {
+    if (!endlich(wert, name)) return false;
+    if (wert <= 0) {
+      befunde.push({ rang: 'fehler', feld: 'Maße', text: `„${name}" ist keine Größe: ${wert}.` });
       return false;
     }
     return true;
   };
 
-  for (const stufe of textStufen) zahl(entwurf.textScale[stufe], stufe, 'Maße');
-  for (const [name, wert] of Object.entries(entwurf.stroke)) zahl(wert, name, 'Maße');
-  for (const [name, wert] of Object.entries(entwurf.sonderstufen)) zahl(wert, name, 'Maße');
+  for (const stufe of textStufen) groesse(entwurf.textScale[stufe], stufe);
+  for (const [name, wert] of Object.entries(entwurf.stroke)) groesse(wert, name);
+  for (const [name, wert] of Object.entries(entwurf.sonderstufen)) groesse(wert, name);
+
+  // Die Laufweite darf null sein (die Leiter bleibt, wie sie ist) und negativ
+  // (eine Grotesk verträgt mehr Enge). Nur eine Zahl muss sie sein.
+  endlich(entwurf.auszeichnungEnger, 'Laufweite der Auszeichnung');
+
   for (const [name, wert] of Object.entries(entwurf.shadowOffset)) {
-    // `none` ist 0 und muss es bleiben — „kein Schatten" ist eine Wahl.
-    if (name !== 'none') zahl(wert, name, 'Maße');
+    if (name === 'none') {
+      // „Kein Schatten" ist eine Wahl und deshalb von `groesse()` ausgenommen —
+      // die Ausnahme betrifft aber den Wert null, nicht die Endlichkeit.
+      if (endlich(wert, name) && wert !== 0) {
+        befunde.push({
+          rang: 'warnung',
+          feld: 'Maße',
+          text: `„none" trägt ${wert} statt 0 — dann hat „kein Schatten" einen Schatten.`,
+        });
+      }
+      continue;
+    }
+    groesse(wert, name);
   }
 
   // Die Leiter muss steigen. Eine, die es nicht tut, ist keine Hierarchie mehr:
@@ -297,6 +390,9 @@ function pruefeMasse(entwurf: CiEntwurf): Befund[] {
   for (let i = 1; i < textStufen.length; i += 1) {
     const vorher = entwurf.textScale[textStufen[i - 1]];
     const jetzt = entwurf.textScale[textStufen[i]];
+    // Fehlt eine Zahl, steht der Befund schon oben — hier zweimal über
+    // dieselbe Stelle zu klagen macht die Liste länger und nicht klarer.
+    if (!Number.isFinite(vorher) || !Number.isFinite(jetzt)) continue;
     if (jetzt <= vorher) {
       befunde.push({
         rang: 'warnung',
