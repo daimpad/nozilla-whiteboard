@@ -12,8 +12,8 @@
  * steht in einem Kasten, dessen Breite gegen *diese* Schrift gerechnet wurde —
  * eine Grotesk läuft rund zehn Prozent breiter, und fließender Text passt sich
  * an, ein frei platzierter Titel nicht. Eine Vorschau auf dieser Mappe zeigte
- * einem Kunden mit breiter Schrift Überläufe, die **nicht seine Schuld sind**,
- * und er verstellte seine Typo-Leiter, um ein fremdes Deck zu reparieren.
+ * einer Marke mit breiter Schrift Überläufe, die **nicht ihre Schuld sind**,
+ * und jemand verstellte ihre Typo-Leiter, um ein fremdes Deck zu reparieren.
  *
  * Deshalb hier: keine von Hand gelegten Titel, großzügige Kästen, Fließtext
  * überall dort, wo es geht.

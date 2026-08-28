@@ -72,7 +72,7 @@ Fehler schon zweimal gemacht wurde.
 ### 3 · Die Marke ist wechselbar, das Werkzeug nicht
 
 Die linke Spalte der Tabelle gehört einem **Erscheinungsbild**, und davon kann
-es mehrere geben: nozilla plus je eines pro Kunde. Angemeldet wird in
+es mehrere geben: nozilla plus je eines pro Marke. Angemeldet wird in
 `src/themes/`, gewählt wird im Inspektor, gemerkt wird es im Frontmatter
 (`theme:`) — die Datei trägt ihre Zugehörigkeit mit.
 
@@ -88,14 +88,14 @@ das von nozilla). Was strukturell ist — Radius 0, 1280 × 720, das 64er-Raster
 der Icons — bleibt; warum, steht im Kopf von `brandTheme.ts`.
 
 `src/themes/musterkunde.ts` ist die Vorlage und läuft mit: sie belegt jede
-Rolle einmal und ist der schnellste Weg zu einem echten Kunden. Farben werden
+Rolle einmal und ist der schnellste Weg zu einer echten Marke. Farben werden
 dabei *einmal* genannt — `tonesFromPalette()` und `colorsFromPalette()` mischen
 die vier Tonrollen und die fünfundzwanzig semantischen Tokens daraus, und
 `brandTheme.test.ts` hält beide an `theme.config.ts`.
 
 Die rechte Spalte wechselt nie mit. Auch die Icons haben deshalb zwei Wege:
 `Icon` zeichnet aus dem Werkzeug-Set (`ToolIconName`, eng typisiert),
-`BrandIcon` aus dem des Erscheinungsbilds. Ein Kunden-Set, dem `chevron-right`
+`BrandIcon` aus dem des Erscheinungsbilds. Ein fremdes Set, dem `chevron-right`
 fehlt, darf keinen Knopf leeren.
 
 **Die Regel, die daran hängt: nichts darf einen CI-Wert beim Laden abgreifen.**
@@ -123,11 +123,16 @@ src/
               surface.ts      Hell oder dunkel — die Erscheinung des Werkzeugs
               index.ts        Die Fassade: Inhalt aus der Laufzeit, Werkzeug aus
                               der Konfiguration
-  themes/     index.ts        Hier kommen die Erscheinungsbilder der Kunden an
+  themes/     index.ts        Hier kommen die eigenen Erscheinungsbilder an
               musterkunde.ts  Die Vorlage: jede wechselbare Rolle einmal belegt
   ci/         main.tsx        Der CI-Generator — zweite Seite, eigener Einstieg
               entwurf.ts      Wonach gefragt wird; alles andere wird gerechnet
-              pruefung.ts     Jede Regel, die eine Kundendatei bestehen muss
+              texte.ts        Wofür jede Rolle da ist — Formular *und* Prompt
+              schritte.tsx    Die acht Schritte und ihre Felder
+              prompt.ts       Das Lastenheft für ein Sprachmodell
+              ruecklauf.ts    Dessen Antwort zurücklesen — und jede Korrektur nennen
+              farbwert.ts     rgb(), Kurzform, fehlende Raute → #RRGGBB
+              pruefung.ts     Jede Regel, die eine Designdatei bestehen muss
               emitter.ts      Entwurf → src/themes/<id>.ts
               Vorschau.tsx    Eine echte Folie, über die echte Zeichenstrecke
   decks/      index.ts        Die mitgelieferten Decks
@@ -216,7 +221,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Dreiunddreißig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Vierzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
   `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
   Fassung passt nicht zur Bibliothek, deshalb
@@ -312,7 +317,7 @@ nicht mit; ein weißer Rahmen auf cremefarbenem Papier wäre unsichtbar.
 **Das letzte Primitiv ist nicht immer die Signatur.** Für kleine Knöpfe wird
 der grüne 6 × 6-Punkt unten rechts weggelassen, und das hieß jahrelang
 `prims.slice(0, -1)` — richtig, solange jedes Zeichen aus dem nozilla-Set kam.
-Ein Kunden-Set trägt keine, und ein einstrichiges Zeichen verlor damit seinen
+Ein fremdes Set trägt keine, und ein einstrichiges Zeichen verlor damit seinen
 einen Strich: die Bibliothek zeigte leere Kacheln. `withoutSignature()` prüft
 jetzt, ob das letzte Primitiv *die Signatur ist*.
 
@@ -430,7 +435,7 @@ aufgeschrieben.
 
 **Und die zweite Hälfte gilt für jedes Erscheinungsbild.** `musterkunde.ts`
 belegt `fontFamily` neu und trug die alten Stapel ohne Geschwister — der Fix
-griff dort nicht, in genau der Datei, die jeder Kunde abschreibt. Ein Absatz in
+griff dort nicht, in genau der Datei, die jede neue Marke abschreibt. Ein Absatz in
 `themes/index.ts` allein hätte das nicht verhindert; die Prüfung „gibt jedem
 Erscheinungsbild eine Ersatzkette" geht deshalb jedes angemeldete
 Erscheinungsbild durch und verlangt für jede Rolle eine zweite Marken-Schrift.
@@ -704,7 +709,7 @@ Flächenrolle „Weiß" lautete „hebt sich vom cremefarbenen Papier ab" — ri
 solange das Papier creme war.
 
 **Ein Test, der seinen eigenen Kommentar nicht prüft.** Über der Zusicherung
-stand: „Und zwar für jede Palette, nicht nur für die eigene: ein Kunde mit
+stand: „Und zwar für jede Palette, nicht nur für die eigene: eine Marke mit
 weißem Papier bekäme sonst zwei Töne, die dasselbe tun." Darunter stand
 `expect(gemischt.white.surface).toBe(musterkunde.palette.white)` — und das gilt
 immer, weil `tonesFromPalette` genau das tut. Der Musterkunde führte derweil
@@ -715,7 +720,7 @@ zwei Flächenrollen malten dieselbe Farbe. Nichts war kaputt, nichts sagte
 etwas — die Wahl tat nur nichts.
 
 Die Vorlage führt jetzt ein warmes Papier neben dem reinen Weiß, und die
-Prüfung geht **jedes angemeldete Erscheinungsbild** durch. Ein Kunde, dessen CI
+Prüfung geht **jedes angemeldete Erscheinungsbild** durch. Eine Marke, deren CI
 wirklich nur einen hellen Ton hat, wird dort rot und muss sich entscheiden —
 das ist der Sinn.
 
@@ -777,16 +782,16 @@ jetzt von links nach rechts ganz verbraucht.
 **Und `theme.test.ts` las nur `src/components`.** Eine zweite Bedienfläche unter
 `src/ci/` entkam ihm ganz. Nachgezogen ist die Regel, auf die es ankommt: keine
 Marken-Utility in einer Bedienfläche — ein Formular, dessen Knöpfe die Farben
-tragen, die es gerade einstellt, wird beim ersten dunklen Kunden-CI unbedienbar.
+tragen, die es gerade einstellt, wird beim ersten dunklen fremden CI unbedienbar.
 Die zweite Prüfung gilt dort ausdrücklich *nicht*: der Generator hantiert von
 Berufs wegen mit Paletten.
 
-**Zwei Prüfungen sahen eine erzeugte Kundendatei gar nicht an.**
+**Zwei Prüfungen sahen eine erzeugte Designdatei gar nicht an.**
 `brandTheme.test.ts` schleifte über `[nozillaTheme, musterkunde]` und
 `themes.test.ts:41` verlangte `toEqual(['nozilla', 'musterkunde'])`. Damit wäre
 der Generator ein Weg gewesen, ungeprüfte Erscheinungsbilder ins Repo zu legen,
 während die Prüfliste im Browser den Eindruck erweckt, es sei geprüft — und die
-feste Liste wäre bei *jedem* neuen Kunden rot geworden. Das ist das falsche Rot:
+feste Liste wäre bei *jeder* neuen Marke rot geworden. Das ist das falsche Rot:
 es sagt „du hast einen Fehler gemacht", wo jemand das Richtige getan hat.
 Geschleift wird jetzt über `availableThemes()`, und geprüft wird, was der Satz
 behauptet: nozilla steht vorn, musterkunde ist dabei, kein Schlüssel doppelt.
@@ -824,14 +829,14 @@ Abstand in den beiden mitgelieferten CIs ist 13, der ungewollte 0.
 
 Das Schlimme daran war nicht die falsche Zeile, sondern *welche*: es war
 ausgerechnet der Satz, der für einen echten historischen Fehler gebaut wurde.
-Wer ihn beim ersten Öffnen als Rauschen abtut, tut es beim Kunden wieder. Ein
+Wer ihn beim ersten Öffnen als Rauschen abtut, tut es bei der fremden Marke wieder. Ein
 Wächter, der auf der eigenen CI anschlägt, bringt sich selbst um. Die Prüfung
 dazu geht deshalb **jedes mitgelieferte Erscheinungsbild** durch — und hält den
 Stand des Verzeichnisses *vor* dem ersten Test fest, denn die Vorschau meldet
 ihre Entwürfe wirklich an und `registerTheme()` nimmt nichts wieder heraus.
 
 **`NaN` ist ein gültiger Bezeichner.** Ein leeres Zahlenfeld gibt
-`Number.parseFloat('')` weiter, und die erzeugte Kundendatei trug danach
+`Number.parseFloat('')` weiter, und die erzeugte Designdatei trug danach
 `xl3: NaN` und `stil.tracking - NaN`. Sie übersetzte, bestand Prettier und
 ESLint und setzte von da an in jeder Ausgabe leise falsch. Die Prüfung sah es
 nicht, weil sie zwei Felder gar nicht durchging: die Laufweite darf null und
@@ -850,7 +855,7 @@ vergebenen Wörter liegt neben dem Emitter, der sie schreibt.
 **Wer ein Erscheinungsbild aktiviert, nimmt seine Schriften wieder mit.** Die
 Vorschau des Generators schaltet auf den Entwurf um und im `finally` zurück; an
 jedem Wechsel hängt der Abonnent aus `main.tsx`, der `installWebfonts()` ruft
-und dabei seine Regeln abräumt. Die Schnitte des Kunden standen deshalb genau
+und dabei seine Regeln abräumt. Die Schnitte des Entwurfs standen deshalb genau
 so lange im Dokument, wie die Szene *gerechnet* wurde, und waren weg, bevor der
 Browser malte — die einzige Seite, deren Zweck es ist, eine fremde Schrift zu
 beurteilen, hat sie nie gezeigt. Sie stehen jetzt unter eigener Kennung
@@ -873,6 +878,121 @@ die Sabotage geschrieben war. Der nächste Anlauf sicherte damit die sabotierte
 Fassung und stellte sie hinterher brav wieder her. Gefunden hat es der Test,
 nicht der Blick auf die Datei. Wer eine Sabotage zurücknimmt, prüft danach die
 Datei und nicht das Kommando.
+
+**Elftausendfünfhundert Umläufe in sechs Sekunden — und nichts zu sehen.** Die
+Vorschau des CI-Generators meldet ihren Entwurf an, zeichnet damit und stellt
+zurück. An jedem dieser Wechsel hängt der Abonnent aus `main.tsx`, der
+`installWebfonts()` ruft; das fordert die Schnitte an und zählt danach den
+Zähler hoch, an dem die Fläche hängt — also zeichnet sie neu, also stellt sie
+wieder um. `document.fonts.load()` auf eine bereits geladene Schrift löst in
+einer Mikroaufgabe auf, das Karussell dreht sich damit so schnell, wie die
+Ereignisschleife es zulässt. Gemessen: 11.505 Läufe in sechs Sekunden, ein
+ausgelasteter Kern, solange die Seite offen steht.
+
+Aufgefallen ist es an etwas anderem: Playwright klickte einen Knopf nicht mehr,
+der sichtbar, aktiviert und stabil war. Kein Fehler, keine Meldung, nur ein
+Zeitablauf — und drei Prüfungen, die vorher grün waren.
+
+Zerschnitten ist die Schleife an beiden Nähten, und beide sind für sich richtig.
+`installWebfonts()` **tut nichts, wenn die Regeln dieselben sind** — wer die
+Dateien erneut anfordert, obwohl sich nichts geändert hat, löst ein
+Neuzeichnen ohne Anlass aus. Und die Vorschau stellt über `withTheme()` um statt
+über `setActiveTheme()`: das eine heißt „hier wird gerechnet", das andere
+„jemand hat gewählt", und nur das Zweite geht die Oberfläche etwas an.
+
+**Ein Rang, der beide Fragen zugleich beantwortet, beantwortet keine.** Der
+Generator kannte lange nur „trägt der Entwurf einen Fehler" — und daran hing
+sowohl, ob eine Datei entstehen darf, als auch, ob eine Folie gezeichnet wird.
+Solange alles auf einer Seite stand, fiel das nicht auf. Im Wizard schon: auf
+Schritt 2 ist noch kein Schlüssel eingetragen, also stand dort, wo die Farben zu
+beurteilen sind, eine leere Fläche.
+
+Es sind zwei Fragen. Ein fehlender Schlüssel hält die *Datei* auf und hat mit
+dem Bild nichts zu tun; ein unlesbares Hex macht jedes Bild zur Erfindung.
+`zeichenbar()` fragt deshalb an den Feldern, die das Bild machen — Farbe, Maße,
+und die Wortmarke nur, wenn eine da ist.
+
+Dieselbe Trennung noch einmal, eine Stufe später: die Wortmarke ist Pflicht, und
+sie steht im Wizard spät, weil man für sie eine Datei suchen muss. Ohne
+Platzhalter wären fünf von acht Schritten ohne Bild. `vorschauTheme()` setzt
+deshalb einen ein — und `themeAusEntwurf()` wirft weiter, der Fehler bleibt in
+der Prüfliste, der Knopf bleibt gesperrt, und daneben steht, dass es einer ist.
+Ein Bild, keine Zusage.
+
+**Ein Abbruch bei der ersten kaputten Farbe brachte fünf andere Befunde zum
+Schweigen.** `pruefeFarbe()` sammelte die unlesbaren Hexwerte und stieg dann aus
+(„ohne vollständige Palette sagen die Rechnungen darunter nichts"). Der Satz
+klingt vorsichtig und ist falsch: eine Raute zu wenig in *einem* von sechzehn
+Feldern, und weder der Kontrast von Tinte auf Signal noch die Frage, ob `paper`
+und `white` zwei sind, wurde noch gestellt. Die Liste sah dabei kürzer aus und
+wurde kürzer genannt. Übersprungen wird jetzt nur, was die kaputte Rolle
+wirklich betrifft.
+
+**Ein Schritt, der ausgehängt wird, nimmt seinen Zustand mit.** Der Bericht über
+die Modellantwort und der eingefügte Antworttext lagen im ersten Schritt —
+`useState` in einer Komponente, die nur gezeichnet wird, solange dieser Schritt
+offen ist. Damit vernichtete ausgerechnet der Handgriff, den der Bericht
+empfiehlt („sieh in Schritt 3 nach"), die Liste, die ihn empfiehlt. Beides
+wohnt jetzt neben dem Entwurf.
+
+**Die Reihenfolge der Reparaturstufen ist die halbe Reparatur.** Der Rücklauf
+eines Sprachmodells wird stufenweise lesbar gemacht — Codezaun ab, Vorspann
+weg, Kommentare raus, Komma weg, Anführungszeichen begradigt, Nachsatz weg. Der
+Klammerzähler, der den Nachsatz abschneidet, kennt Zeichenketten, aber **keine
+Kommentare**: lief er vor dem Kommentarleser, hielt ihn das `}` in
+`// auch #FFF }` für das Ende des Objekts, alles danach war weg, und die Meldung
+lautete „Daraus wird kein JSON-Objekt" — eine andere Ursache als die wahre.
+
+Und die Prüfung dazu brauchte **zwei** Fälle, weil beide naheliegenden
+Abkürzungen je eine Hälfte verfehlen: wer beim ersten `}` aufhört, wird von
+einer Klammer *im Wert* abgeschnitten; wer bis zum letzten `}` im Text geht,
+nimmt eine aus dem Satz dahinter mit. Die erste Fassung prüfte nur den ersten
+Fall und überlebte die Sabotage am zweiten.
+
+**„16pt" wurde 16 — mit einem Beleg daneben, dass es bedacht sei.** Der Leser
+nahm `px`, `pt`, `em` und `rem` und schrieb dazu „die Einheit fiel weg, hier
+zählen Folien-Einheiten". Bei `px` stimmt das. Eine Folien-Einheit ist aber ¾
+Punkt: aus `16pt` wurde eine Schrift, die um ein Drittel zu klein ist. Der
+begründende Satz machte es schlimmer, nicht besser — er ist genau das, was einen
+davon abhält, noch einmal hinzusehen.
+
+Umgerechnet wird trotzdem nicht: `16pt` kann ebenso ein hingeschriebenes „pt"
+für Pixel sein. Genannt werden beide Hälften — die Rechnung und dass sie nicht
+angewandt wurde.
+
+**Eine Grundlage, die der Probeantwort gleicht, prüft nichts.** Im Prüfstand des
+Rücklaufs war die Grundlage `leererEntwurf()`, also die nozilla-CI, und die
+Probeantwort baute sich aus denselben `nozillaTheme`-Werten.
+`expect(palette).toEqual(nozillaTheme.palette)` galt damit auch, wenn der Leser
+gar nichts übernahm — das `Object.assign` für die Palette ließ sich ersatzlos
+entfernen, ohne dass eine Zeile rot wurde. Für vier weitere Gruppen gab es gar
+keine Prüfung, die „gelesen" von „Grundlage behalten" trennt. Die Grundlage
+trägt jetzt durchweg Werte, die in keiner Antwort vorkommen.
+
+**Eine Prüfung, die die ganze Seite durchsucht, findet ihre eigene
+Ankündigung.** Der Rauchtest las `document.body.innerText` und suchte darin
+„Codezaun" und „Kommentare" — beides steht aber schon in der Erklärung *über*
+dem Eingabefeld, weil sie ankündigt, was der Bericht sagen wird. Die Gegenprobe,
+die den Bericht verstummen ließ, blieb deshalb grün. Gelesen wird jetzt der
+Bereich, um den es geht.
+
+**„Marke" steckt in „Wortmarke".** Die Schritte des Wizards sind Knöpfe, und ihr
+Aufdruck trägt die Nummer und die Zahl der offenen Befunde: „2 Marke 3". Als
+Suchbegriff ist das mehrdeutig, als Ansage unbrauchbar. Der ausgesprochene Name
+wird deshalb gesetzt — „Schritt 2: Marke, 3 mal ‚Fehler'" — und die Abzeichen
+sind dafür stumm.
+
+**„Kunde" hieß zweierlei, und nur eines davon war gemeint.** Das Wort stand an
+neunzig Stellen: als *Auftraggeber* („ein Kundendeck", „Kunden-Set",
+„Kundendatei") und als *Verbraucher* („wer eine neue Ausgabe baut, wird Kunde
+der `Scene`"). Ersetzt ist nur das Erste — durch „Marke", „fremdes Deck",
+„Designdatei", „eigenes Erscheinungsbild". Das Zweite ist die tragende Metapher
+der ersten Regel dieses Projekts und bleibt.
+
+Nicht angefasst wird außerdem der **Schlüssel** `musterkunde`: er steht im
+Frontmatter jedes Beispiel-Decks und in vier Dateinamen. Die *Beschriftung* in
+der Auswahlliste heißt jetzt „Muster" — dieselbe Linie wie beim Untergrund
+`paper`, der das Weiß malt: Wert und Beschriftung dürfen auseinandergehen.
 
 ---
 

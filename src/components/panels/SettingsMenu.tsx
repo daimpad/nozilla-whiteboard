@@ -129,8 +129,8 @@ export function SettingsMenu() {
               CI-Generator
             </a>
             <p className="px-2 pb-2 pt-1 text-[11px] leading-snug text-ui-faint">
-              Ein Erscheinungsbild für einen Kunden anlegen — Farben, Schriften, Maße, Wortmarke.
-              Öffnet sich in einem eigenen Fenster.
+              Ein eigenes Erscheinungsbild anlegen — Farben, Schriften, Maße, Wortmarke. Öffnet sich
+              in einem eigenen Fenster.
             </p>
           </div>
 

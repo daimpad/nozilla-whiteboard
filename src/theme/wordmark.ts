@@ -6,8 +6,8 @@
  * nachladen muss — und nur so nimmt sie die Tinte der Fläche an, auf der sie
  * sitzt.
  *
- * Sie gehört dem Erscheinungsbild, nicht dem Werkzeug. Die Wortmarke eines
- * Kunden auf eine Folie eines anderen zu zeichnen, wäre der auffälligste
+ * Sie gehört dem Erscheinungsbild, nicht dem Werkzeug. Die Wortmarke einer
+ * Marke auf eine Folie einer anderen zu zeichnen, wäre der auffälligste
  * Fehler, den dieses Werkzeug machen könnte.
  */
 export interface Wordmark {
@@ -39,19 +39,50 @@ export interface Wordmark {
  * einem zusammengefasst — Teilkonturen gehören in *einen* Pfad, sonst füllt
  * jede für sich und aus einem Loch wird eine Scheibe.
  */
+/**
+ * Der Ausschnitt einer SVG-Datei — oder `null`.
+ *
+ * Beide Anführungszeichen, und das ist kein Luxus: `<svg viewBox='0 0 200 48'>`
+ * ist gültiges XML, und eine Zeichensoftware schreibt es so. Die vorige Fassung
+ * las nur doppelte und wies eine gültige Datei als „nicht lesbar" ab.
+ *
+ * Öffentlich, weil der CI-Generator dieselbe Frage stellt, bevor er die Datei
+ * annimmt. Zwei Leser derselben Datei, die sich uneinig sind, ergäben eine
+ * grüne Prüfliste und einen Wurf.
+ */
+export function readViewBox(svg: string): readonly [number, number, number, number] | null {
+  const raw = /viewBox=["']([^"']+)["']/.exec(svg)?.[1];
+  if (!raw) return null;
+  const box = raw
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number);
+  if (box.length !== 4 || box.some((value) => !Number.isFinite(value))) return null;
+  return [box[0], box[1], box[2], box[3]] as const;
+}
+
+/** Die Pfade einer SVG-Datei mit ihrer Füllfarbe, in ihrer Reihenfolge. */
+export function readPaths(svg: string): Array<{ d: string; fill: string }> {
+  return [...svg.matchAll(/<path[^>]*\sd=["']([^"']+)["'][^>]*>/g)].map((match) => ({
+    d: match[1].replace(/\s+/g, ' ').trim(),
+    fill: /fill=["']([^"']+)["']/.exec(match[0])?.[1] ?? '',
+  }));
+}
+
 export function wordmarkFromSvg(
   svg: string,
   colours: { letters: string; accent?: string },
 ): Wordmark {
-  const box = /viewBox="([^"]+)"/.exec(svg)?.[1].trim().split(/\s+/).map(Number);
-  if (!box || box.length !== 4 || box.some((value) => !Number.isFinite(value))) {
-    throw new Error('Wortmarke: viewBox nicht lesbar');
+  const box = readViewBox(svg);
+  if (!box) throw new Error('Wortmarke: viewBox nicht lesbar');
+  if (box[2] <= 0 || box[3] <= 0) {
+    // Vier endliche Zahlen genügten einmal — `viewBox="0 0 0 0"` kam damit
+    // durch, und im Markup stand danach `MNaN NaN`: die Marke fehlte in jeder
+    // Ausgabe, ohne dass etwas anschlug.
+    throw new Error(`Wortmarke: viewBox ohne Fläche (${box[2]} × ${box[3]})`);
   }
 
-  const paths = [...svg.matchAll(/<path[^>]*\sd="([^"]+)"[^>]*>/g)].map((match) => ({
-    d: match[1].replace(/\s+/g, ' ').trim(),
-    fill: /fill="([^"]+)"/.exec(match[0])?.[1] ?? '',
-  }));
+  const paths = readPaths(svg);
 
   const sameColour = (a: string, b: string) => a.toUpperCase() === b.toUpperCase();
   const join = (colour: string) =>

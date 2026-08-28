@@ -8,7 +8,7 @@ import { installWebfonts } from './theme/fonts';
 import { registerThemes } from './themes';
 import './index.css';
 
-// Die Erscheinungsbilder der Kunden anmelden, bevor ein Deck sein eigenes
+// Die angelegten Erscheinungsbilder anmelden, bevor ein Deck sein eigenes
 // verlangt — sonst fiele es beim ersten Bild auf die Voreinstellung zurück.
 registerThemes();
 

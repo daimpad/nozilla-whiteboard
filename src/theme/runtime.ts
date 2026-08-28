@@ -23,7 +23,7 @@
  *
  * ## Was der Wechsel nicht ändert
  *
- * Die Werkzeug-Oberfläche. Sie ist absichtlich neutral und für jeden Kunden
+ * Die Werkzeug-Oberfläche. Sie ist absichtlich neutral und für jede Marke
  * dieselbe; ein cremefarbener Editor um eine cremefarbene Folie macht beides
  * unlesbar, und ein kundenbunter erst recht. `ui`, `uiRadius`, `uiShadow` und
  * die Tailwind-Klassen daraus bleiben, wo sie sind.
@@ -88,6 +88,38 @@ export function setActiveTheme(id: string): boolean {
 }
 
 function activate(theme: BrandTheme): void {
+  belege(theme);
+  announce();
+}
+
+/**
+ * Etwas *unter* einem Erscheinungsbild rechnen, ohne die Oberfläche zu wecken.
+ *
+ * Der Unterschied zu `setActiveTheme()` ist die Absicht: dort hat jemand ein
+ * anderes Erscheinungsbild **gewählt**, und alles, was daran hängt, soll davon
+ * erfahren. Hier wird nur gerechnet — die Szene liest ihre Werte über die
+ * lebendigen Bindungen und nicht aus einem Argument, also muss die Belegung
+ * kurz umgestellt werden, und niemand sonst geht das etwas an.
+ *
+ * Ohne diese Unterscheidung drehte sich der CI-Generator im Kreis: seine
+ * Vorschau stellt beim Zeichnen zweimal um, an jedem Wechsel hängt der
+ * Abonnent aus `main.tsx`, der die Schriften neu anfordert — und deren Ankunft
+ * löst das Neuzeichnen aus, das die Umstellung ausgelöst hat.
+ *
+ * Zurückgestellt wird im `finally`: ein Wurf beim Rechnen darf die Oberfläche
+ * nicht in einem fremden Erscheinungsbild stehen lassen.
+ */
+export function withTheme<T>(theme: BrandTheme, rechne: () => T): T {
+  const vorher = current;
+  belege(theme);
+  try {
+    return rechne();
+  } finally {
+    belege(vorher);
+  }
+}
+
+function belege(theme: BrandTheme): void {
   current = theme;
   brand = theme.brand;
   wordmark = theme.wordmark;
@@ -105,7 +137,6 @@ function activate(theme: BrandTheme): void {
   pdfFontFamily = theme.pdfFontFamily;
   stroke = theme.stroke;
   shadowOffset = theme.shadowOffset;
-  announce();
 }
 
 /* -------------------------------------------------------------------------- */

@@ -12,7 +12,7 @@
  * daneben benutzt ausschließlich den `ui-*`-Namensraum.
  */
 import { useEffect, useMemo } from 'react';
-import { activeTheme, registerTheme, setActiveTheme, type BrandTheme } from '@/theme';
+import { registerTheme, withTheme, type BrandTheme } from '@/theme';
 import { parseDeck } from '@/lib/markdown/deck';
 import { buildSlideScene } from '@/lib/export/scene';
 import { primsToSvgMarkup } from '@/lib/export/svg';
@@ -28,7 +28,7 @@ import { PROBEDECK } from './probedeck';
  * Eine eigene, und daran hing der Fehler: `zeichneProbe()` schaltet auf den
  * Entwurf um und im `finally` zurück, und an jedem Wechsel hängt der Abonnent
  * aus `main.tsx`, der `installWebfonts()` ruft. Der räumt seine eigenen Regeln
- * ab und schreibt die des gültigen Erscheinungsbilds — die Kundenschrift stand
+ * ab und schreibt die des gültigen Erscheinungsbilds — die fremde Schrift stand
  * also genau so lange im Dokument, wie die Szene *gerechnet* wurde, und war
  * weg, bevor der Browser malte. Die einzige Seite, deren Zweck es ist, eine
  * fremde Schrift zu beurteilen, hat sie nie gezeigt.
@@ -57,15 +57,29 @@ export interface Blatt {
  * vorigen Schrift zurück — richtig gerechnet und trotzdem falsch.
  */
 export function zeichneProbe(theme: BrandTheme): Blatt[] {
-  const vorher = activeTheme().id;
-  registerTheme(theme);
-  setActiveTheme(theme.id);
+  /*
+     Umgestellt wird **ohne Ansage**. `setActiveTheme()` heißt „jemand hat ein
+     anderes Erscheinungsbild gewählt" und weckt alles, was daran hängt —
+     darunter den Abonnenten aus `main.tsx`, der die Schriften neu anfordert.
+     Deren Ankunft löst aber genau das Neuzeichnen aus, das hierher geführt
+     hat: gemessen 11.505 Umläufe in sechs Sekunden, eine Seite, die einen Kern
+     auslastet, solange sie offen steht.
 
-  try {
+     Hier wird nur gerechnet, und das geht niemanden sonst etwas an. Die
+     Schnitte des Entwurfs stehen ohnehin unter eigener Kennung im Dokument
+     (siehe oben) — der Setzer findet sie, ohne dass jemand aufgeweckt wird.
+  */
+  registerTheme(theme);
+
+  return withTheme(theme, () => {
     const deck = parseDeck(PROBEDECK);
-    return deck.slides.map((slide) => {
+    return deck.slides.map((slide, nummer) => {
       const szene = buildSlideScene(slide, deck, {
-        slideNumber: 1,
+        // Der Index und nicht die feste 1: die Fußzeile ist der Ort, an dem
+        // die Stufe `labelSmall` beurteilt wird, und diese Ansicht verspricht
+        // im Kopf, genau das Markup des SVG-Exports zu zeigen. Vorher trug
+        // jede der vier Probefolien „1 / 4".
+        slideNumber: nummer + 1,
         totalSlides: deck.slides.length,
       });
       return {
@@ -76,9 +90,7 @@ export function zeichneProbe(theme: BrandTheme): Blatt[] {
           .filter((eintrag) => eintrag.ueber > 0),
       };
     });
-  } finally {
-    setActiveTheme(vorher);
-  }
+  });
 }
 
 export function Vorschau({ theme, blatt }: { theme: BrandTheme | null; blatt: number }) {

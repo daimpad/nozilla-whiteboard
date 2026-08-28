@@ -302,7 +302,7 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback
  *
  * Früher prüfte das hier gegen die 554 nozilla-Namen und warf alles andere weg.
  * Seit ein Erscheinungsbild sein eigenes Set mitbringt, wäre das eine stille
- * Enteignung: ein Deck eines Kunden, das in einer Sitzung ohne dessen Set
+ * Enteignung: ein Deck unter fremder Marke, das in einer Sitzung ohne deren Set
  * geöffnet und gespeichert wird, verlöre jedes Icon. Dieselbe Entscheidung wie
  * bei `DeckMeta.theme` — den Wert behalten, die Lücke zeigen. Die Fläche
  * zeichnet ein leeres Quadrat, der Inspektor schreibt „not in this set" daneben.

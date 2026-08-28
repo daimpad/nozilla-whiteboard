@@ -13,7 +13,7 @@
 import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
 import { parseDeck } from '@/lib/markdown/deck';
-import { palette } from '@/theme';
+import { brand, nozillaTheme, palette, registerTheme, setActiveTheme } from '@/theme';
 import { deckToPptx, EMU, SLIDE_CX, SLIDE_CY } from './pptx';
 import { footerMark } from './scene';
 import { footerFrame } from '@/lib/layout/slideLayout';
@@ -213,6 +213,30 @@ describe('PPTX-Paket', () => {
 
   it('maskiert Sonderzeichen in den Metadaten', () => {
     expect(parts.get('docProps/core.xml')).toContain('Prüfdeck &amp; &lt;Sonderzeichen&gt;');
+  });
+
+  it('lässt die Anwendung weg, statt sie leer zu schreiben', async () => {
+    /*
+       Beide Richtungen. Mit Produktnamen steht ein `<Application>` da, ohne
+       gar keins — und nicht ein leeres, das behauptet, es gäbe eines. Dasselbe
+       Argument wie beim leeren `descr` eines Alternativtexts und beim `<desc>`
+       im SVG; hier ist die zweite Stelle, an der es zählt.
+    */
+    expect(parts.get('docProps/app.xml')).toContain(`<Application>${brand.product}</Application>`);
+
+    try {
+      registerTheme({
+        ...nozillaTheme,
+        id: 'pptx-ohne-produkt',
+        label: 'Ohne Produkt',
+        brand: { ...nozillaTheme.brand, product: '  ' },
+      });
+      setActiveTheme('pptx-ohne-produkt');
+      const ohne = await readZip(await deckToPptx(deck, { images: new Map() }));
+      expect(ohne.get('docProps/app.xml')).not.toContain('<Application>');
+    } finally {
+      setActiveTheme('nozilla');
+    }
   });
 });
 

@@ -103,7 +103,7 @@ export function fontFaceRules(
  * Generator schreibt die Schnitte seines Entwurfs neben die des gültigen
  * Erscheinungsbilds und nicht darüber. Genau daran ist die Vorschau vorher
  * gescheitert — `installWebfonts()` räumt bei jedem Wechsel auf, und die
- * Kundenschrift war weg, bevor der Browser malte.
+ * fremde Schrift war weg, bevor der Browser malte.
  */
 export function setzeSchriftregeln(id: string, regeln: string): void {
   if (typeof document === 'undefined') return;
@@ -124,8 +124,8 @@ export function setzeSchriftregeln(id: string, regeln: string): void {
 /**
  * Die Schnitte des gerade gewählten Erscheinungsbilds einbinden.
  *
- * Mehrfach aufrufbar, und das ist keine Bequemlichkeit: ein Kunde bringt seine
- * eigenen Schriften mit. Die alten `@font-face`-Regeln werden dabei ersetzt
+ * Mehrfach aufrufbar, und das ist keine Bequemlichkeit: eine fremde Marke
+ * bringt ihre eigenen Schriften mit. Die alten `@font-face`-Regeln werden dabei ersetzt
  * und nicht ergänzt — sonst blieben die Schnitte des vorigen Erscheinungsbilds
  * im Dokument stehen und der Setzer könnte sie treffen.
  *
@@ -136,11 +136,33 @@ export function setzeSchriftregeln(id: string, regeln: string): void {
 export function installWebfonts(base = import.meta.env.BASE_URL ?? '/'): void {
   if (!webfont.enabled) return;
   if (typeof document === 'undefined') return;
-  document.getElementById(STYLE_ID)?.remove();
 
+  const regeln = fontFaceRules(webfont.faces, base);
+  const vorhanden = document.getElementById(STYLE_ID);
+
+  /*
+     Nichts tun, wenn nichts anders ist — und das ist keine Sparsamkeit,
+     sondern der Riegel gegen eine Schleife.
+
+     `loadFaces()` fordert die Schnitte an und zählt danach einen Zähler hoch,
+     an dem die Fläche hängt. Wer diese Funktion bei jedem Anlass ruft, löst
+     also ein Neuzeichnen aus; kommt der Anlass aus dem Zeichnen selbst, dreht
+     sich das im Kreis. Genau das tat der CI-Generator: seine Vorschau meldet
+     ihren Entwurf an und stellt hinterher zurück, an jedem Wechsel hängt der
+     Abonnent aus `main.tsx`, und der ruft hier vorbei. Gemessen wurden
+     **11.505 Läufe in sechs Sekunden** — eine Seite, die einen Kern auslastet,
+     solange sie offen steht, ohne dass etwas davon zu sehen wäre.
+
+     Der Vergleich ist der Text der Regeln und nicht die Kennung des
+     Erscheinungsbilds: zwei Marken mit denselben Schriften brauchen keinen
+     zweiten Ladelauf, und dieselbe Marke unter anderem `base` sehr wohl.
+  */
+  if (vorhanden && vorhanden.textContent === regeln) return;
+
+  vorhanden?.remove();
   const style = document.createElement('style');
   style.id = STYLE_ID;
-  style.textContent = fontFaceRules(webfont.faces, base);
+  style.textContent = regeln;
   document.head.appendChild(style);
 
   loadFaces(webfont.faces);

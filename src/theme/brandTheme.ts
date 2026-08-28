@@ -2,7 +2,7 @@
  * Was ein Erscheinungsbild ausmacht — und was nicht.
  *
  * Dieses Werkzeug hat lange genau eine CI gekannt, und `theme.config.ts` war
- * sie. Diese Datei zieht die Grenze zwischen dem, was von Kunde zu Kunde
+ * sie. Diese Datei zieht die Grenze zwischen dem, was von Marke zu Marke
  * verschieden sein darf, und dem, was das Werkzeug ausmacht.
  *
  * ## Was sich ändern darf
@@ -21,7 +21,7 @@
  *
  * Das ist keine Bequemlichkeit, sondern der Kern: **dieses Werkzeug kann nur
  * konformes Material herstellen.** Wer runde Ecken zulässt, gibt genau die
- * Garantie auf, für die es gebaut wurde. Wenn ein Kunde das braucht, ist das
+ * Garantie auf, für die es gebaut wurde. Wenn eine Marke das braucht, ist das
  * eine Entscheidung und kein Konfigurationswert — sie gehört besprochen, nicht
  * eingestellt.
  *
@@ -126,7 +126,7 @@ export interface BrandInfo {
   product: string;
   motto: string;
   contact: string;
-  /** Wo die CI dieses Kunden steht. */
+  /** Wo die CI dieser Marke steht. */
   ci: string;
   wordmark: { light: string; dark: string; mono: string };
   favicon: string;
@@ -145,7 +145,7 @@ export interface BrandTheme {
   brand: BrandInfo;
   /**
    * Die Wortmarke als Pfad. Pflicht, und mit Absicht keine Voreinstellung:
-   * fehlte sie, zeichnete ein Kundendeck die Marke von nozilla — der
+   * fehlte sie, zeichnete ein fremdes Deck die Marke von nozilla — der
    * auffälligste Fehler, den dieses Werkzeug machen könnte.
    */
   wordmark: Wordmark;
@@ -161,7 +161,7 @@ export interface BrandTheme {
    *
    * Ein Set *ersetzt*, es ergänzt nicht. Wer die 554 nozilla-Zeichen behalten
    * und eigene dazulegen will, schreibt das hin — siehe `src/themes/index.ts`.
-   * Stilles Zusammenlegen hieße, dass ein Kundendeck fremde Zeichen anbietet,
+   * Stilles Zusammenlegen hieße, dass ein fremdes Deck fremde Zeichen anbietet,
    * ohne dass jemand das entschieden hat.
    */
   icons?: IconSet;
@@ -222,7 +222,7 @@ export const nozillaTheme: BrandTheme = {
  *
  * Nicht abgeleitet wird, was keiner Marke gehört: die Hintergründe der
  * Statusfarben. Sie sind Wäschen von Warn-, Fehler- und Hinweisfarbe, und die
- * sind funktional — ein Kunde darf sie ändern, muss aber nicht.
+ * sind funktional — eine Marke darf sie ändern, muss aber nicht.
  */
 export function colorsFromPalette(palette: Palette, inkAlpha: AlphaSteps): ColorTokens {
   return {
@@ -332,7 +332,7 @@ export function tonesFromPalette(
   };
 }
 
-/** Die Beschriftungen der vier Rollen. Ein Kunde darf sie anders nennen. */
+/** Die Beschriftungen der vier Rollen. Eine Marke darf sie anders nennen. */
 export const toneLabels: Record<ToneRole, { label: string; hint: string }> = {
   paper: { label: nzTones.paper.label, hint: nzTones.paper.hint },
   white: { label: nzTones.white.label, hint: nzTones.white.hint },

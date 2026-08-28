@@ -67,6 +67,67 @@ function wahr(bedingung, was) {
   if (!bedingung) throw new Error(was);
 }
 
+/**
+ * Einen Schritt des CI-Generators öffnen.
+ *
+ * Über den Schrittbalken und nicht über einen Zustand im Code: das ist der Weg,
+ * den ein Mensch nimmt, und damit zugleich die Prüfung, dass der Balken
+ * umschaltet. Bliebe er stehen, fände der nächste Handgriff sein Feld nicht.
+ */
+async function zumSchritt(seite, titel) {
+  // Über den ausgesprochenen Namen und nicht über den Aufdruck: „Marke" steckt
+  // in „Wortmarke", und die Zahl der offenen Befunde stünde mit im Aufdruck.
+  await seite
+    .getByRole('navigation', { name: 'Schritte' })
+    .getByRole('button', { name: new RegExp(`^Schritt \\d+: ${titel}(,|$)`) })
+    .click();
+  await seite.waitForTimeout(250);
+}
+
+/**
+ * Die Kennung des Hex-Felds einer Palettenrolle.
+ *
+ * Die Felder tragen `useId()`-Kennungen, also nichts Vorhersagbares. Gesucht
+ * wird deshalb über die Beschriftung, die die Rolle beim Namen nennt.
+ */
+async function farbfeldId(seite, rolle) {
+  return seite.evaluate((name) => {
+    const label = [...document.querySelectorAll('label')].find((element) =>
+      element.textContent?.trim().startsWith(`${name} `),
+    );
+    if (!label) throw new Error(`kein Feld für die Rolle ${name}`);
+    return label.htmlFor;
+  }, rolle);
+}
+
+/**
+ * Eine Palettenrolle setzen — über das Hex-Feld.
+ *
+ * Ein `input[type=color]` lässt sich nicht fernsteuern; das Hex-Feld daneben
+ * ist genau deshalb da. Gesetzt wird über den nativen Setter, damit React die
+ * Änderung sieht, und danach kommt ein `change` — das Feld räumt beim Verlassen
+ * auf, nicht beim Tippen.
+ */
+async function setzeFarbe(seite, rolle, wert) {
+  const id = await farbfeldId(seite, rolle);
+  await seite.evaluate(
+    ([kennung, farbe]) => {
+      const feld = document.getElementById(kennung);
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      ).set;
+      setter.call(feld, farbe);
+      feld.dispatchEvent(new Event('input', { bubbles: true }));
+      // React hängt `onBlur` an das native `focusout` — ein `blur` steigt
+      // nicht auf und käme am Wurzelknoten nie an.
+      feld.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    },
+    [id, wert],
+  );
+  await seite.waitForTimeout(150);
+}
+
 /** Die vier Zahlenfelder des Inspektors: x, y, Breite, Höhe. */
 async function masse(seite) {
   await seite.getByRole('button', { name: 'Element', exact: true }).click();
@@ -901,7 +962,7 @@ async function main() {
     const nachher = (await seite.evaluate(FOLIE)).markup;
 
     wahr(nachher !== vorher, 'die Folie sieht nach dem Wechsel gleich aus');
-    wahr(nachher.includes('#FF5A1F'), 'die Signalfarbe des Kunden fehlt');
+    wahr(nachher.includes('#FF5A1F'), 'die Signalfarbe der fremden Marke fehlt');
     wahr(!nachher.includes('#00FF9C'), 'das Grün von nozilla steht noch auf der Folie');
 
     await auswahl.selectOption('nozilla');
@@ -1414,6 +1475,11 @@ async function main() {
        Und die Vorschau ist der Kern: sie ruft dieselbe Zeichenstrecke wie der
        SVG-Export. Ein Generator mit eigenem Zeichner verspräche etwas, das
        keine Ausgabe hält.
+
+       Seit die Seite ein Wizard ist, steht immer nur *ein* Schritt im Baum.
+       Geklickt wird deshalb durch den Schrittbalken — und das ist zugleich die
+       Prüfung, dass er wirklich umschaltet: bliebe er stehen, fände der nächste
+       Handgriff sein Feld nicht.
     */
     const generator = await kontext.newPage();
     const laut = [];
@@ -1422,31 +1488,17 @@ async function main() {
     await generator.waitForTimeout(2500);
     wahr(!laut.length, `die Generator-Seite warf: ${laut.join(' | ')}`);
 
-    // Ohne Wortmarke gibt es kein Erscheinungsbild — sie ist Pflicht, damit
-    // ein Kundendeck nicht die Marke von nozilla trägt.
-    const leer = await generator.locator('.nz-stage, main svg').count();
-    void leer;
-
+    await zumSchritt(generator, 'Marke');
     await generator.getByLabel('Schlüssel').fill('rauchprobe');
     await generator.getByLabel('Name in der Auswahl').fill('Rauchprobe');
     await generator.getByLabel('Markenname').fill('rauch');
 
+    await zumSchritt(generator, 'Farbe');
     // Die Signalfarbe über das Hex-Feld, nicht über den Wähler: ein
     // `input[type=color]` lässt sich nicht fernsteuern.
-    await generator.evaluate(() => {
-      const label = [...document.querySelectorAll('label')].find((element) =>
-        element.textContent?.trim().startsWith('signal '),
-      );
-      const feld = label && document.getElementById(label.htmlFor);
-      if (!feld) throw new Error('kein Feld für die Signalfarbe');
-      const setter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        'value',
-      ).set;
-      setter.call(feld, '#E4003A');
-      feld.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    await setzeFarbe(generator, 'signal', '#E4003A');
 
+    await zumSchritt(generator, 'Wortmarke');
     const WORTMARKE =
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48">' +
       '<path fill="#000000" d="M4 8 L96 8 L96 40 L4 40 Z"/>' +
@@ -1463,22 +1515,215 @@ async function main() {
       return svg ? svg.innerHTML : '';
     });
     wahr(markup.length > 200, 'die Vorschau blieb leer');
-    wahr(markup.includes('#E4003A'), 'die Signalfarbe des Kunden fehlt auf der Probefolie');
+    wahr(markup.includes('#E4003A'), 'die Signalfarbe der neuen Marke fehlt auf der Probefolie');
     wahr(!markup.includes('#00FF9C'), 'das Grün von nozilla steht noch auf der Probefolie');
 
-    // Und die Kundendatei entsteht wirklich — nicht nur ein Knopf, der sie
-    // verspricht.
+    // Und die Designdatei entsteht wirklich — nicht nur ein Knopf, der sie
+    // verspricht. Sie steht im letzten Schritt, weil sie dorthin gehört.
+    await zumSchritt(generator, 'Fertig');
     const quelle = await generator.evaluate(() => {
       const bloecke = [...document.querySelectorAll('pre')];
       return bloecke.map((block) => block.textContent ?? '').join('\n');
     });
     wahr(
       quelle.includes('export const rauchprobe: BrandTheme'),
-      'die Kundendatei steht nicht auf der Seite',
+      'die Designdatei steht nicht auf der Seite',
     );
     wahr(
       quelle.includes('colorsFromPalette(palette, inkAlpha)'),
-      'die Kundendatei schreibt die Farben ab, statt sie zu mischen',
+      'die Designdatei schreibt die Farben ab, statt sie zu mischen',
+    );
+
+    await generator.close();
+  });
+
+  await pruefe('die Probefolie steht schon da, bevor die Wortmarke da ist', async () => {
+    /*
+       Die Wortmarke ist Pflicht und steht spät im Wizard — man muss für sie
+       eine Datei suchen. Ohne einen Platzhalter wären fünf von acht Schritten
+       ohne Bild, und ausgerechnet „Farbe" wäre blind: die sechs fest
+       verdrahteten Lesepaare sind auf der Probefolie zu sehen und sonst
+       nirgends.
+
+       Und die Grenze gehört mitgeprüft, sonst wäre der Platzhalter ein stiller
+       Ersatz: der Fehler muss in der Prüfliste stehen bleiben und danebenstehen
+       muss, dass es einer ist.
+    */
+    const generator = await kontext.newPage();
+    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+    await generator.waitForTimeout(2200);
+
+    const markup = await generator.evaluate(() => {
+      const svg = document.querySelector('svg[role="img"]');
+      return svg ? svg.innerHTML : '';
+    });
+    wahr(markup.length > 200, 'die Probefolie blieb leer, solange die Wortmarke fehlt');
+    wahr(!/NaN/.test(markup), 'im Markup der Probefolie steht NaN');
+
+    const text = await generator.evaluate(() => document.body.innerText);
+    wahr(/Platzhalter/.test(text), 'die Vorschau sagt nicht, dass die Marke ein Platzhalter ist');
+    wahr(/Die Wortmarke fehlt/.test(text), 'der Fehler zur Wortmarke steht nicht in der Prüfliste');
+
+    await generator.close();
+  });
+
+  await pruefe('ein Fehler im Entwurf leert die Vorschau nicht', async () => {
+    /*
+       Vorher hing die ganze rechte Spalte an „trägt der Entwurf einen Fehler":
+       wer in ein Farbfeld klickte und die Raute löschte, sah die Folie
+       verschwinden — bei genau einer offenen Stelle von sechzehn. Die Vorschau
+       ist aber der Grund, aus dem jemand auf dieser Seite ist.
+
+       Geprüft wird am Bild und nicht an der Zusicherung: das Markup muss die
+       Farbe weiter tragen, und der Hinweis daneben muss sagen, dass es der
+       letzte Stand ist. Ein alter Stand, der sich für den aktuellen ausgibt,
+       wäre schlimmer als eine leere Fläche.
+    */
+    const generator = await kontext.newPage();
+    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+    await generator.waitForTimeout(2200);
+
+    await zumSchritt(generator, 'Marke');
+    await generator.getByLabel('Schlüssel').fill('rauchhalt');
+    await generator.getByLabel('Name in der Auswahl').fill('Rauchhalt');
+    await zumSchritt(generator, 'Farbe');
+    await setzeFarbe(generator, 'signal', '#E4003A');
+    await zumSchritt(generator, 'Wortmarke');
+    await generator.setInputFiles('input[type="file"]', {
+      name: 'r.svg',
+      mimeType: 'image/svg+xml',
+      buffer: Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48">' +
+          '<path fill="#000000" d="M4 8 L96 8 L96 40 L4 40 Z"/></svg>',
+      ),
+    });
+    await generator.waitForTimeout(1800);
+
+    const vorher = await generator.evaluate(() => {
+      const svg = document.querySelector('svg[role="img"]');
+      return svg ? svg.innerHTML : '';
+    });
+    wahr(vorher.includes('#E4003A'), 'die Vorschau stand vor der Sabotage schon nicht');
+
+    // Jetzt eine einzelne Farbe unlesbar machen.
+    await zumSchritt(generator, 'Farbe');
+    await setzeFarbe(generator, 'signalSoft', 'knallrot');
+    await generator.waitForTimeout(600);
+
+    const nachher = await generator.evaluate(() => {
+      const svg = document.querySelector('svg[role="img"]');
+      return svg ? svg.innerHTML : '';
+    });
+    wahr(nachher.length > 200, 'die Vorschau wurde durch einen einzelnen Fehler geleert');
+    wahr(nachher.includes('#E4003A'), 'der letzte tragfähige Stand steht nicht mehr da');
+
+    const text = await generator.evaluate(() => document.body.innerText);
+    wahr(
+      /Nicht mehr aktuell/.test(text),
+      'die Vorschau gibt sich als aktuell aus, obwohl sie veraltet ist',
+    );
+
+    await generator.close();
+  });
+
+  await pruefe('das Farbfeld räumt beim Verlassen auf, nicht beim Tippen', async () => {
+    /*
+       Der alte `trim().toUpperCase()` bei jedem Anschlag machte das Feld für
+       den häufigsten Fall unbedienbar: aus einem Styleguide kommt
+       `rgb(228, 0, 58)`, und ein Leerzeichen am Rand war nicht zu tippen.
+
+       Geprüft wird deshalb mit echten Tastendrücken und einem echten
+       Fokuswechsel — ein `fill()` setzt den ganzen Wert in einem Ereignis und
+       wäre auch über dem alten Stand grün geblieben.
+    */
+    const generator = await kontext.newPage();
+    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+    await generator.waitForTimeout(2200);
+    await zumSchritt(generator, 'Farbe');
+
+    const feld = generator.locator(`[id="${await farbfeldId(generator, 'signal')}"]`);
+    await feld.click();
+    await generator.keyboard.press('ControlOrMeta+a');
+    for (const zeichen of 'rgb(228, 0, 58)') {
+      await generator.keyboard.type(zeichen, { delay: 20 });
+    }
+
+    // Während des Tippens bleibt stehen, was getippt wurde — samt Leerzeichen.
+    gleich(
+      await feld.inputValue(),
+      'rgb(228, 0, 58)',
+      'das Feld hat beim Tippen dazwischengeredet',
+    );
+
+    await generator.keyboard.press('Tab');
+    await generator.waitForTimeout(300);
+    gleich(await feld.inputValue(), '#E4003A', 'das Feld hat beim Verlassen nicht aufgeräumt');
+
+    await generator.close();
+  });
+
+  await pruefe('der Rücklauf eines Sprachmodells kommt an und wird berichtet', async () => {
+    /*
+       Der Weg, für den es den ersten Schritt gibt: der Generator schreibt das
+       Lastenheft, ein Sprachmodell füllt es aus, und die Antwort kommt hier
+       zurück. Was hereinkommt, ist fast nie reines JSON — Codezaun, ein Satz
+       davor, ein Kommentar, ein Komma zu viel.
+
+       Geprüft wird an beidem: dass der Wert wirklich im Entwurf landet, und
+       dass der Bericht sagt, was er dafür tun musste. Eine stille Reparatur
+       wäre eine Behauptung darüber, was gemeint war.
+    */
+    const generator = await kontext.newPage();
+    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+    await generator.waitForTimeout(2200);
+
+    const antwort = [
+      'Klar, hier ist das Erscheinungsbild:',
+      '```json',
+      '{',
+      '  "id": "rauchrueck", // klein geschrieben',
+      '  "label": "Rauchrücklauf",',
+      '  "markenname": "Rauch GmbH",',
+      '  "palette": { "signal": "rgb(228, 0, 58)", "akzent": "#123456" },',
+      '  "textScale": { "xl4": "120px" },',
+      '}',
+      '```',
+    ].join('\n');
+
+    await generator.getByLabel('Die Antwort des Modells').fill(antwort);
+    await generator.getByRole('button', { name: 'Übernehmen und prüfen' }).click();
+    await generator.waitForTimeout(500);
+
+    /*
+       Gelesen wird **nur der Bericht** und nicht die ganze Seite. Die erste
+       Fassung dieser Prüfung nahm `document.body.innerText` — und die
+       Erklärung über dem Eingabefeld kündigt an, was der Bericht sagen wird:
+       „Der Codezaun darf drin bleiben … und Kommentare im JSON ebenfalls."
+       Beide Wörter standen also ohnehin auf der Seite. Die Gegenprobe, die den
+       Bericht verstummen ließ, blieb deshalb grün.
+    */
+    const bericht = await generator
+      .getByRole('region', { name: 'Bericht zum Rücklauf' })
+      .innerText();
+    wahr(/Codezaun/.test(bericht), 'der Bericht verschweigt den Codezaun');
+    wahr(/Kommentare/.test(bericht), 'der Bericht verschweigt die Kommentare');
+    wahr(/akzent/.test(bericht), 'der Bericht verschweigt die übergangene Rolle');
+    wahr(/Kam nicht/.test(bericht), 'der Bericht verschweigt, was gar nicht kam');
+
+    // Und die Werte stehen wirklich im Entwurf.
+    await zumSchritt(generator, 'Marke');
+    gleich(
+      await generator.getByLabel('Schlüssel').inputValue(),
+      'rauchrueck',
+      'der Schlüssel aus dem Rücklauf kam nicht an',
+    );
+
+    await zumSchritt(generator, 'Farbe');
+    const signal = generator.locator(`[id="${await farbfeldId(generator, 'signal')}"]`);
+    gleich(
+      await signal.inputValue(),
+      '#E4003A',
+      'die Farbe aus dem Rücklauf wurde nicht umgerechnet',
     );
 
     await generator.close();
@@ -1490,7 +1735,7 @@ async function main() {
        React-Schlüssel der Schnitt-Zeile kam aus ihrem *eigenen Inhalt*. Jeder
        Anschlag änderte den Schlüssel, React hängte die Zeile samt Eingabe aus
        dem Baum, und der Fokus fiel auf den Rumpf — von „ Kunde" kam genau ein
-       Zeichen an. Wer eine Kundenschrift eintragen wollte, kam pro Klick ein
+       Zeichen an. Wer eine eigene Schrift eintragen wollte, kam pro Klick ein
        Zeichen weit, und das ist der einzige Weg, eine anzumelden.
 
        Geprüft wird mit echten Tastendrücken und nicht mit `fill()`: `fill()`
@@ -1501,6 +1746,7 @@ async function main() {
     await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
     await generator.waitForTimeout(2200);
 
+    await zumSchritt(generator, 'Schrift');
     const familie = generator.locator('input[aria-label="Familie des 1. Schnitts"]');
     await familie.click();
     await generator.keyboard.press('End');
@@ -1517,8 +1763,10 @@ async function main() {
     // Wechsel des Erscheinungsbilds überlebt — sonst beurteilte die Vorschau
     // eine Schrift, die sie nie zeigt.
     await generator.locator('input[aria-label="Familie des 2. Schnitts"]').fill('Zilla Slab Kunde');
+    await zumSchritt(generator, 'Marke');
     await generator.getByLabel('Schlüssel').fill('rauchschrift');
     await generator.getByLabel('Name in der Auswahl').fill('Rauchschrift');
+    await zumSchritt(generator, 'Wortmarke');
     await generator.setInputFiles('input[type="file"]', {
       name: 'r.svg',
       mimeType: 'image/svg+xml',

@@ -3,8 +3,8 @@
  *
  * Bis hierher war „das Icon-Set" eine Konstante mit 554 Einträgen. Seit ein
  * Erscheinungsbild wechselbar ist, ist es eine Belegung wie Palette und
- * Typo-Leiter: ein Kunde bringt seine Piktogramme mit, und die Fläche zeichnet
- * sie.
+ * Typo-Leiter: eine fremde Marke bringt ihre Piktogramme mit, und die Fläche
+ * zeichnet sie.
  *
  * Diese Datei ist mit Absicht ein Blatt — sie liest nichts vom
  * Erscheinungsbild. Sonst liefe sie im Kreis: `theme/brandTheme.ts` braucht das
@@ -49,8 +49,8 @@ export const iconStrokeGrid = ICON_STROKE;
  * Ein einzelnes Zeichen.
  *
  * `category` ist eine freie Zeichenkette und keine Aufzählung: die Rubriken des
- * nozilla-Sets sind seine eigenen, und ein Kunde sortiert nach seinen. Geprüft
- * wird nur, dass eine da ist — sonst fiele das Zeichen aus der Bibliothek.
+ * nozilla-Sets sind seine eigenen, und ein fremdes Set sortiert nach seinen.
+ * Geprüft wird nur, dass eine da ist — sonst fiele das Zeichen aus der Bibliothek.
  */
 export interface IconDef {
   /** Deutsche Beschriftung — im Katalog gepflegt, im Kern-Set aus `aria-label`. */
@@ -99,7 +99,7 @@ export const nozillaIcons: IconSet = {
  * Leisten, Knöpfe und Listen zeichnen aus dem nozilla-Set und wechseln **nicht**
  * mit dem Erscheinungsbild — aus demselben Grund, aus dem sie ihre Farben nicht
  * wechseln: die Oberfläche ist das Werkzeug und nicht das Werkstück. Ein
- * Kunden-Set, dem `chevron-right` fehlt, dürfte niemals einen Knopf leeren.
+ * fremdes Set, dem `chevron-right` fehlt, dürfte niemals einen Knopf leeren.
  *
  * Deshalb bleibt hier die enge Vereinigung stehen. Ein Tippfehler in
  * `icon="chevorn-right"` ist ein Übersetzungsfehler und keine leere Fläche.
@@ -133,7 +133,7 @@ export function isSignature(prim: IconPrim): boolean {
  * Die Zeichnung ohne den Punkt unten rechts — in kleinen Knöpfen ist er zu laut.
  *
  * Geprüft wird, ob das letzte Primitiv *die Signatur ist*, nicht bloß, ob es
- * ein letztes gibt. Das nozilla-Set trägt sie überall, ein Kunden-Set muss das
+ * ein letztes gibt. Das nozilla-Set trägt sie überall, ein fremdes Set muss das
  * nicht: blind das letzte Primitiv zu streichen, nähme einem einstrichigen
  * Zeichen genau seinen einen Strich — und die Bibliothek zeigte leere Kacheln.
  */

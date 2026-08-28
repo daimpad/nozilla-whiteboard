@@ -23,7 +23,7 @@ const COMPONENT_ROOT = join(process.cwd(), 'src', 'components');
  * ganzer Zweck. Was für ihn gilt, ist dasselbe wie für jede andere Leiste —
  * **seine eigenen Flächen tragen keine Marken-Utility.** Ein Formular, dessen
  * Knöpfe die Farben tragen, die es gerade einstellt, wird beim ersten dunklen
- * Kunden-CI unbedienbar.
+ * fremden CI unbedienbar.
  */
 const CHROME_ROOTS = [COMPONENT_ROOT, join(process.cwd(), 'src', 'ci')];
 

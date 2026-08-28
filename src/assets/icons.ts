@@ -28,7 +28,7 @@ export type { IconDef, IconPrim, IconPaintRole, IconSet, ToolIconName } from './
  *
  * Sie war einmal die Vereinigung der 554 nozilla-Namen. Das ging, solange es
  * ein Set gab. Jetzt darf ein Deck ein Zeichen nennen, das zum Set eines
- * anderen Kunden gehört, und der Wert muss den Weg durch das Werkzeug
+ * anderen Erscheinungsbilds gehört, und der Wert muss den Weg durch das Werkzeug
  * überstehen, auch wenn hier gerade niemand ihn zeichnen kann — sonst
  * verlöre ein falsch geöffnetes Deck beim Speichern seine Icons.
  *

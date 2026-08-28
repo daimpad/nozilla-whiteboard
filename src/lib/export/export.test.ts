@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { canvas, color, elementTones, palette, typeScale } from '@/theme';
+import {
+  brand,
+  canvas,
+  color,
+  elementTones,
+  nozillaTheme,
+  palette,
+  registerTheme,
+  setActiveTheme,
+  typeScale,
+} from '@/theme';
 import { parseDeck } from '@/lib/markdown/deck';
 import { segsBounds, type Seg } from '@/lib/geometry/path';
 import { createElement } from '@/model/factory';
@@ -222,6 +232,31 @@ describe('SVG export', () => {
   );
 
   const svg = sceneToSvg(buildSlideScene(deck.slides[0], deck));
+
+  it('lässt die Beschreibung weg, statt sie leer zu schreiben', () => {
+    /*
+       Beide Richtungen, und die zweite ist der Grund für die Prüfung: mit
+       Produktnamen steht genau eine `<desc>` da, ohne gar keine. Vorher stand
+       dort „Exported from " — eine leere Beschreibung behauptet, es gäbe eine,
+       und ist damit schlechter als keine. Dasselbe Argument wie beim leeren
+       `descr` eines Alternativtexts.
+    */
+    const scene = buildSlideScene(deck.slides[0], deck);
+    expect(sceneToSvg(scene)).toContain(`<desc>Exported from ${brand.product}</desc>`);
+
+    const vorher = brand.product;
+    try {
+      setActiveTheme('musterkunde');
+      // Der Musterkunde hat einen Produktnamen; leer wird er hier von Hand.
+      const ohne = { ...nozillaTheme, brand: { ...nozillaTheme.brand, product: '  ' } };
+      registerTheme({ ...ohne, id: 'ohne-produkt', label: 'Ohne Produkt' });
+      setActiveTheme('ohne-produkt');
+      expect(sceneToSvg(buildSlideScene(deck.slides[0], deck))).not.toContain('<desc>');
+    } finally {
+      setActiveTheme('nozilla');
+      expect(brand.product).toBe(vorher);
+    }
+  });
 
   it('produces a standalone SVG document', () => {
     expect(svg.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true);

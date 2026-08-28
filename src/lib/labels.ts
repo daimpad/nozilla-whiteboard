@@ -11,7 +11,7 @@
  *
  * Was hier *nicht* steht: die drei Farbrollen. Die tragen ihren Namen selbst,
  * in `elementTones[…].label`, weil ein Erscheinungsbild sie umbenennen darf —
- * ein Kunde nennt „Papier" vielleicht „Weiß".
+ * eine Marke nennt „Papier" vielleicht „Weiß".
  */
 
 /** Ein Anzeigename, oder der Wert selbst, wenn keiner eingetragen ist. */
@@ -67,7 +67,7 @@ export const backgroundLabels: Record<string, string> = {
   paper: 'Weiß',
   // „Creme" und nicht „Gelb": der Ton ist der Papierton der Marke, und wie
   // warm er ist, entscheidet das Erscheinungsbild. Ein Name, der eine Farbe
-  // behauptet, wäre beim nächsten Kunden falsch.
+  // behauptet, wäre bei der nächsten Marke falsch.
   cream: 'Creme',
   ink: 'Tinte',
   signal: 'Signal',

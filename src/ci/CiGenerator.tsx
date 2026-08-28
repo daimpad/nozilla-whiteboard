@@ -1,6 +1,6 @@
 /**
- * Der CI-Generator — jedes Feld, das ein Erscheinungsbild belegt, und daneben
- * die Folie, die dabei herauskommt.
+ * Der CI-Generator — Schritt für Schritt zu einem eigenen Erscheinungsbild,
+ * und daneben die Folie, die dabei herauskommt.
  *
  * ## Warum eine eigene Seite und kein Panel im Werkzeug
  *
@@ -16,89 +16,69 @@
  * Zeichenstrecke wie SVG, PDF und PPTX. Ein Generator mit eigenem Zeichner
  * versprach etwas, das keine Ausgabe hält; die erste Regel dieses Projekts
  * verbietet ihn deshalb.
+ *
+ * ## Die Aufteilung
+ *
+ * Links steht **ein** Schritt, rechts stehen Vorschau und Prüfliste — und die
+ * beiden stehen dort die ganze Zeit. Das ist der Unterschied zwischen einem
+ * Wizard und einem Fragebogen: die Antwort auf „was tut das, was ich gerade
+ * eintippe" steht neben dem Feld und nicht hinter einem Knopf am Ende.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { nozillaTheme, type BrandTheme, type FamilyRole, type PaletteRole } from '@/theme';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type BrandTheme } from '@/theme';
 import { saveText } from '@/lib/export/download';
 import { Button, IconButton, cx } from '@/components/ui/controls';
 import { Icon } from '@/components/ui/Icon';
+import { leererEntwurf, vorschaustand, vorschauTheme, type CiEntwurf } from './entwurf';
+import { pruefe, traegtFehler, type Befund, type Rang } from './pruefung';
+import { anleitung, designdatei, wortmarkeDateiname } from './emitter';
+import { AnfangSchritt } from './Anfang';
+import type { Ruecklaufbefund } from './ruecklauf';
 import {
-  leererEntwurf,
-  paletteRollen,
-  pdfSchriften,
-  schattenRollen,
-  schriftRollen,
-  leererSchnitt,
-  schnittstile,
-  sonderstufen,
-  strichRollen,
-  textStufen,
-  themeAusEntwurf,
-  zeichenwahl,
-  type CiEntwurf,
-  type Schnitt,
-  type PdfSchrift,
-  type Sonderstufe,
-  type Zeichenwahl,
-} from './entwurf';
-import { pruefe, schriftRollenTitel, traegtFehler, type Befund, type Rang } from './pruefung';
-import { anleitung, kundendatei } from './emitter';
-import { Abschnitt, Farbfeld, Textfeld, Wahlfeld, Zahlenfeld } from './felder';
+  FarbeSchritt,
+  MarkeSchritt,
+  MasseSchritt,
+  SCHRITTE,
+  SchriftSchritt,
+  WortmarkeSchritt,
+  ZeichenSchritt,
+  schrittFuerFeld,
+} from './schritte';
 import { PROBEFOLIEN, Vorschau } from './Vorschau';
-
-/**
- * Wofür jede Palettenrolle da ist.
- *
- * Der englische Schlüssel steht daneben und wird nicht übersetzt — er ist der
- * Name im Dateiformat und in jeder erzeugten Datei. Übersetzt wird nur, was
- * angezeigt wird; das ist dieselbe Linie wie in `src/lib/labels.ts`.
- */
-const PALETTENTEXT: Record<PaletteRole, string> = {
-  signal: 'Die Handlungsfarbe. Nur Knöpfe, Marker, echte Aufforderungen.',
-  signalStrong: 'Eine Stufe dunkler — der gedrückte Zustand.',
-  signalSoft: 'Die weiche Stufe. Trägt den Code-Untergrund auf einer Signalfolie.',
-  signalDeep: 'Die dunkelste Stufe. Schattiert innerhalb einer Zeichnung, nie auf einer Fläche.',
-  paper: 'Das Papier der Marke — der Untergrund „Creme" und die Flächenrolle „Papier".',
-  paperAlt: 'Die zweite Papierstufe. Trägt den Code-Untergrund auf Weiß.',
-  paperDeep: 'Die tiefste Papierstufe.',
-  white: 'Das reine Weiß — der Untergrund „Weiß" und die Flächenrolle „Weiß".',
-  ink: 'Die Tinte: Schrift, Kontur, Schatten und der Untergrund „Tinte".',
-  ink900: 'Fast-Tinte, eine Stufe heller.',
-  ink800: 'Trägt den Code-Untergrund auf einer Folie in Tinte.',
-  ink700: 'Fast-Tinte, dritte Stufe.',
-  ink600: 'Fast-Tinte, vierte Stufe.',
-  warn: 'Achtung. Funktional, nie Dekoration.',
-  danger: 'Fehler. Funktional, nie Dekoration.',
-  info: 'Hinweis. Funktional, nie Dekoration.',
-};
-
-const STUFENTEXT: Record<Sonderstufe, string> = {
-  headline: 'Kampagnengröße — zwischen den beiden obersten Stufen der Leiter.',
-  labelSmall: 'Fußzeile und Foliennummer — unterhalb der Leiter, weil eine Folie weitermuss.',
-  codeInline: 'Code im Fließtext — knapp darunter, weil eine Monospace breiter baut.',
-};
-
-const ZEICHENTEXT: Record<Zeichenwahl, string> = {
-  nozilla: 'Der nozilla-Katalog, wie er ist (mit Signatur)',
-  'ohne-signatur': 'Der Katalog ohne nozillas Signatur',
-};
 
 export function CiGenerator() {
   const [entwurf, setEntwurf] = useState<CiEntwurf>(leererEntwurf);
+  const [schritt, setSchritt] = useState(0);
   const [blatt, setBlatt] = useState(0);
   const [hinweis, setHinweis] = useState<string | null>(null);
   const [beruehrt, setBeruehrt] = useState(false);
+  const spalte = useRef<HTMLDivElement>(null);
+
+  /*
+     Die Antwort des Modells und der Bericht darüber wohnen hier und nicht im
+     Schritt. Gezeichnet wird immer nur der offene Schritt; React hängt den
+     ersten beim „Weiter" aus dem Baum, und lokaler Zustand ginge dabei mit.
+     Genau der Handgriff, den der Bericht empfiehlt — „sieh in Schritt 3 nach" —
+     hätte damit die Liste vernichtet, die ihn empfiehlt.
+  */
+  const [antwort, setAntwort] = useState('');
+  const [bericht, setBericht] = useState<Ruecklaufbefund[] | null>(null);
 
   const aendere = (teil: Partial<CiEntwurf>) => {
     setBeruehrt(true);
     setEntwurf((alt) => ({ ...alt, ...teil }));
   };
 
+  const ersetze = (neu: CiEntwurf) => {
+    setBeruehrt(true);
+    setEntwurf(neu);
+  };
+
   /*
      Der Entwurf lebt allein in diesem Zustand — kein Store, keine Sitzung,
      keine Selbstsicherung. Das ist Absicht (der Grund steht im Kopf dieser
      Datei), hat aber einen Preis: ein ⌘R, ein Fehlklick, ein geschlossener
-     Tab, und rund vierzig ausgefüllte Felder samt der Wortmarke sind ohne
+     Tab, und rund fünfzig ausgefüllte Felder samt der Wortmarke sind ohne
      einen Ton weg.
 
      Gemerkt wird deshalb nicht der Inhalt, sondern *dass* jemand etwas
@@ -134,19 +114,60 @@ export function CiGenerator() {
     }, 150);
   }, []);
 
+  const gehe = useCallback((ziel: number) => {
+    setSchritt(Math.max(0, Math.min(SCHRITTE.length - 1, ziel)));
+    // Ein Schrittwechsel setzt die linke Spalte oben an. Ohne das steht ein
+    // kurzer Schritt hinter einem langen mitten im Nichts.
+    spalte.current?.scrollTo({ top: 0 });
+  }, []);
+
   const befunde = useMemo(() => pruefe(entwurf), [entwurf]);
   const fehlerhaft = traegtFehler(befunde);
 
-  const theme = useMemo<BrandTheme | null>(() => {
-    if (fehlerhaft) return null;
+  /*
+     Gezeichnet wird über `vorschauTheme()` und nicht über `themeAusEntwurf()`:
+     fehlt allein die Wortmarke, setzt es einen sichtbar benannten Platzhalter
+     ein, damit die Folie schon ab Schritt 2 dasteht. Die Wortmarke ist die
+     einzige Angabe, für die man eine Datei suchen muss — ohne den Platzhalter
+     wären fünf von acht Schritten ohne Bild, und der Schritt „Farbe" wäre
+     blind. Am Fehler in der Prüfliste und an der gesperrten Datei ändert das
+     nichts.
+  */
+  const frisch = useMemo<BrandTheme | null>(() => {
+    if (!zeichenbar(befunde, entwurf.wortmarke !== null)) return null;
     try {
-      return themeAusEntwurf(entwurf);
+      return vorschauTheme(entwurf);
     } catch {
       return null;
     }
-  }, [entwurf, fehlerhaft]);
+  }, [entwurf, befunde]);
 
-  const quelltext = useMemo(() => (fehlerhaft ? '' : kundendatei(entwurf)), [entwurf, fehlerhaft]);
+  const frischerQuelltext = useMemo(
+    () => (fehlerhaft ? null : designdatei(entwurf)),
+    [entwurf, fehlerhaft],
+  );
+
+  /*
+     Ein einzelner Fehler leert die rechte Spalte nicht mehr.
+
+     Vorher hing beides an `fehlerhaft`: wer in ein Farbfeld klickte und die
+     Raute löschte, sah die Folie verschwinden und den Quelltext dazu — bei
+     genau einer offenen Stelle von sechzehn. Die Vorschau ist aber der Grund,
+     aus dem jemand hier ist; sie wegzunehmen, sobald irgendetwas offen ist,
+     nimmt sie die halbe Zeit weg.
+
+     Stehen bleibt deshalb der letzte tragfähige Stand — ausdrücklich als
+     veraltet ausgewiesen. Das eine, was nicht passieren darf, ist ein alter
+     Stand, der sich für den aktuellen ausgibt.
+  */
+  const letztesTheme = useRef<BrandTheme | null>(null);
+  const letzterQuelltext = useRef<string>('');
+  if (frisch) letztesTheme.current = frisch;
+  if (frischerQuelltext !== null) letzterQuelltext.current = frischerQuelltext;
+
+  const { stand: theme, veraltet } = vorschaustand(frisch, letztesTheme.current);
+  const quelltext = frischerQuelltext ?? letzterQuelltext.current;
+  const platzhalter = !entwurf.wortmarke && theme !== null;
 
   const sichere = async (text: string, name: string, typ: string) => {
     try {
@@ -162,6 +183,8 @@ export function CiGenerator() {
     }
   };
 
+  const dieser = SCHRITTE[schritt];
+
   return (
     <div className="flex h-screen flex-col bg-ui-sunken text-ui-ink">
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-ui bg-ui-surface px-4">
@@ -169,31 +192,11 @@ export function CiGenerator() {
         <div className="flex min-w-0 flex-col leading-tight">
           <span className="text-ui-title font-semibold">CI-Generator</span>
           <span className="truncate text-[11px] text-ui-faint">
-            Ein Erscheinungsbild anlegen — jede Rolle einmal belegt
+            Ein eigenes Erscheinungsbild anlegen — jede Rolle einmal belegt
           </span>
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          <Button
-            icon="download"
-            disabled={fehlerhaft || !entwurf.wortmarke}
-            onClick={() => void sichere(quelltext, `${entwurf.id}.ts`, 'text/plain')}
-          >
-            Kundendatei
-          </Button>
-          <Button
-            icon="download"
-            disabled={!entwurf.wortmarke}
-            onClick={() =>
-              void sichere(
-                entwurf.wortmarke?.svg ?? '',
-                `${entwurf.id}-wortmarke.svg`,
-                'image/svg+xml',
-              )
-            }
-          >
-            Wortmarke
-          </Button>
           <Button
             variant="ghost"
             disabled={!beruehrt}
@@ -203,6 +206,9 @@ export function CiGenerator() {
               setBeruehrt(false);
               setHinweis(null);
               setBlatt(0);
+              setAntwort('');
+              setBericht(null);
+              gehe(0);
             }}
           >
             Zurücksetzen
@@ -218,6 +224,8 @@ export function CiGenerator() {
         </div>
       </header>
 
+      <Schrittbalken jetzt={schritt} befunde={befunde} auf={gehe} />
+
       {hinweis ? (
         <p
           role="alert"
@@ -228,174 +236,66 @@ export function CiGenerator() {
       ) : null}
 
       <div className="flex min-h-0 flex-1">
-        {/* Das Formular */}
-        <div className="w-[440px] shrink-0 overflow-y-auto border-r border-ui bg-ui-surface">
-          <Abschnitt
-            titel="Marke"
-            hinweis="Der Schlüssel steht im Frontmatter jedes Decks (theme: …) und lässt sich später nicht mehr ändern, ohne jede Datei anzufassen."
-          >
-            <Textfeld
-              label="Schlüssel"
-              wert={entwurf.id}
-              auf={(id) => aendere({ id })}
-              platzhalter="probenhaus"
-              hinweis="Kleinschrift, Ziffern, Bindestriche."
-            />
-            <Textfeld
-              label="Name in der Auswahl"
-              wert={entwurf.label}
-              auf={(label) => aendere({ label })}
-              platzhalter="Probenhaus"
-            />
-            <Textfeld
-              label="Markenname"
-              wert={entwurf.markenname}
-              auf={(markenname) => aendere({ markenname })}
-              hinweis="Steht als Urheber in jedem PDF und jeder PPTX."
-            />
-            <Textfeld
-              label="Produktname"
-              wert={entwurf.produkt}
-              auf={(produkt) => aendere({ produkt })}
-              hinweis="Steht in der Beschreibung des SVG."
-            />
-          </Abschnitt>
-
-          <Abschnitt
-            titel="Farbe"
-            hinweis="Sechzehn Rollen. Daraus mischt das Werkzeug neunundzwanzig semantische Tokens und die vier Flächenrollen — danach zu fragen wäre die Fehlerklasse, nicht die Gründlichkeit."
-          >
-            {paletteRollen.map((rolle) => (
-              <Farbfeld
-                key={rolle}
-                rolle={rolle}
-                label={rolle}
-                wert={entwurf.palette[rolle]}
-                hinweis={PALETTENTEXT[rolle]}
-                auf={(wert) => aendere({ palette: { ...entwurf.palette, [rolle]: wert } })}
+        {/* Der Schritt */}
+        <div className="flex w-[440px] shrink-0 flex-col border-r border-ui bg-ui-surface">
+          <div ref={spalte} className="min-h-0 flex-1 overflow-y-auto">
+            {dieser.id === 'anfang' ? (
+              <AnfangSchritt
+                entwurf={entwurf}
+                setzeEntwurf={ersetze}
+                weiter={() => gehe(1)}
+                antwort={antwort}
+                setAntwort={setAntwort}
+                bericht={bericht}
+                setBericht={setBericht}
               />
-            ))}
-          </Abschnitt>
-
-          <Abschnitt
-            titel="Schrift"
-            hinweis="Hinter der eigenen Schrift steht die andere dieser Marke, und erst danach das System. Keine Schrift führt jedes Zeichen — ohne eine zweite fällt ⌘ aus PNG und PDF heraus."
-          >
-            {schriftRollen.map((rolle) => (
-              <Textfeld
-                key={rolle}
-                label={schriftRollenTitel[rolle]}
-                wert={entwurf.fontFamily[rolle]}
-                auf={(wert) => aendere({ fontFamily: { ...entwurf.fontFamily, [rolle]: wert } })}
+            ) : null}
+            {dieser.id === 'marke' ? <MarkeSchritt entwurf={entwurf} aendere={aendere} /> : null}
+            {dieser.id === 'farbe' ? <FarbeSchritt entwurf={entwurf} aendere={aendere} /> : null}
+            {dieser.id === 'schrift' ? (
+              <SchriftSchritt entwurf={entwurf} aendere={aendere} />
+            ) : null}
+            {dieser.id === 'masse' ? <MasseSchritt entwurf={entwurf} aendere={aendere} /> : null}
+            {dieser.id === 'wortmarke' ? (
+              <WortmarkeSchritt entwurf={entwurf} aendere={aendere} />
+            ) : null}
+            {dieser.id === 'zeichen' ? (
+              <ZeichenSchritt entwurf={entwurf} aendere={aendere} />
+            ) : null}
+            {dieser.id === 'fertig' ? (
+              <FertigSchritt
+                entwurf={entwurf}
+                quelltext={quelltext}
+                fehlerhaft={fehlerhaft}
+                sichere={sichere}
               />
-            ))}
+            ) : null}
+          </div>
 
-            <p className="pt-1 text-[11px] font-medium text-ui-muted">Ersatz im PDF</p>
-            {schriftRollen.map((rolle) => (
-              <Wahlfeld<PdfSchrift>
-                key={rolle}
-                label={schriftRollenTitel[rolle]}
-                wert={entwurf.pdfFontFamily[rolle]}
-                optionen={pdfSchriften.map((wert) => ({ value: wert, label: wert }))}
-                auf={(wert) =>
-                  aendere({ pdfFontFamily: { ...entwurf.pdfFontFamily, [rolle]: wert } })
-                }
-              />
-            ))}
-
-            <Schnitte entwurf={entwurf} aendere={aendere} />
-          </Abschnitt>
-
-          <Abschnitt
-            titel="Maße"
-            hinweis="Die Leiter der Marke. Zeilenhöhe, Schnitt und Versalien bleiben die der Hierarchie — wer sie ändern muss, ändert sie in der erzeugten Datei."
-          >
-            <p className="text-[11px] font-medium text-ui-muted">Größenleiter</p>
-            {textStufen.map((stufe) => (
-              <Zahlenfeld
-                key={stufe}
-                label={stufe}
-                einheit="px"
-                wert={entwurf.textScale[stufe]}
-                auf={(wert) => aendere({ textScale: { ...entwurf.textScale, [stufe]: wert } })}
-              />
-            ))}
-
-            <p className="pt-2 text-[11px] font-medium text-ui-muted">
-              Stufen außerhalb der Leiter
-            </p>
-            {sonderstufen.map((stufe) => (
-              <div key={stufe}>
-                <Zahlenfeld
-                  label={stufe}
-                  einheit="px"
-                  wert={entwurf.sonderstufen[stufe]}
-                  auf={(wert) =>
-                    aendere({ sonderstufen: { ...entwurf.sonderstufen, [stufe]: wert } })
-                  }
-                />
-                <p className="ml-26 text-[11px] leading-snug text-ui-faint">{STUFENTEXT[stufe]}</p>
-              </div>
-            ))}
-
-            <p className="pt-2 text-[11px] font-medium text-ui-muted">Laufweite der Auszeichnung</p>
-            <Zahlenfeld
-              label="enger um"
-              einheit="em"
-              schritt={0.005}
-              wert={entwurf.auszeichnungEnger}
-              auf={(auszeichnungEnger) => aendere({ auszeichnungEnger })}
-            />
-            <p className="text-[11px] leading-snug text-ui-faint">
-              Eine Grotesk verträgt in großen Graden mehr Enge als eine Slab-Serif. Null lässt die
-              Laufweite der Hierarchie stehen.
-            </p>
-
-            <p className="pt-2 text-[11px] font-medium text-ui-muted">Strichstärken</p>
-            {strichRollen.map((rolle) => (
-              <Zahlenfeld
-                key={rolle}
-                label={rolle}
-                einheit="px"
-                schritt={0.5}
-                wert={entwurf.stroke[rolle]}
-                auf={(wert) => aendere({ stroke: { ...entwurf.stroke, [rolle]: wert } })}
-              />
-            ))}
-
-            <p className="pt-2 text-[11px] font-medium text-ui-muted">Schattenversätze</p>
-            {schattenRollen.map((rolle) => (
-              <Zahlenfeld
-                key={rolle}
-                label={rolle}
-                einheit="px"
-                wert={entwurf.shadowOffset[rolle]}
-                auf={(wert) =>
-                  aendere({ shadowOffset: { ...entwurf.shadowOffset, [rolle]: wert } })
-                }
-              />
-            ))}
-            <p className="text-[11px] leading-snug text-ui-faint">
-              Ein harter Versatz, kein Weichzeichner. Das ist Struktur und keine Einstellung.
-            </p>
-          </Abschnitt>
-
-          <Wortmarkenfeld entwurf={entwurf} aendere={aendere} />
-
-          <Abschnitt
-            titel="Zeichen"
-            hinweis="Ein Set ersetzt, es ergänzt nicht. Eigene Zeichen trägt man in der erzeugten Datei nach — sie ersetzen den Katalog dann."
-          >
-            <Wahlfeld<Zeichenwahl>
-              label="Katalog"
-              wert={entwurf.zeichen}
-              optionen={zeichenwahl.map((wert) => ({ value: wert, label: ZEICHENTEXT[wert] }))}
-              auf={(zeichen) => aendere({ zeichen })}
-            />
-          </Abschnitt>
+          <div className="flex shrink-0 items-center gap-2 border-t border-ui px-4 py-3">
+            <Button
+              icon="chevron-right"
+              className="[&>svg]:-scale-x-100"
+              disabled={schritt === 0}
+              onClick={() => gehe(schritt - 1)}
+            >
+              Zurück
+            </Button>
+            <Button
+              variant="primary"
+              trailingIcon="chevron-right"
+              disabled={schritt >= SCHRITTE.length - 1}
+              onClick={() => gehe(schritt + 1)}
+            >
+              Weiter
+            </Button>
+            <span className="ml-auto text-[11px] text-ui-faint">
+              Schritt {schritt + 1} von {SCHRITTE.length}
+            </span>
+          </div>
         </div>
 
-        {/* Vorschau, Prüfliste, Ergebnis */}
+        {/* Vorschau und Prüfliste */}
         <div className="flex min-w-0 flex-1 flex-col overflow-y-auto p-4">
           <div className="mb-2 flex shrink-0 items-center gap-2">
             <h2 className="text-ui-title font-semibold">Probefolie</h2>
@@ -419,29 +319,151 @@ export function CiGenerator() {
             </div>
           </div>
 
-          <div className="shrink-0">
+          {veraltet ? (
+            <p className="mb-2 shrink-0 border border-ui-strong bg-ui-subtle px-2 py-1.5 text-[11px] leading-snug text-ui-ink">
+              Nicht mehr aktuell: der Entwurf trägt gerade einen Fehler. Zu sehen ist der letzte
+              Stand, aus dem sich zeichnen ließ — was offen ist, steht unten.
+            </p>
+          ) : null}
+
+          {platzhalter ? (
+            <p className="mb-2 shrink-0 border border-ui-strong bg-ui-subtle px-2 py-1.5 text-[11px] leading-snug text-ui-ink">
+              Die Wortmarke unten rechts ist ein Platzhalter — sie fehlt noch. Die Farben und die
+              Schrift stimmen; die Datei entsteht erst, wenn eine echte da ist.
+            </p>
+          ) : null}
+
+          <div className={cx('shrink-0', veraltet && 'opacity-60')}>
             <Vorschau theme={theme} blatt={blatt} />
           </div>
 
-          <Pruefliste befunde={befunde} />
-
-          <h2 className="mb-2 mt-4 shrink-0 text-ui-title font-semibold">
-            src/themes/{entwurf.id || '…'}.ts
-          </h2>
-          <pre className="shrink-0 overflow-x-auto rounded-sm border border-ui bg-ui-surface p-3 font-mono text-[11px] leading-relaxed text-ui-ink">
-            {quelltext || 'Die Datei entsteht, sobald kein Fehler mehr in der Prüfliste steht.'}
-          </pre>
-
-          <h2 className="mb-2 mt-4 shrink-0 text-ui-title font-semibold">Danach</h2>
-          <pre className="shrink-0 whitespace-pre-wrap rounded-sm border border-ui bg-ui-surface p-3 font-mono text-[11px] leading-relaxed text-ui-muted">
-            {anleitung(entwurf)}
-          </pre>
+          <Pruefliste befunde={befunde} jetzt={schritt} auf={gehe} />
         </div>
       </div>
     </div>
   );
 }
 
+/**
+ * Lässt sich daraus ein Bild machen, das die Wahrheit sagt?
+ *
+ * Das ist eine **andere Frage** als „darf daraus eine Datei werden", und sie
+ * musste getrennt werden, als der Wizard kam. Ein fehlender Schlüssel hält die
+ * Datei auf und hat mit der Folie nichts zu tun; ein unlesbares Hex dagegen
+ * macht jedes Bild zur Erfindung. Wer beides über einen Kamm schert, bekommt
+ * genau das, was hier vorher stand: eine leere Fläche auf Schritt 2, weil in
+ * Schritt 1 noch kein Name eingetragen ist.
+ *
+ * Geblockt wird deshalb an den Feldern, die das Bild *machen*: Farbe und Maße.
+ * Und an der Wortmarke, aber nur, wenn eine da ist — fehlt sie ganz, springt
+ * der Platzhalter ein; ist sie da und taugt nicht, gehört sie nicht
+ * überzeichnet.
+ */
+function zeichenbar(befunde: Befund[], hatWortmarke: boolean): boolean {
+  return befunde.every(
+    (befund) =>
+      befund.rang !== 'fehler' ||
+      !(
+        befund.feld === 'Farbe' ||
+        befund.feld === 'Maße' ||
+        (befund.feld === 'Wortmarke' && hatWortmarke)
+      ),
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Der Schrittbalken                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Die Schritte als Leiste — und zugleich der Stand der Dinge.
+ *
+ * Ein Schrittbalken, der nur zählt, ist Dekoration. Dieser trägt je Schritt,
+ * was dort offen ist, und *deshalb* darf er frei anspringbar sein: wer sieht,
+ * wo etwas fehlt, braucht keinen Zwang zur Reihenfolge. Der Zwang wäre auch
+ * das Falsche — der halb gefüllte Entwurf auf der Folie ist der Zweck dieser
+ * Seite und kein Zustand, aus dem jemand herausgeführt gehört.
+ */
+function Schrittbalken({
+  jetzt,
+  befunde,
+  auf,
+}: {
+  jetzt: number;
+  befunde: Befund[];
+  auf: (ziel: number) => void;
+}) {
+  const zaehler = SCHRITTE.map(() => ({ fehler: 0, warnung: 0 }));
+  for (const befund of befunde) {
+    const index = schrittFuerFeld(befund.feld);
+    if (index < 0) continue;
+    if (befund.rang === 'fehler') zaehler[index].fehler += 1;
+    if (befund.rang === 'warnung') zaehler[index].warnung += 1;
+  }
+
+  return (
+    <nav
+      aria-label="Schritte"
+      className="flex shrink-0 items-stretch gap-1 overflow-x-auto border-b border-ui bg-ui-surface px-4 py-2"
+    >
+      {SCHRITTE.map((schritt, index) => {
+        const stand = zaehler[index];
+        const aktiv = index === jetzt;
+        /*
+           Der Name wird gesetzt und nicht aus dem Inhalt gelesen. „Marke" ist
+           in „Wortmarke" enthalten, und die Zahlen daneben stünden mit im
+           Namen: „2 Marke 3" ist als Ansage so unbrauchbar, wie es als
+           Suchbegriff mehrdeutig ist. Ausgesprochen wird deshalb der Satz, den
+           ein Mensch auch lesen würde — und die Abzeichen sind dafür stumm.
+        */
+        const ansage = [
+          `Schritt ${index + 1}: ${schritt.titel}`,
+          stand.fehler ? `${stand.fehler} mal „Fehler"` : '',
+          stand.warnung ? `${stand.warnung} mal „läuft, ist aber falsch"` : '',
+        ]
+          .filter(Boolean)
+          .join(', ');
+        return (
+          <button
+            key={schritt.id}
+            type="button"
+            aria-label={ansage}
+            aria-current={aktiv ? 'step' : undefined}
+            onClick={() => auf(index)}
+            className={cx(
+              'flex items-center gap-1.5 whitespace-nowrap rounded-sm border px-2.5 py-1 text-[11px] transition-colors',
+              aktiv
+                ? 'border-ui-strong bg-ui-accent-soft font-semibold text-ui-ink'
+                : 'border-transparent text-ui-muted hover:bg-ui-sunken hover:text-ui-ink',
+            )}
+          >
+            <span className="tabular-nums text-ui-faint">{index + 1}</span>
+            {schritt.titel}
+            {stand.fehler ? (
+              <span
+                aria-hidden="true"
+                className="rounded-sm bg-ui-danger-bg px-1 font-semibold text-ui-danger"
+              >
+                {stand.fehler}
+              </span>
+            ) : null}
+            {!stand.fehler && stand.warnung ? (
+              <span
+                aria-hidden="true"
+                className="rounded-sm border border-ui-strong px-1 text-ui-muted"
+              >
+                {stand.warnung}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Die Prüfliste                                                               */
 /* -------------------------------------------------------------------------- */
 
 const RANGTEXT: Record<Rang, { titel: string; klasse: string }> = {
@@ -457,226 +479,136 @@ const RANGTEXT: Record<Rang, { titel: string; klasse: string }> = {
  * nichts sagt etwas, und trotzdem malen vier Menüeinträge dieselbe Farbe oder
  * eine Schrift wird im Export still durch Helvetica ersetzt. Ein Generator,
  * der nur zwischen „geht" und „geht nicht" unterscheidet, führt genau dorthin.
+ *
+ * Gezeigt wird **immer alles**, auch das, was zu einem anderen Schritt gehört.
+ * Eine Liste, die sich auf den offenen Schritt beschränkte, versteckte den
+ * Kontrastfehler der Palette vor dem, der gerade Schriften einträgt. Was zum
+ * offenen Schritt gehört, steht nur weiter oben; alles andere trägt einen Weg
+ * dorthin.
  */
-function Pruefliste({ befunde }: { befunde: Befund[] }) {
+function Pruefliste({
+  befunde,
+  jetzt,
+  auf,
+}: {
+  befunde: Befund[];
+  jetzt: number;
+  auf: (ziel: number) => void;
+}) {
   const raenge: Rang[] = ['fehler', 'warnung', 'hinweis'];
+  const sortiert = raenge.flatMap((rang) => {
+    const gleich = befunde.filter(
+      (befund) => befund.rang === rang && schrittFuerFeld(befund.feld) === jetzt,
+    );
+    const andere = befunde.filter(
+      (befund) => befund.rang === rang && schrittFuerFeld(befund.feld) !== jetzt,
+    );
+    return [...gleich, ...andere].map((befund) => ({ befund, rang }));
+  });
 
   return (
     <div className="mt-4 shrink-0">
       <h2 className="mb-2 text-ui-title font-semibold">Prüfliste</h2>
       <div className="flex flex-col gap-1.5">
-        {raenge.flatMap((rang) =>
-          befunde
-            .filter((befund) => befund.rang === rang)
-            .map((befund, index) => (
-              <p
-                key={`${rang}-${index}`}
-                className={cx('border px-2 py-1.5 text-[11px] leading-snug', RANGTEXT[rang].klasse)}
-              >
-                <span className="font-semibold">
-                  {RANGTEXT[rang].titel} · {befund.feld}
-                </span>{' '}
-                {befund.text}
-              </p>
-            )),
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-
-/**
- * Die Wortmarke.
- *
- * Sie ist Pflicht und hat mit Absicht keine Voreinstellung — fehlte sie, trüge
- * ein Kundendeck die Marke von nozilla. Gefragt wird nach der Datei *und* nach
- * den beiden Füllfarben, die darin stehen: `wordmarkFromSvg()` ordnet über die
- * Farbe zu und nicht über die Reihenfolge der Pfade, weil eine Zeichensoftware
- * Pfade umsortiert, wie sie will.
- */
-function Wortmarkenfeld({
-  entwurf,
-  aendere,
-}: {
-  entwurf: CiEntwurf;
-  aendere: (teil: Partial<CiEntwurf>) => void;
-}) {
-  const marke = entwurf.wortmarke;
-
-  const lies = async (datei: File | undefined) => {
-    if (!datei) return;
-    const svg = await datei.text();
-    // Die Füllfarben aus der Datei vorschlagen: sie stehen dort, und sie zu
-    // raten wäre der Punkt, an dem der Generator anfängt, Werte zu erfinden.
-    const gefunden = [
-      ...new Set([...svg.matchAll(/fill="(#[0-9a-fA-F]{6})"/g)].map((treffer) => treffer[1])),
-    ];
-    aendere({
-      wortmarke: {
-        svg,
-        dateiname: datei.name,
-        letters: marke?.letters || gefunden[0] || '',
-        accent: marke?.accent || gefunden[1] || '',
-      },
-    });
-  };
-
-  return (
-    <Abschnitt
-      titel="Wortmarke"
-      hinweis="Als Geometrie, nicht als Bild — nur so landet sie in SVG und PDF als echter Vektor und nimmt die Tinte der Fläche an, auf der sie sitzt."
-    >
-      <label className="block text-[11px] font-medium text-ui-muted">
-        SVG-Datei
-        <input
-          type="file"
-          accept=".svg,image/svg+xml"
-          onChange={(event) => void lies(event.target.files?.[0])}
-          className="mt-1 block w-full text-[11px] text-ui-muted file:mr-2 file:h-8 file:rounded-sm file:border file:border-ui file:bg-ui-surface file:px-3 file:text-ui-body file:text-ui-ink"
-        />
-      </label>
-
-      {marke ? (
-        <>
-          <p className="font-mono text-[11px] text-ui-faint">{marke.dateiname}</p>
-          <Textfeld
-            label="Füllfarbe der Buchstaben"
-            wert={marke.letters}
-            auf={(letters) => aendere({ wortmarke: { ...marke, letters } })}
-            hinweis="Wie sie in der Datei steht — nicht die Farbe der Marke."
-          />
-          <Textfeld
-            label="Füllfarbe des Akzents"
-            wert={marke.accent}
-            auf={(accent) => aendere({ wortmarke: { ...marke, accent } })}
-            hinweis="Leer lassen, wenn die Marke keinen Akzent am Wortende hat. Gemalt wird er immer in der Signalfarbe."
-          />
-        </>
-      ) : null}
-    </Abschnitt>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-
-/**
- * Die selbst gehosteten Schnitte.
- *
- * Sie stehen als Liste und nicht als Formular je Schnitt: wer eine
- * Kundenschrift mitbringt, hat neun Dateien und keine Lust auf sechsunddreißig
- * Felder. Was hier zählt, ist die Zuordnung Familie → Datei — der erste Name
- * jedes Stapels ist ein Fremdschlüssel darauf, und passt er nicht, findet der
- * Export keine Datei und fällt still auf die Ersatzschrift zurück.
- */
-function Schnitte({
-  entwurf,
-  aendere,
-}: {
-  entwurf: CiEntwurf;
-  aendere: (teil: Partial<CiEntwurf>) => void;
-}) {
-  /*
-     Angefasst wird über die **Kennung** und nicht über den Index. Der Index
-     wäre hier zwar ausreichend — die Liste wächst nur am Ende —, aber er ist
-     dieselbe Art Schlüssel, die diese Zeile schon einmal unbedienbar gemacht
-     hat: einer, der sich mit dem Inhalt bewegt. Die Kennung bewegt sich nie.
-  */
-  const setze = (kennung: string, teil: Partial<Schnitt>) =>
-    aendere({
-      webfontFaces: entwurf.webfontFaces.map((face) =>
-        face.kennung === kennung ? { ...face, ...teil } : face,
-      ),
-    });
-
-  return (
-    <div>
-      <p className="pt-1 text-[11px] font-medium text-ui-muted">
-        Schnitte unter <span className="font-mono">public/fonts/</span>
-      </p>
-      <p className="mb-2 text-[11px] leading-snug text-ui-faint">
-        Zu jeder <span className="font-mono">.woff2</span> gehört die gleichnamige{' '}
-        <span className="font-mono">.ttf</span>: WOFF2 kann nichts lesen, was Glyphen braucht, und
-        PDF wie Umriss-Leser brauchen sie.
-      </p>
-
-      <div className="flex flex-col gap-1">
-        {entwurf.webfontFaces.map((face, index) => (
-          <div key={face.kennung} className="flex gap-1">
-            <input
-              type="text"
-              aria-label={`Familie des ${index + 1}. Schnitts`}
-              value={face.family}
-              onChange={(event) => setze(face.kennung, { family: event.target.value })}
-              className="h-7 w-24 min-w-0 rounded-sm border border-ui bg-ui-surface px-1.5 text-[11px] text-ui-ink focus:border-ui-strong focus:outline-none"
-            />
-            <input
-              type="number"
-              aria-label={`Gewicht des ${index + 1}. Schnitts`}
-              value={Number.isFinite(face.weight) ? face.weight : ''}
-              step={100}
-              onChange={(event) =>
-                setze(face.kennung, { weight: Number.parseInt(event.target.value, 10) })
-              }
-              className="h-7 w-14 rounded-sm border border-ui bg-ui-surface px-1.5 text-right tabular-nums text-[11px] text-ui-ink focus:border-ui-strong focus:outline-none"
-            />
-            {/*
-              Kursive Schnitte waren bisher gar nicht anzulegen: `style` stand
-              im Schlüssel, aber in keinem Feld. Eine Marke mit einer Kursiven
-              hätte sie von Hand nachtragen müssen.
-            */}
-            <select
-              aria-label={`Stil des ${index + 1}. Schnitts`}
-              value={face.style}
-              onChange={(event) => setze(face.kennung, { style: event.target.value })}
-              className="h-7 w-20 rounded-sm border border-ui bg-ui-surface px-1 text-[11px] text-ui-ink focus:border-ui-strong focus:outline-none"
+        {sortiert.map(({ befund, rang }, index) => {
+          const ziel = schrittFuerFeld(befund.feld);
+          const anderswo = ziel >= 0 && ziel !== jetzt;
+          return (
+            <p
+              key={`${rang}-${index}`}
+              className={cx('border px-2 py-1.5 text-[11px] leading-snug', RANGTEXT[rang].klasse)}
             >
-              {schnittstile.map((stil) => (
-                <option key={stil} value={stil}>
-                  {stil === 'normal' ? 'aufrecht' : 'kursiv'}
-                </option>
-              ))}
-            </select>
-            <input
-              type="text"
-              aria-label={`Datei des ${index + 1}. Schnitts`}
-              value={face.file}
-              onChange={(event) => setze(face.kennung, { file: event.target.value })}
-              className="h-7 min-w-0 flex-1 rounded-sm border border-ui bg-ui-surface px-1.5 font-mono text-[11px] text-ui-ink focus:border-ui-strong focus:outline-none"
-            />
-            <IconButton
-              icon="trash"
-              label={`${index + 1}. Schnitt entfernen${face.family ? ` (${face.family} ${face.weight})` : ''}`}
-              tone="danger"
-              size={13}
-              className="h-7 w-7"
-              onClick={() =>
-                aendere({
-                  webfontFaces: entwurf.webfontFaces.filter(
-                    (andere) => andere.kennung !== face.kennung,
-                  ),
-                })
-              }
-            />
-          </div>
-        ))}
+              <span className="font-semibold">
+                {RANGTEXT[rang].titel} · {befund.feld}
+              </span>{' '}
+              {befund.text}{' '}
+              {anderswo ? (
+                <button
+                  type="button"
+                  onClick={() => auf(ziel)}
+                  className="underline underline-offset-2 hover:no-underline"
+                >
+                  Zu Schritt {ziel + 1}
+                </button>
+              ) : null}
+            </p>
+          );
+        })}
       </div>
-
-      <Button
-        icon="plus"
-        className="mt-2 h-7"
-        onClick={() => aendere({ webfontFaces: [...entwurf.webfontFaces, leererSchnitt()] })}
-      >
-        Schnitt
-      </Button>
-      <p className="mt-1 text-[11px] leading-snug text-ui-faint">
-        Vorbelegt sind die {nozillaTheme.webfont.faces.length} Schnitte, die schon unter{' '}
-        <span className="font-mono">public/fonts/</span> liegen.
-      </p>
     </div>
   );
 }
 
-/** Damit die Rollen-Titel auch außerhalb der Prüfung eine Heimat haben. */
-export type { FamilyRole };
+/* -------------------------------------------------------------------------- */
+/* Der letzte Schritt                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Was am Ende herauskommt: zwei Dateien und vier Handgriffe.
+ *
+ * Die Anleitung steht getrennt vom Kopfkommentar der erzeugten Datei, weil sie
+ * *woanders* hingehört — in `src/themes/index.ts` und unter `public/fonts/`.
+ */
+function FertigSchritt({
+  entwurf,
+  quelltext,
+  fehlerhaft,
+  sichere,
+}: {
+  entwurf: CiEntwurf;
+  quelltext: string;
+  fehlerhaft: boolean;
+  sichere: (text: string, name: string, typ: string) => Promise<void>;
+}) {
+  return (
+    <section className="px-4 py-4">
+      <h2 className="text-ui-title font-semibold text-ui-ink">Fertig</h2>
+      <p className="mt-1 text-[11px] leading-snug text-ui-faint">
+        Zwei Dateien, vier Handgriffe. Solange in der Prüfliste ein Fehler steht, entsteht keine
+        Datei — eine mit <span className="font-mono">NaN</span> darin übersetzt anstandslos und
+        setzt danach jahrelang leise falsch.
+      </p>
+
+      <div className="mt-3 flex gap-2">
+        <Button
+          variant="primary"
+          icon="download"
+          disabled={fehlerhaft || !entwurf.wortmarke}
+          onClick={() => void sichere(quelltext, `${entwurf.id}.ts`, 'text/plain')}
+        >
+          Designdatei
+        </Button>
+        <Button
+          icon="download"
+          /*
+             Auch am Schlüssel gesperrt, nicht nur an der Wortmarke: ohne ihn
+             hieße die Datei „-wortmarke.svg", während der Emitter
+             `import wortmarke from './<id>-wortmarke.svg?raw'` schreibt. Die
+             beiden Namen müssen zusammenpassen, und Umbenennen ist der
+             Handgriff, der beim Ablegen am ehesten schiefgeht.
+          */
+          disabled={!entwurf.wortmarke || !entwurf.id.trim()}
+          onClick={() =>
+            void sichere(
+              entwurf.wortmarke?.svg ?? '',
+              wortmarkeDateiname(entwurf.id),
+              'image/svg+xml',
+            )
+          }
+        >
+          Wortmarke
+        </Button>
+      </div>
+
+      <h3 className="mb-2 mt-4 text-ui-title font-semibold">Danach</h3>
+      <pre className="whitespace-pre-wrap rounded-sm border border-ui bg-ui-sunken p-3 font-mono text-[11px] leading-relaxed text-ui-muted">
+        {anleitung(entwurf)}
+      </pre>
+
+      <h3 className="mb-2 mt-4 text-ui-title font-semibold">src/themes/{entwurf.id || '…'}.ts</h3>
+      <pre className="overflow-x-auto rounded-sm border border-ui bg-ui-sunken p-3 font-mono text-[10px] leading-relaxed text-ui-ink">
+        {quelltext || 'Die Datei entsteht, sobald kein Fehler mehr in der Prüfliste steht.'}
+      </pre>
+    </section>
+  );
+}

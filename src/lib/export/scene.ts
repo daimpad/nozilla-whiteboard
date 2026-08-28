@@ -175,7 +175,7 @@ function paperBase() {
  * `.md` so steht.
  *
  * Beide bleiben dabei **Rollen des Erscheinungsbilds** und keine festen
- * Werte: ein Kunde, dessen CI ein gebrochenes Weiß führt, belegt `white` neu
+ * Werte: eine Marke, deren CI ein gebrochenes Weiß führt, belegt `white` neu
  * und bekommt es hier. Der Musterkunde führt für beides `#FFFFFF` — dann sind
  * die zwei Untergründe bei ihm dieselbe Farbe, und das ist seine CI, nicht
  * unser Fehler.
