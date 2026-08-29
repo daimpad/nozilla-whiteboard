@@ -56,9 +56,30 @@ export interface Ruecklaufbefund {
 }
 
 export interface Ruecklauf {
-  /** Der neue Entwurf, oder `null`, wenn sich gar nichts lesen ließ. */
+  /**
+   * Der Entwurf, der daraus **würde** — nicht der, der gilt.
+   *
+   * `liesRuecklauf()` schreibt nirgendwohin. Das war einmal anders: der Knopf
+   * hieß „Übernehmen und prüfen", geprüft wurde nach dem Übernehmen, und
+   * zurück ging es nur über „Zurücksetzen", das auch die Handarbeit wegwarf.
+   * Ein Rücklauf ist aber genau das, was dieses Projekt sonst überall mit
+   * einer Frage versieht: etwas, das vierzig Felder auf einmal ersetzt.
+   */
   entwurf: CiEntwurf | null;
   befunde: Ruecklaufbefund[];
+  /** Was sich dabei ändern würde — je Feld, war → wird. */
+  aenderungen: Aenderung[];
+  /** Gesetzt, wenn die Antwort mitten im Satz abbricht. */
+  abbruch: Abbruch | null;
+}
+
+/** Ein einzelner Wert, der sich ändern würde. */
+export interface Aenderung {
+  feld: Feld;
+  /** Der Name der Rolle, wie er im Formular steht. */
+  name: string;
+  war: string;
+  wird: string;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -218,11 +239,102 @@ const STUFEN: Array<{ was: string; tu: (text: string) => string }> = [
   { was: 'den Nachsatz hinter dem Objekt weggeschnitten', tu: nurObjekt },
 ];
 
+/**
+ * Wo eine abgebrochene Antwort aufhört — und was bis dahin vollständig ist.
+ *
+ * Der häufigste Grund für eine unlesbare Antwort ist kein Tippfehler, sondern
+ * ein **Abbruch in der Länge**: das Modell hört mitten in `"paper": "#FAF` auf.
+ * Von einer verunglückten Klammer ist das an der rohen Parser-Meldung nicht zu
+ * unterscheiden, und die Sackgasse ist dieselbe — nur dass hier zwölf von
+ * sechzehn Rollen schon dastehen und niemand sie bekommt.
+ *
+ * Abgeschnitten wird deshalb rückwärts bis zur letzten Stelle, an der ein Wert
+ * *fertig* war, und danach werden die offenen Klammern geschlossen. Was dabei
+ * herauskommt, ist gültiges JSON aus lauter vollständigen Feldern — angeboten
+ * und nie von selbst genommen.
+ */
+export interface Abbruch {
+  /** Das, was sich aus dem vollständigen Teil lesen ließ. */
+  objekt: Record<string, unknown>;
+  /** Der Schlüssel, der zuletzt ganz dastand. */
+  letzterSchluessel: string;
+  /** Wie viele Zeichen die Antwort hatte, bevor sie abbrach. */
+  zeichen: number;
+}
+
+/**
+ * Aus einem abgebrochenen Objekt den vollständigen Anfang.
+ *
+ * Gezählt wird mit Rücksicht auf Zeichenketten — dieselbe Buchführung wie in
+ * `nurObjekt()`. Gemerkt wird dabei jede Stelle, an der ein Wert der obersten
+ * Ebene zu Ende war (ein Komma oder eine schließende Klammer auf Tiefe 1) und
+ * welcher Schlüssel gerade zuletzt gelesen wurde.
+ */
+export function abgebrochen(text: string): Abbruch | null {
+  let tiefe = 0;
+  let inText = false;
+  let maskiert = false;
+  let letzterSchnitt = -1;
+  let letzterSchluessel = '';
+  let schluessel = '';
+  let sammle = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const zeichen = text[i];
+    if (inText) {
+      if (maskiert) maskiert = false;
+      else if (zeichen === '\\') maskiert = true;
+      else if (zeichen === '"') inText = false;
+      else if (sammle) schluessel += zeichen;
+      continue;
+    }
+    if (zeichen === '"') {
+      inText = true;
+      // Ein Schlüssel ist eine Zeichenkette auf Tiefe 1, der ein `:` folgt.
+      // Gesammelt wird auf Verdacht; steht danach kein Doppelpunkt, wird sie
+      // beim nächsten Anlauf überschrieben.
+      if (tiefe === 1) {
+        schluessel = '';
+        sammle = true;
+      }
+      continue;
+    }
+    if (zeichen === ':' && tiefe === 1) {
+      letzterSchluessel = schluessel || letzterSchluessel;
+      sammle = false;
+      continue;
+    }
+    if (zeichen === '{' || zeichen === '[') tiefe += 1;
+    else if (zeichen === '}' || zeichen === ']') tiefe -= 1;
+    else if (zeichen === ',' && tiefe === 1) letzterSchnitt = i;
+
+    if (tiefe === 1 && (zeichen === '}' || zeichen === ']')) letzterSchnitt = i + 1;
+    if (tiefe === 0 && i > 0) return null; // Das Objekt ist zu — kein Abbruch.
+  }
+
+  if (tiefe <= 0 || letzterSchnitt < 0) return null;
+
+  const kopf = text.slice(0, letzterSchnitt).replace(/,\s*$/, '');
+  try {
+    const wert: unknown = JSON.parse(`${kopf}}`);
+    if (!wert || typeof wert !== 'object' || Array.isArray(wert)) return null;
+    return {
+      objekt: wert as Record<string, unknown>,
+      letzterSchluessel,
+      zeichen: text.length,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Was die stufenweise Reparatur ergeben hat. */
 interface Gelesen {
   objekt: Record<string, unknown> | null;
   getan: string[];
   fehler: string;
+  /** Gesetzt, wenn die Antwort mitten im Satz aufhört. */
+  abbruch: Abbruch | null;
 }
 
 function liesObjekt(roh: string): Gelesen {
@@ -245,7 +357,7 @@ function liesObjekt(roh: string): Gelesen {
   };
 
   let objekt = versuch();
-  if (objekt) return { objekt, getan, fehler: '' };
+  if (objekt) return { objekt, getan, fehler: '', abbruch: null };
 
   for (const stufe of STUFEN) {
     const neu = stufe.tu(text);
@@ -253,10 +365,11 @@ function liesObjekt(roh: string): Gelesen {
     text = neu;
     getan.push(stufe.was);
     objekt = versuch();
-    if (objekt) return { objekt, getan, fehler: '' };
+    if (objekt) return { objekt, getan, fehler: '', abbruch: null };
   }
 
-  return { objekt: null, getan, fehler };
+  // Erst wenn keine Stufe mehr hilft: sieht es nach einem Abbruch aus?
+  return { objekt: null, getan, fehler, abbruch: abgebrochen(text) };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -537,6 +650,87 @@ const ERWARTET = [
 ] as const;
 
 /**
+ * Den vollständigen Anfang einer abgebrochenen Antwort lesen.
+ *
+ * Über `JSON.stringify` zurück in den einen Leser und nicht an ihm vorbei: der
+ * Teil ist bereits geparst, aber er soll dieselben Korrekturen, dieselben
+ * Übergehungen und denselben Bericht bekommen wie eine ganze Antwort. Ein
+ * zweiter Weg in den Entwurf wäre genau die Sorte Abkürzung, die in diesem
+ * Projekt schon zweimal auseinandergelaufen ist.
+ */
+export function teilRuecklauf(abbruch: Abbruch, basis: CiEntwurf): Ruecklauf {
+  return liesRuecklauf(JSON.stringify(abbruch.objekt), basis);
+}
+
+/**
+ * Was zwischen zwei Entwürfen anders ist — Wert für Wert.
+ *
+ * Gerechnet und nicht mitgeschrieben: der Leser weiß, was er *gelesen* hat,
+ * aber nicht, ob es sich vom bisherigen Wert unterscheidet. Ein Modell, das
+ * die Palette wortgleich zurückgibt, hat sechzehn Rollen geliefert und ändert
+ * keine — und ein Knopf, der „16 Werte übernehmen" verspricht und nichts tut,
+ * ist genau die Sorte Zahl, die dieses Projekt schon einmal teuer bezahlt hat.
+ *
+ * Die Namen sind die des Formulars, damit die Zeile im Bericht auf ein Feld
+ * zeigt, das man auch findet.
+ */
+export function unterschiede(alt: CiEntwurf, neu: CiEntwurf): Aenderung[] {
+  const aus: Aenderung[] = [];
+  const zeig = (wert: unknown): string =>
+    typeof wert === 'string' ? wert || '(leer)' : String(wert);
+
+  const einzeln = (feld: Feld, name: string, a: unknown, b: unknown) => {
+    if (a === b) return;
+    aus.push({ feld, name, war: zeig(a), wird: zeig(b) });
+  };
+
+  for (const name of ['id', 'label', 'markenname', 'produkt'] as const) {
+    einzeln('Marke', name, alt[name], neu[name]);
+  }
+  for (const rolle of paletteRollen) {
+    einzeln('Farbe', rolle, alt.palette[rolle], neu.palette[rolle]);
+  }
+  for (const stufe of textStufen) {
+    einzeln('Maße', stufe, alt.textScale[stufe], neu.textScale[stufe]);
+  }
+  for (const stufe of sonderstufen) {
+    einzeln('Maße', stufe, alt.sonderstufen[stufe], neu.sonderstufen[stufe]);
+  }
+  for (const rolle of strichRollen) {
+    einzeln('Maße', rolle, alt.stroke[rolle], neu.stroke[rolle]);
+  }
+  for (const rolle of schattenRollen) {
+    einzeln('Maße', rolle, alt.shadowOffset[rolle], neu.shadowOffset[rolle]);
+  }
+  einzeln('Maße', 'auszeichnungEnger', alt.auszeichnungEnger, neu.auszeichnungEnger);
+  for (const rolle of schriftRollen) {
+    einzeln('Schrift', rolle, alt.fontFamily[rolle], neu.fontFamily[rolle]);
+    einzeln('Schrift', `${rolle} (PDF)`, alt.pdfFontFamily[rolle], neu.pdfFontFamily[rolle]);
+  }
+
+  /*
+     Die Schnitte werden als Ganzes verglichen und nicht Zeile für Zeile: die
+     Liste kann kürzer oder länger werden, und „der dritte Schnitt heißt jetzt
+     anders" wäre über einer verschobenen Liste eine Behauptung ins Blaue. Die
+     Kennung bleibt dabei außen vor — sie gehört dem Formular.
+  */
+  const alsText = (entwurf: CiEntwurf) =>
+    entwurf.webfontFaces
+      .map((face) => `${face.family} ${face.weight} ${face.style} ${face.file}`)
+      .join(' · ');
+  if (alsText(alt) !== alsText(neu)) {
+    aus.push({
+      feld: 'Schrift',
+      name: 'Schnitte',
+      war: `${alt.webfontFaces.length} Schnitte`,
+      wird: `${neu.webfontFaces.length} Schnitte`,
+    });
+  }
+
+  return aus;
+}
+
+/**
  * Aus der Antwort einen Entwurf — auf der Grundlage des bisherigen.
  *
  * Zusammengeführt wird hier und nicht beim Aufrufer, damit die Frage „was
@@ -550,22 +744,42 @@ export function liesRuecklauf(roh: string, basis: CiEntwurf): Ruecklauf {
     return {
       entwurf: null,
       befunde: [{ rang: 'fehler', feld: 'Rücklauf', text: 'Das Feld ist leer.' }],
+      aenderungen: [],
+      abbruch: null,
     };
   }
 
-  const { objekt, getan, fehler } = liesObjekt(roh);
+  const { objekt, getan, fehler, abbruch } = liesObjekt(roh);
 
   if (!objekt) {
-    return {
-      entwurf: null,
-      befunde: [
-        {
-          rang: 'fehler',
-          feld: 'Rücklauf',
-          text: `Daraus wird kein JSON-Objekt${getan.length ? `, auch nachdem ${getan.join(', ')} wurde` : ''}: ${fehler}`,
-        },
-      ],
-    };
+    /*
+       Zwei verschiedene Sackgassen, und sie brauchen zwei verschiedene Sätze.
+       Bricht die Antwort in der Länge ab, ist der Weg heraus ein anderer als
+       bei einem Tippfehler — und er steht nur da, wenn jemand ihn hinschreibt.
+       Die rohe Parser-Meldung bleibt trotzdem stehen: wer einen Fehler meldet,
+       braucht sie. Sie ist nur nicht mehr die einzige Auskunft.
+    */
+    const befunde: Ruecklaufbefund[] = abbruch
+      ? [
+          {
+            rang: 'fehler',
+            feld: 'Rücklauf',
+            text: `Die Antwort hört nach ${abbruch.zeichen} Zeichen mitten im Satz auf — zuletzt vollständig war „${abbruch.letzterSchluessel || '(nichts)'}". Das ist meist keine Panne, sondern die Längengrenze des Modells: bitte es, ab „${abbruch.letzterSchluessel}" fortzusetzen, und füge den Rest hier an.`,
+          },
+          {
+            rang: 'uebergangen',
+            feld: 'Rücklauf',
+            text: `Die Meldung des Lesers, für den Fall dass es doch etwas anderes ist: ${fehler}`,
+          },
+        ]
+      : [
+          {
+            rang: 'fehler',
+            feld: 'Rücklauf',
+            text: `Daraus wird kein JSON-Objekt${getan.length ? `, auch nachdem ${getan.join(', ')} wurde` : ''}: ${fehler}`,
+          },
+        ];
+    return { entwurf: null, befunde, aenderungen: [], abbruch };
   }
 
   for (const was of getan) {
@@ -693,5 +907,10 @@ export function liesRuecklauf(roh: string, basis: CiEntwurf): Ruecklauf {
     `Übernommen: ${Object.keys(objekt).filter((schluessel) => (ERWARTET as readonly string[]).includes(schluessel)).length} von ${ERWARTET.length} Feldern. Was nicht kam, steht unten; die Prüfliste rechts urteilt danach über das Ganze.`,
   );
 
-  return { entwurf, befunde: bericht.befunde };
+  return {
+    entwurf,
+    befunde: bericht.befunde,
+    aenderungen: unterschiede(basis, entwurf),
+    abbruch: null,
+  };
 }

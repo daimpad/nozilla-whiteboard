@@ -72,14 +72,18 @@ export function Zahlenfeld({
   auf,
   einheit,
   schritt,
+  anker,
 }: {
   label: string;
   wert: number;
   auf: (wert: number) => void;
   einheit?: string;
   schritt?: number;
+  /** Eine stabile Kennung, damit ein Befund hierher springen kann. */
+  anker?: string;
 }) {
-  const id = useId();
+  const erzeugt = useId();
+  const id = anker ?? erzeugt;
   return (
     <div className="flex items-center gap-2">
       <label htmlFor={id} className="w-24 shrink-0 font-mono text-[11px] text-ui-muted">
@@ -129,14 +133,24 @@ export function Farbfeld({
   wert,
   auf,
   hinweis,
+  anker,
 }: {
   label: string;
   rolle: string;
   wert: string;
   auf: (wert: string) => void;
   hinweis?: string;
+  /** Eine stabile Kennung, damit ein Befund hierher springen kann. */
+  anker?: string;
 }) {
-  const id = useId();
+  const erzeugt = useId();
+  /*
+     `useId()` erzeugt Kennungen wie `:r7:` — eindeutig, aber nicht
+     vorhersagbar. Ein Befund, der auf ein Feld zeigen soll, braucht eine, die
+     schon feststeht, bevor das Feld gezeichnet ist. Deshalb darf sie von außen
+     kommen; ohne Anker bleibt es bei der erzeugten.
+  */
+  const id = anker ?? erzeugt;
   const gueltig = /^#[0-9a-f]{6}$/i.test(wert);
   const kanal = gueltig
     ? [1, 3, 5].map((i) => Number.parseInt(wert.slice(i, i + 2), 16)).join(', ')

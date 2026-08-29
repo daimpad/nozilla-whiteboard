@@ -131,7 +131,9 @@ Generator ruft `buildSlideScene()` und `primsToSvgMarkup()`, also genau das
 Markup, das der SVG-Export erzeugt. Was dort steht, steht auch in der Datei.
 
 Der Schrittbalken oben zählt je Schritt, was dort offen ist, und **hält
-niemanden auf**: jeder Schritt ist jederzeit anspringbar. Ein Wizard, der erst
+niemanden auf**: jeder Schritt ist jederzeit anspringbar — mit der Maus, oder
+mit ←/→ und Home/End auf einem einzigen Tabstopp. Ein Befund der Prüfliste
+führt dabei nicht nur in seinen Schritt, sondern auf sein Feld. Ein Wizard, der erst
 weiterlässt, wenn alles stimmt, sperrt genau den ein, der nachsehen will, wie
 sich sein halb gefüllter Entwurf auf der Folie macht — und das ist der Zweck
 dieser Seite. Solange die Wortmarke noch fehlt, zeichnet die Folie mit einem
@@ -169,6 +171,17 @@ Der wichtigste Rang des Berichts ist **„Kam nicht"**. Ein Modell, das zwölf v
 sechzehn Palettenrollen liefert, sieht aus, als hätte es geliefert; die vier
 fehlenden stünden danach in nozilla-Grün auf der Folie einer fremden Marke, und
 niemand hätte je gesagt, dass sie fehlen.
+
+Übernommen wird nichts von selbst. Der Bericht ist ein **Vorschlag**: er zeigt
+war → wird für jedes Feld, nennt die Zahl auf dem Knopf, und ein Rückgängig
+steht daneben. Und wenn die Antwort mitten im Satz aufhört — der häufigste
+Grund, und von einem Tippfehler an der Parser-Meldung nicht zu unterscheiden —
+sagt er, wo sie aufhört, welches Feld zuletzt vollständig war, und bietet an,
+genau diese Felder zu nehmen.
+
+Der Entwurf überlebt dabei ein ⌘R: er liegt unter einem eigenen Schlüssel im
+`sessionStorage`, der den der Deck-Sitzung an keiner Stelle berührt. Und er
+lässt sich als Datei sichern und wieder laden — für den anderen Rechner.
 
 Gefragt wird dabei nur, was ein Mensch entscheiden muss. Die neunundzwanzig
 semantischen Tokens, die vier Flächenrollen und die Deckkraftstufen rechnet der
@@ -653,7 +666,7 @@ CI-Konformität aller 554 Icons.
 
 Das prüft alles, was das Werkzeug **herstellt**. Ob man es **bedienen** kann,
 prüft `npm run test:ui`: Playwright klickt gegen `vite preview`, also gegen
-das gebaute Verzeichnis. Vierzig Handgriffe, jeder für einen Fehler,
+das gebaute Verzeichnis. Vierundvierzig Handgriffe, jeder für einen Fehler,
 der einmal durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
 ihrem Kasten, eine Vorschau schwarz auf dunkelgrau. Beides läuft bei jedem
 Pull Request.

@@ -77,11 +77,15 @@ function wahr(bedingung, was) {
 async function zumSchritt(seite, titel) {
   // Über den ausgesprochenen Namen und nicht über den Aufdruck: „Marke" steckt
   // in „Wortmarke", und die Zahl der offenen Befunde stünde mit im Aufdruck.
-  await seite
-    .getByRole('navigation', { name: 'Schritte' })
-    .getByRole('button', { name: new RegExp(`^Schritt \\d+: ${titel}(,|$)`) })
-    .click();
+  await reiter(seite, titel).click();
   await seite.waitForTimeout(250);
+}
+
+/** Der Reiter eines Schritts. */
+function reiter(seite, titel) {
+  return seite
+    .getByRole('tablist', { name: 'Schritte' })
+    .getByRole('tab', { name: new RegExp(`^Schritt \\d+: ${titel}(,|$)`) });
 }
 
 /**
@@ -1503,7 +1507,7 @@ async function main() {
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48">' +
       '<path fill="#000000" d="M4 8 L96 8 L96 40 L4 40 Z"/>' +
       '<path fill="#E4003A" d="M108 24 L132 24 L132 40 L108 40 Z"/></svg>';
-    await generator.setInputFiles('input[type="file"]', {
+    await generator.setInputFiles('input[accept*="svg"]', {
       name: 'rauchprobe-wortmarke.svg',
       mimeType: 'image/svg+xml',
       buffer: Buffer.from(WORTMARKE),
@@ -1589,7 +1593,7 @@ async function main() {
     await zumSchritt(generator, 'Farbe');
     await setzeFarbe(generator, 'signal', '#E4003A');
     await zumSchritt(generator, 'Wortmarke');
-    await generator.setInputFiles('input[type="file"]', {
+    await generator.setInputFiles('input[accept*="svg"]', {
       name: 'r.svg',
       mimeType: 'image/svg+xml',
       buffer: Buffer.from(
@@ -1691,8 +1695,8 @@ async function main() {
     ].join('\n');
 
     await generator.getByLabel('Die Antwort des Modells').fill(antwort);
-    await generator.getByRole('button', { name: 'Übernehmen und prüfen' }).click();
-    await generator.waitForTimeout(500);
+    await generator.getByRole('button', { name: 'Antwort lesen' }).click();
+    await generator.waitForTimeout(400);
 
     /*
        Gelesen wird **nur der Bericht** und nicht die ganze Seite. Die erste
@@ -1701,6 +1705,10 @@ async function main() {
        „Der Codezaun darf drin bleiben … und Kommentare im JSON ebenfalls."
        Beide Wörter standen also ohnehin auf der Seite. Die Gegenprobe, die den
        Bericht verstummen ließ, blieb deshalb grün.
+
+       Und zwar **vor** dem Übernehmen: der Bericht ist ein Vorschlag, und ein
+       angenommener Vorschlag ist keiner mehr. Danach steht dort nichts, und
+       das ist richtig — was daraus geworden ist, steht ab dann im Formular.
     */
     const bericht = await generator
       .getByRole('region', { name: 'Bericht zum Rücklauf' })
@@ -1709,6 +1717,9 @@ async function main() {
     wahr(/Kommentare/.test(bericht), 'der Bericht verschweigt die Kommentare');
     wahr(/akzent/.test(bericht), 'der Bericht verschweigt die übergangene Rolle');
     wahr(/Kam nicht/.test(bericht), 'der Bericht verschweigt, was gar nicht kam');
+
+    await generator.getByRole('button', { name: /Werte übernehmen/ }).click();
+    await generator.waitForTimeout(400);
 
     // Und die Werte stehen wirklich im Entwurf.
     await zumSchritt(generator, 'Marke');
@@ -1767,7 +1778,7 @@ async function main() {
     await generator.getByLabel('Schlüssel').fill('rauchschrift');
     await generator.getByLabel('Name in der Auswahl').fill('Rauchschrift');
     await zumSchritt(generator, 'Wortmarke');
-    await generator.setInputFiles('input[type="file"]', {
+    await generator.setInputFiles('input[accept*="svg"]', {
       name: 'r.svg',
       mimeType: 'image/svg+xml',
       buffer: Buffer.from(
@@ -1784,6 +1795,192 @@ async function main() {
     wahr(
       /Zilla Slab Kunde/.test(eigen ?? ''),
       'die Schnitte des Entwurfs haben keine eigene Schriftregel',
+    );
+
+    await generator.close();
+  });
+
+  await pruefe('die Schrittleiste ist ein Tabstopp, nicht acht', async () => {
+    /*
+       Vorher waren es acht Knöpfe in einer `<nav>`: wer ohne Maus arbeitet,
+       lief auf *jedem* Schritt durch acht davon, bevor er im ersten Feld
+       stand. Jetzt ein rollender Tabstopp und innen die Pfeiltasten.
+
+       Nach **Tab** wird ausdrücklich nicht gegriffen — geprüft wird deshalb
+       auch, dass ein zweites Tab die Leiste wirklich *verlässt*. Wer die Taste
+       abfängt, sperrt den Benutzer in dem Bereich ein, den er gerade erreicht
+       hat.
+    */
+    const generator = await kontext.newPage();
+    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+    await generator.waitForTimeout(2200);
+
+    await reiter(generator, 'Anfang').focus();
+    await generator.keyboard.press('ArrowRight');
+    await generator.keyboard.press('ArrowRight');
+    await generator.waitForTimeout(300);
+    gleich(
+      await generator.evaluate(() => document.activeElement?.getAttribute('aria-label')),
+      'Schritt 3: Farbe',
+      'die Pfeiltaste hat den Reiter nicht gewechselt',
+    );
+
+    // Und der Schritt daneben ist wirklich der offene.
+    const offen = await generator.evaluate(
+      () => document.querySelector('[role="tabpanel"] h2')?.textContent,
+    );
+    wahr(/Schritt 3 von 8/.test(offen ?? ''), `der Bereich zeigt „${offen}"`);
+
+    await generator.keyboard.press('End');
+    await generator.waitForTimeout(300);
+    gleich(
+      await generator.evaluate(() => document.activeElement?.getAttribute('aria-label')),
+      'Schritt 8: Fertig',
+      'End sprang nicht ans Ende',
+    );
+
+    // Ein Tab führt aus der Leiste heraus und nicht zum nächsten Reiter.
+    await generator.keyboard.press('Tab');
+    await generator.waitForTimeout(200);
+    const danach = await generator.evaluate(() => document.activeElement?.getAttribute('role'));
+    wahr(danach !== 'tab', 'Tab blieb in der Schrittleiste hängen');
+
+    await generator.close();
+  });
+
+  await pruefe('ein Befund führt zu seinem Feld', async () => {
+    /*
+       „Zu Schritt 3" führte in den Schritt und dort vor sechzehn Farbfelder;
+       die Rolle, um die es ging, suchte man von Hand. Das ist die einzige
+       Rückzahlung für das, was ein Wizard gegenüber einer langen Seite
+       verliert — dort fand man eine Rolle mit ⌘F.
+    */
+    const generator = await kontext.newPage();
+    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+    await generator.waitForTimeout(2200);
+
+    await zumSchritt(generator, 'Farbe');
+    await setzeFarbe(generator, 'signalSoft', 'knallrot');
+    await generator.waitForTimeout(400);
+
+    // Der Befund steht in der Prüfliste und trägt einen Weg zum Feld.
+    await generator.getByRole('button', { name: 'Zum Feld' }).first().click();
+    await generator.waitForTimeout(400);
+
+    const fokus = await generator.evaluate(() => document.activeElement?.id);
+    gleich(fokus, 'nz-ci-farbe-signalSoft', 'der Sprung landete nicht im Feld');
+
+    await generator.close();
+  });
+
+  await pruefe('der Rücklauf ist ein Vorschlag und wird zurückgenommen', async () => {
+    /*
+       Vorher hieß der Knopf „Übernehmen und prüfen", geprüft wurde nach dem
+       Übernehmen, und zurück ging es nur über „Zurücksetzen", das auch die
+       Handarbeit wegwarf. Geprüft wird deshalb die ganze Kette: lesen ändert
+       nichts, übernehmen ändert, rückgängig stellt zurück.
+    */
+    const generator = await kontext.newPage();
+    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+    await generator.waitForTimeout(2200);
+
+    await generator
+      .getByLabel('Die Antwort des Modells')
+      .fill('{"id": "rauchvorschlag", "label": "Rauchvorschlag"}');
+    await generator.getByRole('button', { name: 'Antwort lesen' }).click();
+    await generator.waitForTimeout(400);
+
+    // Gelesen — und noch nichts übernommen.
+    await zumSchritt(generator, 'Marke');
+    gleich(
+      await generator.getByLabel('Schlüssel').inputValue(),
+      '',
+      'das Lesen hat schon geschrieben',
+    );
+
+    await zumSchritt(generator, 'Anfang');
+    const bericht = await generator
+      .getByRole('region', { name: 'Bericht zum Rücklauf' })
+      .innerText();
+    wahr(/rauchvorschlag/.test(bericht), 'der Vorschlag nennt den neuen Wert nicht');
+
+    await generator.getByRole('button', { name: /Werte übernehmen/ }).click();
+    await generator.waitForTimeout(400);
+    await zumSchritt(generator, 'Marke');
+    gleich(
+      await generator.getByLabel('Schlüssel').inputValue(),
+      'rauchvorschlag',
+      'das Übernehmen kam nicht an',
+    );
+
+    await zumSchritt(generator, 'Anfang');
+    await generator.getByRole('button', { name: 'Rückgängig' }).click();
+    await generator.waitForTimeout(400);
+    await zumSchritt(generator, 'Marke');
+    gleich(
+      await generator.getByLabel('Schlüssel').inputValue(),
+      '',
+      'Rückgängig nahm den Rücklauf nicht zurück',
+    );
+
+    await generator.close();
+  });
+
+  await pruefe('der Entwurf überlebt ein Neuladen', async () => {
+    /*
+       Ein ⌘R, ein zugeklappter Laptop, und fünfzig Felder samt der
+       ausgesuchten Wortmarken-Datei waren weg — die Datei musste man erneut
+       suchen. Der Schlüssel dafür ist ein eigener; dass er den der Deck-Sitzung
+       nicht berührt, prüft `ruecklauf.test.ts`.
+
+       Beide Richtungen: bejaht steht der Entwurf wieder da, verneint ist er
+       leer. Eine Frage, deren Nein nichts tut, ist keine.
+    */
+    const generator = await kontext.newPage();
+    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+    await generator.waitForTimeout(2200);
+
+    await zumSchritt(generator, 'Marke');
+    await generator.getByLabel('Schlüssel').fill('rauchsitzung');
+    await generator.getByLabel('Name in der Auswahl').fill('Rauchsitzung');
+    await generator.waitForTimeout(900);
+
+    /*
+       **Zwei** Dialoge, nicht einer, und in dieser Reihenfolge: erst der
+       `beforeunload` des Browsers (weil etwas angefasst wurde), dann die
+       eigene Frage „fortsetzen?". Ein `once`-Aufruf fängt deshalb den
+       falschen — der zweite wird dann automatisch weggeklickt, und die Prüfung
+       meldet einen Fehler, den es nicht gibt. Genau darauf ist die erste
+       Fassung hereingefallen.
+    */
+    const antworte = (ja) => (dialog) => {
+      if (dialog.type() === 'beforeunload') return void dialog.accept();
+      return void (ja ? dialog.accept() : dialog.dismiss());
+    };
+
+    const fortsetzen = antworte(true);
+    generator.on('dialog', fortsetzen);
+    await generator.reload({ waitUntil: 'networkidle' });
+    await generator.waitForTimeout(2200);
+    generator.off('dialog', fortsetzen);
+    await zumSchritt(generator, 'Marke');
+    gleich(
+      await generator.getByLabel('Schlüssel').inputValue(),
+      'rauchsitzung',
+      'der Entwurf hat das Neuladen nicht überlebt',
+    );
+
+    // Und die Gegenrichtung: wer verneint, fängt wirklich neu an.
+    const verwerfen = antworte(false);
+    generator.on('dialog', verwerfen);
+    await generator.reload({ waitUntil: 'networkidle' });
+    await generator.waitForTimeout(2200);
+    generator.off('dialog', verwerfen);
+    await zumSchritt(generator, 'Marke');
+    gleich(
+      await generator.getByLabel('Schlüssel').inputValue(),
+      '',
+      'das Verneinen hat den alten Entwurf nicht verworfen',
     );
 
     await generator.close();

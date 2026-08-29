@@ -11,6 +11,8 @@
  * die beiden Listen aneinander, und zwar über die Rollen, die *das
  * Erscheinungsbild* führt und nicht über eine dritte getippte Liste.
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { nozillaTheme } from '@/theme';
 import {
@@ -29,10 +31,18 @@ import {
 } from './entwurf';
 import { normalisiereFarbe } from './farbwert';
 import { promptText } from './prompt';
-import { liesRuecklauf, type Ruecklaufbefund, type Ruecklaufrang } from './ruecklauf';
-import { pruefe, type Feld } from './pruefung';
+import {
+  abgebrochen,
+  liesRuecklauf,
+  teilRuecklauf,
+  type Ruecklaufbefund,
+  type Ruecklaufrang,
+} from './ruecklauf';
+import { ankerFuer, pruefe, type Feld } from './pruefung';
 import { designdatei } from './emitter';
 import { SCHRITTE, schrittFuerFeld } from './schritte';
+import { entwurfSchluessel, traegtArbeit, zusammen } from './sitzung';
+import { STORAGE_KEY as SITZUNG } from '@/state/persistence';
 
 function texte(befunde: Ruecklaufbefund[], rang: Ruecklaufrang): string {
   return befunde
@@ -695,6 +705,201 @@ describe('die Bereiche der Maße', () => {
     const leer = leererEntwurf();
     const befunde = pruefe({ ...leer, stroke: { ...leer.stroke, heavy: Number.NaN } });
     expect(befunde.filter((befund) => /heavy/.test(befund.text))).toHaveLength(1);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('der Vorschlag', () => {
+  it('schreibt nicht in den Entwurf, den er gelesen hat', () => {
+    /*
+       Der Riegel, der die ganze Bauart trägt: `liesRuecklauf()` liefert einen
+       Entwurf, es *setzt* keinen. Wäre es anders, gäbe es keinen Vorschlag,
+       den man ansehen und ablehnen kann — nur eine Quittung. Eingefroren wie
+       in `deckStore.test.ts`: wer künftig an Ort und Stelle ändert, bekommt
+       einen TypeError statt eines stillen Fehlers.
+    */
+    const basis = Object.freeze({
+      ...BASIS(),
+      palette: Object.freeze({ ...BASIS().palette }),
+      textScale: Object.freeze({ ...BASIS().textScale }),
+      webfontFaces: Object.freeze([...BASIS().webfontFaces]),
+    }) as CiEntwurf;
+
+    const { entwurf } = liesRuecklauf('{"id": "neu", "palette": {"signal": "#E4003A"}}', basis);
+    expect(entwurf?.id).toBe('neu');
+    expect(basis.id).toBe('basis');
+    expect(basis.palette.signal).not.toBe('#E4003A');
+  });
+
+  it('zählt die Werte, die sich wirklich ändern', () => {
+    /*
+       Ein Knopf, der „16 Werte übernehmen" verspricht und nichts tut, ist
+       genau die Sorte Zahl, die dieses Projekt schon einmal teuer bezahlt hat
+       („Ein Knopf, der eine Zahl nennt und eine andere tut"). Gezählt wird
+       deshalb der Unterschied und nicht das Gelieferte.
+    */
+    const basis = BASIS();
+    const gleich = liesRuecklauf(JSON.stringify({ id: basis.id, label: basis.label }), basis);
+    expect(gleich.aenderungen).toEqual([]);
+
+    const anders = liesRuecklauf('{"id": "neu", "textScale": {"xl3": 61}}', basis);
+    expect(anders.aenderungen.map((eintrag) => eintrag.name).sort()).toEqual(['id', 'xl3']);
+    const id = anders.aenderungen.find((eintrag) => eintrag.name === 'id');
+    expect(id).toMatchObject({ feld: 'Marke', war: 'basis', wird: 'neu' });
+  });
+
+  it('nennt eine geänderte Schnittliste als eine Zeile und nicht als neun', () => {
+    const roh =
+      '{"webfontFaces": [{"family": "A", "weight": 400, "style": "normal", "file": "a.woff2"},' +
+      ' {"family": "A", "weight": 700, "style": "normal", "file": "b.woff2"}]}';
+    const { aenderungen } = liesRuecklauf(roh, BASIS());
+    const schnitte = aenderungen.filter((eintrag) => eintrag.name === 'Schnitte');
+    expect(schnitte).toHaveLength(1);
+    expect(schnitte[0]).toMatchObject({ war: '1 Schnitte', wird: '2 Schnitte' });
+  });
+
+  it('meldet keine Änderung, wenn die Liste dieselbe bleibt', () => {
+    // Die Gegenrichtung: die Kennungen zählen bei jedem Lesen hoch, also wären
+    // sie als Vergleichsgrundlage immer ungleich. Verglichen werden die Werte.
+    const basis = BASIS();
+    const roh = JSON.stringify({
+      webfontFaces: basis.webfontFaces.map(({ family, weight, style, file }) => ({
+        family,
+        weight,
+        style,
+        file,
+      })),
+    });
+    expect(liesRuecklauf(roh, basis).aenderungen).toEqual([]);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('eine abgebrochene Antwort', () => {
+  /** Wie eine Antwort aussieht, der das Modell die Luft ausgegangen ist. */
+  const ABGESCHNITTEN =
+    '{\n  "id": "probenhaus",\n  "label": "Probenhaus",\n' +
+    '  "palette": { "signal": "#E4003A", "ink": "#101010" },\n  "paper": "#FAF';
+
+  it('wird als Abbruch erkannt und nicht als Tippfehler', () => {
+    /*
+       Der häufigste Grund für eine unlesbare Antwort ist die Längengrenze des
+       Modells, und von einer verunglückten Klammer ist das an der rohen
+       Parser-Meldung nicht zu unterscheiden. Die Sackgasse ist dieselbe — nur
+       dass hier drei Felder schon dastehen und niemand sie bekommt.
+    */
+    const { entwurf, abbruch, befunde } = liesRuecklauf(ABGESCHNITTEN, BASIS());
+    expect(entwurf).toBeNull();
+    expect(abbruch).not.toBeNull();
+    expect(abbruch?.letzterSchluessel).toBe('paper');
+    expect(Object.keys(abbruch?.objekt ?? {})).toEqual(['id', 'label', 'palette']);
+    expect(texte(befunde, 'fehler')).toMatch(/mitten im Satz/);
+    // Und die rohe Meldung bleibt trotzdem stehen — wer einen Fehler meldet,
+    // braucht sie.
+    expect(texte(befunde, 'uebergangen')).toMatch(/Meldung des Lesers/);
+  });
+
+  it('gibt den vollständigen Anfang her — aber erst auf Verlangen', () => {
+    const { abbruch } = liesRuecklauf(ABGESCHNITTEN, BASIS());
+    expect(abbruch).not.toBeNull();
+
+    const teil = teilRuecklauf(abbruch as NonNullable<typeof abbruch>, BASIS());
+    expect(teil.entwurf?.id).toBe('probenhaus');
+    expect(teil.entwurf?.palette.signal).toBe('#E4003A');
+    // Und was nach dem Abbruch stand, ist draußen — samt einer Meldung dazu.
+    expect(teil.entwurf?.palette.paper).toBe(BASIS().palette.paper);
+    expect(texte(teil.befunde, 'fehlt')).toMatch(/paper/);
+  });
+
+  it('hält eine vollständige Antwort nicht für abgebrochen', () => {
+    // Die Gegenrichtung. Ohne sie böte der Bericht bei jeder gelungenen
+    // Antwort einen Teilimport an, den niemand braucht.
+    expect(liesRuecklauf('{"id": "probenhaus"}', BASIS()).abbruch).toBeNull();
+    expect(abgebrochen('{"id": "probenhaus"}')).toBeNull();
+    // Auch nicht bei einer Klammer in einem Wert.
+    expect(abgebrochen('{"label": "Probe } Haus"}')).toBeNull();
+  });
+
+  it('gibt auf, wenn noch kein einziges Feld fertig war', () => {
+    // Ein Teilimport von null Feldern wäre ein Knopf, der nichts tut.
+    expect(abgebrochen('{"id": "probenh')).toBeNull();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('die Sitzung des Generators', () => {
+  it('benutzt einen anderen Schlüssel als die Sitzung des Decks', () => {
+    /*
+       Der eine Riegel, ohne den diese ganze Ablage nicht sein dürfte. Der
+       Grund, aus dem der Generator keinen Store hat, ist die Sitzung des
+       Decks; berührte er sie, schriebe er mitten in einem Vortrag über die
+       Arbeit im ersten Fenster.
+    */
+    expect(entwurfSchluessel).not.toBe(SITZUNG);
+  });
+
+  it('legt fehlende Rollen aus der Vorbelegung nach', () => {
+    // Eine Datei aus einer älteren Fassung kennt eine neue Palettenrolle
+    // nicht. `Palette` ist ein `Record` über dieselben Schlüssel — der
+    // Compiler merkte die Lücke nicht, und die Prüfliste erst zwei Schritte
+    // später.
+    const gelesen = zusammen({ id: 'alt', palette: { signal: '#E4003A' } as never });
+    expect(gelesen.id).toBe('alt');
+    expect(gelesen.palette.signal).toBe('#E4003A');
+    expect(gelesen.palette.ink).toBe(leererEntwurf().palette.ink);
+    expect(Object.keys(gelesen.palette).sort()).toEqual([...paletteRollen].sort());
+  });
+
+  it('vergibt die Kennungen der Schnitte neu', () => {
+    const gelesen = zusammen({
+      webfontFaces: [
+        { family: 'A', weight: 400, style: 'normal', file: 'a.woff2', kennung: 'x' },
+        { family: 'A', weight: 700, style: 'normal', file: 'b.woff2', kennung: 'x' },
+      ],
+    });
+    const kennungen = gelesen.webfontFaces.map((face) => face.kennung);
+    expect(new Set(kennungen).size).toBe(2);
+    expect(kennungen).not.toContain('x');
+  });
+
+  it('fragt nur, wenn wirklich Arbeit dasteht', () => {
+    // Eine Frage, die man nur wegklicken kann, ist eine, die beim dritten Mal
+    // niemand mehr liest.
+    expect(traegtArbeit(leererEntwurf())).toBe(false);
+    expect(traegtArbeit({ ...leererEntwurf(), id: 'probenhaus' })).toBe(true);
+    expect(traegtArbeit({ ...leererEntwurf(), label: 'Probenhaus' })).toBe(true);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('die Anker der Prüfliste', () => {
+  it('zeigen auf ein Feld, das es gibt', () => {
+    /*
+       Ein Anker, den kein Feld trägt, führt „Zum Feld" ins Leere — und das
+       sieht aus wie ein Knopf, der nichts tut. Geprüft wird deshalb an der
+       *Quelle* des Formulars, dass zu jedem vergebenen Anker auch ein Feld
+       gehört, das ihn setzt: dieselbe Bauart wie `theme.test.ts`.
+    */
+    const quelle = readFileSync(join(process.cwd(), 'src', 'ci', 'schritte.tsx'), 'utf8');
+    const kaputt: CiEntwurf = {
+      ...leererEntwurf(),
+      palette: { ...leererEntwurf().palette, signalSoft: 'knallrot' },
+      stroke: { ...leererEntwurf().stroke, heavy: Number.NaN },
+    };
+    const anker = pruefe(kaputt)
+      .map((befund) => befund.anker)
+      .filter((wert): wert is string => Boolean(wert));
+
+    expect(anker.length).toBeGreaterThan(1);
+    expect(anker).toContain(ankerFuer('Farbe', 'signalSoft'));
+    expect(anker).toContain(ankerFuer('Maße', 'heavy'));
+    // Und die Formularseite setzt sie wirklich — nicht nur die Prüfung.
+    expect(quelle).toContain("ankerFuer('Farbe', rolle)");
+    expect(quelle).toContain("ankerFuer('Maße', rolle)");
   });
 });
 

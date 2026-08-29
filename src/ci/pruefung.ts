@@ -54,6 +54,21 @@ export interface Befund {
   /** Der Abschnitt des Formulars, zu dem der Befund gehört. */
   feld: Feld;
   text: string;
+  /**
+   * Die Kennung des Feldes, das gemeint ist — wenn es eines gibt.
+   *
+   * Ohne sie führt „Zu Schritt 3" in den Schritt und dort vor sechzehn
+   * Farbfelder, und die Rolle, um die es geht, sucht man von Hand. Mit ihr
+   * bekommt genau dieses Feld den Fokus. Sie ist die einzige Rückzahlung für
+   * das, was ein Wizard gegenüber einer langen Seite verliert: dort fand man
+   * eine Rolle mit ⌘F.
+   */
+  anker?: string;
+}
+
+/** Die Kennung eines Formularfelds — an einer Stelle gerechnet. */
+export function ankerFuer(feld: Feld, rolle: string): string {
+  return `nz-ci-${feld.toLowerCase().replace(/ß/g, 'ss')}-${rolle}`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -231,6 +246,7 @@ function pruefeFarbe(entwurf: CiEntwurf): Befund[] {
       befunde.push({
         rang: 'fehler',
         feld,
+        anker: ankerFuer(feld, rolle),
         text: `„${rolle}" ist kein #RRGGBB: „${wert}". Kurzschreibweise, rgb() und Farbnamen lassen withAlpha() schon beim Anlegen werfen — und tonesOutsidePalette() vergleicht Zeichenketten, ${'#ffffff'} und ${'#FFFFFF'} sind für sie zwei Farben.`,
       });
     }
@@ -408,6 +424,7 @@ function pruefeMasse(entwurf: CiEntwurf): Befund[] {
     befunde.push({
       rang: 'fehler',
       feld: 'Maße',
+      anker: ankerFuer('Maße', name),
       text: `„${name}" trägt keine Zahl. Ein leeres Zahlenfeld schreibt NaN in die Designdatei, und die übersetzt damit anstandslos.`,
     });
     return false;
@@ -416,7 +433,12 @@ function pruefeMasse(entwurf: CiEntwurf): Befund[] {
   const groesse = (wert: number, name: string) => {
     if (!endlich(wert, name)) return false;
     if (wert <= 0) {
-      befunde.push({ rang: 'fehler', feld: 'Maße', text: `„${name}" ist keine Größe: ${wert}.` });
+      befunde.push({
+        rang: 'fehler',
+        feld: 'Maße',
+        anker: ankerFuer('Maße', name),
+        text: `„${name}" ist keine Größe: ${wert}.`,
+      });
       return false;
     }
     return true;
@@ -438,6 +460,7 @@ function pruefeMasse(entwurf: CiEntwurf): Befund[] {
     befunde.push({
       rang: 'warnung',
       feld: 'Maße',
+      anker: ankerFuer('Maße', name),
       text: `„${name}" trägt ${wert}. ${warum} Die Datei entsteht trotzdem — zu sehen ist es erst auf der Folie.`,
     });
   };

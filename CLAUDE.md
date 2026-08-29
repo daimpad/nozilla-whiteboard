@@ -131,6 +131,7 @@ src/
               schritte.tsx    Die acht Schritte und ihre Felder
               prompt.ts       Das Lastenheft für ein Sprachmodell
               ruecklauf.ts    Dessen Antwort zurücklesen — und jede Korrektur nennen
+              sitzung.ts      Der Entwurf über ein ⌘R hinweg (eigener Schlüssel)
               farbwert.ts     rgb(), Kurzform, fehlende Raute → #RRGGBB
               pruefung.ts     Jede Regel, die eine Designdatei bestehen muss
               emitter.ts      Entwurf → src/themes/<id>.ts
@@ -221,7 +222,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Vierzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Vierundvierzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
   `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
   Fassung passt nicht zur Bibliothek, deshalb
@@ -993,6 +994,84 @@ Nicht angefasst wird außerdem der **Schlüssel** `musterkunde`: er steht im
 Frontmatter jedes Beispiel-Decks und in vier Dateinamen. Die *Beschriftung* in
 der Auswahlliste heißt jetzt „Muster" — dieselbe Linie wie beim Untergrund
 `paper`, der das Weiß malt: Wert und Beschriftung dürfen auseinandergehen.
+
+**Eine Quittung ist kein Vorschlag.** Der Rücklauf des Sprachmodells wurde
+gelesen *und übernommen*, in einem Handgriff, unter einem Knopf namens
+„Übernehmen und prüfen" — geprüft wurde also nach dem Übernehmen. Zurück ging
+es nur über „Zurücksetzen", und das warf die Handarbeit gleich mit weg. Das ist
+„Sechs Wege ersetzten das Deck, einer fragte" noch einmal, mit einem Weg, der
+vierzig Felder auf einmal ersetzt.
+
+Gelesen und übernommen sind jetzt zwei Handgriffe, und dazwischen steht, was
+sich ändern *würde*: war → wird, je Feld. `liesRuecklauf()` schreibt nirgends
+hin — `ruecklauf.test.ts` friert den Entwurf dafür ein, wie `deckStore.test.ts`
+es tut. Dazu ein einstufiges Rückgängig.
+
+Zwei Dinge hängen daran. Gezählt wird der **Unterschied** und nicht das
+Gelieferte: ein Modell, das die Palette wortgleich zurückgibt, liefert sechzehn
+Rollen und ändert keine, und ein Knopf, der „16 Werte übernehmen" verspricht
+und nichts tut, ist die Sorte Zahl aus „Ein Knopf, der eine Zahl nennt und eine
+andere tut". Und ein Vorschlag **verfällt**: wer liest, dann in Schritt 3 eine
+Farbe von Hand setzt und danach übernimmt, bekäme sonst eine Rechnung gegen
+einen Stand, den es nicht mehr gibt.
+
+**Der häufigste Grund für eine unlesbare Antwort ist kein Tippfehler.** Es ist
+die Längengrenze des Modells: die Antwort hört mitten in `"paper": "#FAF` auf.
+An der rohen Parser-Meldung ist das von einer verunglückten Klammer nicht zu
+unterscheiden — und die Sackgasse war dieselbe, nur dass hier zwölf von
+sechzehn Rollen schon dastanden und niemand sie bekam.
+
+`abgebrochen()` schneidet deshalb rückwärts bis zur letzten Stelle, an der ein
+Wert *fertig* war, und schließt die offenen Klammern. Genannt werden die
+Stelle, das zuletzt vollständige Feld und der Satz, der die Sackgasse öffnet
+(„bitte das Modell, ab ‚paper' fortzusetzen"). Der Teilimport wird **angeboten
+und nie genommen**, und er läuft über `JSON.stringify` zurück in denselben
+Leser: ein zweiter Weg in den Entwurf wäre die Abkürzung, die hier schon
+zweimal auseinandergelaufen ist.
+
+**Acht Knöpfe in einer Leiste sind acht Tabstopps.** Wer ohne Maus arbeitet,
+lief auf *jedem* Schritt durch alle acht, bevor er im ersten Feld stand. Die
+Leiste ist jetzt eine `tablist` mit einem rollenden Tabstopp und ←/→/Home/End —
+keine erfundene Belegung, sondern die, die eine Reihe Reiter über einem Bereich
+ohnehin mitbringt. Nach **Tab** wird ausdrücklich nicht gegriffen: wer die
+Taste abfängt, mit der man weiterkommt, sperrt den Benutzer dort ein, wo er
+gerade steht.
+
+Und daran hing sofort ein Fehler, den erst der Rauchtest zeigte: `gehe()` setzt
+den Fokus nach einem Schrittwechsel auf die Überschrift des Bereichs — richtig,
+wenn der Sprung aus der Prüfliste kommt, und falsch, wenn er von der Pfeiltaste
+kommt. Der Fokus verließ damit die Leiste, der zweite Pfeil ging ins Leere, und
+sie war mit der Tastatur genau *einen* Schritt weit bedienbar. Die Leiste gibt
+`gehe()` deshalb die Kennung des Zielreiters mit — ein Weg, keine
+Reihenfolge-Akrobatik mit zwei `requestAnimationFrame`.
+
+Dazu trägt ein Befund jetzt einen **Anker**: „Zu Schritt 3" führte in den
+Schritt und dort vor sechzehn Farbfelder, und die Rolle, um die es ging, suchte
+man von Hand. Das ist die einzige Rückzahlung für das, was ein Wizard gegenüber
+einer langen Seite verliert — dort fand man eine Rolle mit ⌘F.
+
+**Der Entwurf lebte nur bis zum nächsten ⌘R.** Fünfzig Felder samt der
+ausgesuchten Wortmarken-Datei, und die Datei musste man erneut suchen. Der
+Grund, aus dem diese Seite keinen Store hat, gilt der **Sitzung des Decks** —
+ein eigener Schlüssel im `sessionStorage` berührt die an keiner Stelle, und
+`ruecklauf.test.ts` hält die beiden Zeichenketten auseinander. `sessionStorage`
+und nicht `localStorage`, weil ein Entwurf zu einem Anlass gehört und nicht zum
+Rechner: ein geschlossener Tab beendet ihn, ein ⌘R nicht.
+
+Zwei Fallen dabei. Die Frage „fortsetzen?" steht im *Initialisierer* von
+`useState` und nicht in einem Effekt — sonst stünde einen Bildrahmen lang der
+leere Entwurf da, die Vorschau rechnete ihn, und der Dialog käme über ein Bild,
+das gleich wieder verschwindet. Und beim Neuladen kommen **zwei** Dialoge, in
+dieser Reihenfolge: erst der `beforeunload` des Browsers, dann die eigene
+Frage. Ein `once('dialog')` im Rauchtest fängt deshalb den falschen, der zweite
+wird automatisch weggeklickt, und die Prüfung meldet einen Fehler, den es nicht
+gibt.
+
+**Zwei Dateifelder auf einer Seite, ein Selektor.** Mit „Entwurf laden" bekam
+der Generator ein zweites `input[type="file"]` — und drei Stellen im Rauchtest
+luden die Wortmarke über genau diesen Selektor. Getroffen wurde das erste, also
+das falsche; die Wortmarke kam nie an, und die Meldung lautete „die Designdatei
+steht nicht auf der Seite". Gesucht wird jetzt über `accept`.
 
 ---
 

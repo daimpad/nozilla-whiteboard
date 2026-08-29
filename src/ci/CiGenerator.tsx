@@ -24,16 +24,23 @@
  * Wizard und einem Fragebogen: die Antwort auf „was tut das, was ich gerade
  * eintippe" steht neben dem Feld und nicht hinter einem Knopf am Ende.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import { type BrandTheme } from '@/theme';
 import { saveText } from '@/lib/export/download';
 import { Button, IconButton, cx } from '@/components/ui/controls';
 import { Icon } from '@/components/ui/Icon';
 import { leererEntwurf, vorschaustand, vorschauTheme, type CiEntwurf } from './entwurf';
+import { liesEntwurf, sichereEntwurf, traegtArbeit, vergissEntwurf, zusammen } from './sitzung';
 import { pruefe, traegtFehler, type Befund, type Rang } from './pruefung';
 import { anleitung, designdatei, wortmarkeDateiname } from './emitter';
-import { AnfangSchritt } from './Anfang';
-import type { Ruecklaufbefund } from './ruecklauf';
+import { AnfangSchritt, type Vorschlag } from './Anfang';
 import {
   FarbeSchritt,
   MarkeSchritt,
@@ -46,23 +53,53 @@ import {
 } from './schritte';
 import { PROBEFOLIEN, Vorschau } from './Vorschau';
 
+/**
+ * Beim Öffnen: fortsetzen oder frisch anfangen?
+ *
+ * Gefragt wird nur, wenn wirklich Arbeit dasteht — dieselbe Linie wie
+ * `darfErsetzen()` im Werkzeug. Eine Frage, die man nur wegklicken kann, ist
+ * eine, die beim dritten Mal niemand mehr liest.
+ *
+ * Als Initialisierer von `useState` und nicht in einem Effekt: sonst stünde
+ * einen Bildrahmen lang der leere Entwurf da, die Vorschau rechnete ihn, und
+ * der Fragedialog käme über ein Bild, das gleich wieder verschwindet.
+ */
+function ersterEntwurf(): CiEntwurf {
+  const gemerkt = liesEntwurf();
+  if (!gemerkt || !traegtArbeit(gemerkt)) return leererEntwurf();
+  const name = gemerkt.label.trim() || gemerkt.id.trim() || 'ohne Namen';
+  if (window.confirm(`Den Entwurf „${name}" von vorhin fortsetzen?`)) return gemerkt;
+  vergissEntwurf();
+  return leererEntwurf();
+}
+
 export function CiGenerator() {
-  const [entwurf, setEntwurf] = useState<CiEntwurf>(leererEntwurf);
+  const [entwurf, setEntwurf] = useState<CiEntwurf>(ersterEntwurf);
   const [schritt, setSchritt] = useState(0);
   const [blatt, setBlatt] = useState(0);
   const [hinweis, setHinweis] = useState<string | null>(null);
   const [beruehrt, setBeruehrt] = useState(false);
   const spalte = useRef<HTMLDivElement>(null);
+  const ueberschrift = useRef<HTMLHeadingElement>(null);
 
   /*
-     Die Antwort des Modells und der Bericht darüber wohnen hier und nicht im
+     Die Antwort des Modells und der Vorschlag daraus wohnen hier und nicht im
      Schritt. Gezeichnet wird immer nur der offene Schritt; React hängt den
      ersten beim „Weiter" aus dem Baum, und lokaler Zustand ginge dabei mit.
      Genau der Handgriff, den der Bericht empfiehlt — „sieh in Schritt 3 nach" —
      hätte damit die Liste vernichtet, die ihn empfiehlt.
   */
   const [antwort, setAntwort] = useState('');
-  const [bericht, setBericht] = useState<Ruecklaufbefund[] | null>(null);
+  const [vorschlag, setVorschlag] = useState<Vorschlag | null>(null);
+
+  /*
+     Ein Schritt zurück, und nur einer. Ein Rücklauf ersetzt vierzig Werte auf
+     einmal; dass er sich zurücknehmen lässt, ist der Unterschied zwischen
+     „ausprobieren" und „entscheiden". Mehr als eine Stufe wäre ein Verlauf,
+     und ein Verlauf ohne sichtbare Liste ist ein Versprechen, das niemand
+     einlösen kann.
+  */
+  const vorherigerEntwurf = useRef<CiEntwurf | null>(null);
 
   const aendere = (teil: Partial<CiEntwurf>) => {
     setBeruehrt(true);
@@ -71,7 +108,16 @@ export function CiGenerator() {
 
   const ersetze = (neu: CiEntwurf) => {
     setBeruehrt(true);
+    vorherigerEntwurf.current = entwurf;
     setEntwurf(neu);
+  };
+
+  const nimmZurueck = () => {
+    const vorher = vorherigerEntwurf.current;
+    if (!vorher) return;
+    vorherigerEntwurf.current = null;
+    setEntwurf(vorher);
+    setVorschlag(null);
   };
 
   /*
@@ -91,6 +137,26 @@ export function CiGenerator() {
     window.addEventListener('beforeunload', frage);
     return () => window.removeEventListener('beforeunload', frage);
   }, [beruehrt]);
+
+  /*
+     Und mitgeschrieben wird trotzdem. Die Frage oben ist der Riegel gegen
+     einen versehentlich geschlossenen Tab; sie hilft nicht gegen ein ⌘R, einen
+     zugeklappten Laptop oder einen Browser, der den Tab wegräumt. Danach waren
+     rund fünfzig Felder samt der ausgesuchten Wortmarken-Datei weg, und die
+     Datei musste man erneut suchen.
+
+     Verzögert, weil hier jeder Anschlag ankommt: `JSON.stringify` über einen
+     Entwurf mit eingebetteter Wortmarke ist nichts, was zwischen zwei
+     Tastendrücken laufen soll.
+  */
+  useEffect(() => {
+    if (!beruehrt) return;
+    const merker = window.setTimeout(() => {
+      const klage = sichereEntwurf(entwurf);
+      if (klage) setHinweis(klage);
+    }, 500);
+    return () => window.clearTimeout(merker);
+  }, [entwurf, beruehrt]);
 
   /**
    * Zurück ins Werkzeug — durch Schließen und nicht durch Navigieren.
@@ -114,12 +180,54 @@ export function CiGenerator() {
     }, 150);
   }, []);
 
-  const gehe = useCallback((ziel: number) => {
+  /**
+   * In einen Schritt gehen — und den Fokus dorthin, wo er hingehört.
+   *
+   * Mit `anker` auf genau das Feld, um das es geht: „Zu Schritt 3" führte
+   * sonst in den Schritt und dort vor sechzehn Farbfelder, und die Rolle, um
+   * die es ging, suchte man von Hand.
+   *
+   * Ohne Anker auf die **Überschrift** und nicht ins erste Feld. Wer vorlesen
+   * lässt, hört dann „Schritt 3 von 8, Farbe" und weiß, wo er ist; ein Fokus
+   * im ersten Feld sagt nur „signal, Eingabe".
+   *
+   * Beides nach dem Zeichnen, deshalb `requestAnimationFrame`: das Feld, das
+   * den Fokus bekommen soll, steht bis dahin nicht im Baum.
+   */
+  const gehe = useCallback((ziel: number, anker?: string) => {
     setSchritt(Math.max(0, Math.min(SCHRITTE.length - 1, ziel)));
     // Ein Schrittwechsel setzt die linke Spalte oben an. Ohne das steht ein
     // kurzer Schritt hinter einem langen mitten im Nichts.
     spalte.current?.scrollTo({ top: 0 });
+    requestAnimationFrame(() => {
+      const feld = anker ? document.getElementById(anker) : null;
+      if (feld) {
+        feld.focus();
+        feld.scrollIntoView({ block: 'center' });
+        return;
+      }
+      ueberschrift.current?.focus();
+    });
   }, []);
+
+  /*
+     Ein Kürzel, und nur eines: ⌘/Strg+Enter heißt „fertig mit dieser Seite".
+     Ein zweites wäre schon eine Belegung, die man sich merken muss, und diese
+     Seite hat acht Schritte und keinen Vortrag.
+
+     Enter allein schaltet ausdrücklich **nicht** weiter — der Schritt ist kein
+     `<form>`, und wer in einem Zahlenfeld die Eingabetaste drückt, meint sie
+     nicht als Navigation.
+  */
+  useEffect(() => {
+    const taste = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' || !(event.metaKey || event.ctrlKey)) return;
+      event.preventDefault();
+      gehe(schritt + 1);
+    };
+    window.addEventListener('keydown', taste);
+    return () => window.removeEventListener('keydown', taste);
+  }, [gehe, schritt]);
 
   const befunde = useMemo(() => pruefe(entwurf), [entwurf]);
   const fehlerhaft = traegtFehler(befunde);
@@ -183,6 +291,33 @@ export function CiGenerator() {
     }
   };
 
+  /**
+   * Einen gesicherten Entwurf zurücklesen.
+   *
+   * Über `zusammen()`, also über denselben Weg wie die Ablage im Browser: eine
+   * Datei aus einer älteren Fassung dieses Werkzeugs bekommt die fehlenden
+   * Rollen aus der Vorbelegung, statt mit einer Lücke anzukommen. Und der
+   * Merker für „Rückgängig" wird gesetzt — eine Datei ersetzt fünfzig Felder
+   * auf einmal, genau wie ein Rücklauf.
+   */
+  const ladeEntwurf = async (eingabe: HTMLInputElement) => {
+    const datei = eingabe.files?.[0];
+    // Sofort leeren, damit dieselbe Datei ein zweites Mal gewählt werden kann.
+    eingabe.value = '';
+    if (!datei) return;
+    try {
+      const gelesen = JSON.parse(await datei.text()) as Partial<CiEntwurf>;
+      if (!gelesen || typeof gelesen !== 'object' || Array.isArray(gelesen)) {
+        throw new Error('kein Entwurf');
+      }
+      ersetze(zusammen(gelesen));
+      setHinweis(null);
+      gehe(1);
+    } catch (fehler) {
+      setHinweis(`„${datei.name}" ist kein gesicherter Entwurf: ${String(fehler)}`);
+    }
+  };
+
   const dieser = SCHRITTE[schritt];
 
   return (
@@ -197,17 +332,48 @@ export function CiGenerator() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          {/*
+            Sichern und Laden als Datei — der Weg, den die Ablage im Browser
+            nicht abdeckt: an einem anderen Rechner weiterarbeiten, einen Stand
+            an jemanden geben, einen halb fertigen Entwurf beiseitelegen. Das
+            Format ist der Entwurf selbst; wer hineinsieht, findet die Felder
+            wieder, die im Formular stehen.
+          */}
+          <Button
+            variant="ghost"
+            disabled={!beruehrt}
+            onClick={() =>
+              void sichere(
+                JSON.stringify(entwurf, null, 2),
+                `${entwurf.id || 'entwurf'}.nzci.json`,
+                'application/json',
+              )
+            }
+          >
+            Entwurf sichern
+          </Button>
+          <label className="cursor-pointer rounded-sm px-3 py-1.5 text-ui-body font-medium text-ui-muted hover:bg-ui-sunken hover:text-ui-ink">
+            Entwurf laden
+            <input
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={(event) => void ladeEntwurf(event.currentTarget)}
+            />
+          </label>
           <Button
             variant="ghost"
             disabled={!beruehrt}
             onClick={() => {
               if (!window.confirm('Den Entwurf verwerfen und von vorn anfangen?')) return;
+              vergissEntwurf();
               setEntwurf(leererEntwurf());
               setBeruehrt(false);
               setHinweis(null);
               setBlatt(0);
               setAntwort('');
-              setBericht(null);
+              setVorschlag(null);
+              vorherigerEntwurf.current = null;
               gehe(0);
             }}
           >
@@ -238,7 +404,21 @@ export function CiGenerator() {
       <div className="flex min-h-0 flex-1">
         {/* Der Schritt */}
         <div className="flex w-[440px] shrink-0 flex-col border-r border-ui bg-ui-surface">
-          <div ref={spalte} className="min-h-0 flex-1 overflow-y-auto">
+          <div
+            ref={spalte}
+            id="nz-ci-schritt"
+            role="tabpanel"
+            aria-labelledby={`nz-ci-reiter-${dieser.id}`}
+            className="min-h-0 flex-1 overflow-y-auto"
+          >
+            {/*
+              Die Überschrift nimmt den Fokus nach einem Schrittwechsel. Sie ist
+              nur über `focus()` erreichbar (`tabIndex={-1}`) und steht damit
+              nicht in der Tab-Reihenfolge — sie ist ein Ziel, kein Halt.
+            */}
+            <h2 ref={ueberschrift} tabIndex={-1} className="sr-only">
+              Schritt {schritt + 1} von {SCHRITTE.length}: {dieser.titel}
+            </h2>
             {dieser.id === 'anfang' ? (
               <AnfangSchritt
                 entwurf={entwurf}
@@ -246,8 +426,9 @@ export function CiGenerator() {
                 weiter={() => gehe(1)}
                 antwort={antwort}
                 setAntwort={setAntwort}
-                bericht={bericht}
-                setBericht={setBericht}
+                vorschlag={vorschlag}
+                setVorschlag={setVorschlag}
+                rueckgaengig={vorherigerEntwurf.current ? nimmZurueck : null}
               />
             ) : null}
             {dieser.id === 'marke' ? <MarkeSchritt entwurf={entwurf} aendere={aendere} /> : null}
@@ -391,7 +572,7 @@ function Schrittbalken({
 }: {
   jetzt: number;
   befunde: Befund[];
-  auf: (ziel: number) => void;
+  auf: (ziel: number, anker?: string) => void;
 }) {
   const zaehler = SCHRITTE.map(() => ({ fehler: 0, warnung: 0 }));
   for (const befund of befunde) {
@@ -401,9 +582,48 @@ function Schrittbalken({
     if (befund.rang === 'warnung') zaehler[index].warnung += 1;
   }
 
+  /*
+     Ein Tabstopp für die ganze Leiste, und innen ←/→ und Home/End.
+
+     Vorher waren es acht Knöpfe in einer `<nav>`: wer ohne Maus arbeitet, lief
+     auf *jedem* Schritt durch acht davon, bevor er im ersten Feld stand.
+     Gewählt ist die Rolle `tablist`, weil sie genau das beschreibt, was hier
+     steht — eine Reihe Reiter über einem Bereich, von dem einer sichtbar ist —
+     und weil sie diese Tastenbelegung mitbringt, statt sie zu erfinden.
+
+     Nach **Tab** wird ausdrücklich nicht gegriffen. Das steht so in CLAUDE.md:
+     wer die Taste abfängt, mit der man weiterkommt, sperrt den Benutzer in dem
+     Bereich ein, den er gerade erreicht hat.
+  */
+  const taste = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const ziel =
+      event.key === 'ArrowRight'
+        ? jetzt + 1
+        : event.key === 'ArrowLeft'
+          ? jetzt - 1
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? SCHRITTE.length - 1
+              : null;
+    if (ziel === null) return;
+    event.preventDefault();
+    const index = Math.max(0, Math.min(SCHRITTE.length - 1, ziel));
+    /*
+       Der Fokus wandert **mit** — auf den neuen Reiter und nicht auf die
+       Überschrift des Bereichs, wie es `gehe()` sonst tut. Sonst wäre nach dem
+       ersten Pfeildruck Schluss: der Fokus säße in der Überschrift, der zweite
+       Pfeil ginge ins Leere, und die Leiste wäre mit der Tastatur genau einen
+       Schritt weit bedienbar. Genau daran ist die erste Fassung gescheitert.
+    */
+    auf(index, `nz-ci-reiter-${SCHRITTE[index].id}`);
+  };
+
   return (
-    <nav
+    <div
+      role="tablist"
       aria-label="Schritte"
+      onKeyDown={taste}
       className="flex shrink-0 items-stretch gap-1 overflow-x-auto border-b border-ui bg-ui-surface px-4 py-2"
     >
       {SCHRITTE.map((schritt, index) => {
@@ -427,8 +647,14 @@ function Schrittbalken({
           <button
             key={schritt.id}
             type="button"
+            role="tab"
+            id={`nz-ci-reiter-${schritt.id}`}
             aria-label={ansage}
-            aria-current={aktiv ? 'step' : undefined}
+            aria-selected={aktiv}
+            aria-controls="nz-ci-schritt"
+            // Der rollende Tabstopp: nur der offene Reiter ist über Tab
+            // erreichbar, alle anderen über die Pfeiltasten.
+            tabIndex={aktiv ? 0 : -1}
             onClick={() => auf(index)}
             className={cx(
               'flex items-center gap-1.5 whitespace-nowrap rounded-sm border px-2.5 py-1 text-[11px] transition-colors',
@@ -458,7 +684,7 @@ function Schrittbalken({
           </button>
         );
       })}
-    </nav>
+    </div>
   );
 }
 
@@ -493,7 +719,7 @@ function Pruefliste({
 }: {
   befunde: Befund[];
   jetzt: number;
-  auf: (ziel: number) => void;
+  auf: (ziel: number, anker?: string) => void;
 }) {
   const raenge: Rang[] = ['fehler', 'warnung', 'hinweis'];
   const sortiert = raenge.flatMap((rang) => {
@@ -522,13 +748,13 @@ function Pruefliste({
                 {RANGTEXT[rang].titel} · {befund.feld}
               </span>{' '}
               {befund.text}{' '}
-              {anderswo ? (
+              {ziel >= 0 && (anderswo || befund.anker) ? (
                 <button
                   type="button"
-                  onClick={() => auf(ziel)}
+                  onClick={() => auf(ziel, befund.anker)}
                   className="underline underline-offset-2 hover:no-underline"
                 >
-                  Zu Schritt {ziel + 1}
+                  {anderswo ? `Zu Schritt ${ziel + 1}` : 'Zum Feld'}
                 </button>
               ) : null}
             </p>
