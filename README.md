@@ -666,7 +666,7 @@ CI-Konformität aller 554 Icons.
 
 Das prüft alles, was das Werkzeug **herstellt**. Ob man es **bedienen** kann,
 prüft `npm run test:ui`: Playwright klickt gegen `vite preview`, also gegen
-das gebaute Verzeichnis. Vierundvierzig Handgriffe, jeder für einen Fehler,
+das gebaute Verzeichnis. Fünfundvierzig Handgriffe, jeder für einen Fehler,
 der einmal durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
 ihrem Kasten, eine Vorschau schwarz auf dunkelgrau. Beides läuft bei jedem
 Pull Request.

@@ -1986,6 +1986,80 @@ async function main() {
     await generator.close();
   });
 
+  await pruefe('die Prüfliste scrollt die Folie nicht aus dem Bild', async () => {
+    /*
+       Vorher war die rechte Spalte ein einziger Scroller: wer die Liste las,
+       schob die Folie hinaus. Und das traf genau dann, wenn es zählt — nach
+       einem mittelmäßigen Rücklauf stehen zwanzig Befunde da, und die Frage
+       lautet „was macht dieser Befund mit der Folie".
+
+       Geprüft an der Geometrie und in zwei Fenstergrößen: die Folie muss auch
+       nach dem Scrollen der Liste im Bild stehen, und die Überschrift
+       „Prüfliste" muss von Anfang an zu sehen sein.
+    */
+    for (const groesse of [
+      { width: 1500, height: 940 },
+      { width: 1280, height: 720 },
+    ]) {
+      const generator = await kontext.newPage();
+      await generator.setViewportSize(groesse);
+      await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+      await generator.waitForTimeout(2200);
+
+      const sichtbar = await generator.evaluate(() => {
+        const kopf = [...document.querySelectorAll('h2')].find(
+          (element) => element.textContent === 'Prüfliste',
+        );
+        const kasten = kopf?.getBoundingClientRect();
+        return kasten ? kasten.top + kasten.height <= window.innerHeight : false;
+      });
+      wahr(sichtbar, `die Prüfliste steht bei ${groesse.width}×${groesse.height} unter dem Falz`);
+
+      /*
+         Und jetzt die Liste scrollen — die Folie muss stehen bleiben.
+
+         Gescrollt wird der **nächste scrollbare Vorfahr** der Überschrift und
+         nicht ein geratener Knoten. Genau daran ist die erste Fassung
+         gescheitert: sie nahm `parentElement.parentElement`, und über dem
+         kaputten Stand war das eine Ebene daneben — die Gegenprobe blieb grün.
+
+         Dass wirklich gescrollt wurde, gehört mitgeprüft. Eine Prüfung, bei
+         der sich nichts bewegt, sagt über das Stehenbleiben nichts.
+      */
+      const vorher = await generator.evaluate(
+        () => document.querySelector('svg[role="img"]')?.getBoundingClientRect().top ?? 0,
+      );
+      const gescrollt = await generator.evaluate(() => {
+        const kopf = [...document.querySelectorAll('h2')].find(
+          (element) => element.textContent === 'Prüfliste',
+        );
+        let knoten = kopf?.parentElement ?? null;
+        while (knoten) {
+          const stil = getComputedStyle(knoten).overflowY;
+          if ((stil === 'auto' || stil === 'scroll') && knoten.scrollHeight > knoten.clientHeight) {
+            knoten.scrollTop = knoten.scrollHeight;
+            return knoten.scrollTop;
+          }
+          knoten = knoten.parentElement;
+        }
+        return 0;
+      });
+      wahr(gescrollt > 0, `bei ${groesse.width}×${groesse.height} war nichts zu scrollen`);
+
+      await generator.waitForTimeout(300);
+      const nachher = await generator.evaluate(
+        () => document.querySelector('svg[role="img"]')?.getBoundingClientRect().top ?? 0,
+      );
+      gleich(
+        Math.round(nachher),
+        Math.round(vorher),
+        `die Folie wanderte bei ${groesse.width}×${groesse.height} mit der Liste`,
+      );
+
+      await generator.close();
+    }
+  });
+
   await pruefe('nichts hat sich in der Konsole beschwert', async () => {
     gleich(fehler.join('\n'), '', 'Fehler in der Konsole');
   });

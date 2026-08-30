@@ -27,6 +27,7 @@ import {
   sonderstufen,
   strichRollen,
   textStufen,
+  promptSchluessel,
   type CiEntwurf,
 } from './entwurf';
 import { normalisiereFarbe } from './farbwert';
@@ -132,19 +133,29 @@ describe('der Prompt', () => {
     for (const rolle of rollen) {
       expect(prompt, `„${rolle}" fehlt im Prompt`).toContain(`"${rolle}"`);
     }
-    for (const gruppe of [
-      'palette',
-      'fontFamily',
-      'pdfFontFamily',
-      'webfontFaces',
-      'textScale',
-      'sonderstufen',
-      'auszeichnungEnger',
-      'stroke',
-      'shadowOffset',
-    ]) {
-      expect(prompt, `die Gruppe „${gruppe}" fehlt im Prompt`).toContain(`"${gruppe}"`);
+    /*
+       Und die obersten Schlüssel aus **der** Liste, nicht aus einer dritten.
+       Sie standen einmal dreimal getippt da — im Prompt, in `ERWARTET` und
+       hier. Wer dann ein Feld hinzufügt und nur eine der drei nachzieht,
+       bekommt ein Modell, das den Prompt befolgt und dafür gerügt wird, bei
+       grünem Test.
+    */
+    for (const schluessel of promptSchluessel) {
+      expect(prompt, `„${schluessel}" fehlt im Prompt`).toContain(`"${schluessel}"`);
     }
+  });
+
+  it('meldet keinen Schlüssel als überzählig, nach dem er selbst fragt', () => {
+    /*
+       Die Gegenrichtung, und die eigentliche Prüfung: was der Prompt verlangt,
+       muss der Leser kennen. Geliefert wird hier jeder oberste Schlüssel
+       einmal — kennt der Leser einen davon nicht, steht er als „übergangen" im
+       Bericht, und das ist die Rüge für ein Modell, das alles richtig gemacht
+       hat.
+    */
+    const alles = Object.fromEntries(promptSchluessel.map((schluessel) => [schluessel, null]));
+    const { befunde } = liesRuecklauf(JSON.stringify(alles), BASIS());
+    expect(texte(befunde, 'uebergangen')).not.toMatch(/kennt der Generator nicht/);
   });
 
   it('nennt die Werte von nozilla als Beispiel und erfindet keine', () => {
@@ -555,6 +566,118 @@ describe('ein vollständiger Rücklauf', () => {
     const { entwurf } = liesRuecklauf(vollstaendig(), basis);
     expect(entwurf?.wortmarke).toBeNull();
     expect(entwurf?.zeichen).toBe('ohne-signatur');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('der Prüfstand aus hässlichen Antworten', () => {
+  /*
+     Nicht aus dem eigenen Beispiel gebaut — das prüfte den Erzeuger. Was hier
+     steht, ist die Sammlung dessen, was Modelle wirklich zurückgeben: eine
+     Antwort in Prosa verpackt, eine mit Kommentaren, eine in YAML, eine mit
+     erfundenen Rollennamen, eine mit allen Farben als rgb(), eine mit allen
+     Größen als „16px", und die eigene Palette wortgleich zurück.
+
+     Die eine Zusicherung, die über allen steht, trägt die Bauart: **jede**
+     Eingabe endet entweder mit einem Entwurf oder mit einem Befund, der sagt,
+     warum nicht. Stumm durchfallen darf keine.
+  */
+  const antworten: Array<{ was: string; roh: string; liest: boolean }> = [
+    {
+      was: 'in Prosa verpackt',
+      roh: 'Klar!\n```json\n{"id": "probenhaus", "label": "Probenhaus"}\n```\nPasst das so?',
+      liest: true,
+    },
+    {
+      was: 'mit Kommentar und Nachkomma',
+      roh: '{\n "id": "probenhaus", // klein\n "label": "Probenhaus",\n}',
+      liest: true,
+    },
+    {
+      was: 'mit allen Farben als rgb()',
+      roh: JSON.stringify({
+        palette: Object.fromEntries(paletteRollen.map((rolle) => [rolle, 'rgb(228, 0, 58)'])),
+      }),
+      liest: true,
+    },
+    {
+      was: 'mit allen Größen als „16px"',
+      roh: JSON.stringify({
+        textScale: Object.fromEntries(textStufen.map((stufe, i) => [stufe, `${10 + i * 8}px`])),
+      }),
+      liest: true,
+    },
+    {
+      was: 'mit erfundenen Rollennamen',
+      roh: '{"palette": {"primary": "#E4003A", "background": "#FFFFFF", "foreground": "#101010"}}',
+      liest: true,
+    },
+    {
+      was: 'mit derselben Rolle zweimal',
+      roh: '{"palette": {"paper": "#FAF7F2", "paper": "#111111"}}',
+      liest: true,
+    },
+    {
+      was: 'in YAML statt JSON',
+      roh: 'id: probenhaus\nlabel: Probenhaus\npalette:\n  signal: #E4003A',
+      liest: false,
+    },
+    { was: 'als reine Prosa', roh: 'Das kann ich leider nicht.', liest: false },
+    /*
+       Eine Liste mit einem Objekt darin **wird** gelesen, und zwar deren
+       erstes: die eckigen Klammern sind für den Leser Vorspann und Nachsatz
+       wie jeder Satz davor, und beide Schnitte stehen im Bericht. Eine Liste
+       *ohne* Objekt fällt durch — das prüft „nimmt keine Liste als Objekt"
+       weiter oben.
+    */
+    { was: 'als Liste mit einem Objekt darin', roh: '[{"id": "probenhaus"}]', liest: true },
+    {
+      was: 'mitten im Wort abgeschnitten',
+      roh: '{"id": "probenhaus", "palette": {"signal": "#E4',
+      liest: false,
+    },
+  ];
+
+  for (const fall of antworten) {
+    it(`fällt bei einer Antwort ${fall.was} nicht stumm durch`, () => {
+      const { entwurf, befunde } = liesRuecklauf(fall.roh, BASIS());
+      expect(befunde.length, 'gar kein Befund').toBeGreaterThan(0);
+      expect(Boolean(entwurf)).toBe(fall.liest);
+      if (!entwurf) {
+        expect(texte(befunde, 'fehler'), 'kein Grund genannt').not.toBe('');
+      }
+    });
+  }
+
+  it('nimmt die eigene Palette wortgleich an und ändert nichts', () => {
+    /*
+       Der Fall, der am leichtesten falsch zählt: sechzehn gelieferte Rollen,
+       null Änderungen. Ein Knopf, der hier „16 Werte übernehmen" verspricht,
+       tut nichts.
+    */
+    const basis = BASIS();
+    const roh = JSON.stringify({ palette: basis.palette });
+    const { entwurf, aenderungen, befunde } = liesRuecklauf(roh, basis);
+    expect(entwurf?.palette).toEqual(basis.palette);
+    expect(aenderungen).toEqual([]);
+    expect(texte(befunde, 'fehlt')).not.toMatch(/Die Palette lässt/);
+  });
+
+  it('rechnet die Farben und die Größen wirklich um', () => {
+    // Die Gegenrichtung zum Prüfstand: dass etwas *durchgeht*, ist die halbe
+    // Auskunft — was ankommt, gehört auch geprüft.
+    const farben = liesRuecklauf(
+      JSON.stringify({
+        palette: Object.fromEntries(paletteRollen.map((rolle) => [rolle, 'rgb(228, 0, 58)'])),
+      }),
+      BASIS(),
+    );
+    expect(farben.entwurf?.palette.signal).toBe('#E4003A');
+    expect(farben.entwurf?.palette.ink).toBe('#E4003A');
+
+    const groessen = liesRuecklauf('{"textScale": {"base": "18px"}}', BASIS());
+    expect(groessen.entwurf?.textScale.base).toBe(18);
   });
 });
 

@@ -34,7 +34,7 @@ import {
   type CiEntwurf,
 } from './entwurf';
 import { pruefe, stapelNamen, traegtFehler, trennbefunde } from './pruefung';
-import { anleitung, bezeichner, bezeichnerProblem, designdatei } from './emitter';
+import { anleitung, bezeichner, bezeichnerProblem, designdatei, text } from './emitter';
 
 registerThemes();
 
@@ -202,6 +202,51 @@ describe('das erzeugte Erscheinungsbild', () => {
 
 /* -------------------------------------------------------------------------- */
 
+describe('die Probefolien', () => {
+  it('tragen jede ihre eigene Nummer', () => {
+    /*
+       Die Fußzeile ist der Ort, an dem die Stufe `labelSmall` beurteilt wird,
+       und die Vorschau verspricht im Kopf, genau das Markup des SVG-Exports zu
+       zeigen. Vorher trug jede der vier Probefolien „1 / 4" — ein festes
+       `slideNumber: 1`, das man nur sieht, wenn man weiterblättert und
+       hinsieht.
+    */
+    const blaetter = zeichneProbe(themeAusEntwurf(probeEntwurf()));
+    expect(blaetter.length).toBeGreaterThan(1);
+    blaetter.forEach((blatt, index) => {
+      expect(blatt.markup, `Folie ${index + 1} trägt die falsche Nummer`).toContain(
+        `${index + 1} / ${blaetter.length}`,
+      );
+    });
+  });
+});
+
+describe('eine Schrift, die kein Stapel nennt', () => {
+  it('wird gemeldet — und eine benutzte nicht', () => {
+    /*
+       Ihre Dateien werden in jeder Sitzung geladen und nie gezeichnet. Die
+       Warnung stand, der Test fehlte; und beide Richtungen gehören geprüft,
+       sonst wäre eine Regel, die *jede* Familie meldet, genauso grün.
+    */
+    const entwurf = probeEntwurf();
+    const mitFremder: CiEntwurf = {
+      ...entwurf,
+      webfontFaces: [
+        ...entwurf.webfontFaces,
+        { family: 'Fremd', weight: 400, style: 'normal', file: 'fremd.woff2', kennung: 'f1' },
+      ],
+    };
+    const texte = (roh: CiEntwurf) =>
+      pruefe(roh)
+        .filter((befund) => befund.rang === 'warnung')
+        .map((befund) => befund.text)
+        .join(' | ');
+
+    expect(texte(mitFremder)).toMatch(/„Fremd" hat Schnitte, aber kein Stapel nennt sie/);
+    expect(texte(entwurf)).not.toMatch(/kein Stapel nennt sie/);
+  });
+});
+
 describe('die erzeugte Designdatei', () => {
   const entwurf = probeEntwurf();
   const quelle = designdatei(entwurf);
@@ -263,6 +308,59 @@ describe('die erzeugte Designdatei', () => {
     expect(quelle).toContain('export const altePost: BrandTheme');
     expect(quelle).toContain("id: 'alte-post'");
     expect(quelle).not.toContain('export const alte-post');
+  });
+
+  it('lässt jeden Wert unverändert zurücklaufen', () => {
+    /*
+       Die Prüfung, die die **stille** Hälfte des Maskierens abdeckt — und die
+       gefehlt hat.
+
+       Prettier ist gegen sie blind: `const a = 'C:\fonts\Inter.woff2';` kommt
+       aus Prettier unverändert zurück, während der Wert dahinter zur Laufzeit
+       `C:<FF>ontsInter.woff2` ist. Die Schrift lädt dann nie, und der Export
+       fällt still auf die Ersatzschrift zurück: kein Fehler, keine Warnung,
+       nur eine andere Schrift.
+
+       Gemessen wird deshalb am **Wert** und nicht an der Zeichenkette: das
+       erzeugte Literal wird ausgewertet und gegen das Original gehalten. Was
+       das nicht beweist, ist, dass die ganze Datei übersetzt — dafür stehen
+       die Prüfungen darüber.
+    */
+    const hart = [
+      'C:\\fonts\\',
+      'C:\\fonts\\Inter.woff2',
+      "O'Brien",
+      'sagt "hallo"',
+      'beide \' und "',
+      'zwei\nZeilen',
+      'Muster */ Ende',
+      'Zilla Slab, Inter, ui-sans-serif',
+    ];
+
+    for (const wert of hart) {
+      const zurueck = Function(`return ${text(wert)};`)() as string;
+      expect(zurueck, `„${wert}" kam anders zurück`).toBe(wert);
+    }
+  });
+
+  it('faltet einen Umbruch im Kopfkommentar, statt die Spalte zu zerreißen', async () => {
+    /*
+       Ein Label mit einem Zeilenumbruch riss die ` * `-Spalte auf: ab der
+       zweiten Zeile stand der Text am linken Rand, ohne Stern. Prettier fasst
+       Blockkommentare nicht an, es gibt also keinen Diff und keinen Wurf — nur
+       einen Kopf, der aussieht wie abgeschnittener Code.
+    */
+    const quelle = designdatei(probeEntwurf({ label: 'Alte\nPost' }));
+    const kopf = quelle.slice(0, quelle.indexOf('*/'));
+    expect(kopf).toContain('Alte Post');
+    for (const zeile of kopf.split('\n').slice(1)) {
+      expect(zeile.trimStart().startsWith('*') || !zeile.trim()).toBe(true);
+    }
+
+    // Und die Datei bleibt in der Form, die Prettier schreibt.
+    const prettier = await import('prettier');
+    const optionen = await prettier.resolveConfig('src/themes/probe.ts');
+    expect(await prettier.format(quelle, { ...optionen, parser: 'typescript' })).toBe(quelle);
   });
 
   it('kommt in der Form heraus, die Prettier ohnehin herstellt', async () => {

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { canvas, slideLayouts, toneNames } from '@/theme';
 import { cardVariants, shapeNames, slideBackgrounds } from '@/model/types';
 import { parseDeck } from '@/lib/markdown/deck';
-import { stripCodeFence } from '@/components/panels/PromptStudio';
+import { ohneCodezaun } from './zaun';
 import {
   buildExampleSection,
   buildPrompt,
@@ -107,19 +107,47 @@ describe('das mitgelieferte Beispiel', () => {
   });
 });
 
-describe('stripCodeFence', () => {
+describe('ohneCodezaun', () => {
   it('entfernt einen umschließenden Codeblock', () => {
-    expect(stripCodeFence('```markdown\n---\ntitle: X\n---\n```')).toBe('---\ntitle: X\n---');
-    expect(stripCodeFence('```\nhallo\n```')).toBe('hallo');
+    expect(ohneCodezaun('```markdown\n---\ntitle: X\n---\n```')).toBe('---\ntitle: X\n---');
+    expect(ohneCodezaun('```\nhallo\n```')).toBe('hallo');
   });
 
   it('lässt gewöhnlichen Text in Ruhe', () => {
-    expect(stripCodeFence('---\ntitle: X\n---')).toBe('---\ntitle: X\n---');
+    expect(ohneCodezaun('---\ntitle: X\n---')).toBe('---\ntitle: X\n---');
   });
 
   it('lässt einen Codeblock *innerhalb* des Decks stehen', () => {
     const deck = '---\ntitle: X\n---\n\n```ts\nconst a = 1;\n```';
-    expect(stripCodeFence(deck)).toBe(deck);
+    expect(ohneCodezaun(deck)).toBe(deck);
+  });
+
+  it('nimmt den Zaun auch mit einem Satz davor und dahinter', () => {
+    /*
+       Der häufigste Fall überhaupt — und der, den die vorige, durchweg
+       verankerte Fassung nicht kannte: sie ließ den Zaun stehen, `parseDeck`
+       bekam die Vorrede als Inhalt, und die Meldung lautete „Das liest sich
+       nicht wie ein Deck".
+    */
+    const antwort =
+      'Klar, hier ist das Deck:\n```md\n---\ntitle: X\n---\n```\nSoll ich noch etwas?';
+    expect(ohneCodezaun(antwort)).toBe('---\ntitle: X\n---');
+  });
+
+  it('greift dabei nicht in ein nacktes Deck hinein', () => {
+    /*
+       Die Gegenrichtung, und sie trägt die ganze Regel. Ein Deck darf selbst
+       einen Codeblock enthalten — die Willkommensmappe tut es. Wer den Satz
+       davor toleriert, ohne diesen Fall auszunehmen, holt aus einem nackten
+       Deck dessen *inneren* Block heraus und wirft alles andere weg.
+    */
+    const deck = '---\ntitle: X\n---\n\nText davor\n\n```ts\nconst a = 1;\n```\n\nText danach';
+    expect(ohneCodezaun(deck)).toBe(deck);
+  });
+
+  it('lässt innere Zäune stehen, wenn der äußere fällt', () => {
+    const antwort = '```md\n---\ntitle: X\n---\n\n```ts\nconst a = 1;\n```\n```';
+    expect(ohneCodezaun(antwort)).toBe('---\ntitle: X\n---\n\n```ts\nconst a = 1;\n```');
   });
 });
 

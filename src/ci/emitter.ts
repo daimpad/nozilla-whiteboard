@@ -72,7 +72,21 @@ export function text(wert: string): string {
  * Lesen.
  */
 function imKommentar(wert: string): string {
-  return wert.replace(/\*\//g, '*\u2009/');
+  return (
+    wert
+      /*
+         Erst falten, dann die Sternchen-Folge brechen — die Reihenfolge zählt.
+
+         Ein Umbruch im Label zerreißt die ` * `-Spalte des Kopfkommentars:
+         ab der zweiten Zeile steht der Text am linken Rand, ohne Stern, und
+         von da an sieht der Kommentar aus wie abgeschnittener Code. Prettier
+         fasst Blockkommentare nicht an, es gibt also keinen Diff und keinen
+         Wurf — nur einen Kopf, den niemand mehr liest.
+      */
+      .replace(/\s*[\r\n]+\s*/g, ' ')
+      .replace(/\*\//g, '*\u2009/')
+      .trim()
+  );
 }
 
 /** Ein Feld, dessen Schlüssel in TypeScript ein Bezeichner sein darf. */

@@ -29,12 +29,14 @@ import { nozillaTheme } from '@/theme';
 import {
   paletteRollen,
   pdfSchriften,
+  promptSchluessel,
   schattenRollen,
   schriftRollen,
   sonderstufen,
   strichRollen,
   textStufen,
   type CiEntwurf,
+  type PromptSchluessel,
 } from './entwurf';
 import {
   LEITERTEXT,
@@ -48,6 +50,119 @@ import {
 /** Eine Zeile „schlüssel — wofür", wie sie im Prompt steht. */
 function zeile(schluessel: string, was: string, beispiel: string | number): string {
   return `  "${schluessel}": ${typeof beispiel === 'number' ? beispiel : `"${beispiel}"`}   // ${was}`;
+}
+
+/**
+ * Der Rumpf des JSON — je Schlüssel ein Block, in der Reihenfolge der Liste.
+ *
+ * Gebaut und nicht hingeschrieben: `promptSchluessel` ist dieselbe Liste, an
+ * der der Rücklauf misst, was er kennt. Stünde sie hier ein zweites Mal, wäre
+ * ein Feld, das nur der Prompt nennt, für den Leser überzählig — das Modell
+ * hätte den Prompt befolgt und würde dafür gerügt.
+ *
+ * Der `switch` ist erschöpfend über die Union: kommt ein Schlüssel dazu und
+ * fehlt hier sein Block, bricht `tsc` ab. Ein `default`, das eine leere Zeile
+ * liefert, hätte stattdessen einen Prompt ergeben, der ein Feld verlangt, ohne
+ * zu sagen, was hineingehört.
+ */
+function block(schluessel: PromptSchluessel): string[] {
+  switch (schluessel) {
+    case 'id':
+      return [
+        zeile(
+          'id',
+          'Kleinschrift, Ziffern, Bindestriche; steht im Frontmatter jedes Decks',
+          'probenhaus',
+        ),
+      ];
+    case 'label':
+      return [zeile('label', 'der Name in der Auswahlliste', 'Probenhaus')];
+    case 'markenname':
+      return [
+        zeile('markenname', 'steht als Urheber in jedem PDF und jeder PPTX', 'Probenhaus GmbH'),
+      ];
+    case 'produkt':
+      return [zeile('produkt', 'steht in der Beschreibung jedes SVG', 'Probenhaus Folien'), ''];
+    case 'palette':
+      return [
+        '  "palette": {   // sechzehn Rollen, jede als #RRGGBB',
+        ...paletteRollen.map(
+          (rolle) => `  ${zeile(rolle, PALETTENTEXT[rolle], nozillaTheme.palette[rolle])}`,
+        ),
+        '  },',
+        '',
+      ];
+    case 'fontFamily':
+      return [
+        '  "fontFamily": {   // je ein CSS-Stapel; der erste Name muss unten einen Schnitt haben',
+        ...schriftRollen.map(
+          (rolle) =>
+            `  ${zeile(rolle, `${SCHRIFTTEXT[rolle]} — dahinter die andere Marken-Schrift, dann das System`, nozillaTheme.fontFamily[rolle])}`,
+        ),
+        '  },',
+        '',
+      ];
+    case 'pdfFontFamily':
+      return [
+        `  "pdfFontFamily": {   // die Ersatzschrift im PDF, nur ${pdfSchriften.join(' | ')}`,
+        ...schriftRollen.map(
+          (rolle) => `  ${zeile(rolle, SCHRIFTTEXT[rolle], nozillaTheme.pdfFontFamily[rolle])}`,
+        ),
+        '  },',
+        '',
+      ];
+    case 'webfontFaces':
+      return [
+        '  "webfontFaces": [   // jeder selbst gehostete Schnitt, als .woff2',
+        '    { "family": "Zilla Slab", "weight": 400, "style": "normal", "file": "zilla-slab-400.woff2" }',
+        '  ],',
+        '',
+      ];
+    case 'textScale':
+      return [
+        '  "textScale": {   // die Größenleiter in Folien-Einheiten; sie muss steigen',
+        ...textStufen.map(
+          (stufe) => `  ${zeile(stufe, LEITERTEXT[stufe], nozillaTheme.textScale[stufe])}`,
+        ),
+        '  },',
+        '',
+      ];
+    case 'sonderstufen':
+      return [
+        '  "sonderstufen": {   // drei Größen, die auf keiner Stufe der Leiter sitzen',
+        ...sonderstufen.map(
+          (stufe) => `  ${zeile(stufe, STUFENTEXT[stufe], nozillaTheme.typeScale[stufe].size)}`,
+        ),
+        '  },',
+        '',
+      ];
+    case 'auszeichnungEnger':
+      return [
+        zeile(
+          'auszeichnungEnger',
+          'um wie viel em die Auszeichnung enger läuft; 0 lässt die Leiter, wie sie ist',
+          0,
+        ),
+        '',
+      ];
+    case 'stroke':
+      return [
+        '  "stroke": {   // Strichstärken in Folien-Einheiten',
+        ...strichRollen.map(
+          (rolle) => `  ${zeile(rolle, STRICHTEXT[rolle], nozillaTheme.stroke[rolle])}`,
+        ),
+        '  },',
+        '',
+      ];
+    case 'shadowOffset':
+      return [
+        '  "shadowOffset": {   // harte Versätze, kein Weichzeichner',
+        ...schattenRollen.map(
+          (rolle) => `  ${zeile(rolle, SCHATTENTEXT[rolle], nozillaTheme.shadowOffset[rolle])}`,
+        ),
+        '  }',
+      ];
+  }
 }
 
 /**
@@ -102,67 +217,7 @@ export function promptText(entwurf: CiEntwurf): string {
     '',
     '```json',
     '{',
-    zeile(
-      'id',
-      'Kleinschrift, Ziffern, Bindestriche; steht im Frontmatter jedes Decks',
-      'probenhaus',
-    ),
-    zeile('label', 'der Name in der Auswahlliste', 'Probenhaus'),
-    zeile('markenname', 'steht als Urheber in jedem PDF und jeder PPTX', 'Probenhaus GmbH'),
-    zeile('produkt', 'steht in der Beschreibung jedes SVG', 'Probenhaus Folien'),
-    '',
-    '  "palette": {   // sechzehn Rollen, jede als #RRGGBB',
-    ...paletteRollen.map(
-      (rolle) => `  ${zeile(rolle, PALETTENTEXT[rolle], nozillaTheme.palette[rolle])}`,
-    ),
-    '  },',
-    '',
-    '  "fontFamily": {   // je ein CSS-Stapel; der erste Name muss unten einen Schnitt haben',
-    ...schriftRollen.map(
-      (rolle) =>
-        `  ${zeile(rolle, `${SCHRIFTTEXT[rolle]} — dahinter die andere Marken-Schrift, dann das System`, nozillaTheme.fontFamily[rolle])}`,
-    ),
-    '  },',
-    '',
-    `  "pdfFontFamily": {   // die Ersatzschrift im PDF, nur ${pdfSchriften.join(' | ')}`,
-    ...schriftRollen.map(
-      (rolle) => `  ${zeile(rolle, SCHRIFTTEXT[rolle], nozillaTheme.pdfFontFamily[rolle])}`,
-    ),
-    '  },',
-    '',
-    '  "webfontFaces": [   // jeder selbst gehostete Schnitt, als .woff2',
-    '    { "family": "Zilla Slab", "weight": 400, "style": "normal", "file": "zilla-slab-400.woff2" }',
-    '  ],',
-    '',
-    '  "textScale": {   // die Größenleiter in Folien-Einheiten; sie muss steigen',
-    ...textStufen.map(
-      (stufe) => `  ${zeile(stufe, LEITERTEXT[stufe], nozillaTheme.textScale[stufe])}`,
-    ),
-    '  },',
-    '',
-    '  "sonderstufen": {   // drei Größen, die auf keiner Stufe der Leiter sitzen',
-    ...sonderstufen.map(
-      (stufe) => `  ${zeile(stufe, STUFENTEXT[stufe], nozillaTheme.typeScale[stufe].size)}`,
-    ),
-    '  },',
-    '',
-    zeile(
-      'auszeichnungEnger',
-      'um wie viel em die Auszeichnung enger läuft; 0 lässt die Leiter, wie sie ist',
-      0,
-    ),
-    '',
-    '  "stroke": {   // Strichstärken in Folien-Einheiten',
-    ...strichRollen.map(
-      (rolle) => `  ${zeile(rolle, STRICHTEXT[rolle], nozillaTheme.stroke[rolle])}`,
-    ),
-    '  },',
-    '',
-    '  "shadowOffset": {   // harte Versätze, kein Weichzeichner',
-    ...schattenRollen.map(
-      (rolle) => `  ${zeile(rolle, SCHATTENTEXT[rolle], nozillaTheme.shadowOffset[rolle])}`,
-    ),
-    '  }',
+    ...promptSchluessel.flatMap(block),
     '}',
     '```',
     '',

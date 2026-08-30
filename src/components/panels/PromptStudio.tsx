@@ -17,6 +17,7 @@ import {
   type DeckBrief,
   type DeckPurpose,
 } from '@/lib/prompt/buildPrompt';
+import { ohneCodezaun } from '@/lib/prompt/zaun';
 import { parseDeck } from '@/lib/markdown/deck';
 import { useDeckStore } from '@/state/deckStore';
 import { darfErsetzen } from '@/state/persistence';
@@ -48,7 +49,7 @@ export function PromptStudio() {
 
   /** Die Antwort des Modells als Deck übernehmen. */
   const takeOver = () => {
-    const cleaned = stripCodeFence(answer);
+    const cleaned = ohneCodezaun(answer);
     if (!cleaned.trim()) {
       setImportError('Da ist nichts drin.');
       return;
@@ -275,15 +276,4 @@ function Check({
       </span>
     </label>
   );
-}
-
-/**
- * Modelle packen ihre Antwort gern in einen Codeblock, obwohl der Prompt es
- * verbietet. Das hier zu tolerieren ist billiger, als den Menschen putzen zu
- * lassen.
- */
-export function stripCodeFence(input: string): string {
-  const trimmed = input.trim();
-  const fenced = /^```[a-z]*\n([\s\S]*?)\n?```$/i.exec(trimmed);
-  return fenced ? fenced[1] : trimmed;
 }

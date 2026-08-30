@@ -476,8 +476,16 @@ export function CiGenerator() {
           </div>
         </div>
 
-        {/* Vorschau und Prüfliste */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-y-auto p-4">
+        {/*
+          Vorschau und Prüfliste — **zwei** Bereiche und nicht ein Scroller.
+
+          Vorher war die ganze Spalte einer: wer die Prüfliste las, scrollte die
+          Folie aus dem Bild. Und das traf genau dann, wenn es zählt — nach
+          einem mittelmäßigen Rücklauf stehen zwanzig Befunde da, und die Frage
+          lautet „was macht dieser Befund mit der Folie". Die Folie bleibt
+          deshalb oben stehen, und die Liste scrollt für sich.
+        */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden p-4">
           <div className="mb-2 flex shrink-0 items-center gap-2">
             <h2 className="text-ui-title font-semibold">Probefolie</h2>
             <span className="text-[11px] text-ui-faint">
@@ -518,7 +526,15 @@ export function CiGenerator() {
             <Vorschau theme={theme} blatt={blatt} />
           </div>
 
-          <Pruefliste befunde={befunde} jetzt={schritt} auf={gehe} />
+          {/*
+            Die Liste bekommt, was übrig bleibt — mindestens aber so viel, dass
+            drei Einträge dastehen. Bei Enge gibt die Folie nach und nicht die
+            Liste: eine Folie, die etwas kleiner ist, sagt dasselbe; eine Liste,
+            von der ein Rand zu sehen ist, sagt nichts.
+          */}
+          <div className="mt-4 flex min-h-24 flex-1 flex-col overflow-y-auto">
+            <Pruefliste befunde={befunde} jetzt={schritt} auf={gehe} />
+          </div>
         </div>
       </div>
     </div>
@@ -733,7 +749,7 @@ function Pruefliste({
   });
 
   return (
-    <div className="mt-4 shrink-0">
+    <div className="shrink-0">
       <h2 className="mb-2 text-ui-title font-semibold">Prüfliste</h2>
       <div className="flex flex-col gap-1.5">
         {sortiert.map(({ befund, rang }, index) => {

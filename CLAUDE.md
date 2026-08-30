@@ -222,7 +222,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Vierundvierzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Fünfundvierzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
   `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
   Fassung passt nicht zur Bibliothek, deshalb
@@ -1072,6 +1072,54 @@ der Generator ein zweites `input[type="file"]` — und drei Stellen im Rauchtest
 luden die Wortmarke über genau diesen Selektor. Getroffen wurde das erste, also
 das falsche; die Wortmarke kam nie an, und die Meldung lautete „die Designdatei
 steht nicht auf der Seite". Gesucht wird jetzt über `accept`.
+
+**Dreizehn Schlüssel, dreimal getippt.** Die obersten Felder des Prompts
+standen als Literale in `promptText()`, noch einmal in `ERWARTET` und ein
+drittes Mal im Test. Käme eines dazu und stünde nur im Prompt, meldete der
+Leser es als „kennt der Generator nicht": das Modell hätte den Prompt befolgt
+und würde dafür gerügt, bei grünem Test — der prüft ja die dritte Liste.
+`promptSchluessel` ist jetzt die eine, der Prompt baut seinen Rumpf daraus, und
+der `switch` darüber ist erschöpfend: ein neuer Schlüssel ohne Block bricht
+`tsc` ab statt einen Prompt zu erzeugen, der ein Feld verlangt, ohne zu sagen,
+was hineingehört.
+
+**Ein Codezaun, zwei Leser, einer davon verankert.** `stripCodeFence` im
+Deck-Prompt schnitt nur `^```…```$` — „Klar, hier ist das Deck:" davor, und der
+Zaun blieb stehen, `parseDeck` bekam die Vorrede als Inhalt. Der CI-Generator
+hatte daneben seine eigene, unverankerte Fassung. Beide lesen jetzt
+`ohneCodezaun()` in `lib/prompt/zaun.ts` — und eine Prüfung unter `lib/`
+importiert nicht mehr aus einer Komponente.
+
+Die Regel dort hat drei Stufen, und die mittlere trägt sie: **ein Deck darf
+selbst einen Codezaun enthalten.** Wer den Satz davor toleriert, ohne das
+auszunehmen, holt aus einem nackten Deck dessen *inneren* Codeblock heraus und
+wirft alles andere weg. Erkannt wird es am `---` des Frontmatters.
+
+**Prettier ist gegen die stille Hälfte des Maskierens blind.**
+`const a = 'C:\fonts\Inter.woff2';` kommt aus Prettier unverändert zurück,
+während der Wert dahinter zur Laufzeit `C:<FF>ontsInter.woff2` ist. Geprüft
+wird deshalb am **Wert**: das erzeugte Literal wird ausgewertet und gegen das
+Original gehalten. Was das nicht beweist, ist, dass die ganze Datei übersetzt —
+dafür stehen die Prüfungen daneben.
+
+**Ein Umbruch im Label zerriss die Kommentarspalte.** Ab der zweiten Zeile
+stand der Text am linken Rand, ohne Stern, und der Kopf sah aus wie
+abgeschnittener Code. Prettier fasst Blockkommentare nicht an, es gibt also
+keinen Diff und keinen Wurf. `imKommentar()` faltet jetzt zuerst und bricht
+danach die Sternchen-Folge — in dieser Reihenfolge.
+
+**Die rechte Spalte war ein einziger Scroller.** Wer die Prüfliste las,
+scrollte die Folie aus dem Bild — und das trifft genau dann, wenn es zählt:
+nach einem mittelmäßigen Rücklauf stehen zwanzig Befunde da, und die Frage
+lautet „was macht dieser Befund mit der Folie". Jetzt zwei Bereiche; bei Enge
+gibt die Folie nach und nicht die Liste.
+
+Die Prüfung dazu ist beim ersten Anlauf an derselben Stelle danebengegangen wie
+schon zweimal zuvor: sie scrollte einen **geratenen** Knoten
+(`parentElement.parentElement`), und über dem kaputten Stand war das eine Ebene
+daneben — die Gegenprobe blieb grün. Gescrollt wird jetzt der nächste
+*scrollbare* Vorfahr, und dass überhaupt gescrollt wurde, steht als eigene
+Zusicherung daneben.
 
 ---
 

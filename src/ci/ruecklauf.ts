@@ -38,11 +38,13 @@ import {
   strichRollen,
   textStufen,
   neueKennung,
+  promptSchluessel,
   type CiEntwurf,
   type PdfSchrift,
   type Schnitt,
   type Schnittstil,
 } from './entwurf';
+import { ohneCodezaun } from '@/lib/prompt/zaun';
 import { normalisiereFarbe } from './farbwert';
 import type { Feld } from './pruefung';
 
@@ -86,10 +88,17 @@ export interface Aenderung {
 /* Stufe 1 — aus dem Text ein Objekt                                           */
 /* -------------------------------------------------------------------------- */
 
-/** Den Codezaun abnehmen, mit oder ohne Sprachangabe. */
+/**
+ * Den Codezaun abnehmen — über denselben Leser wie der Deck-Prompt.
+ *
+ * Zwei Fassungen derselben Frage standen hier und in `PromptStudio`, und die
+ * dortige war verankert: „Klar, hier ist die CI:" davor, und der Zaun blieb
+ * stehen. Der häufigste Fall überhaupt, und in genau einem der beiden Wege
+ * kaputt — das ist die Sorte Abweichung, die man erst an der fremden Datei
+ * sieht.
+ */
 function ohneZaun(text: string): string {
-  const zaun = /```[a-zA-Z]*\s*\n([\s\S]*?)\n?```/.exec(text);
-  return zaun ? zaun[1] : text;
+  return ohneCodezaun(text);
 }
 
 /**
@@ -632,22 +641,15 @@ function nimmSchnitte(bericht: Bericht, roh: unknown): Schnitt[] | null {
 /* Alles zusammen                                                              */
 /* -------------------------------------------------------------------------- */
 
-/** Die Schlüssel, die im Prompt stehen — alles andere ist überzählig. */
-const ERWARTET = [
-  'id',
-  'label',
-  'markenname',
-  'produkt',
-  'palette',
-  'fontFamily',
-  'pdfFontFamily',
-  'webfontFaces',
-  'textScale',
-  'sonderstufen',
-  'auszeichnungEnger',
-  'stroke',
-  'shadowOffset',
-] as const;
+/**
+ * Die Schlüssel, die im Prompt stehen — alles andere ist überzählig.
+ *
+ * Gelesen und nicht getippt: `promptSchluessel` *ist* die Liste, aus der der
+ * Prompt seinen Rumpf baut. Eine zweite hier wäre eine Verabredung, an die
+ * sich niemand erinnert — und ein Feld, das nur der Prompt kennt, käme als
+ * „kennt der Generator nicht" zurück.
+ */
+const ERWARTET = promptSchluessel;
 
 /**
  * Den vollständigen Anfang einer abgebrochenen Antwort lesen.
