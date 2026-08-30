@@ -71,6 +71,29 @@ export function ankerFuer(feld: Feld, rolle: string): string {
   return `nz-ci-${feld.toLowerCase().replace(/ß/g, 'ss')}-${rolle}`;
 }
 
+/** Die Leitern, die der Schritt „Maße" untereinander führt. */
+export const massgruppen = ['leiter', 'sonder', 'laufweite', 'strich', 'schatten'] as const;
+export type Massgruppe = (typeof massgruppen)[number];
+
+/**
+ * Die Kennung eines Feldes im Schritt „Maße" — mit seiner Leiter davor.
+ *
+ * Ohne die Leiter kollidierten die Kennungen: die Größenleiter führt `sm` und
+ * `lg`, die Schattenversätze führen sie auch, und `ankerFuer('Maße', 'sm')`
+ * ergab für beide `nz-ci-masse-sm`. Zwei Felder mit derselben Kennung sind im
+ * DOM ein Feld — `getElementById` nimmt das erste, also sprang „Zum Feld" bei
+ * einem Schattenversatz in die Schriftgrößen und markierte dort einen Wert,
+ * an dem nichts falsch war. Genau die Sorte Wegweiser, die schlechter ist als
+ * keiner.
+ *
+ * Dass die Gruppe ein eigener Typ ist und kein zweiter Zeichenkettenteil, hat
+ * denselben Grund wie überall hier: eine Verabredung, die man im Formular
+ * mitschreiben muss, ist eine, die man vergisst.
+ */
+export function massAnker(gruppe: Massgruppe, rolle: string): string {
+  return ankerFuer('Maße', `${gruppe}-${rolle}`);
+}
+
 /* -------------------------------------------------------------------------- */
 /* Marke                                                                       */
 /* -------------------------------------------------------------------------- */
@@ -419,24 +442,24 @@ function pruefeMasse(entwurf: CiEntwurf): Befund[] {
      durch die Bedingung `wert <= 0` und wurden deshalb übersprungen. Endlich
      müssen sie trotzdem sein.
   */
-  const endlich = (wert: number, name: string) => {
+  const endlich = (wert: number, gruppe: Massgruppe, name: string) => {
     if (Number.isFinite(wert)) return true;
     befunde.push({
       rang: 'fehler',
       feld: 'Maße',
-      anker: ankerFuer('Maße', name),
+      anker: massAnker(gruppe, name),
       text: `„${name}" trägt keine Zahl. Ein leeres Zahlenfeld schreibt NaN in die Designdatei, und die übersetzt damit anstandslos.`,
     });
     return false;
   };
 
-  const groesse = (wert: number, name: string) => {
-    if (!endlich(wert, name)) return false;
+  const groesse = (wert: number, gruppe: Massgruppe, name: string) => {
+    if (!endlich(wert, gruppe, name)) return false;
     if (wert <= 0) {
       befunde.push({
         rang: 'fehler',
         feld: 'Maße',
-        anker: ankerFuer('Maße', name),
+        anker: massAnker(gruppe, name),
         text: `„${name}" ist keine Größe: ${wert}.`,
       });
       return false;
@@ -455,20 +478,28 @@ function pruefeMasse(entwurf: CiEntwurf): Befund[] {
      keinen Geschmack durchsetzen — 1280 × 720 ist die Folie, und was darauf
      größer als 400 ist, ist keine Schrift mehr.
   */
-  const bereich = (wert: number, name: string, min: number, max: number, warum: string) => {
+  const bereich = (
+    wert: number,
+    gruppe: Massgruppe,
+    name: string,
+    min: number,
+    max: number,
+    warum: string,
+  ) => {
     if (!Number.isFinite(wert) || (wert >= min && wert <= max)) return;
     befunde.push({
       rang: 'warnung',
       feld: 'Maße',
-      anker: ankerFuer('Maße', name),
+      anker: massAnker(gruppe, name),
       text: `„${name}" trägt ${wert}. ${warum} Die Datei entsteht trotzdem — zu sehen ist es erst auf der Folie.`,
     });
   };
 
   for (const stufe of textStufen) {
-    if (groesse(entwurf.textScale[stufe], stufe)) {
+    if (groesse(entwurf.textScale[stufe], 'leiter', stufe)) {
       bereich(
         entwurf.textScale[stufe],
+        'leiter',
         stufe,
         6,
         400,
@@ -477,21 +508,22 @@ function pruefeMasse(entwurf: CiEntwurf): Befund[] {
     }
   }
   for (const [name, wert] of Object.entries(entwurf.stroke)) {
-    if (groesse(wert, name)) {
-      bereich(wert, name, 0.25, 20, 'Ein Strich von dieser Stärke ist eine Fläche.');
+    if (groesse(wert, 'strich', name)) {
+      bereich(wert, 'strich', name, 0.25, 20, 'Ein Strich von dieser Stärke ist eine Fläche.');
     }
   }
   for (const [name, wert] of Object.entries(entwurf.sonderstufen)) {
-    if (groesse(wert, name)) {
-      bereich(wert, name, 6, 400, 'Dieselbe Spanne wie für die Leiter.');
+    if (groesse(wert, 'sonder', name)) {
+      bereich(wert, 'sonder', name, 6, 400, 'Dieselbe Spanne wie für die Leiter.');
     }
   }
 
   // Die Laufweite darf null sein (die Leiter bleibt, wie sie ist) und negativ
   // (eine Grotesk verträgt mehr Enge). Nur eine Zahl muss sie sein.
-  if (endlich(entwurf.auszeichnungEnger, 'Laufweite der Auszeichnung')) {
+  if (endlich(entwurf.auszeichnungEnger, 'laufweite', 'Laufweite der Auszeichnung')) {
     bereich(
       entwurf.auszeichnungEnger,
+      'laufweite',
       'Laufweite der Auszeichnung',
       -0.1,
       0.1,
@@ -503,17 +535,25 @@ function pruefeMasse(entwurf: CiEntwurf): Befund[] {
     if (name === 'none') {
       // „Kein Schatten" ist eine Wahl und deshalb von `groesse()` ausgenommen —
       // die Ausnahme betrifft aber den Wert null, nicht die Endlichkeit.
-      if (endlich(wert, name) && wert !== 0) {
+      if (endlich(wert, 'schatten', name) && wert !== 0) {
         befunde.push({
           rang: 'warnung',
           feld: 'Maße',
+          anker: massAnker('schatten', name),
           text: `„none" trägt ${wert} statt 0 — dann hat „kein Schatten" einen Schatten.`,
         });
       }
       continue;
     }
-    if (groesse(wert, name)) {
-      bereich(wert, name, 1, 64, 'Ein Versatz von dieser Größe schiebt die Fläche aus der Folie.');
+    if (groesse(wert, 'schatten', name)) {
+      bereich(
+        wert,
+        'schatten',
+        name,
+        1,
+        64,
+        'Ein Versatz von dieser Größe schiebt die Fläche aus der Folie.',
+      );
     }
   }
 
@@ -613,6 +653,26 @@ function pruefeWortmarke(entwurf: CiEntwurf): Befund[] {
       text: `Kein Pfad in „${marke.accent}" — der Akzent am Wortende bliebe leer. Wer keinen hat, lässt das Feld frei.`,
     });
   }
+  /*
+     Was weder Buchstabe noch Akzent ist, fällt aus **jeder** Ausgabe heraus.
+     `wordmarkFromSvg()` sammelt genau zwei Füllfarben und verwirft den Rest,
+     und `wortmarkeAusSvg()` nimmt beim Einlesen stumm die ersten beiden, die
+     es findet. Eine dreifarbige Marke verlor damit ein Drittel ihrer Pfade —
+     auf der Folie, im SVG, im PDF und in der PPTX, ohne dass irgendwo etwas
+     stand. Dass die Marke zwei Farben kennt, ist eine Entscheidung dieses
+     Werkzeugs; sie stumm durchzuziehen ist keine.
+  */
+  const uebrig = [...new Set(pfade.filter(Boolean).map((fuellung) => fuellung.toUpperCase()))]
+    .filter((fuellung) => !gleich(fuellung, marke.letters))
+    .filter((fuellung) => !marke.accent || !gleich(fuellung, marke.accent));
+  if (uebrig.length) {
+    befunde.push({
+      rang: 'warnung',
+      feld,
+      text: `Die Datei nennt ${uebrig.length === 1 ? 'eine Füllfarbe' : `${uebrig.length} Füllfarben`}, die weder Buchstaben noch Akzent ${uebrig.length === 1 ? 'ist' : 'sind'}: ${uebrig.join(', ')}. Diese Pfade werden nirgends gezeichnet — die Wortmarke kennt genau zwei Farben. Wer sie braucht, färbt sie in der Datei auf eine der beiden um.`,
+    });
+  }
+
   if (!marke.accent) {
     befunde.push({
       rang: 'hinweis',

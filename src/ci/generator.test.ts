@@ -41,11 +41,15 @@ registerThemes();
 /**
  * Die Erscheinungsbilder, die dieses Projekt **mitliefert**.
  *
- * Festgehalten *vor* dem ersten Test, und das ist keine Vorsicht ohne Grund:
- * `zeichneProbe()` meldet seinen Entwurf wirklich an, und `registerTheme()`
- * nimmt nichts wieder heraus. Nach der ersten Vorschau steht deshalb auch
- * „probenhaus" im Verzeichnis — für die Seite folgenlos, für eine Prüfung
- * über „jedes angemeldete Erscheinungsbild" aber irreführend.
+ * Festgehalten *vor* dem ersten Test — und heute nicht mehr, weil die Vorschau
+ * das Verzeichnis anfasst, sondern damit auffällt, wenn sie es wieder tut.
+ * Sie hat es einmal getan: `zeichneProbe()` rief `registerTheme(theme)` mit
+ * dem Schlüssel, den jemand gerade ins Formular tippt, und `registerTheme()`
+ * nimmt nichts wieder heraus. „probenhaus" stand danach im Verzeichnis, und
+ * wer „nozilla" eintippte, ersetzte damit die laufende nozilla-CI.
+ *
+ * Die Liste ist deshalb die Grundlage einer eigenen Zusicherung weiter unten:
+ * nach einer Vorschau muss sie dieselbe sein.
  */
 const MITGELIEFERT = availableThemes().map(({ id }) => id);
 
@@ -197,6 +201,29 @@ describe('das erzeugte Erscheinungsbild', () => {
     // Titel, großzügige Kästen. Liefe es schon bei nozilla über, zeigte es
     // jeder fremden Marke Überläufe, die nicht ihre sind.
     for (const blatt of zeichneProbe(nozillaTheme)) expect(blatt.ueberlauf).toEqual([]);
+  });
+
+  it('meldet den Entwurf nicht an — und ersetzt damit keine laufende CI', () => {
+    /*
+       Der teuerste Fehler dieser Seite. `zeichneProbe()` rief einmal
+       `registerTheme(theme)`, und der Entwurf trägt den Schlüssel, den jemand
+       gerade ins Formular tippt. `registerTheme()` ruft `activate()`, wenn der
+       Schlüssel der gerade gültige ist: wer „nozilla" eintippte, **ersetzte
+       damit die laufende nozilla-CI**. Nachgemessen: `palette.signal` ging von
+       #00FF9C auf #FF0000, und der Eintrag in der Auswahlliste hieß fortan wie
+       das Formularfeld. Ein leerer Schlüssel meldete ein Erscheinungsbild unter
+       dem Namen „" an.
+
+       Geprüft wird am **Verzeichnis und an der gültigen CI**, nicht daran, ob
+       eine Funktion gerufen wurde: `withTheme()` belegt dieselben lebendigen
+       Bindungen und muss sie hinterher zurückgeben.
+    */
+    const gefaehrlich = probeEntwurf({ id: 'nozilla', label: 'Übernommen' });
+    zeichneProbe(themeAusEntwurf(gefaehrlich));
+
+    expect(availableThemes().map(({ id }) => id)).toEqual(MITGELIEFERT);
+    expect(activeTheme().palette.signal).toBe(nozillaTheme.palette.signal);
+    expect(activeTheme().label).toBe(nozillaTheme.label);
   });
 });
 
@@ -385,6 +412,40 @@ describe('die erzeugte Designdatei', () => {
       parser: 'typescript',
     });
     expect(formatiert).toBe(quelle);
+  });
+
+  it('bleibt in dieser Form auch bei einem langen Schriftnamen', async () => {
+    /*
+       Die Prüfung darüber läuft auf dem Entwurf mit nozillas Schnitten, und
+       deren Zeilen sind kurz genug. Sie war deshalb grün, während der Fall,
+       um den es geht, danebenlag: „Neue Haas Grotesk Display Pro Condensed"
+       samt Dateiname ergab eine Zeile von 144 Zeichen, und Prettier bricht die
+       beim nächsten `npm run format` in vier auf. Die Datei im Repo ist dann
+       eine andere als die, die hier herauskam — und der Diff landet in einem
+       fremden Commit.
+
+       Eine Prüfung, deren Eingabe nie an die Grenze geht, prüft die Grenze
+       nicht.
+    */
+    const lang = designdatei(
+      probeEntwurf({
+        webfontFaces: [
+          {
+            ...leererSchnitt(),
+            family: 'Neue Haas Grotesk Display Pro Condensed',
+            weight: 400,
+            style: 'normal',
+            file: 'NeueHaasGroteskDisplayPro-CondensedRegular.woff2',
+          },
+        ],
+      }),
+    );
+    const prettier = await import('prettier');
+    const optionen = await prettier.resolveConfig('src/themes/probe.ts');
+    expect(await prettier.format(lang, { ...optionen, parser: 'typescript' })).toBe(lang);
+    // Und der Name steht wirklich drin — sonst prüfte das oben eine Datei
+    // ohne den Schnitt, um den es geht.
+    expect(lang).toContain('Neue Haas Grotesk Display Pro Condensed');
   });
 
   it('ist gültiges TypeScript und kein Text, der so aussieht', async () => {

@@ -63,14 +63,29 @@ import { PROBEFOLIEN, Vorschau } from './Vorschau';
  * Als Initialisierer von `useState` und nicht in einem Effekt: sonst stünde
  * einen Bildrahmen lang der leere Entwurf da, die Vorschau rechnete ihn, und
  * der Fragedialog käme über ein Bild, das gleich wieder verschwindet.
+ *
+ * Und genau deshalb einmalig. `StrictMode` ruft den Initialisierer beim
+ * Entwickeln **zweimal** — das ist Absicht und soll Nebenwirkungen sichtbar
+ * machen. Diese hier ist eine: der Dialog stand zweimal da, und wer beim
+ * ersten Mal „fortsetzen" und beim zweiten „abbrechen" klickt, hat seinen
+ * Entwurf gelöscht, ohne das je gewollt zu haben. Gemerkt wird deshalb die
+ * Antwort, nicht die Frage; das Modul lebt so lange wie die Seite, und öfter
+ * als einmal je Seitenaufruf ist die Frage ohnehin nicht gemeint.
  */
+let ersteAntwort: CiEntwurf | null = null;
+
 function ersterEntwurf(): CiEntwurf {
+  if (ersteAntwort) return ersteAntwort;
   const gemerkt = liesEntwurf();
-  if (!gemerkt || !traegtArbeit(gemerkt)) return leererEntwurf();
-  const name = gemerkt.label.trim() || gemerkt.id.trim() || 'ohne Namen';
-  if (window.confirm(`Den Entwurf „${name}" von vorhin fortsetzen?`)) return gemerkt;
-  vergissEntwurf();
-  return leererEntwurf();
+  const fortsetzen =
+    gemerkt !== null &&
+    traegtArbeit(gemerkt) &&
+    window.confirm(
+      `Den Entwurf „${gemerkt.label.trim() || gemerkt.id.trim() || 'ohne Namen'}" von vorhin fortsetzen?`,
+    );
+  if (!fortsetzen) vergissEntwurf();
+  ersteAntwort = fortsetzen ? gemerkt : leererEntwurf();
+  return ersteAntwort;
 }
 
 export function CiGenerator() {
@@ -78,7 +93,16 @@ export function CiGenerator() {
   const [schritt, setSchritt] = useState(0);
   const [blatt, setBlatt] = useState(0);
   const [hinweis, setHinweis] = useState<string | null>(null);
-  const [beruehrt, setBeruehrt] = useState(false);
+  /*
+     Ein fortgesetzter Entwurf ist von der ersten Sekunde an angefasst.
+
+     Vorher stand hier `false`, und das machte aus dem Fortsetzen eine halbe
+     Sache: „Entwurf sichern" und „Zurücksetzen" blieben gesperrt, die Frage
+     beim Schließen kam nicht, und mitgeschrieben wurde auch nichts mehr —
+     bis irgendwann der erste Anschlag fiel. Wer den Entwurf zurückholte, um
+     ihn *herunterzuladen*, stand also vor einem grauen Knopf.
+  */
+  const [beruehrt, setBeruehrt] = useState(() => traegtArbeit(entwurf));
   const spalte = useRef<HTMLDivElement>(null);
   const ueberschrift = useRef<HTMLHeadingElement>(null);
 
@@ -103,6 +127,17 @@ export function CiGenerator() {
 
   const aendere = (teil: Partial<CiEntwurf>) => {
     setBeruehrt(true);
+    /*
+       Und der Weg zurück verfällt. „Rückgängig" nimmt den *ganzen* Entwurf auf
+       den Stand vor dem Rücklauf zurück; solange der Merker liegen bleibt,
+       nimmt er alles mit, was seither von Hand entstanden ist. Wer den
+       Rücklauf übernimmt, danach in Schritt 3 zwölf Farben nachzieht und dann
+       in Schritt 1 auf den Knopf trifft, verliert die zwölf. Dieselbe Regel
+       gilt schon für den Vorschlag selbst (`gelesenGegen !== entwurf`) — ein
+       Angebot, das gegen einen Stand rechnet, den es nicht mehr gibt, ist
+       keines.
+    */
+    vorherigerEntwurf.current = null;
     setEntwurf((alt) => ({ ...alt, ...teil }));
   };
 
@@ -299,12 +334,24 @@ export function CiGenerator() {
    * Rollen aus der Vorbelegung, statt mit einer Lücke anzukommen. Und der
    * Merker für „Rückgängig" wird gesetzt — eine Datei ersetzt fünfzig Felder
    * auf einmal, genau wie ein Rücklauf.
+   *
+   * **Gefragt wird vorher.** Das ist wörtlich „Sechs Wege ersetzten das Deck,
+   * einer fragte" aus CLAUDE.md, eine Seite weiter: dieser Weg wirft fünfzig
+   * ausgefüllte Felder weg, und er tat es wortlos, während „Zurücksetzen"
+   * daneben für dieselbe Tat um Erlaubnis bittet. Ein Fehlgriff im Dateidialog
+   * genügte.
    */
   const ladeEntwurf = async (eingabe: HTMLInputElement) => {
     const datei = eingabe.files?.[0];
     // Sofort leeren, damit dieselbe Datei ein zweites Mal gewählt werden kann.
     eingabe.value = '';
     if (!datei) return;
+    if (
+      traegtArbeit(entwurf) &&
+      !window.confirm(`Den offenen Entwurf durch „${datei.name}" ersetzen?`)
+    ) {
+      return;
+    }
     try {
       const gelesen = JSON.parse(await datei.text()) as Partial<CiEntwurf>;
       if (!gelesen || typeof gelesen !== 'object' || Array.isArray(gelesen)) {
@@ -848,6 +895,20 @@ function FertigSchritt({
       </pre>
 
       <h3 className="mb-2 mt-4 text-ui-title font-semibold">src/themes/{entwurf.id || '…'}.ts</h3>
+      {/*
+        Derselbe Riegel wie über der Probefolie, und aus demselben Grund: was
+        hier steht, ist bei einem offenen Fehler der **letzte** Quelltext, der
+        sich bauen ließ — die Vorschau hält ihn fest, damit ein einzelnes
+        halbgetipptes Farbfeld nicht die halbe Seite leert. Ohne diesen Satz
+        gibt sich ein alter Stand für den aktuellen aus, und zwar unter einer
+        Überschrift, die einen Dateinamen nennt.
+      */}
+      {fehlerhaft && quelltext ? (
+        <p className="mb-2 border border-ui-strong bg-ui-subtle px-2 py-1.5 text-[11px] leading-snug text-ui-ink">
+          Nicht mehr aktuell: zu sehen ist der letzte Stand, aus dem sich eine Datei bauen ließ. Was
+          offen ist, steht in der Prüfliste — und der Knopf oben bleibt so lange gesperrt.
+        </p>
+      ) : null}
       <pre className="overflow-x-auto rounded-sm border border-ui bg-ui-sunken p-3 font-mono text-[10px] leading-relaxed text-ui-ink">
         {quelltext || 'Die Datei entsteht, sobald kein Fehler mehr in der Prüfliste steht.'}
       </pre>

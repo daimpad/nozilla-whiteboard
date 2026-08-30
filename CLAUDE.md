@@ -222,7 +222,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Fünfundvierzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Siebenundvierzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
   `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
   Fassung passt nicht zur Bibliothek, deshalb
@@ -1090,10 +1090,18 @@ hatte daneben seine eigene, unverankerte Fassung. Beide lesen jetzt
 `ohneCodezaun()` in `lib/prompt/zaun.ts` — und eine Prüfung unter `lib/`
 importiert nicht mehr aus einer Komponente.
 
-Die Regel dort hat drei Stufen, und die mittlere trägt sie: **ein Deck darf
-selbst einen Codezaun enthalten.** Wer den Satz davor toleriert, ohne das
-auszunehmen, holt aus einem nackten Deck dessen *inneren* Codeblock heraus und
-wirft alles andere weg. Erkannt wird es am `---` des Frontmatters.
+Die Regel dort hat vier Stufen, und die zweite und dritte tragen sie: **ein
+Deck darf selbst einen Codezaun enthalten.** Wer den Satz davor toleriert, ohne
+das auszunehmen, holt aus einem nackten Deck dessen *inneren* Codeblock heraus
+und wirft alles andere weg. Erkannt wird es am `---` des Frontmatters.
+
+Die dritte hat zuerst gefehlt, und zwar als *Kommentar ohne Code*: der Schutz
+stand im Kopf der Datei, im Rumpf schützte er nur einen Text, der **mit** `---`
+beginnt. Steht „Klar, hier ist das Deck:" davor, fiel ein nacktes Deck weiter
+bis zum Schnitt durch — gemessen wurde aus einem Deck mit einem Codeblock
+`const a = 1;`, das ganze Deck ersetzt durch den Inhalt seines Blocks.
+Geschnitten wird deshalb bis zum **letzten** Zaun und nicht bis zum nächsten;
+der nächste ist bei einem Deck mit Codeblock dessen Öffner.
 
 **Prettier ist gegen die stille Hälfte des Maskierens blind.**
 `const a = 'C:\fonts\Inter.woff2';` kommt aus Prettier unverändert zurück,
@@ -1120,6 +1128,141 @@ schon zweimal zuvor: sie scrollte einen **geratenen** Knoten
 daneben — die Gegenprobe blieb grün. Gescrollt wird jetzt der nächste
 *scrollbare* Vorfahr, und dass überhaupt gescrollt wurde, steht als eigene
 Zusicherung daneben.
+
+**Ein Formularfeld, das die laufende CI ersetzt.** Die Vorschau des Generators
+rief `registerTheme(theme)` — mit dem Schlüssel, den jemand gerade eintippt.
+Und `registerTheme()` ruft `activate()`, wenn der Schlüssel der gerade gültige
+ist: wer „nozilla" ins Feld schrieb, überschrieb damit die eigene CI.
+Nachgemessen: `palette.signal` ging von #00FF9C auf #FF0000, der Eintrag in der
+Auswahlliste hieß fortan wie das Formularfeld, und ein leeres Feld meldete ein
+Erscheinungsbild unter dem Namen „" an.
+
+Nötig war die Anmeldung nur, solange über `setActiveTheme()` umgestellt wurde —
+das schlägt im Verzeichnis nach. `withTheme()` belegt die lebendigen Bindungen
+unmittelbar und fragt niemanden. Die Regel dahinter ist allgemein: **„rechne
+kurz damit" und „jemand hat gewählt" sind zwei Vorgänge**, und nur der zweite
+geht das Verzeichnis und die Oberfläche etwas an.
+
+**Zwei Kennungen, ein Feld.** Der Schritt „Maße" führt vier Leitern
+untereinander, und `sm` und `lg` stehen in zweien davon: `ankerFuer('Maße',
+'sm')` ergab für die Größenleiter und für die Schattenversätze dieselbe
+Kennung. Zwei Felder mit derselben Kennung sind im DOM **ein** Feld —
+`getElementById` nimmt das erste, also sprang „Zum Feld" bei einem
+Schattenversatz in die Schriftgrößen und markierte dort einen Wert, an dem
+nichts falsch war. Ein Wegweiser, der auf die falsche Stelle zeigt, ist
+schlechter als keiner.
+
+`massAnker(gruppe, rolle)` verlangt die Gruppe jetzt als eigenen Typ, damit sie
+im Formular nicht zu vergessen ist. Geprüft wird an dem, was `pruefe()`
+**ausgibt** — die Kennungsfunktion allein wäre eindeutig, während im Formular
+die Gruppe fehlt —, und zusätzlich im Rauchtest am *Fokus*: eine doppelt
+vergebene Kennung ist im DOM nicht verboten, sie ist nur mehrdeutig, und
+mehrdeutig sieht in keiner Zusicherung anders aus als eindeutig.
+
+**Ein Merker, der nie verfällt, nimmt fremde Arbeit mit.** „Rückgängig" nimmt
+den *ganzen* Entwurf auf den Stand vor dem Rücklauf zurück. `ersetze()` legte
+den Merker an, `aendere()` — der Weg jedes einzelnen Handgriffs — räumte ihn
+nicht weg: wer den Rücklauf übernahm, danach zwölf Farben nachzog und dann in
+Schritt 1 auf den Knopf traf, verlor die zwölf. Für den *Vorschlag* galt die
+Regel längst (`gelesenGegen !== entwurf`); sie galt nur nicht für den Weg
+zurück.
+
+**Prozent ist keine Zahl unter eins.** `rgba(228, 0, 58, 0.5)` meldete den
+Verlust der Deckkraft, `rgb(228 0 58 / 50%)` nicht: `parseFloat('50%')` ist 50,
+und die Frage lautete `< 1`. Dieselbe Farbe, dieselbe halbe Deckkraft, einmal
+gesagt und einmal stumm verschluckt — und stumm war ausgerechnet die
+Schreibweise, die ein Sprachmodell heute schreibt.
+
+**„Zuletzt vollständig" war der Schlüssel, an dem es abriss.** Die
+Abbruchdiagnose führte einen einzigen Schlüssel: den zuletzt *begonnenen*. Sie
+meldete damit „zuletzt vollständig war ‚palette'" über einer Palette, die
+mitten in `"paper": "#FAF` aufhörte — die eine Auskunft, auf die es ankommt,
+genau verkehrt herum. Es sind zwei Fragen: was steht ganz da, und wo geht es
+weiter. Der Bericht nennt jetzt beide.
+
+**Eine Zahl, die das Gelieferte zählt und „Übernommen" heißt.** „Übernommen: 13
+von 13" stand über einer Antwort, in der zwölf Felder vom falschen Typ waren
+und übergangen wurden — gezählt wurden die Schlüssel des Objekts. Das ist „Ein
+Knopf, der eine Zahl nennt und eine andere tut" in Satzform, und die Antwort
+ist dieselbe: gezählt wird, was wirklich geschieht.
+
+Dazu ein zweiter Fall derselben Sorte: die Schnittliste meldete „9 Schnitte → 9
+Schnitte". Wer neun Schnitte gegen neun andere tauscht — dieselbe Familie in
+anderen Dateien, also den Normalfall —, bekam als einzige Auskunft, es bleibe
+bei neun. Genannt wird jetzt, **welche** Zeilen gehen und welche kommen.
+
+**Ein Schlüssel ohne den Weg, der ihn liest.** `auszeichnungEnger` lief weder
+über `nimmText` noch über `bericht.gruppe`, also über keinen der beiden Wege,
+die „kam nicht" sagen — ein Modell, das ihn ausließ, bekam dafür kein Wort, und
+die Laufweite der Auszeichnung sieht man auf der Probefolie nicht. Gezählt wird
+in der Prüfung deshalb gegen `promptSchluessel` und nicht gegen eine Zahl im
+Test: ein vierzehnter Schlüssel bekommt so keine stillschweigende Ausnahme.
+
+**Die fehlende Ablage war der zweite Weg in dieselbe Stille.** `sichereEntwurf`
+meldet eine *gescheiterte* Ablage — die *nicht vorhandene* gab wortlos `null`
+zurück, und die Folge ist dieselbe: es sichert sich nichts, und niemand erfährt
+es. Ein privates Fenster ist dabei kein erfundener Fall, sondern die
+Voreinstellung von Leuten, die ein fremdes Werkzeug ausprobieren.
+
+**Ein Prompt, der mehr verspricht, als die Prüfliste erlaubt.** Er beschrieb
+den Schlüssel als „Kleinschrift, Ziffern, Bindestriche" — und der Emitter zieht
+`-x` nur *vor einem Buchstaben* zu `X` zusammen, `probe-2024` ist also kein
+Bezeichner. Wer zu viel verspricht, bekommt vom Modell einen Schlüssel, den die
+Seite eine Ecke weiter zurückweist: der Fehler steht dann bei dem, der den
+Prompt befolgt hat. Geprüft wird an **beiden** Beispielen, die der Prompt
+nennt, gegen den Emitter, der urteilt.
+
+**Eine dritte Füllfarbe, die nirgends gezeichnet wird.** Die Wortmarke kennt
+zwei Farben: `wordmarkFromSvg()` sammelt die Pfade in `letters` und die in
+`accent` und verwirft den Rest, und `wortmarkeAusSvg()` nahm beim Einlesen
+stumm die ersten beiden. Eine dreifarbige Datei verlor damit ein Drittel ihrer
+Pfade — auf der Folie, im SVG, im PDF und in der PPTX. Dass es zwei Farben
+sind, ist eine Entscheidung dieses Werkzeugs; sie stumm durchzuziehen ist
+keine.
+
+**Eine erzeugte Zeile, die Prettier beim nächsten Lauf umbricht.** „Neue Haas
+Grotesk Display Pro Condensed" samt Dateiname ergibt einen Schnitt von 144
+Zeichen — die Datei aus dem Generator ist dann eine andere als die im Repo, und
+der Diff landet in einem fremden Commit. Nachgerechnet wird die Grenze
+**nicht**: `printWidth` ist weich, und eine nachgebaute Regel hat hier schon
+einmal das Falsche verurteilt. Gemessen wurde die andere Richtung — ein
+Objektliteral, das im Quelltext umgebrochen dasteht, lässt Prettier
+umgebrochen, auch wenn es längst in eine Zeile passte. Der Emitter schreibt es
+deshalb immer umgebrochen, und die Länge muss niemand kennen. Die Prüfung dazu
+läuft an einem langen Namen: eine Prüfung, deren Eingabe nie an die Grenze
+geht, prüft die Grenze nicht.
+
+**`StrictMode` ruft den Initialisierer von `useState` zweimal.** Das ist
+Absicht und soll Nebenwirkungen sichtbar machen — die Frage „Entwurf
+fortsetzen?" stand damit zweimal da, und wer beim ersten Mal „ja" und beim
+zweiten „nein" klickt, hat seinen Entwurf gelöscht, ohne das je gewollt zu
+haben. Gemerkt wird die Antwort, nicht die Frage.
+
+Und dieselbe Frage hatte eine zweite Hälfte: ein fortgesetzter Entwurf galt als
+**unberührt**. „Entwurf sichern" und „Zurücksetzen" blieben gesperrt, die Frage
+beim Schließen kam nicht, mitgeschrieben wurde nichts — bis irgendwann der
+erste Anschlag fiel. Wer den Entwurf zurückholte, um ihn herunterzuladen, stand
+vor einem grauen Knopf.
+
+**Und „Entwurf laden" war der siebente Weg.** Er warf fünfzig ausgefüllte
+Felder wortlos weg, während „Zurücksetzen" direkt daneben für dieselbe Tat um
+Erlaubnis bittet — „Sechs Wege ersetzten das Deck, einer fragte", eine Seite
+weiter. Ein Fehlgriff im Dateidialog genügte.
+
+**Eine fremde `.json` riss die Seite weg, wo eine Meldung stand.** `zusammen()`
+legte `...gelesen` über den leeren Entwurf, ohne einen Feldtyp zu prüfen — und
+`pruefe()` läuft in einem `useMemo` *während des Renderns* und greift auf
+`entwurf.id.trim()` zu. Eine Datei mit `{"id": 42}` warf dort einen TypeError,
+und der `try/catch` um „Entwurf laden" fängt ihn nicht: `ersetze()` plant nur
+eine Zustandsänderung, gerendert wird danach. Gemessen: weißes Fenster, keine
+Meldung, kein Formular — obwohl direkt daneben der Satz „… ist kein gesicherter
+Entwurf" für genau diesen Fall gebaut ist.
+
+**Ein alter Quelltext unter einer Überschrift mit Dateinamen.** Die Vorschau
+hält bei einem offenen Fehler den letzten tragfähigen Stand fest, und das ist
+richtig — sie ist der Grund, aus dem jemand hier ist. Über der Folie stand der
+Vermerk „nicht mehr aktuell", über dem Quelltext nicht: dort gab sich ein alter
+Stand für den aktuellen aus, und zwar unter `src/themes/<id>.ts`.
 
 ---
 

@@ -47,9 +47,31 @@ import {
   STUFENTEXT,
 } from './texte';
 
-/** Eine Zeile „schlüssel — wofür", wie sie im Prompt steht. */
-function zeile(schluessel: string, was: string, beispiel: string | number): string {
-  return `  "${schluessel}": ${typeof beispiel === 'number' ? beispiel : `"${beispiel}"`}   // ${was}`;
+/**
+ * Eine Zeile „schlüssel — wofür", wie sie im Prompt steht.
+ *
+ * Das Komma steht **vor** dem Kommentar und nicht dahinter, und es steht
+ * überhaupt da — beides war einmal anders. Der gezeigte Rumpf trug zwischen
+ * den Feldern gar keins: durchweg kein gültiges JSON, in einem Block, der
+ * ausdrücklich als ```json ausgezeichnet und als Vorlage gemeint ist. Ein
+ * Modell, das die Form buchstabengetreu nachahmt, liefert damit etwas, das
+ * `JSON.parse` an der zweiten Zeile abweist — und der Rücklauf hat keine Stufe,
+ * die ein *fehlendes* Komma ergänzen könnte. Rund sechzig gelieferte Werte
+ * fielen weg, und die Meldung zeigte auf Position 25 statt auf die Vorlage.
+ *
+ * Gefunden hat es keine Prüfung, sondern erst ein `JSON.parse` über den
+ * gezeigten Block. Genau das steht jetzt als Prüfung daneben.
+ */
+function zeile(schluessel: string, was: string, beispiel: string | number, komma = true): string {
+  const wert = typeof beispiel === 'number' ? beispiel : `"${beispiel}"`;
+  return `  "${schluessel}": ${wert}${komma ? ',' : ''}   // ${was}`;
+}
+
+/** Dieselben Zeilen, das Komma auf allen bis auf der letzten. */
+function felder(eintraege: Array<[string, string, string | number]>): string[] {
+  return eintraege.map(([schluessel, was, beispiel], index) =>
+    zeile(schluessel, was, beispiel, index < eintraege.length - 1),
+  );
 }
 
 /**
@@ -66,12 +88,35 @@ function zeile(schluessel: string, was: string, beispiel: string | number): stri
  * zu sagen, was hineingehört.
  */
 function block(schluessel: PromptSchluessel): string[] {
+  /**
+   * Eine Gruppe: Kopfzeile, Rollen mit Komma bis auf die letzte, Schlussklammer.
+   *
+   * Das Komma **hinter** der Schlussklammer steht immer — bis auf die letzte
+   * Gruppe des Objekts, und die ist `shadowOffset`. Deshalb hat sie unten ihre
+   * eigene Zeile.
+   */
+  const gruppe = (kopf: string, zeilen: string[], schluss = '  },'): string[] => [
+    kopf,
+    ...zeilen.map((zeile) => `  ${zeile}`),
+    schluss,
+    '',
+  ];
+
   switch (schluessel) {
     case 'id':
       return [
+        /*
+           Die Regel ist enger, als sie zuerst dastand, und die Enge ist echt:
+           der Emitter macht aus dem Schlüssel einen Exportnamen und zieht dazu
+           `-x` zu `X` zusammen. Das greift nur vor einem *Buchstaben* — aus
+           `probe-2024` würde `probe-2024`, und das ist kein Bezeichner. Wer
+           hier „Ziffern und Bindestriche" verspricht, lässt ein Modell einen
+           Schlüssel liefern, den die Prüfliste eine Seite weiter ablehnt: der
+           Fehler steht dann bei dem, der den Prompt befolgt hat.
+        */
         zeile(
           'id',
-          'Kleinschrift, Ziffern, Bindestriche; steht im Frontmatter jedes Decks',
+          'Kleinschrift, Ziffern und Bindestriche, beginnend mit einem Buchstaben — ein Bindestrich aber nur vor einem Buchstaben (probe-haus ja, probe-2024 nein)',
           'probenhaus',
         ),
       ];
@@ -84,33 +129,34 @@ function block(schluessel: PromptSchluessel): string[] {
     case 'produkt':
       return [zeile('produkt', 'steht in der Beschreibung jedes SVG', 'Probenhaus Folien'), ''];
     case 'palette':
-      return [
+      return gruppe(
         '  "palette": {   // sechzehn Rollen, jede als #RRGGBB',
-        ...paletteRollen.map(
-          (rolle) => `  ${zeile(rolle, PALETTENTEXT[rolle], nozillaTheme.palette[rolle])}`,
+        felder(
+          paletteRollen.map((rolle) => [rolle, PALETTENTEXT[rolle], nozillaTheme.palette[rolle]]),
         ),
-        '  },',
-        '',
-      ];
+      );
     case 'fontFamily':
-      return [
+      return gruppe(
         '  "fontFamily": {   // je ein CSS-Stapel; der erste Name muss unten einen Schnitt haben',
-        ...schriftRollen.map(
-          (rolle) =>
-            `  ${zeile(rolle, `${SCHRIFTTEXT[rolle]} — dahinter die andere Marken-Schrift, dann das System`, nozillaTheme.fontFamily[rolle])}`,
+        felder(
+          schriftRollen.map((rolle) => [
+            rolle,
+            `${SCHRIFTTEXT[rolle]} — dahinter die andere Marken-Schrift, dann das System`,
+            nozillaTheme.fontFamily[rolle],
+          ]),
         ),
-        '  },',
-        '',
-      ];
+      );
     case 'pdfFontFamily':
-      return [
+      return gruppe(
         `  "pdfFontFamily": {   // die Ersatzschrift im PDF, nur ${pdfSchriften.join(' | ')}`,
-        ...schriftRollen.map(
-          (rolle) => `  ${zeile(rolle, SCHRIFTTEXT[rolle], nozillaTheme.pdfFontFamily[rolle])}`,
+        felder(
+          schriftRollen.map((rolle) => [
+            rolle,
+            SCHRIFTTEXT[rolle],
+            nozillaTheme.pdfFontFamily[rolle],
+          ]),
         ),
-        '  },',
-        '',
-      ];
+      );
     case 'webfontFaces':
       return [
         '  "webfontFaces": [   // jeder selbst gehostete Schnitt, als .woff2',
@@ -119,23 +165,23 @@ function block(schluessel: PromptSchluessel): string[] {
         '',
       ];
     case 'textScale':
-      return [
+      return gruppe(
         '  "textScale": {   // die Größenleiter in Folien-Einheiten; sie muss steigen',
-        ...textStufen.map(
-          (stufe) => `  ${zeile(stufe, LEITERTEXT[stufe], nozillaTheme.textScale[stufe])}`,
+        felder(
+          textStufen.map((stufe) => [stufe, LEITERTEXT[stufe], nozillaTheme.textScale[stufe]]),
         ),
-        '  },',
-        '',
-      ];
+      );
     case 'sonderstufen':
-      return [
+      return gruppe(
         '  "sonderstufen": {   // drei Größen, die auf keiner Stufe der Leiter sitzen',
-        ...sonderstufen.map(
-          (stufe) => `  ${zeile(stufe, STUFENTEXT[stufe], nozillaTheme.typeScale[stufe].size)}`,
+        felder(
+          sonderstufen.map((stufe) => [
+            stufe,
+            STUFENTEXT[stufe],
+            nozillaTheme.typeScale[stufe].size,
+          ]),
         ),
-        '  },',
-        '',
-      ];
+      );
     case 'auszeichnungEnger':
       return [
         zeile(
@@ -146,22 +192,23 @@ function block(schluessel: PromptSchluessel): string[] {
         '',
       ];
     case 'stroke':
-      return [
+      return gruppe(
         '  "stroke": {   // Strichstärken in Folien-Einheiten',
-        ...strichRollen.map(
-          (rolle) => `  ${zeile(rolle, STRICHTEXT[rolle], nozillaTheme.stroke[rolle])}`,
-        ),
-        '  },',
-        '',
-      ];
+        felder(strichRollen.map((rolle) => [rolle, STRICHTEXT[rolle], nozillaTheme.stroke[rolle]])),
+      );
     case 'shadowOffset':
-      return [
+      // Die letzte Gruppe des Objekts — ihre Schlussklammer trägt kein Komma.
+      return gruppe(
         '  "shadowOffset": {   // harte Versätze, kein Weichzeichner',
-        ...schattenRollen.map(
-          (rolle) => `  ${zeile(rolle, SCHATTENTEXT[rolle], nozillaTheme.shadowOffset[rolle])}`,
+        felder(
+          schattenRollen.map((rolle) => [
+            rolle,
+            SCHATTENTEXT[rolle],
+            nozillaTheme.shadowOffset[rolle],
+          ]),
         ),
         '  }',
-      ];
+      ).slice(0, -1);
   }
 }
 

@@ -231,8 +231,9 @@ function Bericht({
             Den vollständigen Anfang lesen ({Object.keys(abbruch.objekt).length} Felder)
           </Button>
           <p className="mt-1 text-[11px] leading-snug text-ui-faint">
-            Angeboten, nicht genommen: was nach „{abbruch.letzterSchluessel}" stand, ist
-            unvollständig und bleibt draußen.
+            Angeboten, nicht genommen: vollständig war zuletzt „
+            {abbruch.letzterSchluessel || '(nichts)'}", ab „
+            {abbruch.offenerSchluessel || '(unbekannt)'}" bleibt die Antwort draußen.
           </p>
         </div>
       ) : null}

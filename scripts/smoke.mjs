@@ -1870,6 +1870,35 @@ async function main() {
     const fokus = await generator.evaluate(() => document.activeElement?.id);
     gleich(fokus, 'nz-ci-farbe-signalSoft', 'der Sprung landete nicht im Feld');
 
+    /*
+       Und derselbe Weg für den Schritt „Maße", denn dort führte er ins Leere —
+       genauer: an die falsche Stelle. Die Größenleiter führt `sm` und `lg`, die
+       Schattenversätze führen sie auch, und beide wohnen im selben Schritt: die
+       Kennung `nz-ci-masse-sm` gab es damit zweimal. `getElementById` nimmt das
+       erste, also sprang ein Befund über einen Schattenversatz in die
+       Schriftgrößen und markierte dort einen Wert, an dem nichts falsch war.
+
+       Geprüft wird am *Fokus* und nicht an der Kennung: eine doppelt vergebene
+       Kennung ist im DOM nicht verboten, sie ist nur mehrdeutig, und mehrdeutig
+       sieht in keiner Zusicherung anders aus als eindeutig — außer in dieser.
+    */
+    await zumSchritt(generator, 'Maße');
+    await generator.locator('#nz-ci-masse-schatten-sm').fill('');
+    await generator.locator('#nz-ci-masse-leiter-base').focus();
+    await generator.waitForTimeout(400);
+
+    await generator
+      .locator('p', { hasText: 'trägt keine Zahl' })
+      .getByRole('button', { name: 'Zum Feld' })
+      .first()
+      .click();
+    await generator.waitForTimeout(400);
+    gleich(
+      await generator.evaluate(() => document.activeElement?.id),
+      'nz-ci-masse-schatten-sm',
+      'der Befund über den Schattenversatz sprang in die Größenleiter',
+    );
+
     await generator.close();
   });
 
@@ -1921,6 +1950,97 @@ async function main() {
       await generator.getByLabel('Schlüssel').inputValue(),
       '',
       'Rückgängig nahm den Rücklauf nicht zurück',
+    );
+
+    await generator.close();
+  });
+
+  await pruefe('der Weg zurück verfällt, sobald von Hand gearbeitet wird', async () => {
+    /*
+       „Rückgängig" nimmt den **ganzen** Entwurf auf den Stand vor dem Rücklauf
+       zurück. Solange der Merker liegen blieb, nahm er alles mit, was seither
+       von Hand entstanden ist: übernehmen, in Schritt 2 einen Namen eintragen,
+       zurück in Schritt 1 — und der Knopf stand noch da und warf den Namen weg.
+       Dieselbe Regel gilt schon für den Vorschlag selbst; ein Angebot, das
+       gegen einen Stand rechnet, den es nicht mehr gibt, ist keines.
+    */
+    const generator = await kontext.newPage();
+    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+    await generator.waitForTimeout(2200);
+
+    await generator
+      .getByLabel('Die Antwort des Modells')
+      .fill('{"id": "rauchverfall", "label": "Rauchverfall"}');
+    await generator.getByRole('button', { name: 'Antwort lesen' }).click();
+    await generator.waitForTimeout(400);
+    await generator.getByRole('button', { name: /Werte übernehmen/ }).click();
+    await generator.waitForTimeout(400);
+
+    // Erst die Gegenprobe: unmittelbar danach steht der Weg zurück offen.
+    await zumSchritt(generator, 'Anfang');
+    gleich(
+      await generator.getByRole('button', { name: 'Rückgängig' }).count(),
+      1,
+      'der Weg zurück fehlte schon vor der Handarbeit',
+    );
+
+    await zumSchritt(generator, 'Marke');
+    await generator.getByLabel('Markenname').fill('von Hand');
+    await generator.waitForTimeout(400);
+
+    await zumSchritt(generator, 'Anfang');
+    gleich(
+      await generator.getByRole('button', { name: 'Rückgängig' }).count(),
+      0,
+      'der Weg zurück steht noch da und nähme die Handarbeit mit',
+    );
+
+    await generator.close();
+  });
+
+  await pruefe('ein geladener Entwurf fragt, bevor er den offenen ersetzt', async () => {
+    /*
+       „Sechs Wege ersetzten das Deck, einer fragte" — eine Seite weiter und
+       mit fünfzig Feldern statt eines Decks. „Entwurf laden" warf den offenen
+       Stand wortlos weg, während „Zurücksetzen" direkt daneben für dieselbe
+       Tat um Erlaubnis bittet. Ein Fehlgriff im Dateidialog genügte.
+
+       Gefahren werden beide Richtungen: abgelehnt muss der offene Stand
+       stehen bleiben, angenommen muss die Datei ankommen. Eine Frage, die man
+       nur wegklicken kann, wäre so schlimm wie keine.
+    */
+    const generator = await kontext.newPage();
+    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+    await generator.waitForTimeout(2200);
+
+    await zumSchritt(generator, 'Marke');
+    await generator.getByLabel('Schlüssel').fill('vonhand');
+    await generator.waitForTimeout(700);
+
+    const datei = {
+      name: 'geladen.nzci.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify({ id: 'ausdatei', label: 'Aus Datei' })),
+    };
+
+    generator.once('dialog', (dialog) => void dialog.dismiss());
+    await generator.setInputFiles('input[accept*="json"]', datei);
+    await generator.waitForTimeout(600);
+    await zumSchritt(generator, 'Marke');
+    gleich(
+      await generator.getByLabel('Schlüssel').inputValue(),
+      'vonhand',
+      'das abgelehnte Laden ersetzte den Entwurf trotzdem',
+    );
+
+    generator.once('dialog', (dialog) => void dialog.accept());
+    await generator.setInputFiles('input[accept*="json"]', datei);
+    await generator.waitForTimeout(600);
+    await zumSchritt(generator, 'Marke');
+    gleich(
+      await generator.getByLabel('Schlüssel').inputValue(),
+      'ausdatei',
+      'das angenommene Laden kam nicht an',
     );
 
     await generator.close();

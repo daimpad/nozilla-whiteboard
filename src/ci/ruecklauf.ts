@@ -265,8 +265,18 @@ const STUFEN: Array<{ was: string; tu: (text: string) => string }> = [
 export interface Abbruch {
   /** Das, was sich aus dem vollständigen Teil lesen ließ. */
   objekt: Record<string, unknown>;
-  /** Der Schlüssel, der zuletzt ganz dastand. */
+  /**
+   * Der Schlüssel, dessen Wert zuletzt **ganz** dastand.
+   *
+   * Und das ist ein anderer als der, an dem die Antwort abriss. Die vorige
+   * Fassung führte nur einen: den zuletzt *begonnenen*. Sie meldete damit
+   * „zuletzt vollständig war ‚palette'" über einer Palette, die mitten in
+   * `"paper": "#FAF` abbrach — die eine Auskunft, auf die es hier ankommt, war
+   * genau verkehrt herum.
+   */
   letzterSchluessel: string;
+  /** Der Schlüssel, in dem die Antwort abriss — der Punkt zum Fortsetzen. */
+  offenerSchluessel: string;
   /** Wie viele Zeichen die Antwort hatte, bevor sie abbrach. */
   zeichen: number;
 }
@@ -285,6 +295,7 @@ export function abgebrochen(text: string): Abbruch | null {
   let maskiert = false;
   let letzterSchnitt = -1;
   let letzterSchluessel = '';
+  let offenerSchluessel = '';
   let schluessel = '';
   let sammle = false;
 
@@ -309,15 +320,23 @@ export function abgebrochen(text: string): Abbruch | null {
       continue;
     }
     if (zeichen === ':' && tiefe === 1) {
-      letzterSchluessel = schluessel || letzterSchluessel;
+      offenerSchluessel = schluessel || offenerSchluessel;
       sammle = false;
       continue;
     }
     if (zeichen === '{' || zeichen === '[') tiefe += 1;
     else if (zeichen === '}' || zeichen === ']') tiefe -= 1;
-    else if (zeichen === ',' && tiefe === 1) letzterSchnitt = i;
+    else if (zeichen === ',' && tiefe === 1) {
+      // Hier endet ein Wert der obersten Ebene: *dieser* Schlüssel stand ganz
+      // da. Der offene wandert damit zum vollständigen.
+      letzterSchnitt = i;
+      letzterSchluessel = offenerSchluessel;
+    }
 
-    if (tiefe === 1 && (zeichen === '}' || zeichen === ']')) letzterSchnitt = i + 1;
+    if (tiefe === 1 && (zeichen === '}' || zeichen === ']')) {
+      letzterSchnitt = i + 1;
+      letzterSchluessel = offenerSchluessel;
+    }
     if (tiefe === 0 && i > 0) return null; // Das Objekt ist zu — kein Abbruch.
   }
 
@@ -330,6 +349,7 @@ export function abgebrochen(text: string): Abbruch | null {
     return {
       objekt: wert as Record<string, unknown>,
       letzterSchluessel,
+      offenerSchluessel,
       zeichen: text.length,
     };
   } catch {
@@ -395,8 +415,25 @@ function liesObjekt(roh: string): Gelesen {
 class Bericht {
   readonly befunde: Ruecklaufbefund[] = [];
 
+  /**
+   * Die obersten Felder, aus denen wirklich ein Wert in den Entwurf ging.
+   *
+   * Gezählt wird das und nicht, was das Modell *mitgeschickt* hat. Die vorige
+   * Fassung nahm `Object.keys(objekt)` und meldete „Übernommen: 13 von 13"
+   * über einer Antwort, in der `textScale` eine Zeichenkette war und
+   * `palette` eine Liste — beides übergangen, beides mitgezählt. Genau die
+   * Sorte Zahl, die in diesem Projekt schon einmal teuer war: sie nennt
+   * eine und tut eine andere.
+   */
+  readonly genommen = new Set<string>();
+
   melde(rang: Ruecklaufrang, feld: Feld, text: string): void {
     this.befunde.push({ rang, feld, text });
+  }
+
+  /** Aus diesem obersten Feld ist mindestens ein Wert angekommen. */
+  nahm(schluessel: string): void {
+    this.genommen.add(schluessel);
   }
 
   /**
@@ -715,17 +752,39 @@ export function unterschiede(alt: CiEntwurf, neu: CiEntwurf): Aenderung[] {
      Liste kann kürzer oder länger werden, und „der dritte Schnitt heißt jetzt
      anders" wäre über einer verschobenen Liste eine Behauptung ins Blaue. Die
      Kennung bleibt dabei außen vor — sie gehört dem Formular.
+
+     Genannt wird, **welche Zeilen gehen und welche kommen**, und nicht wie
+     viele es sind. Die vorige Fassung schrieb „9 Schnitte → 9 Schnitte": eine
+     Zeile, die zwei gleiche Zahlen zeigt und behauptet, dazwischen ändere sich
+     etwas. Wer neun Schnitte gegen neun andere tauscht — dieselbe Familie in
+     anderen Dateien ist der Normalfall — bekam damit als einzige Auskunft, es
+     bleibe bei neun.
   */
-  const alsText = (entwurf: CiEntwurf) =>
-    entwurf.webfontFaces
-      .map((face) => `${face.family} ${face.weight} ${face.style} ${face.file}`)
-      .join(' · ');
-  if (alsText(alt) !== alsText(neu)) {
+  const zeile = (face: CiEntwurf['webfontFaces'][number]) =>
+    `${face.family} ${face.weight} ${face.style} ${face.file}`;
+  /** Was in `a` steht und in `b` nicht — als Multimenge, also mit Vielfachheit. */
+  const ohne = (a: string[], b: string[]): string[] => {
+    const rest = [...b];
+    return a.filter((eintrag) => {
+      const stelle = rest.indexOf(eintrag);
+      if (stelle < 0) return true;
+      rest.splice(stelle, 1);
+      return false;
+    });
+  };
+  const weg = ohne(alt.webfontFaces.map(zeile), neu.webfontFaces.map(zeile));
+  const dazu = ohne(neu.webfontFaces.map(zeile), alt.webfontFaces.map(zeile));
+  // Steht auf beiden Seiten nichts, hat sich nur die Reihenfolge bewegt — und
+  // die ändert an keiner Ausgabe etwas. Eine Zeile „nichts → nichts" wäre die
+  // Sorte Meldung, deretwegen man Meldungen überliest.
+  if (weg.length || dazu.length) {
     aus.push({
       feld: 'Schrift',
       name: 'Schnitte',
-      war: `${alt.webfontFaces.length} Schnitte`,
-      wird: `${neu.webfontFaces.length} Schnitte`,
+      war: weg.length ? weg.join(' · ') : `${alt.webfontFaces.length} Schnitte, keiner fällt weg`,
+      wird: dazu.length
+        ? dazu.join(' · ')
+        : `${neu.webfontFaces.length} Schnitte, keiner kommt dazu`,
     });
   }
 
@@ -766,7 +825,7 @@ export function liesRuecklauf(roh: string, basis: CiEntwurf): Ruecklauf {
           {
             rang: 'fehler',
             feld: 'Rücklauf',
-            text: `Die Antwort hört nach ${abbruch.zeichen} Zeichen mitten im Satz auf — zuletzt vollständig war „${abbruch.letzterSchluessel || '(nichts)'}". Das ist meist keine Panne, sondern die Längengrenze des Modells: bitte es, ab „${abbruch.letzterSchluessel}" fortzusetzen, und füge den Rest hier an.`,
+            text: `Die Antwort hört nach ${abbruch.zeichen} Zeichen mitten im Satz auf — zuletzt vollständig war „${abbruch.letzterSchluessel || '(nichts)'}", abgerissen ist sie in „${abbruch.offenerSchluessel || '(unbekannt)'}". Das ist meist keine Panne, sondern die Längengrenze des Modells: bitte es, ab „${abbruch.offenerSchluessel || abbruch.letzterSchluessel}" fortzusetzen, und füge den Rest hier an.`,
           },
           {
             rang: 'uebergangen',
@@ -813,24 +872,40 @@ export function liesRuecklauf(roh: string, basis: CiEntwurf): Ruecklauf {
 
   for (const name of ['id', 'label', 'markenname', 'produkt'] as const) {
     const wert = nimmText(bericht, 'Marke', name, objekt[name]);
-    if (wert !== null) entwurf[name] = wert;
+    if (wert !== null) {
+      entwurf[name] = wert;
+      bericht.nahm(name);
+    }
   }
 
-  Object.assign(
+  /** Eine Gruppe übernehmen — und mitschreiben, ob dabei etwas ankam. */
+  const uebernimm = <T>(
+    ziel: Record<string, T>,
+    schluessel: string,
+    gelesen: Partial<Record<string, T>>,
+  ) => {
+    Object.assign(ziel, gelesen);
+    if (Object.keys(gelesen).length) bericht.nahm(schluessel);
+  };
+
+  uebernimm(
     entwurf.palette,
+    'palette',
     bericht.gruppe('Farbe', 'Die Palette', objekt.palette, paletteRollen, (wert, rolle) =>
       nimmFarbe(bericht, 'Farbe', rolle, wert),
     ),
   );
 
-  Object.assign(
+  uebernimm(
     entwurf.textScale,
+    'textScale',
     bericht.gruppe('Maße', 'Die Größenleiter', objekt.textScale, textStufen, (wert, rolle) =>
       nimmZahl(bericht, 'Maße', rolle, wert),
     ),
   );
-  Object.assign(
+  uebernimm(
     entwurf.sonderstufen,
+    'sonderstufen',
     bericht.gruppe(
       'Maße',
       'Die Stufen außerhalb der Leiter',
@@ -839,14 +914,16 @@ export function liesRuecklauf(roh: string, basis: CiEntwurf): Ruecklauf {
       (wert, rolle) => nimmZahl(bericht, 'Maße', rolle, wert),
     ),
   );
-  Object.assign(
+  uebernimm(
     entwurf.stroke,
+    'stroke',
     bericht.gruppe('Maße', 'Die Strichstärken', objekt.stroke, strichRollen, (wert, rolle) =>
       nimmZahl(bericht, 'Maße', rolle, wert),
     ),
   );
-  Object.assign(
+  uebernimm(
     entwurf.shadowOffset,
+    'shadowOffset',
     bericht.gruppe(
       'Maße',
       'Die Schattenversätze',
@@ -856,15 +933,32 @@ export function liesRuecklauf(roh: string, basis: CiEntwurf): Ruecklauf {
     ),
   );
 
-  if (objekt.auszeichnungEnger !== undefined) {
+  if (objekt.auszeichnungEnger === undefined) {
+    /*
+       Auch das Fehlen wird gemeldet, und das war die Lücke: dieser eine
+       Schlüssel lief nicht über `nimmText` und nicht über `bericht.gruppe`,
+       also über keinen der beiden Wege, die „kam nicht" sagen. Ein Modell,
+       das ihn ausließ, bekam dafür kein Wort — und die Laufweite der
+       Auszeichnung ist nichts, was man auf der Probefolie sieht.
+    */
+    bericht.melde(
+      'fehlt',
+      'Maße',
+      '„auszeichnungEnger" kam nicht — der bisherige Wert bleibt stehen.',
+    );
+  } else {
     // Die einzige Größe, die kein Folienmaß ist: die Laufweite steht in em, und
     // dort ist die Einheit richtig statt fremd.
     const wert = nimmZahl(bericht, 'Maße', 'auszeichnungEnger', objekt.auszeichnungEnger, ['em']);
-    if (wert !== null) entwurf.auszeichnungEnger = wert;
+    if (wert !== null) {
+      entwurf.auszeichnungEnger = wert;
+      bericht.nahm('auszeichnungEnger');
+    }
   }
 
-  Object.assign(
+  uebernimm(
     entwurf.fontFamily,
+    'fontFamily',
     bericht.gruppe(
       'Schrift',
       'Die Schriftstapel',
@@ -873,8 +967,9 @@ export function liesRuecklauf(roh: string, basis: CiEntwurf): Ruecklauf {
       (wert, rolle) => nimmText(bericht, 'Schrift', rolle, wert),
     ),
   );
-  Object.assign(
+  uebernimm(
     entwurf.pdfFontFamily,
+    'pdfFontFamily',
     bericht.gruppe(
       'Schrift',
       'Die PDF-Ersatzschriften',
@@ -901,12 +996,15 @@ export function liesRuecklauf(roh: string, basis: CiEntwurf): Ruecklauf {
   );
 
   const schnitte = nimmSchnitte(bericht, objekt.webfontFaces);
-  if (schnitte) entwurf.webfontFaces = schnitte;
+  if (schnitte) {
+    entwurf.webfontFaces = schnitte;
+    bericht.nahm('webfontFaces');
+  }
 
   bericht.melde(
     'gelesen',
     'Rücklauf',
-    `Übernommen: ${Object.keys(objekt).filter((schluessel) => (ERWARTET as readonly string[]).includes(schluessel)).length} von ${ERWARTET.length} Feldern. Was nicht kam, steht unten; die Prüfliste rechts urteilt danach über das Ganze.`,
+    `Übernommen: ${bericht.genommen.size} von ${ERWARTET.length} Feldern. Was nicht kam oder nicht taugte, steht unten; die Prüfliste rechts urteilt danach über das Ganze.`,
   );
 
   return {

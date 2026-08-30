@@ -26,7 +26,14 @@
  * warum das hier gefahrlos ist: ohne ihn läge ein nachgezeichnetes Logo mit
  * drei Megabyte in einer Ablage, die etwa fünf fasst.
  */
-import { leererEntwurf, neueKennung, type CiEntwurf, type Schnitt } from './entwurf';
+import {
+  leererEntwurf,
+  neueKennung,
+  pdfSchriften,
+  type CiEntwurf,
+  type PdfSchrift,
+  type Schnitt,
+} from './entwurf';
 
 /**
  * Der Schlüssel dieser Seite.
@@ -56,7 +63,16 @@ function ablage(): Storage | null {
  */
 export function sichereEntwurf(entwurf: CiEntwurf): string | null {
   const speicher = ablage();
-  if (!speicher) return null;
+  /*
+     Und die fehlende Ablage ist derselbe Fall, nicht ein harmloserer. Ein
+     privates Fenster oder ein Browser, der Sitzungsdaten sperrt, gibt hier
+     `null` zurück — und das schwieg, während der Absatz darüber erklärt, warum
+     Schweigen hier der Fehler ist. Die Folge ist dieselbe: es sichert sich
+     nichts, und niemand erfährt es.
+  */
+  if (!speicher) {
+    return 'Der Entwurf lässt sich nicht für ein Neuladen merken: dieser Browser gibt keine Sitzungsablage her (ein privates Fenster tut das oft nicht). Ein ⌘R verliert ihn.';
+  }
   try {
     speicher.setItem(entwurfSchluessel, JSON.stringify(entwurf));
     return null;
@@ -109,28 +125,94 @@ export function liesEntwurf(): CiEntwurf | null {
   }
 }
 
-/** Einen gelesenen Teil-Entwurf auf einen vollständigen legen. */
+/**
+ * Einen gelesenen Teil-Entwurf auf einen vollständigen legen.
+ *
+ * Und dabei **jeden Wert prüfen**, nicht nur die Form. Das war einmal ein
+ * `...gelesen` über den leeren Entwurf, und der Unterschied ist kein
+ * theoretischer: `pruefe()` läuft in einem `useMemo` *während des Renderns* und
+ * greift auf `entwurf.id.trim()`, `marke.svg.length` und `palette[rolle].trim()`
+ * zu. Eine fremde Datei mit `{"id": 42}` warf dort einen TypeError — und der
+ * `try/catch` um „Entwurf laden" fängt das nicht, weil `ersetze()` nur eine
+ * Zustandsänderung plant und das Rendern erst danach läuft. Gemessen: weißes
+ * Fenster, keine Meldung, kein Formular mehr, obwohl direkt daneben der Satz
+ * „… ist kein gesicherter Entwurf" für genau diesen Fall gebaut ist.
+ *
+ * Was nicht passt, fällt auf die Vorbelegung zurück. Das ist hier richtig und
+ * anderswo nicht: eine Datei aus einer älteren Fassung ist kein Rücklauf eines
+ * Sprachmodells, über den berichtet werden müsste — sie ist das eigene Format,
+ * und was darin fehlt, hat nie jemand entschieden. Die Prüfliste sagt danach
+ * ohnehin, was noch offen ist.
+ */
 export function zusammen(gelesen: Partial<CiEntwurf>): CiEntwurf {
   const leer = leererEntwurf();
-  const schnitte = Array.isArray(gelesen.webfontFaces) ? gelesen.webfontFaces : leer.webfontFaces;
+  const roh = (gelesen ?? {}) as Record<string, unknown>;
+
+  const alsText = (wert: unknown, ersatz: string): string =>
+    typeof wert === 'string' ? wert : ersatz;
+  const alsZahl = (wert: unknown, ersatz: number): number =>
+    typeof wert === 'number' && Number.isFinite(wert) ? wert : ersatz;
+
+  /** Eine Gruppe gleichartiger Werte, Rolle für Rolle geprüft. */
+  const gruppe = <T>(
+    vorgabe: Record<string, T>,
+    wert: unknown,
+    lies: (roh: unknown, ersatz: T) => T,
+  ): Record<string, T> => {
+    const gegeben = (wert && typeof wert === 'object' ? wert : {}) as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.entries(vorgabe).map(([rolle, ersatz]) => [rolle, lies(gegeben[rolle], ersatz)]),
+    );
+  };
+
+  const marke = roh.wortmarke;
+  const wortmarke =
+    marke && typeof marke === 'object' && typeof (marke as Record<string, unknown>).svg === 'string'
+      ? {
+          svg: (marke as Record<string, unknown>).svg as string,
+          dateiname: alsText((marke as Record<string, unknown>).dateiname, ''),
+          letters: alsText((marke as Record<string, unknown>).letters, ''),
+          accent: alsText((marke as Record<string, unknown>).accent, ''),
+        }
+      : null;
+
+  const schnitte = Array.isArray(roh.webfontFaces)
+    ? (roh.webfontFaces as unknown[])
+    : leer.webfontFaces;
 
   return {
-    ...leer,
-    ...gelesen,
-    palette: { ...leer.palette, ...(gelesen.palette ?? {}) },
-    textScale: { ...leer.textScale, ...(gelesen.textScale ?? {}) },
-    sonderstufen: { ...leer.sonderstufen, ...(gelesen.sonderstufen ?? {}) },
-    stroke: { ...leer.stroke, ...(gelesen.stroke ?? {}) },
-    shadowOffset: { ...leer.shadowOffset, ...(gelesen.shadowOffset ?? {}) },
-    fontFamily: { ...leer.fontFamily, ...(gelesen.fontFamily ?? {}) },
-    pdfFontFamily: { ...leer.pdfFontFamily, ...(gelesen.pdfFontFamily ?? {}) },
-    webfontFaces: schnitte.map((face): Schnitt => ({
-      family: String(face?.family ?? ''),
-      weight: Number(face?.weight),
-      style: face?.style === 'italic' ? 'italic' : 'normal',
-      file: String(face?.file ?? ''),
-      kennung: neueKennung(),
-    })),
+    id: alsText(roh.id, leer.id),
+    label: alsText(roh.label, leer.label),
+    markenname: alsText(roh.markenname, leer.markenname),
+    produkt: alsText(roh.produkt, leer.produkt),
+    palette: gruppe(leer.palette, roh.palette, alsText) as CiEntwurf['palette'],
+    textScale: gruppe(leer.textScale, roh.textScale, alsZahl) as CiEntwurf['textScale'],
+    sonderstufen: gruppe(leer.sonderstufen, roh.sonderstufen, alsZahl) as CiEntwurf['sonderstufen'],
+    auszeichnungEnger: alsZahl(roh.auszeichnungEnger, leer.auszeichnungEnger),
+    stroke: gruppe(leer.stroke, roh.stroke, alsZahl) as CiEntwurf['stroke'],
+    shadowOffset: gruppe(leer.shadowOffset, roh.shadowOffset, alsZahl) as CiEntwurf['shadowOffset'],
+    fontFamily: gruppe(leer.fontFamily, roh.fontFamily, alsText) as CiEntwurf['fontFamily'],
+    pdfFontFamily: gruppe(leer.pdfFontFamily, roh.pdfFontFamily, (wert, ersatz) =>
+      (pdfSchriften as readonly string[]).includes(wert as string) ? (wert as PdfSchrift) : ersatz,
+    ) as CiEntwurf['pdfFontFamily'],
+    /*
+       Die Kennungen werden neu vergeben. Sie gehören dem Formular dieser
+       Sitzung und nicht der Ablage; zwei Zeilen mit derselben Kennung machen
+       die Liste unbedienbar, und das ist genau der Fehler, wegen dessen es sie
+       gibt.
+    */
+    webfontFaces: schnitte.map((eintrag): Schnitt => {
+      const face = (eintrag ?? {}) as Record<string, unknown>;
+      return {
+        family: alsText(face.family, ''),
+        weight: alsZahl(face.weight, Number.NaN),
+        style: face.style === 'italic' ? 'italic' : 'normal',
+        file: alsText(face.file, ''),
+        kennung: neueKennung(),
+      };
+    }),
+    wortmarke,
+    zeichen: roh.zeichen === 'ohne-signatur' ? 'ohne-signatur' : 'nozilla',
   };
 }
 
@@ -141,11 +223,28 @@ export function zusammen(gelesen: Partial<CiEntwurf>): CiEntwurf {
  * wird. Ein Entwurf, der nur die nozilla-Vorbelegung trägt, ist keine Arbeit —
  * die Frage wäre dann eine, die man nur wegklicken kann.
  *
- * Gemessen an den Feldern, die ein Mensch anfassen muss, damit überhaupt etwas
- * entsteht: der Schlüssel, der Name, die Wortmarke. Ein Vergleich des ganzen
- * Entwurfs gegen `leererEntwurf()` wäre genauer und zugleich schlechter — die
- * Schnitt-Kennungen zählen hoch, also wäre er immer ungleich.
+ * Gemessen wird am **ganzen Entwurf** und nicht an drei Feldern. Die vorige
+ * Fassung fragte nur nach Schlüssel, Name und Wortmarke, und das warf echte
+ * Arbeit stumm weg: wer über den Schrittbalken gleich zu „Farbe" springt (der
+ * Name wird erfahrungsgemäß zuletzt vergeben), sechzehn Rollen und die Leiter
+ * setzt und dann ⌘R drückt, bekam keine Frage, das leere Formular und einen
+ * gemerkten Stand, den der nächste Anschlag überschrieb.
+ *
+ * Die Kennungen der Schnitte bleiben beim Vergleich außen vor: sie zählen bei
+ * jedem Lesen hoch, und ein Entwurf wäre sonst immer „Arbeit".
  */
 export function traegtArbeit(entwurf: CiEntwurf): boolean {
-  return Boolean(entwurf.id.trim() || entwurf.label.trim() || entwurf.wortmarke);
+  return ohneKennungen(entwurf) !== ohneKennungen(leererEntwurf());
+}
+
+function ohneKennungen(entwurf: CiEntwurf): string {
+  return JSON.stringify({
+    ...entwurf,
+    webfontFaces: entwurf.webfontFaces.map(({ family, weight, style, file }) => ({
+      family,
+      weight,
+      style,
+      file,
+    })),
+  });
 }

@@ -145,6 +145,31 @@ describe('ohneCodezaun', () => {
     expect(ohneCodezaun(deck)).toBe(deck);
   });
 
+  it('greift auch mit einem Satz davor nicht in ein Deck hinein', () => {
+    /*
+       Die Lücke, die der Schutz eine Stufe darüber nicht deckte: er fängt ein
+       nacktes Deck nur, solange der Text *mit* `---` beginnt. „Klar, hier ist
+       das Deck:" davor, und der Schnitt nahm den inneren Codeblock — gemessen
+       blieb vom ganzen Deck `const a = 1;` übrig.
+    */
+    const deck = '---\ntitle: X\n---\n\n# Folie\n\n```ts\nconst a = 1;\n```\n\n# Folie 2';
+    expect(ohneCodezaun(`Klar, hier ist das Deck:\n${deck}`)).toContain('# Folie 2');
+    expect(ohneCodezaun(`Klar, hier ist das Deck:\n${deck}`)).toContain('title: X');
+  });
+
+  it('schneidet bis zum letzten Zaun, nicht bis zum nächsten', () => {
+    /*
+       Die andere Hälfte desselben Falls: ein eingezäuntes Deck *mit* einem
+       Codeblock darin. Der nicht gierige Ausdruck endete am Öffner des inneren
+       Blocks — der Inhalt hörte mitten in der ersten Folie auf, `parseDeck`
+       las das anstandslos, und der Benutzer bekam ein Deck, dem stillschweigend
+       die Hälfte der Folien fehlte.
+    */
+    const deck = '---\ntitle: X\n---\n\n# Folie\n\n```ts\nconst a = 1;\n```\n\n# Folie 2';
+    const antwort = `Klar:\n\`\`\`markdown\n${deck}\n\`\`\`\nPasst das?`;
+    expect(ohneCodezaun(antwort)).toBe(deck);
+  });
+
   it('lässt innere Zäune stehen, wenn der äußere fällt', () => {
     const antwort = '```md\n---\ntitle: X\n---\n\n```ts\nconst a = 1;\n```\n```';
     expect(ohneCodezaun(antwort)).toBe('---\ntitle: X\n---\n\n```ts\nconst a = 1;\n```');

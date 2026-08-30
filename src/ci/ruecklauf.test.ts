@@ -17,6 +17,7 @@ import { describe, expect, it } from 'vitest';
 import { nozillaTheme } from '@/theme';
 import {
   leererEntwurf,
+  leererSchnitt,
   themeAusEntwurf,
   vorschaustand,
   vorschauTheme,
@@ -39,10 +40,10 @@ import {
   type Ruecklaufbefund,
   type Ruecklaufrang,
 } from './ruecklauf';
-import { ankerFuer, pruefe, type Feld } from './pruefung';
-import { designdatei } from './emitter';
+import { ankerFuer, massAnker, massgruppen, pruefe, type Feld } from './pruefung';
+import { bezeichnerProblem, designdatei } from './emitter';
 import { SCHRITTE, schrittFuerFeld } from './schritte';
-import { entwurfSchluessel, traegtArbeit, zusammen } from './sitzung';
+import { entwurfSchluessel, sichereEntwurf, traegtArbeit, zusammen } from './sitzung';
 import { STORAGE_KEY as SITZUNG } from '@/state/persistence';
 
 function texte(befunde: Ruecklaufbefund[], rang: Ruecklaufrang): string {
@@ -145,6 +146,28 @@ describe('der Prompt', () => {
     }
   });
 
+  it('verlangt für den Schlüssel keine Form, die die Prüfliste ablehnt', () => {
+    /*
+       Der Prompt beschrieb den Schlüssel als „Kleinschrift, Ziffern,
+       Bindestriche" — und die Prüfliste lehnt davon einen Teil ab. Der
+       Emitter macht aus dem Schlüssel einen Exportnamen und zieht dazu `-x`
+       zu `X` zusammen; das greift nur vor einem *Buchstaben*, aus
+       `probe-2024` würde also `probe-2024`, und das ist kein Bezeichner.
+
+       Wer hier zu viel verspricht, bekommt vom Modell einen Schlüssel, den
+       die Seite eine Ecke weiter zurückweist — und der Fehler steht dann bei
+       dem, der den Prompt befolgt hat. Geprüft wird deshalb an **beiden**
+       Beispielen, die der Prompt nennt, gegen den Emitter, der urteilt.
+    */
+    const prompt = promptText(leererEntwurf());
+    expect(prompt).toContain('probe-haus');
+    expect(prompt).toContain('probe-2024');
+    expect(bezeichnerProblem('probe-haus')).toBeNull();
+    expect(bezeichnerProblem('probe-2024')).not.toBeNull();
+    // Und das Beispiel, das der Prompt als Wert vorzeigt, muss selbst durch.
+    expect(bezeichnerProblem('probenhaus')).toBeNull();
+  });
+
   it('meldet keinen Schlüssel als überzählig, nach dem er selbst fragt', () => {
     /*
        Die Gegenrichtung, und die eigentliche Prüfung: was der Prompt verlangt,
@@ -156,6 +179,49 @@ describe('der Prompt', () => {
     const alles = Object.fromEntries(promptSchluessel.map((schluessel) => [schluessel, null]));
     const { befunde } = liesRuecklauf(JSON.stringify(alles), BASIS());
     expect(texte(befunde, 'uebergangen')).not.toMatch(/kennt der Generator nicht/);
+  });
+
+  it('zeigt eine Form, die wirklich JSON ist', () => {
+    /*
+       Die Prüfung, die gefehlt hat — und ihr Fehlen war teuer: der gezeigte
+       Rumpf trug zwischen den Feldern **kein einziges Komma**. Ein Block, der
+       ausdrücklich als ```json ausgezeichnet und als Vorlage gemeint ist, war
+       durchweg kein JSON. Ein Modell, das die Form buchstabengetreu nachahmt,
+       liefert damit etwas, das `JSON.parse` an der zweiten Zeile abweist —
+       und der Rücklauf hat keine Stufe, die ein *fehlendes* Komma ergänzen
+       könnte. Rund sechzig Werte fielen weg.
+
+       Geprüft wird am Ergebnis: Kommentare heraus, dann parsen. Die vorigen
+       Prüfungen fragten nur `toContain('"<rolle>"')` und wären über jedem
+       kaputten Rumpf grün geblieben.
+    */
+    const prompt = promptText(leererEntwurf());
+    const block = /```json\n([\s\S]*?)\n```/.exec(prompt);
+    expect(block, 'kein JSON-Block im Prompt').not.toBeNull();
+
+    const ohneKommentare = (block as RegExpExecArray)[1].replace(/\s*\/\/.*$/gm, '');
+    const gelesen = JSON.parse(ohneKommentare) as Record<string, unknown>;
+
+    // Und was dabei herauskommt, ist die Form, die der Leser erwartet.
+    expect(Object.keys(gelesen).sort()).toEqual([...promptSchluessel].sort());
+    expect(Object.keys(gelesen.palette as object).sort()).toEqual([...paletteRollen].sort());
+    expect(Object.keys(gelesen.textScale as object).sort()).toEqual([...textStufen].sort());
+  });
+
+  it('zeigt eine Form, die der Leser ohne einen Befund annimmt', () => {
+    /*
+       Die Gegenrichtung, und die eigentliche Zusicherung: die Vorlage ist
+       nicht nur *lesbar*, sie ist auch *vollständig*. Wer sie unverändert
+       zurückschickt, bekommt keine Lücke und keine Übergehung gemeldet.
+    */
+    const prompt = promptText(leererEntwurf());
+    const block = /```json\n([\s\S]*?)\n```/.exec(prompt) as RegExpExecArray;
+    const antwort = block[1].replace(/\s*\/\/.*$/gm, '');
+
+    const { entwurf, befunde } = liesRuecklauf(antwort, BASIS());
+    expect(entwurf).not.toBeNull();
+    expect(texte(befunde, 'fehlt')).toBe('');
+    expect(texte(befunde, 'uebergangen')).toBe('');
   });
 
   it('nennt die Werte von nozilla als Beispiel und erfindet keine', () => {
@@ -218,6 +284,22 @@ describe('normalisiereFarbe', () => {
     expect(korrektur?.wie).toMatch(/Deckkraft/);
     // Und ein volles Alpha ist keine Meldung wert.
     expect(normalisiereFarbe('rgba(228, 0, 58, 1)')?.wie).not.toMatch(/Deckkraft/);
+  });
+
+  it('sagt es auch, wenn die Deckkraft in Prozent dasteht', () => {
+    /*
+       Dieselbe Farbe, dieselbe halbe Deckkraft, zwei Schreibweisen — und nur
+       eine wurde gemeldet. `parseFloat('50%')` ist 50, und die vorige Fassung
+       fragte `< 1`: die Prozentform galt damit als deckend und fiel stumm
+       weg. Und sie ist die häufigere, denn die Schrägstrich-Schreibweise ist
+       die, die ein Sprachmodell heute schreibt.
+    */
+    expect(normalisiereFarbe('rgb(228 0 58 / 50%)')?.wie).toMatch(/Deckkraft/);
+    expect(normalisiereFarbe('rgba(228, 0, 58, 50%)')?.wie).toMatch(/Deckkraft/);
+    // Die Gegenrichtung, ohne die die Regel nur eine halbe wäre: 100 % ist
+    // deckend und keine Meldung wert.
+    expect(normalisiereFarbe('rgb(228 0 58 / 100%)')?.wie).not.toMatch(/Deckkraft/);
+    expect(normalisiereFarbe('rgb(228 0 58 / 100%)')?.wert).toBe('#E4003A');
   });
 
   it('erfindet nichts, wo nichts zu lesen ist', () => {
@@ -377,6 +459,47 @@ describe('der Rücklauf sagt, was fehlt und was er übergangen hat', () => {
   it('meldet ein Feld, das der Generator nicht kennt', () => {
     const { befunde } = liesRuecklauf('{"radius": 8, "id": "probenhaus"}', BASIS());
     expect(texte(befunde, 'uebergangen')).toMatch(/radius/);
+  });
+
+  it('meldet jedes der dreizehn obersten Felder, wenn es fehlt — auch das einzelne', () => {
+    /*
+       Eine leere Antwort lässt alle dreizehn aus, und **jedes** gehört genannt.
+       Der Anlass ist einer davon: `auszeichnungEnger` lief weder über
+       `nimmText` noch über `bericht.gruppe`, also über keinen der beiden Wege,
+       die „kam nicht" sagen. Ein Modell, das ihn ausließ, bekam dafür kein
+       Wort — und die Laufweite der Auszeichnung sieht man auf der Probefolie
+       nicht.
+
+       Gezählt wird gegen die Liste, aus der auch der Prompt gebaut ist, und
+       nicht gegen eine Zahl im Test: ein vierzehnter Schlüssel bekommt so
+       nicht stillschweigend eine Ausnahme. Nach dem *Namen* lässt sich nicht
+       suchen — die Gruppen melden sich auf Deutsch („Die Palette kam nicht"),
+       und das ist richtig so, denn diese Sätze liest ein Mensch.
+    */
+    const { befunde } = liesRuecklauf('{}', BASIS());
+    expect(befunde.filter((befund) => befund.rang === 'fehlt')).toHaveLength(
+      promptSchluessel.length,
+    );
+    // Und der eine, der durchgerutscht war, ausdrücklich beim Namen.
+    expect(texte(befunde, 'fehlt')).toContain('auszeichnungEnger');
+  });
+
+  it('zählt als übernommen, was ankam — nicht, was mitgeschickt wurde', () => {
+    /*
+       „Übernommen: 13 von 13" stand über einer Antwort, in der zwölf Felder
+       vom falschen Typ waren und übergangen wurden. Gezählt wurden die
+       Schlüssel des Objekts; genannt wurde etwas anderes. Das ist „Ein Knopf,
+       der eine Zahl nennt und eine andere tut" in Satzform.
+    */
+    const roh = JSON.stringify({
+      id: 'probenhaus',
+      label: 'Probenhaus',
+      palette: 'creme und rot',
+      textScale: [16, 21],
+      stroke: { hair: 'dünn' },
+    });
+    const gelesen = texte(liesRuecklauf(roh, BASIS()).befunde, 'gelesen');
+    expect(gelesen).toMatch(new RegExp(`Übernommen: 2 von ${promptSchluessel.length} Feldern`));
   });
 
   it('meldet, wenn eine ganze Gruppe fehlt', () => {
@@ -791,6 +914,47 @@ describe('die Wortmarke aus einer Datei', () => {
     expect(zweite.letters).toBe('#223344');
     expect(zweite.accent).toBe('');
   });
+
+  it('sagt es, wenn eine dritte Füllfarbe nirgends gezeichnet wird', () => {
+    /*
+       Die Marke kennt genau zwei Farben: `wordmarkFromSvg()` sammelt die
+       Pfade in `letters` und die in `accent` und verwirft den Rest, und
+       `wortmarkeAusSvg()` nimmt beim Einlesen die ersten beiden, die es
+       findet. Eine dreifarbige Datei verlor damit ein Drittel ihrer Pfade —
+       auf der Folie, im SVG, im PDF und in der PPTX, ohne dass irgendwo etwas
+       stand. Dass es zwei Farben sind, ist eine Entscheidung dieses Werkzeugs;
+       sie stumm durchzuziehen ist keine.
+    */
+    const drei =
+      '<svg viewBox="0 0 300 48">' +
+      '<path fill="#101010" d="M0 0 H120 V48 H0 Z"/>' +
+      '<path fill="#E4003A" d="M140 24 H164 V48 H140 Z"/>' +
+      '<path fill="#0066FF" d="M200 0 H240 V48 H200 Z"/></svg>';
+    const marke = wortmarkeAusSvg(drei, 'drei.svg');
+    const entwurf: CiEntwurf = { ...BASIS(), palette: leererEntwurf().palette, wortmarke: marke };
+
+    const gesagt = pruefe(entwurf).filter(
+      (befund) => befund.feld === 'Wortmarke' && /0066FF/i.test(befund.text),
+    );
+    expect(gesagt).toHaveLength(1);
+    expect(gesagt[0].rang).toBe('warnung');
+
+    // Und die Gegenrichtung, ohne die die Regel nur eine halbe wäre: eine
+    // zweifarbige Datei bekommt darüber kein Wort.
+    const zwei =
+      '<svg viewBox="0 0 200 48">' +
+      '<path fill="#101010" d="M0 0 H120 V48 H0 Z"/>' +
+      '<path fill="#E4003A" d="M140 24 H164 V48 H140 Z"/></svg>';
+    const sauber: CiEntwurf = {
+      ...entwurf,
+      wortmarke: wortmarkeAusSvg(zwei, 'zwei.svg'),
+    };
+    expect(
+      pruefe(sauber).filter(
+        (befund) => befund.feld === 'Wortmarke' && /Füllfarbe/.test(befund.text),
+      ),
+    ).toHaveLength(0);
+  });
 });
 
 /* -------------------------------------------------------------------------- */
@@ -879,7 +1043,40 @@ describe('der Vorschlag', () => {
     const { aenderungen } = liesRuecklauf(roh, BASIS());
     const schnitte = aenderungen.filter((eintrag) => eintrag.name === 'Schnitte');
     expect(schnitte).toHaveLength(1);
-    expect(schnitte[0]).toMatchObject({ war: '1 Schnitte', wird: '2 Schnitte' });
+    /*
+       Genannt wird, **welche** Zeilen gehen und welche kommen. Die vorige
+       Fassung schrieb die beiden Längen hin, und das war bei neun gegen neun
+       andere Schnitten — derselben Familie in anderen Dateien, also dem
+       Normalfall — die Zeile „9 Schnitte → 9 Schnitte": zwei gleiche Zahlen
+       über der Behauptung, dazwischen ändere sich etwas.
+    */
+    expect(schnitte[0].war).toContain('Basisschrift 400 normal basis.woff2');
+    expect(schnitte[0].wird).toContain('A 400 normal a.woff2');
+    expect(schnitte[0].wird).toContain('A 700 normal b.woff2');
+  });
+
+  it('nennt bei gleicher Länge, was getauscht wird — und nicht zweimal dieselbe Zahl', () => {
+    /*
+       Der Fall, an dem die vorige Fassung stumm war: dieselbe Zahl Schnitte,
+       andere Dateien. Sie schrieb „1 Schnitte → 1 Schnitte" und ließ den
+       Leser mit der Frage stehen, was sich denn nun ändert.
+    */
+    const basis = BASIS();
+    const roh = JSON.stringify({
+      webfontFaces: basis.webfontFaces.map((face) => ({
+        family: face.family,
+        weight: face.weight,
+        style: face.style,
+        file: 'anders.woff2',
+      })),
+    });
+    const schnitte = liesRuecklauf(roh, basis).aenderungen.filter(
+      (eintrag) => eintrag.name === 'Schnitte',
+    );
+    expect(schnitte).toHaveLength(1);
+    expect(schnitte[0].war).toContain('basis.woff2');
+    expect(schnitte[0].wird).toContain('anders.woff2');
+    expect(schnitte[0].war).not.toBe(schnitte[0].wird);
   });
 
   it('meldet keine Änderung, wenn die Liste dieselbe bleibt', () => {
@@ -916,7 +1113,17 @@ describe('eine abgebrochene Antwort', () => {
     const { entwurf, abbruch, befunde } = liesRuecklauf(ABGESCHNITTEN, BASIS());
     expect(entwurf).toBeNull();
     expect(abbruch).not.toBeNull();
-    expect(abbruch?.letzterSchluessel).toBe('paper');
+    /*
+       Zwei Schlüssel und nicht einer, und der Unterschied ist die ganze
+       Auskunft: „palette" stand vollständig da, „paper" riss ab. Die vorige
+       Fassung führte nur den zuletzt *begonnenen* und nannte ihn „zuletzt
+       vollständig" — sie behauptete also von genau dem Feld, an dem die
+       Antwort scheiterte, es sei fertig. Wer danach das Modell „ab paper"
+       fortsetzen ließ, bekam den Rest richtig; wer die Zeile daneben las,
+       suchte den Fehler an der falschen Stelle.
+    */
+    expect(abbruch?.letzterSchluessel).toBe('palette');
+    expect(abbruch?.offenerSchluessel).toBe('paper');
     expect(Object.keys(abbruch?.objekt ?? {})).toEqual(['id', 'label', 'palette']);
     expect(texte(befunde, 'fehler')).toMatch(/mitten im Satz/);
     // Und die rohe Meldung bleibt trotzdem stehen — wer einen Fehler meldet,
@@ -976,6 +1183,80 @@ describe('die Sitzung des Generators', () => {
     expect(Object.keys(gelesen.palette).sort()).toEqual([...paletteRollen].sort());
   });
 
+  it('überlebt eine fremde Datei, statt die Seite wegzureißen', () => {
+    /*
+       Der schwerste Fall dieser Datei. `zusammen()` legte einmal `...gelesen`
+       über den leeren Entwurf, ohne einen einzigen Feldtyp zu prüfen — und
+       `pruefe()` läuft in einem `useMemo` *während des Renderns* und greift auf
+       `entwurf.id.trim()`, `marke.svg.length` und `palette[rolle].trim()` zu.
+       Eine fremde .json mit einer numerischen `id` warf dort einen TypeError,
+       und der `try/catch` um „Entwurf laden" konnte ihn nicht fangen: `ersetze()`
+       plant nur eine Zustandsänderung, gerendert wird danach. Ergebnis: weißes
+       Fenster, keine Meldung, kein Formular mehr.
+
+       Geprüft wird deshalb an dem, was danach passiert — `pruefe()` muss
+       durchlaufen, nicht nur `zusammen()`.
+    */
+    const fremd: unknown[] = [
+      { id: 42 },
+      { wortmarke: {} },
+      { wortmarke: 'nicht objekt' },
+      { palette: { ink: 12 } },
+      { textScale: { base: 'groß' } },
+      { webfontFaces: [null, 7, { family: 5 }] },
+      { pdfFontFamily: { display: 'Comic Sans' } },
+      { zeichen: 'erfunden' },
+      {},
+    ];
+
+    for (const roh of fremd) {
+      const entwurf = zusammen(roh as Partial<CiEntwurf>);
+      expect(() => pruefe(entwurf), `${JSON.stringify(roh)} riss die Prüfung weg`).not.toThrow();
+      expect(typeof entwurf.id).toBe('string');
+      expect(typeof entwurf.palette.ink).toBe('string');
+      // Und was nicht passt, fällt auf die Vorbelegung zurück statt zu fehlen.
+      expect(Object.keys(entwurf.palette).sort()).toEqual([...paletteRollen].sort());
+    }
+
+    // Die Gegenrichtung: ein echter Entwurf kommt unverändert durch.
+    const echt = BASIS();
+    const zurueck = zusammen(JSON.parse(JSON.stringify(echt)) as Partial<CiEntwurf>);
+    expect(zurueck.palette).toEqual(echt.palette);
+    expect(zurueck.textScale).toEqual(echt.textScale);
+    expect(zurueck.fontFamily).toEqual(echt.fontFamily);
+  });
+
+  it('sagt es, wenn der Browser gar keine Ablage hergibt', () => {
+    /*
+       Der zweite Weg in dieselbe Stille. Der `catch` daneben meldet eine
+       gescheiterte Ablage — die *fehlende* gab wortlos `null` zurück, und die
+       Folge ist dieselbe: von da an sichert sich nichts, und der Benutzer
+       arbeitet weiter im Glauben, es geschehe. Genau der leere `catch` mit dem
+       Kommentar „best-effort by design", nur eine Zeile höher.
+
+       Ein privates Fenster ist kein erfundener Fall: es ist die Voreinstellung
+       von Leuten, die fremde Werkzeuge ausprobieren.
+    */
+    const echt = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
+    Object.defineProperty(globalThis, 'sessionStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('gesperrt', 'SecurityError');
+      },
+    });
+    try {
+      const klage = sichereEntwurf(BASIS());
+      expect(klage).not.toBeNull();
+      expect(klage).toMatch(/⌘R/);
+    } finally {
+      if (echt) Object.defineProperty(globalThis, 'sessionStorage', echt);
+      else delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
+    }
+
+    // Die Gegenrichtung: mit Ablage ist Schweigen richtig.
+    expect(sichereEntwurf(BASIS())).toBeNull();
+  });
+
   it('vergibt die Kennungen der Schnitte neu', () => {
     const gelesen = zusammen({
       webfontFaces: [
@@ -988,12 +1269,35 @@ describe('die Sitzung des Generators', () => {
     expect(kennungen).not.toContain('x');
   });
 
-  it('fragt nur, wenn wirklich Arbeit dasteht', () => {
-    // Eine Frage, die man nur wegklicken kann, ist eine, die beim dritten Mal
-    // niemand mehr liest.
+  it('fragt nur, wenn wirklich Arbeit dasteht — aber dann bei jeder', () => {
+    /*
+       Eine Frage, die man nur wegklicken kann, ist eine, die beim dritten Mal
+       niemand mehr liest. Die Gegenrichtung ist hier aber die teurere: die
+       vorige Fassung maß Arbeit an Schlüssel, Name und Wortmarke — und warf
+       damit stumm weg, was jemand in „Farbe" und „Maße" eingetragen hatte. Der
+       Name wird erfahrungsgemäß zuletzt vergeben.
+    */
+    const leer = leererEntwurf();
+    expect(traegtArbeit(leer)).toBe(false);
+
+    const arbeit: Array<[string, CiEntwurf]> = [
+      ['Schlüssel', { ...leer, id: 'probenhaus' }],
+      ['Name', { ...leer, label: 'Probenhaus' }],
+      ['eine Farbe', { ...leer, palette: { ...leer.palette, signal: '#E4003A' } }],
+      ['eine Größe', { ...leer, textScale: { ...leer.textScale, xl3: 61 } }],
+      ['ein Strich', { ...leer, stroke: { ...leer.stroke, heavy: 5 } }],
+      ['ein Schriftstapel', { ...leer, fontFamily: { ...leer.fontFamily, body: 'Probe' } }],
+      ['die Laufweite', { ...leer, auszeichnungEnger: 0.01 }],
+      ['das Zeichen-Set', { ...leer, zeichen: 'ohne-signatur' }],
+      ['ein Schnitt', { ...leer, webfontFaces: [...leer.webfontFaces, leererSchnitt()] }],
+    ];
+    for (const [was, entwurf] of arbeit) {
+      expect(traegtArbeit(entwurf), `${was} zählt nicht als Arbeit`).toBe(true);
+    }
+
+    // Und die Kennungen zählen nicht mit: sie steigen bei jedem Lesen, ein
+    // Entwurf wäre sonst immer „Arbeit".
     expect(traegtArbeit(leererEntwurf())).toBe(false);
-    expect(traegtArbeit({ ...leererEntwurf(), id: 'probenhaus' })).toBe(true);
-    expect(traegtArbeit({ ...leererEntwurf(), label: 'Probenhaus' })).toBe(true);
   });
 });
 
@@ -1019,10 +1323,59 @@ describe('die Anker der Prüfliste', () => {
 
     expect(anker.length).toBeGreaterThan(1);
     expect(anker).toContain(ankerFuer('Farbe', 'signalSoft'));
-    expect(anker).toContain(ankerFuer('Maße', 'heavy'));
+    expect(anker).toContain(massAnker('strich', 'heavy'));
     // Und die Formularseite setzt sie wirklich — nicht nur die Prüfung.
     expect(quelle).toContain("ankerFuer('Farbe', rolle)");
-    expect(quelle).toContain("ankerFuer('Maße', rolle)");
+    for (const gruppe of massgruppen) {
+      expect(quelle, gruppe).toContain(`massAnker('${gruppe}',`);
+    }
+  });
+
+  it('vergibt jede Kennung genau einmal', () => {
+    /*
+       Zwei Felder mit derselben Kennung sind im DOM **ein** Feld:
+       `getElementById` nimmt das erste, der Fokus landet dort, und der Knopf
+       „Zum Feld" führt an eine Stelle, an der nichts falsch ist. Genau das
+       geschah, und zwar an zwei Stellen: die Größenleiter führt `sm` und `lg`,
+       die Schattenversätze führen sie auch, und beide Gruppen wohnen im Schritt
+       „Maße" — `nz-ci-masse-sm` gab es damit doppelt.
+
+       Geprüft wird an dem, was `pruefe()` **wirklich ausgibt**, und nicht an
+       `massAnker()` selbst: eine Prüfung an der Kennungsfunktion wäre grün,
+       während im Formular die Gruppe fehlt.
+    */
+    const nichts = Number.NaN;
+    const leer = leererEntwurf();
+    const kaputt: CiEntwurf = {
+      ...leer,
+      textScale: Object.fromEntries(
+        Object.keys(leer.textScale).map((rolle) => [rolle, nichts]),
+      ) as CiEntwurf['textScale'],
+      sonderstufen: Object.fromEntries(
+        Object.keys(leer.sonderstufen).map((rolle) => [rolle, nichts]),
+      ) as CiEntwurf['sonderstufen'],
+      stroke: Object.fromEntries(
+        Object.keys(leer.stroke).map((rolle) => [rolle, nichts]),
+      ) as CiEntwurf['stroke'],
+      shadowOffset: Object.fromEntries(
+        Object.keys(leer.shadowOffset).map((rolle) => [rolle, nichts]),
+      ) as CiEntwurf['shadowOffset'],
+      auszeichnungEnger: nichts,
+    };
+    const anker = pruefe(kaputt)
+      .map((befund) => befund.anker)
+      .filter((wert): wert is string => Boolean(wert));
+
+    // Erst die Gegenprobe, dass wirklich jede Leiter dabei ist: eine Prüfung
+    // über eine leere Liste ist immer eindeutig.
+    const felder =
+      Object.keys(leer.textScale).length +
+      Object.keys(leer.sonderstufen).length +
+      Object.keys(leer.stroke).length +
+      Object.keys(leer.shadowOffset).length +
+      1;
+    expect(anker.length).toBe(felder);
+    expect(new Set(anker).size).toBe(anker.length);
   });
 });
 

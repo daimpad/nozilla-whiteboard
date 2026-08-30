@@ -29,7 +29,7 @@
  */
 import { useState } from 'react';
 import { nozillaTheme, type PaletteRole } from '@/theme';
-import { WORTMARKE_HOECHSTLAENGE, ankerFuer, type Feld } from './pruefung';
+import { WORTMARKE_HOECHSTLAENGE, ankerFuer, massAnker, type Feld } from './pruefung';
 import { Button, IconButton } from '@/components/ui/controls';
 import {
   leererSchnitt,
@@ -345,7 +345,7 @@ export function MasseSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aendere
         <Zahlenfeld
           key={stufe}
           label={stufe}
-          anker={ankerFuer('Maße', stufe)}
+          anker={massAnker('leiter', stufe)}
           einheit="px"
           wert={entwurf.textScale[stufe]}
           auf={(wert) => aendere({ textScale: { ...entwurf.textScale, [stufe]: wert } })}
@@ -357,7 +357,7 @@ export function MasseSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aendere
         <div key={stufe}>
           <Zahlenfeld
             label={stufe}
-            anker={ankerFuer('Maße', stufe)}
+            anker={massAnker('sonder', stufe)}
             einheit="px"
             wert={entwurf.sonderstufen[stufe]}
             auf={(wert) => aendere({ sonderstufen: { ...entwurf.sonderstufen, [stufe]: wert } })}
@@ -369,7 +369,7 @@ export function MasseSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aendere
       <p className="pt-2 text-[11px] font-medium text-ui-muted">Laufweite der Auszeichnung</p>
       <Zahlenfeld
         label="enger um"
-        anker={ankerFuer('Maße', 'Laufweite der Auszeichnung')}
+        anker={massAnker('laufweite', 'Laufweite der Auszeichnung')}
         einheit="em"
         schritt={0.005}
         wert={entwurf.auszeichnungEnger}
@@ -385,7 +385,7 @@ export function MasseSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aendere
         <div key={rolle}>
           <Zahlenfeld
             label={rolle}
-            anker={ankerFuer('Maße', rolle)}
+            anker={massAnker('strich', rolle)}
             einheit="px"
             schritt={0.5}
             wert={entwurf.stroke[rolle]}
@@ -400,7 +400,7 @@ export function MasseSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aendere
         <div key={rolle}>
           <Zahlenfeld
             label={rolle}
-            anker={ankerFuer('Maße', rolle)}
+            anker={massAnker('schatten', rolle)}
             einheit="px"
             wert={entwurf.shadowOffset[rolle]}
             auf={(wert) => aendere({ shadowOffset: { ...entwurf.shadowOffset, [rolle]: wert } })}

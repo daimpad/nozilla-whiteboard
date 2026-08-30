@@ -253,11 +253,33 @@ function alphaBlock(name: string, stufen: readonly [number, number, number], hex
   return `const ${name} = {\n${zeilen}\n};`;
 }
 
+/**
+ * Die Schnittliste — jeder Schnitt über vier Zeilen, immer.
+ *
+ * Einzeilig war kürzer und ging bei langen Namen schief: „Neue Haas Grotesk
+ * Display Pro Condensed" samt Dateiname ergibt eine Zeile von 144 Zeichen, und
+ * Prettier bricht sie beim nächsten `npm run format` in genau diese vier auf.
+ * Die erzeugte Datei ist dann nicht die, die im Repo landet — der Diff steht in
+ * einem fremden Commit, und niemand weiß, woher er kommt.
+ *
+ * Nachgerechnet wird die Grenze **nicht**. `printWidth` ist weich, und eine
+ * nachgebaute Regel hat in dieser Datei schon einmal das Falsche verurteilt.
+ * Gemessen wurde stattdessen die andere Richtung: ein Objektliteral, das im
+ * Quelltext schon umgebrochen dasteht, lässt Prettier umgebrochen — auch wenn
+ * es längst in eine Zeile passte. Damit stimmt die Form für jeden Namen, und
+ * die Länge muss niemand kennen.
+ */
 function facesBlock(entwurf: CiEntwurf): string {
   return entwurf.webfontFaces
-    .map(
-      (face) =>
-        `  { family: ${text(face.family)}, weight: ${zahl(face.weight, `Gewicht von ${face.family}`)}, style: ${text(face.style)}, file: ${text(face.file)} },`,
+    .map((face) =>
+      [
+        '  {',
+        `    family: ${text(face.family)},`,
+        `    weight: ${zahl(face.weight, `Gewicht von ${face.family}`)},`,
+        `    style: ${text(face.style)},`,
+        `    file: ${text(face.file)},`,
+        '  },',
+      ].join('\n'),
     )
     .join('\n');
 }
