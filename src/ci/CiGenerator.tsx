@@ -357,8 +357,27 @@ export function CiGenerator() {
       if (!gelesen || typeof gelesen !== 'object' || Array.isArray(gelesen)) {
         throw new Error('kein Entwurf');
       }
-      ersetze(zusammen(gelesen));
-      setHinweis(null);
+      const { entwurf: geladen, genommen, verworfen } = zusammen(gelesen);
+      /*
+         Eine Datei, aus der kein einziges bekanntes Feld kam, ist kein
+         Entwurf. Vorher lud eine fremde `.json` — eine `package.json` etwa —
+         grün durch: `zusammen()` ergab exakt den leeren Entwurf, es gab keine
+         Meldung, und der Sprung nach Schritt 1 sah aus wie ein gelungener
+         Ladevorgang. Der Satz dafür stand direkt daneben und wurde nie erreicht.
+      */
+      if (!genommen.length) throw new Error('kein Feld, das dieses Formular kennt');
+      ersetze(geladen);
+      /*
+         Und was da stand und nicht zu gebrauchen war, wird genannt statt
+         stumm durch die Vorbelegung ersetzt. Eine Rolle mit falschem Typ
+         landete sonst auf nozillas Wert — die Prüfliste kann davon nichts
+         sagen, denn `#000000` ist eine gültige Farbe.
+      */
+      setHinweis(
+        verworfen.length
+          ? `„${datei.name}" ist angekommen. ${verworfen.length === 1 ? 'Ein Feld trug' : `${verworfen.length} Felder trugen`} etwas, das dieses Formular nicht lesen kann, und ${verworfen.length === 1 ? 'steht' : 'stehen'} jetzt auf der Vorbelegung: ${verworfen.join(', ')}.`
+          : null,
+      );
       gehe(1);
     } catch (fehler) {
       setHinweis(`„${datei.name}" ist kein gesicherter Entwurf: ${String(fehler)}`);

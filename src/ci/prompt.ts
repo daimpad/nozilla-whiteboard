@@ -26,6 +26,7 @@
  * `entwurf.ts` als Grund dafür, dass die Feldliste gelesen wird.
  */
 import { nozillaTheme } from '@/theme';
+import { SCHLUESSELREGEL } from './emitter';
 import {
   paletteRollen,
   pdfSchriften,
@@ -114,11 +115,7 @@ function block(schluessel: PromptSchluessel): string[] {
            Schlüssel liefern, den die Prüfliste eine Seite weiter ablehnt: der
            Fehler steht dann bei dem, der den Prompt befolgt hat.
         */
-        zeile(
-          'id',
-          'Kleinschrift, Ziffern und Bindestriche, beginnend mit einem Buchstaben — ein Bindestrich aber nur vor einem Buchstaben (probe-haus ja, probe-2024 nein)',
-          'probenhaus',
-        ),
+        zeile('id', SCHLUESSELREGEL, 'probenhaus'),
       ];
     case 'label':
       return [zeile('label', 'der Name in der Auswahlliste', 'Probenhaus')];

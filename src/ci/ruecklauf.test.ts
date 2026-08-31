@@ -40,8 +40,8 @@ import {
   type Ruecklaufbefund,
   type Ruecklaufrang,
 } from './ruecklauf';
-import { ankerFuer, massAnker, massgruppen, pruefe, type Feld } from './pruefung';
-import { bezeichnerProblem, designdatei } from './emitter';
+import { ankerFuer, massAnker, massgruppen, pruefe, traegtFehler, type Feld } from './pruefung';
+import { SCHLUESSELREGEL, bezeichnerProblem, designdatei } from './emitter';
 import { SCHRITTE, schrittFuerFeld } from './schritte';
 import { entwurfSchluessel, sichereEntwurf, traegtArbeit, zusammen } from './sitzung';
 import { STORAGE_KEY as SITZUNG } from '@/state/persistence';
@@ -166,6 +166,18 @@ describe('der Prompt', () => {
     expect(bezeichnerProblem('probe-2024')).not.toBeNull();
     // Und das Beispiel, das der Prompt als Wert vorzeigt, muss selbst durch.
     expect(bezeichnerProblem('probenhaus')).toBeNull();
+
+    /*
+       Und derselbe Satz steht unter dem Feld, in das der Wert von Hand getippt
+       wird. Er wurde einmal nur im Prompt verschärft; wer dem Formular daneben
+       folgte, bekam einen harten Fehler in der Prüfliste und einen gesperrten
+       Datei-Knopf. Geprüft wird an der *Quelle* — eine zweite Formulierung im
+       Formular wäre eine zweite Wahrheit über dieselbe Regel.
+    */
+    expect(prompt).toContain(SCHLUESSELREGEL);
+    const formular = readFileSync(join(process.cwd(), 'src', 'ci', 'schritte.tsx'), 'utf8');
+    expect(formular).toContain('SCHLUESSELREGEL');
+    expect(formular).not.toMatch(/hinweis="Kleinschrift/);
   });
 
   it('meldet keinen Schlüssel als überzählig, nach dem er selbst fragt', () => {
@@ -222,6 +234,18 @@ describe('der Prompt', () => {
     expect(entwurf).not.toBeNull();
     expect(texte(befunde, 'fehlt')).toBe('');
     expect(texte(befunde, 'uebergangen')).toBe('');
+
+    /*
+       Und die Zählung stimmt auch **nach oben**. Geprüft war nur der kleine
+       Wert („2 von 13"); ein vergessenes `bericht.nahm(…)` hätte über genau
+       dieser tadellosen Antwort „12 von 13" gemeldet, ohne dass irgendwo
+       danebenstünde, welches Feld gemeint ist — der Benutzer sucht dann ein
+       Feld, das gar nicht fehlt. Dasselbe Muster wie „Ein Knopf, der eine Zahl
+       nennt und eine andere tut", nur mit umgekehrtem Vorzeichen.
+    */
+    expect(texte(befunde, 'gelesen')).toContain(
+      `Übernommen: ${promptSchluessel.length} von ${promptSchluessel.length}`,
+    );
   });
 
   it('nennt die Werte von nozilla als Beispiel und erfindet keine', () => {
@@ -430,6 +454,55 @@ describe('der Rücklauf repariert stufenweise — und sagt jede Stufe an', () =>
   it('nimmt keine Liste als Objekt', () => {
     const { entwurf } = liesRuecklauf('[1, 2, 3]', BASIS());
     expect(entwurf).toBeNull();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('typografische Anführungszeichen und ein // im Wert', () => {
+  it('verlieren nicht den halben Text — und werden nicht als Abbruch gemeldet', () => {
+    /*
+       Zwei Dinge zugleich, für die je eine Stufe gebaut ist: typografische
+       Begrenzer (dafür ist `geradeAnfuehrung` da) und ein `//` in einem Wert
+       (dafür kennt `ohneKommentare` Zeichenketten). Die Buchführung zählte
+       aber nur gerade Anführungszeichen: `inText` stand nie auf true, das `//`
+       galt als Zeilenkommentar, und der Rest der Zeile samt schließender
+       Klammer war weg.
+
+       Das Ergebnis war nicht bloß ein Verlust, sondern ein **falscher Rat**:
+       gemeldet wurde ein Längenabbruch des Modells über einer vollständigen
+       Antwort. Wer ihn befolgte, bekam dieselbe Antwort und dasselbe Ergebnis,
+       beliebig oft.
+    */
+    const roh = '{ “id”: “probe”, “produkt”: “Deck // Fläche” }';
+    const { entwurf, befunde, abbruch } = liesRuecklauf(roh, BASIS());
+    expect(abbruch).toBeNull();
+    expect(entwurf?.id).toBe('probe');
+    expect(entwurf?.produkt).toBe('Deck // Fläche');
+    expect(texte(befunde, 'fehler')).toBe('');
+  });
+
+  it('behält den Schrägstrich in einem Dateinamen', () => {
+    // Der realistische Auslöser: die Schnitte liegen auf einem CDN. Ohne die
+    // Reparatur war hier die ganze Schnittliste weg.
+    const roh =
+      '{ “webfontFaces”: [{ “family”: “Probe”, “weight”: 400, “style”: “normal”,' +
+      ' “file”: “https://cdn.example.com/p.woff2” }] }';
+    const { entwurf } = liesRuecklauf(roh, BASIS());
+    expect(entwurf?.webfontFaces).toHaveLength(1);
+    expect(entwurf?.webfontFaces[0].file).toBe('https://cdn.example.com/p.woff2');
+  });
+
+  it('lässt ein deutsches Anführungszeichen im Wert stehen, wo es kann', () => {
+    /*
+       Die Gegenrichtung, und der Grund, warum `geradeAnfuehrung` weiterhin die
+       vorletzte Stufe ist und nicht vorgezogen wurde: hier ist nur ein
+       Nachkomma zu entfernen, und der Markenname darf seine Anführungszeichen
+       behalten. Zöge man das Begradigen vor, käme „Alte Post" gerade an.
+    */
+    const roh = '{"label": "Das „Alte Post“ Haus", }';
+    const { entwurf } = liesRuecklauf(roh, BASIS());
+    expect(entwurf?.label).toBe('Das „Alte Post“ Haus');
   });
 });
 
@@ -915,6 +988,82 @@ describe('die Wortmarke aus einer Datei', () => {
     expect(zweite.accent).toBe('');
   });
 
+  it('erbt die Füllfarbe vom <g> — sonst verliert der Schriftzug seine Buchstaben', () => {
+    /*
+       Die Form, die Illustrator, Figma und Inkscape für eine gruppierte
+       Auswahl schreiben: die Buchstaben tragen ihre Farbe am umschließenden
+       `<g>`, der Akzent hat ein eigenes `fill`. `readPaths()` las nur das
+       Attribut am `<path>` — die Buchstabenpfade kamen mit leerer Füllung
+       zurück, `wortmarkeAusSvg()` schlug deshalb die *Akzentfarbe* als
+       Buchstabenton vor, und auf der Folie, im SVG, im PDF und in der PPTX
+       stand danach nur noch der Akzentpunkt. Bei grüner Prüfliste.
+    */
+    const ausIllustrator =
+      '<svg viewBox="0 0 200 48">' +
+      '<g fill="#101010">' +
+      '<path d="M0 0 H60 V40 H0 Z"/><path d="M70 0 H120 V40 H70 Z"/>' +
+      '</g>' +
+      '<path fill="#E4003A" d="M140 24 H164 V40 H140 Z"/></svg>';
+    const marke = wortmarkeAusSvg(ausIllustrator, 'gruppe.svg');
+    expect(marke.letters).toBe('#101010');
+    expect(marke.accent).toBe('#E4003A');
+
+    // Und die Buchstaben stehen wirklich in der Zeichnung, nicht nur im Feld.
+    const entwurf: CiEntwurf = { ...BASIS(), palette: leererEntwurf().palette, wortmarke: marke };
+    const wortmarke = themeAusEntwurf(entwurf).wordmark;
+    expect(wortmarke.letters).toContain('M0 0');
+    expect(wortmarke.letters).toContain('M70 0');
+    expect(wortmarke.period).toContain('M140 24');
+    expect(pruefe(entwurf).filter((befund) => befund.rang === 'fehler')).toEqual([]);
+  });
+
+  it('liest die Füllfarbe auch aus einem style-Attribut', () => {
+    // Inkscape schreibt `style="fill:#101010"` statt des Attributs, und wo
+    // beides dasteht, entscheidet CSS für das `style`.
+    const svg =
+      '<svg viewBox="0 0 200 48">' +
+      '<path style="fill:#101010" d="M0 0 H60 V40 H0 Z"/>' +
+      '<path fill="#000000" style="fill: #E4003A ;" d="M140 24 H164 V40 H140 Z"/></svg>';
+    const marke = wortmarkeAusSvg(svg, 'inkscape.svg');
+    expect(marke.letters).toBe('#101010');
+    expect(marke.accent).toBe('#E4003A');
+  });
+
+  it('meldet die Pfade, die auch nach dem Erben keine Farbe tragen', () => {
+    /*
+       Die Farben stehen in einer CSS-Klasse im `<style>`-Block — die liest
+       hier niemand, und eine zu erfinden hieße zu behaupten, sie sei gemeint.
+       Gesagt gehört es trotzdem: diese Pfade fallen aus jeder Ausgabe, und
+       vorher stand darüber kein Wort. Die vorige Fassung war sogar doppelt
+       blind — `letters` blieb leer, und die Prüfung `pfade.some(gleich('',''))`
+       hielt die leere Farbe für gefunden.
+    */
+    const ausCss =
+      '<svg viewBox="0 0 200 48"><style>.a{fill:#101010}</style>' +
+      '<path class="a" d="M0 0 H60 V40 H0 Z"/><path class="a" d="M70 0 H120 V40 H70 Z"/></svg>';
+    const marke = wortmarkeAusSvg(ausCss, 'css.svg');
+    expect(marke.letters).toBe('');
+
+    const entwurf: CiEntwurf = { ...BASIS(), palette: leererEntwurf().palette, wortmarke: marke };
+    const fehler = pruefe(entwurf).filter(
+      (befund) => befund.feld === 'Wortmarke' && befund.rang === 'fehler',
+    );
+    expect(fehler.map((befund) => befund.text).join(' | ')).toMatch(/keine Füllfarbe/);
+    expect(fehler.map((befund) => befund.text).join(' | ')).toMatch(/Buchstabenfarbe fehlt/);
+    // Und die Datei entsteht nicht: sie trüge `letters: ''`.
+    expect(traegtFehler(pruefe(entwurf))).toBe(true);
+  });
+
+  it('schlägt „none" nicht als Farbe vor', () => {
+    // `fill="none"` heißt „hier wird nichts gemalt" — als Buchstabenton
+    // vorgeschlagen ergäbe es einen Schriftzug aus Pfaden, die nichts zeichnen.
+    const svg =
+      '<svg viewBox="0 0 200 48">' +
+      '<path fill="none" d="M0 0 H200 V48 H0 Z"/>' +
+      '<path fill="#101010" d="M0 0 H60 V40 H0 Z"/></svg>';
+    expect(wortmarkeAusSvg(svg, 'rahmen.svg').letters).toBe('#101010');
+  });
+
   it('sagt es, wenn eine dritte Füllfarbe nirgends gezeichnet wird', () => {
     /*
        Die Marke kennt genau zwei Farben: `wordmarkFromSvg()` sammelt die
@@ -1036,6 +1185,22 @@ describe('der Vorschlag', () => {
     expect(id).toMatchObject({ feld: 'Marke', war: 'basis', wird: 'neu' });
   });
 
+  it('hält NaN gegen NaN nicht für eine Änderung', () => {
+    /*
+       Ein leeres Zahlenfeld schreibt NaN in den Entwurf; die Prüfliste meldet
+       das als Fehler, der Wert steht aber da. Eine Antwort, die dieses Feld
+       nicht nennt, ändert daran nichts — `NaN === NaN` ist trotzdem false.
+       Der Knopf versprach danach „Einen Wert übernehmen" über einer Antwort,
+       die nichts tut, und verbrauchte beim Klick den Weg zurück.
+    */
+    const mitNaN = { ...BASIS(), auszeichnungEnger: Number.NaN };
+    expect(liesRuecklauf('{}', mitNaN).aenderungen).toEqual([]);
+
+    // Die Gegenrichtung: eine echte Zahl gegen NaN ist sehr wohl eine Änderung.
+    const echt = liesRuecklauf('{"auszeichnungEnger": -0.01}', mitNaN).aenderungen;
+    expect(echt.map((eintrag) => eintrag.name)).toEqual(['auszeichnungEnger']);
+  });
+
   it('nennt eine geänderte Schnittliste als eine Zeile und nicht als neun', () => {
     const roh =
       '{"webfontFaces": [{"family": "A", "weight": 400, "style": "normal", "file": "a.woff2"},' +
@@ -1143,6 +1308,75 @@ describe('eine abgebrochene Antwort', () => {
     expect(texte(teil.befunde, 'fehlt')).toMatch(/paper/);
   });
 
+  it('rettet auch die Rollen, wenn der Abbruch mitten in der Palette liegt', () => {
+    /*
+       Der Fall, den der Kopfkommentar von `Abbruch` beschreibt — und den die
+       vorige Fassung gerade nicht konnte. Sie merkte sich Schnitte nur auf der
+       obersten Ebene: bricht die Antwort *innerhalb* der Palette ab, war der
+       letzte Schnitt der vor „palette", und angeboten wurden zwei Felder statt
+       der schon gelieferten Farbrollen. Weil die Palette der längste Block
+       einer Modellantwort ist, ist das der Regelfall eines Längenabbruchs und
+       nicht sein Rand.
+    */
+    const inDerPalette =
+      '{\n  "id": "probenhaus",\n  "label": "Probenhaus",\n  "palette": {\n' +
+      '    "signal": "#E4003A",\n    "signalStrong": "#B8002F",\n    "ink": "#101010",\n' +
+      '    "paper": "#FAF';
+
+    const { abbruch } = liesRuecklauf(inDerPalette, BASIS());
+    expect(abbruch).not.toBeNull();
+    expect(Object.keys(abbruch?.objekt ?? {})).toEqual(['id', 'label', 'palette']);
+    expect(Object.keys((abbruch?.objekt.palette ?? {}) as object)).toEqual([
+      'signal',
+      'signalStrong',
+      'ink',
+    ]);
+
+    // Und der Teilimport bringt sie wirklich in den Entwurf — samt einer
+    // Meldung über die Rollen, die nicht mehr kamen.
+    const teil = teilRuecklauf(abbruch as NonNullable<typeof abbruch>, BASIS());
+    expect(teil.entwurf?.palette.signal).toBe('#E4003A');
+    expect(teil.entwurf?.palette.ink).toBe('#101010');
+    expect(teil.entwurf?.palette.paper).toBe(BASIS().palette.paper);
+    expect(texte(teil.befunde, 'fehlt')).toMatch(/paper/);
+  });
+
+  it('nennt beim Fortsetzen nicht dieselbe Stelle als fertig und als offen', () => {
+    /*
+       Reißt die Antwort zwischen zwei Feldern ab — nach der schließenden
+       Klammer, nach dem Komma oder mitten im nächsten Schlüsselnamen —, stand
+       auf dem Bildschirm „zuletzt vollständig war ‚palette', abgerissen ist sie
+       in ‚palette' … bitte es, ab ‚palette' fortzusetzen". Der Satz widerspricht
+       sich selbst, und der Rat schickt das Modell an eine Stelle, die schon
+       fertig ist: es liefert denselben Block noch einmal und bricht wieder an
+       derselben Stelle ab.
+    */
+    const zwischenFeldern = '{"id":"p","label":"P","palette":{"ink":"#000000"},"textSc';
+    const { befunde, abbruch } = liesRuecklauf(zwischenFeldern, BASIS());
+    expect(abbruch?.letzterSchluessel).toBe('palette');
+    const satz = texte(befunde, 'fehler');
+    expect(satz).toMatch(/palette/);
+    expect(satz).not.toMatch(/ab „palette" fortzusetzen/);
+    expect(satz).toMatch(/nach „palette"/);
+  });
+
+  it('erkennt einen Abbruch auch hinter einem offenen Codezaun', () => {
+    /*
+       Die Form, in der ein Längenabbruch wirklich ankommt: Vorrede, ein Zaun
+       auf, und der schließende kam nie. Dann ist der erste Zaun zugleich der
+       letzte, und ein Zuschnitt „von der Zeile danach bis zur Zeile davor"
+       ergäbe die leere Zeichenkette — die ganze Abbruchbehandlung fiele weg,
+       und übrig bliebe „Daraus wird kein JSON-Objekt: Unexpected end of JSON
+       input". Genau die Sackgasse, für die es `abgebrochen()` gibt.
+    */
+    const roh = 'Klar, hier ist die CI:\n```json\n{\n  "id": "probenhaus",\n  "label": "Prob';
+    const { abbruch, entwurf } = liesRuecklauf(roh, BASIS());
+    expect(entwurf).toBeNull();
+    expect(abbruch).not.toBeNull();
+    expect(abbruch?.objekt).toEqual({ id: 'probenhaus' });
+    expect(abbruch?.offenerSchluessel).toBe('label');
+  });
+
   it('hält eine vollständige Antwort nicht für abgebrochen', () => {
     // Die Gegenrichtung. Ohne sie böte der Bericht bei jeder gelungenen
     // Antwort einen Teilimport an, den niemand braucht.
@@ -1176,7 +1410,7 @@ describe('die Sitzung des Generators', () => {
     // nicht. `Palette` ist ein `Record` über dieselben Schlüssel — der
     // Compiler merkte die Lücke nicht, und die Prüfliste erst zwei Schritte
     // später.
-    const gelesen = zusammen({ id: 'alt', palette: { signal: '#E4003A' } as never });
+    const gelesen = zusammen({ id: 'alt', palette: { signal: '#E4003A' } as never }).entwurf;
     expect(gelesen.id).toBe('alt');
     expect(gelesen.palette.signal).toBe('#E4003A');
     expect(gelesen.palette.ink).toBe(leererEntwurf().palette.ink);
@@ -1197,8 +1431,18 @@ describe('die Sitzung des Generators', () => {
        Geprüft wird deshalb an dem, was danach passiert — `pruefe()` muss
        durchlaufen, nicht nur `zusammen()`.
     */
+    /*
+       Die Liste wird **gerechnet und nicht getippt**. Die vorige prüfte sieben
+       Felder von fünfzehn — `label`, `markenname`, `produkt` und `fontFamily`
+       fehlten, und `pruefe()` fasst die genauso an (`label.trim()`,
+       `stapelNamen(fontFamily[rolle])`). Eine fremde Datei mit `{"label": 42}`
+       hätte die Seite genauso weggerissen, und der Test dafür wäre grün
+       geblieben. Ein neues oberstes Feld bekommt so keine stillschweigende
+       Ausnahme.
+    */
     const fremd: unknown[] = [
-      { id: 42 },
+      ...Object.keys(leererEntwurf()).map((feld) => ({ [feld]: 42 })),
+      ...Object.keys(leererEntwurf()).map((feld) => ({ [feld]: { irgendwas: 42 } })),
       { wortmarke: {} },
       { wortmarke: 'nicht objekt' },
       { palette: { ink: 12 } },
@@ -1210,7 +1454,7 @@ describe('die Sitzung des Generators', () => {
     ];
 
     for (const roh of fremd) {
-      const entwurf = zusammen(roh as Partial<CiEntwurf>);
+      const entwurf = zusammen(roh as Partial<CiEntwurf>).entwurf;
       expect(() => pruefe(entwurf), `${JSON.stringify(roh)} riss die Prüfung weg`).not.toThrow();
       expect(typeof entwurf.id).toBe('string');
       expect(typeof entwurf.palette.ink).toBe('string');
@@ -1218,12 +1462,63 @@ describe('die Sitzung des Generators', () => {
       expect(Object.keys(entwurf.palette).sort()).toEqual([...paletteRollen].sort());
     }
 
-    // Die Gegenrichtung: ein echter Entwurf kommt unverändert durch.
+    /*
+       Die Gegenrichtung, und zwar über den **ganzen** Entwurf. Vorher standen
+       hier drei Gruppen von zwölf: `stroke: leer.stroke` zu schreiben — also
+       das Gelesene wegzuwerfen — wäre unbemerkt geblieben, und wer im Schritt
+       „Maße" die Striche und Schatten setzt und dann ⌘R drückt, bekäme sie
+       stillschweigend zurückgesetzt. Eine Zusicherung über alles deckt auch
+       eine künftige Gruppe ab.
+
+       Die Kennungen bleiben außen vor: sie werden beim Lesen neu vergeben, und
+       das ist Absicht.
+    */
     const echt = BASIS();
-    const zurueck = zusammen(JSON.parse(JSON.stringify(echt)) as Partial<CiEntwurf>);
-    expect(zurueck.palette).toEqual(echt.palette);
-    expect(zurueck.textScale).toEqual(echt.textScale);
-    expect(zurueck.fontFamily).toEqual(echt.fontFamily);
+    const zurueck = zusammen(JSON.parse(JSON.stringify(echt)) as Partial<CiEntwurf>).entwurf;
+    const ohneKennung = (entwurf: CiEntwurf) => ({
+      ...entwurf,
+      webfontFaces: entwurf.webfontFaces.map(({ family, weight, style, file }) => ({
+        family,
+        weight,
+        style,
+        file,
+      })),
+    });
+    expect(ohneKennung(zurueck)).toEqual(ohneKennung(echt));
+  });
+
+  it('nimmt eine Datei nicht an, aus der kein bekanntes Feld kommt', () => {
+    /*
+       Eine fremde `.json` — eine `package.json` etwa — ergab exakt den leeren
+       Entwurf: kein Wort, kein Fehler, und der Sprung nach Schritt 1 sah aus
+       wie ein gelungener Ladevorgang. Der Satz „… ist kein gesicherter
+       Entwurf" stand direkt daneben und wurde nie erreicht.
+    */
+    const fremd = zusammen({ name: 'nozilla', version: '1.0.0' } as never);
+    expect(fremd.genommen).toEqual([]);
+
+    // Und die Gegenrichtung: ein einziges bekanntes Feld genügt.
+    expect(zusammen({ id: 'probe' }).genommen).toEqual(['id']);
+  });
+
+  it('nennt die Felder, die es nicht lesen konnte, statt sie stumm zu ersetzen', () => {
+    /*
+       Eine Rolle mit falschem Typ fiel wortlos auf nozillas Wert zurück, und
+       die Prüfliste kann davon nichts sagen — `#000000` ist eine gültige
+       Farbe. Der Nächste arbeitete danach mit einer Tinte, die er nie gewählt
+       hat. Das ist die Linie, die dieses Projekt beim unlesbaren `nzl`-Block
+       und beim unbekannten `theme:` andersherum entschieden hat: den Wert
+       behalten, die Lücke zeigen.
+    */
+    const gemischt = zusammen({
+      id: 'probe',
+      label: 42,
+      palette: 'creme und rot',
+    } as never);
+    expect(gemischt.genommen).toContain('id');
+    expect(gemischt.verworfen).toEqual(expect.arrayContaining(['label', 'palette']));
+    // Was nicht dastand, wird auch nicht beklagt.
+    expect(gemischt.verworfen).not.toContain('stroke');
   });
 
   it('sagt es, wenn der Browser gar keine Ablage hergibt', () => {
@@ -1263,7 +1558,7 @@ describe('die Sitzung des Generators', () => {
         { family: 'A', weight: 400, style: 'normal', file: 'a.woff2', kennung: 'x' },
         { family: 'A', weight: 700, style: 'normal', file: 'b.woff2', kennung: 'x' },
       ],
-    });
+    }).entwurf;
     const kennungen = gelesen.webfontFaces.map((face) => face.kennung);
     expect(new Set(kennungen).size).toBe(2);
     expect(kennungen).not.toContain('x');

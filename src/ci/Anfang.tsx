@@ -24,6 +24,7 @@ import { Button, cx } from '@/components/ui/controls';
 import { Abschnitt } from './felder';
 import { promptText } from './prompt';
 import {
+  fortsetzenAb,
   liesRuecklauf,
   teilRuecklauf,
   type Aenderung,
@@ -232,8 +233,8 @@ function Bericht({
           </Button>
           <p className="mt-1 text-[11px] leading-snug text-ui-faint">
             Angeboten, nicht genommen: vollständig war zuletzt „
-            {abbruch.letzterSchluessel || '(nichts)'}", ab „
-            {abbruch.offenerSchluessel || '(unbekannt)'}" bleibt die Antwort draußen.
+            {abbruch.letzterSchluessel || '(nichts)'}", alles danach bleibt draußen. Fortsetzen
+            lässt sich das Modell {fortsetzenAb(abbruch)}.
           </p>
         </div>
       ) : null}

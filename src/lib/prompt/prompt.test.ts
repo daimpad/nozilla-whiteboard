@@ -157,6 +157,26 @@ describe('ohneCodezaun', () => {
     expect(ohneCodezaun(`Klar, hier ist das Deck:\n${deck}`)).toContain('title: X');
   });
 
+  it('behält den Inhalt, wenn nur der öffnende Zaun kam', () => {
+    /*
+       Die Form einer abgebrochenen Modellantwort: Vorrede, ein Zaun auf, und
+       der schließende kam nie, weil die Länge zu Ende war. Dann ist der erste
+       Zaun zugleich der letzte, und ein Schnitt „von der Zeile danach bis zur
+       Zeile davor" ergäbe die leere Zeichenkette.
+
+       Damit fiele die ganze Abbruchbehandlung weg: `abgebrochen()` bekäme
+       nichts zu sehen, gäbe `null` zurück, und statt „zuletzt vollständig war
+       X … bitte das Modell, ab Y fortzusetzen" samt dem Angebot des
+       Teilimports bliebe „Daraus wird kein JSON-Objekt: Unexpected end of JSON
+       input" — genau die Sackgasse, für die es `abgebrochen()` gibt.
+    */
+    expect(ohneCodezaun('Klar, hier ist die CI:\n```json\n{"id": "a"')).toContain('"id"');
+    // Und der Zaun selbst bleibt draußen — geschnitten wird nur nicht bis ins
+    // Leere. Dass daraus eine Abbruchdiagnose wird, prüft `ruecklauf.test.ts`:
+    // dort steht der Leser, hier steht nur der Zuschnitt.
+    expect(ohneCodezaun('```json\n{"id": "a"')).toBe('```json\n{"id": "a"');
+  });
+
   it('schneidet bis zum letzten Zaun, nicht bis zum nächsten', () => {
     /*
        Die andere Hälfte desselben Falls: ein eingezäuntes Deck *mit* einem

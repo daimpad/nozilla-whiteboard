@@ -67,24 +67,48 @@ export function text(wert: string): string {
  * Text für einen Blockkommentar.
  *
  * Ein `*` gefolgt von `/` im Markennamen beendete den Kopfkommentar mitten im
- * Satz, und alles danach war Code. Ein schmales Leerzeichen dazwischen bricht
- * die Folge, ohne den Namen zu verfälschen — er steht dort ohnehin nur zum
- * Lesen.
+ * Satz, und alles danach war Code. Ein Leerzeichen dazwischen bricht die Folge,
+ * ohne den Namen zu verfälschen — er steht dort ohnehin nur zum Lesen.
  */
 function imKommentar(wert: string): string {
+  /*
+     Steuerzeichen ohne regulären Ausdruck: `no-control-regex` verbietet sie
+     dort, und ein Zeichenvergleich sagt dasselbe, ohne dass jemand eine
+     Ausnahme eintragen muss.
+  */
+  const lesbar = [...wert].map((zeichen) => (zeichen < ' ' ? ' ' : zeichen)).join('');
   return (
-    wert
+    lesbar
       /*
-         Erst falten, dann die Sternchen-Folge brechen — die Reihenfolge zählt.
+         Jeder Leerraum wird zu **einem gewöhnlichen Leerzeichen**, und das ist
+         nicht Kosmetik: `no-irregular-whitespace` aus `eslint:recommended`
+         schaut auch in Kommentare (`skipComments` ist per Vorgabe aus). Ein
+         Name mit einem geschützten Leerzeichen — „Alte Post GmbH", wie es beim
+         Kopieren aus Word oder von einer Webseite mitkommt — machte die
+         erzeugte Datei damit unlintbar. Sie übersetzte, Prettier war zufrieden,
+         die Prüfliste schwieg, und `npm run lint` brach in dem Repo ab, in das
+         jemand sie gerade gelegt hatte. Gemessen an einer Probedatei: zwei
+         Fehler, beide im Kopfkommentar.
 
-         Ein Umbruch im Label zerreißt die ` * `-Spalte des Kopfkommentars:
-         ab der zweiten Zeile steht der Text am linken Rand, ohne Stern, und
-         von da an sieht der Kommentar aus wie abgeschnittener Code. Prettier
-         fasst Blockkommentare nicht an, es gibt also keinen Diff und keinen
-         Wurf — nur einen Kopf, den niemand mehr liest.
+         Und dieselbe Regel war der Grund, warum das schmale Leerzeichen, das
+         hier früher die Sternchen-Folge brach, selbst ein Fehler war: der Fix
+         trug den Fehler bei sich.
+
+         Erst falten, dann die Sternchen-Folge brechen — die Reihenfolge zählt.
+         Ein Umbruch im Label zerreißt sonst die ` * `-Spalte des
+         Kopfkommentars: ab der zweiten Zeile steht der Text am linken Rand,
+         ohne Stern, und von da an sieht der Kommentar aus wie abgeschnittener
+         Code. Prettier fasst Blockkommentare nicht an, es gibt also keinen
+         Diff und keinen Wurf — nur einen Kopf, den niemand mehr liest.
       */
-      .replace(/\s*[\r\n]+\s*/g, ' ')
-      .replace(/\*\//g, '*\u2009/')
+      /*
+         Drei Zeichen, die `no-irregular-whitespace` verbietet und die
+         JavaScripts `\s` **nicht** kennt — sie kämen sonst durch die Faltung
+         darunter hindurch.
+      */
+      .replace(/[\u0085\u180E\u200B]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/\*\//g, '* /')
       .trim()
   );
 }
@@ -110,6 +134,22 @@ function schluessel(name: string): string {
  * Ziffern und Sonderzeichen einebnete, machte aus zwei verschiedenen
  * Schlüsseln denselben Namen.
  */
+/**
+ * Was ein Schlüssel sein darf — in einem Satz.
+ *
+ * Hier und nicht zweimal, weil er an zwei Stellen steht: im Prompt für das
+ * Sprachmodell und als Hinweis unter dem Feld, in das derselbe Wert von Hand
+ * getippt wird. Der Prompt wurde einmal verschärft („nur vor einem
+ * Buchstaben"), das Formular daneben nicht — und wer dem Formular folgte und
+ * `probe-2024` eintippte, bekam einen harten Fehler in der Prüfliste und einen
+ * gesperrten Datei-Knopf. Das ist derselbe Vorwurf, wegen dessen der Prompt
+ * verschärft wurde: der Fehler steht bei dem, der die Anweisung befolgt hat.
+ *
+ * Der Satz steht neben `bezeichner()`, weil diese Rechnung ihn wahr macht.
+ */
+export const SCHLUESSELREGEL =
+  'Kleinschrift, Ziffern und Bindestriche, beginnend mit einem Buchstaben — ein Bindestrich aber nur vor einem Buchstaben (probe-haus ja, probe-2024 nein)';
+
 export function bezeichner(id: string): string {
   return id.replace(/-([a-z])/g, (_, buchstabe: string) => buchstabe.toUpperCase());
 }

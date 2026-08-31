@@ -222,7 +222,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Siebenundvierzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Neunundvierzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
   `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
   Fassung passt nicht zur Bibliothek, deshalb
@@ -1263,6 +1263,139 @@ hält bei einem offenen Fehler den letzten tragfähigen Stand fest, und das ist
 richtig — sie ist der Grund, aus dem jemand hier ist. Über der Folie stand der
 Vermerk „nicht mehr aktuell", über dem Quelltext nicht: dort gab sich ein alter
 Stand für den aktuellen aus, und zwar unter `src/themes/<id>.ts`.
+
+**Ein Wächter, der genau seinen Fall wegfiltert.** Die Warnung „eine dritte
+Füllfarbe, die nirgends gezeichnet wird" rechnete über `pfade.filter(Boolean)`
+— und schloss damit die Pfade **ohne** Füllfarbe aus, also genau die, die auch
+nirgends gezeichnet werden. Der Grund, warum es welche gibt: `readPaths()` las
+`fill` nur als Attribut am `<path>`, und Illustrator, Figma und Inkscape
+schreiben die Farbe für eine gruppierte Auswahl ans umschließende `<g>`.
+
+Die Folge ist so groß, wie sie klingt. Die Buchstabenpfade kamen mit leerer
+Füllung zurück, `wortmarkeAusSvg()` schlug deshalb die *Akzentfarbe* als
+Buchstabenton vor, und auf der Folie, im SVG, im PDF und in der PPTX stand
+danach nur noch der Akzentpunkt. Gemessen an der Wortmarke des Musterkunden:
+die Pfaddaten der Buchstaben fielen von 4152 auf 51 Zeichen. Die Prüfliste
+sagte kein Wort, der Knopf „Designdatei" war offen, und die erzeugte Datei trug
+eine Buchstabenfarbe, die niemand gewählt hat.
+
+Die Reparatur hat zwei Hälften, und die zweite ist die wichtigere.
+`readPaths()` erbt die Füllung jetzt vom Vorfahren und liest auch
+`style="fill:…"` — damit gehen die üblichen Exporte durch. Was danach *immer
+noch* keine Farbe trägt (die Farben stehen in einer CSS-Klasse), wird
+**gemeldet und nicht erraten**: eine Farbe zu erfinden hieße zu behaupten, sie
+sei gemeint.
+
+Und ein dritter Fall hing daran: eine leere Buchstabenfarbe kam durch, weil die
+Prüfung `pfade.some(gleich('', ''))` fragte — leer gegen leer ist gleich. Die
+Datei trug danach `letters: ''`, und `wordmarkFromSvg()` sammelte zur Laufzeit
+alle Pfade *ohne* Füllung als Buchstaben ein: der Akzent wurde zum Buchstaben
+und in Tinte gemalt.
+
+**Zwei Leser derselben Antwort, und nur einer kannte die Anführungszeichen.**
+Der Kopf von `STUFEN` begründet, warum `geradeAnfuehrung` vor `nurObjekt`
+steht: der Klammerzähler stiege sonst mitten in einer Zeichenkette aus.
+Dasselbe Argument gilt für `ohneKommentare` und `ohneNachkomma` — und dort war
+es nicht angewandt. Aus `{ “produkt”: “Deck // Fläche” }` machte der
+Kommentarleser einen Zeilenkommentar ab dem `//` und warf den Rest der Zeile
+samt schließender Klammer weg.
+
+Gemeldet wurde das danach als **Längenabbruch des Modells** über einer
+vollständigen Antwort. Wer dem Rat folgte und „ab produkt" fortsetzen ließ,
+bekam dieselbe Antwort und dasselbe Ergebnis, beliebig oft. Der realistische
+Auslöser für das `//` ist ein Dateiname auf einem CDN — dort ist der Verlust
+die ganze Schnittliste.
+
+Umgestellt wurde die Reihenfolge ausdrücklich **nicht**: `geradeAnfuehrung`
+fasst auch innerhalb von Werten an, und vorgezogen machte sie aus jedem
+deutschen „Wort" in einem Markennamen ein gerades. Die beiden führen jetzt über
+`istBegrenzer()` ihre eigene Buchführung.
+
+**Die Rettung griff nicht dort, wo sie gebaut wurde.** Der Kopf von `Abbruch`
+beschreibt den Fall: die Antwort hört mitten in `"paper": "#FAF` auf, zwölf von
+sechzehn Rollen stehen schon da, und niemand bekommt sie. Gemerkt wurden
+Schnitte aber nur auf der obersten Ebene — bei einem Abbruch *innerhalb* der
+Palette war der letzte Schnitt der vor `"palette"`, und angeboten wurden zwei
+Felder. Weil die Palette der längste Block einer Modellantwort ist, ist das
+nicht der Rand des Längenabbruchs, sondern sein Regelfall. Geschnitten wird
+jetzt je Ebene, von innen nach außen.
+
+**`NaN === NaN` ist false, und ein leeres Zahlenfeld schreibt NaN.** Die
+Änderungsliste führte deshalb „auszeichnungEnger · NaN → NaN": der Knopf
+versprach „Einen Wert übernehmen" über einer Antwort, die nichts ändert, der
+Satz „ändert nichts" blieb aus (er hängt an derselben Länge), und wer klickte,
+verbrauchte den Merker für „Rückgängig" für nichts. `Object.is` fängt es.
+
+**Zwei Rechnungen für dieselbe Frage, zum zweiten Mal.** Die Warnung „nur eine
+Marken-Schrift" zählte die Namen im Stapel, die *Schnitte haben* —
+`ersatzkette()` im Export baut ihre Kette dagegen aus **Rollen** und findet
+eine Familie nur über den ersten Namen eines Stapels. Eine Symbolschrift an
+zweiter Stelle sah damit aus wie eine Reserve und war keine: das ⌘, das der
+Bildschirm aus ihr holt, fiel aus PNG und PDF, und die Prüfliste hatte vorher
+ausdrücklich Entwarnung gegeben. Gezählt wird jetzt dieselbe Kette, die der
+Export geht.
+
+**Der Bildschirm simuliert fett, die Datei nicht.** Geprüft wurde, ob eine
+Familie *einen* aufrechten Schnitt hat — die Hierarchie verlangt aber
+display/700, body/600 und mono/700. Eine frisch lizenzierte Schrift kommt oft
+nur als Regular; `resolveFace()` gibt dann kein `null` zurück, sondern den
+nächstliegenden Schnitt. Jede Überschrift wird in PNG, PDF und PPTX aus den
+Regular-Umrissen gezeichnet, während der Browser auf der Fläche fett simuliert
+— dieselbe Bauart wie „Der Bildschirm ersetzt eine fehlende Glyphe, die Datei
+nicht".
+
+**Die erzeugte Datei machte das Repo unlintbar, in das man sie legt.**
+`no-irregular-whitespace` aus `eslint:recommended` schaut auch in Kommentare
+(`skipComments` ist per Vorgabe aus). Ein Name mit einem geschützten
+Leerzeichen — so kommt er beim Kopieren aus Word — stand ungefaltet im
+Kopfkommentar: die Datei übersetzte, Prettier war zufrieden, die Prüfliste
+schwieg, und `npm run lint` brach ab. Und der Fix von damals trug den Fehler
+bei sich: die Sternchen-Folge im Namen wurde mit einem *schmalen* Leerzeichen
+gebrochen, also mit genau einem Zeichen, das diese Regel verbietet.
+
+Geprüft wird deshalb mit **ESLint selbst** und nicht mit einer nachgebauten
+Regel — dieselbe Linie wie bei Prettier eine Prüfung weiter oben.
+
+**Eine Korrektur, die nicht sagt, dass sie eine ist.** `normalisiereFarbe()`
+gibt zwei Werte zurück, und der Kopf jener Datei schreibt aus, wozu: „Eine
+stille Korrektur ist eine Behauptung: ‚das war gemeint'." Der Rücklauf-Bericht
+hielt sich daran, das Farbfeld daneben nicht — es las den Wert und warf den
+Satz weg. Wer `rgba(17, 17, 17, 0.05)` aus einem Styleguide einsetzte, hatte
+danach Fast-Schwarz im Feld statt eines Fünf-Prozent-Grau, ohne ein Wort. Und
+danach sieht es keine Prüfung mehr: `#111111` ist ein gültiger Wert.
+
+**Eine fremde `.json` wurde stumm zum leeren Entwurf.** `zusammen()` prüft seit
+dem weißen Fenster jeden Wert und fällt sonst auf die Vorbelegung zurück —
+wortlos. Eine `package.json` ergab damit exakt `leererEntwurf()`, es gab keine
+Meldung, und der Sprung nach Schritt 1 sah aus wie ein gelungener Ladevorgang,
+obwohl fünfzig Felder ersetzt wurden. Der Satz „… ist kein gesicherter Entwurf"
+stand daneben und wurde nie erreicht. `zusammen()` gibt jetzt zurück, was ankam
+und was verworfen wurde: aus nichts wird kein Entwurf, und eine Rolle mit
+falschem Typ wird genannt statt stumm durch nozillas Wert ersetzt.
+
+**Derselbe Satz an zwei Stellen, und nur einer wurde verschärft.** Der Prompt
+beschrieb den Schlüssel neu („ein Bindestrich nur vor einem Buchstaben"), der
+Hinweis unter dem Feld, in das derselbe Wert von Hand getippt wird, blieb bei
+„Kleinschrift, Ziffern, Bindestriche." Wer ihm folgte, bekam einen harten
+Fehler und einen gesperrten Knopf — wörtlich der Vorwurf, wegen dessen der
+Prompt verschärft wurde, nur eine Datei weiter. `SCHLUESSELREGEL` steht jetzt
+neben `bezeichner()`, also neben der Rechnung, die den Satz wahr macht.
+
+**Eine Härtungsliste, die man tippt, prüft die Hälfte.** Der Test gegen das
+weiße Fenster führte sieben oberste Felder von fünfzehn; `label`, `markenname`,
+`produkt` und `fontFamily` fehlten, und `pruefe()` fasst die genauso an. Die
+Liste wird jetzt aus `Object.keys(leererEntwurf())` gerechnet — dieselbe Linie
+wie beim Prompt, dessen Schlüssel auch gelesen und nicht getippt werden. Und
+die Gegenrichtung vergleicht seither den **ganzen** Entwurf statt drei von
+zwölf Gruppen: `stroke: leer.stroke` zu schreiben wäre sonst unbemerkt
+geblieben.
+
+**Und der teuerste Wächter ist der, der auf der eigenen CI anschlägt.** Es gibt
+ihn jetzt als Test: jedes mitgelieferte Erscheinungsbild wird zu einem Entwurf
+gemacht und durch `pruefe()` geschickt, und kein Befund über dem Rang „zu
+wissen" darf dabei herauskommen. Zwei der Regeln oben — die Ersatzkette und die
+Schriftgewichte — sind erst dadurch als richtig belegt und nicht nur als
+scharf.
 
 ---
 

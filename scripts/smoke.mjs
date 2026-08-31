@@ -1998,6 +1998,77 @@ async function main() {
     await generator.close();
   });
 
+  await pruefe('das Farbfeld sagt, was es beim Aufräumen getan hat', async () => {
+    /*
+       `normalisiereFarbe()` gibt zwei Werte zurück, und der zweite ist der
+       Satz für die Oberfläche — der Kopf jener Datei schreibt aus, wozu: „Eine
+       stille Korrektur ist eine Behauptung: ‚das war gemeint'." Der
+       Rücklauf-Bericht hielt sich daran, das Formular nicht: es las den Wert
+       und warf den Satz weg.
+
+       Der teuerste Fall ist die weggefallene Deckkraft. Wer `rgba(17, 17, 17,
+       0.05)` aus einem Styleguide einsetzt, hat danach Fast-Schwarz im Feld
+       statt eines Fünf-Prozent-Grau — und danach sieht es keine Prüfung mehr,
+       denn `#111111` ist ein gültiger Wert.
+    */
+    const generator = await kontext.newPage();
+    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+    await generator.waitForTimeout(2200);
+
+    await zumSchritt(generator, 'Farbe');
+    await setzeFarbe(generator, 'paperAlt', 'rgba(17, 17, 17, 0.05)');
+    await generator.waitForTimeout(400);
+
+    const feld = await farbfeldId(generator, 'paperAlt');
+    gleich(
+      await generator.locator(`#${feld}`).inputValue(),
+      '#111111',
+      'die Farbe wurde nicht aufgeräumt',
+    );
+    const gesagt = await generator.evaluate((kennung) => {
+      const eingabe = document.getElementById(kennung);
+      return eingabe?.closest('div.min-w-0')?.textContent ?? '';
+    }, feld);
+    wahr(/Deckkraft/.test(gesagt), `die weggefallene Deckkraft wurde verschwiegen: „${gesagt}"`);
+
+    await generator.close();
+  });
+
+  await pruefe('eine fremde Datei wird nicht als Entwurf angenommen', async () => {
+    /*
+       `zusammen()` ergab für eine fremde .json exakt den leeren Entwurf: keine
+       Meldung, kein Fehler, und der Sprung nach Schritt 1 sah aus wie ein
+       gelungener Ladevorgang — obwohl fünfzig Felder ersetzt wurden. Der Satz
+       „… ist kein gesicherter Entwurf" stand daneben und wurde nie erreicht.
+    */
+    const generator = await kontext.newPage();
+    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+    await generator.waitForTimeout(2200);
+
+    await zumSchritt(generator, 'Marke');
+    await generator.getByLabel('Schlüssel').fill('bleibtstehen');
+    await generator.waitForTimeout(700);
+
+    generator.on('dialog', (dialog) => void dialog.accept());
+    await generator.setInputFiles('input[accept*="json"]', {
+      name: 'package.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from('{"name": "nozilla", "version": "1.0.0"}'),
+    });
+    await generator.waitForTimeout(700);
+
+    const klage = await generator.getByRole('alert').innerText();
+    wahr(/kein gesicherter Entwurf/.test(klage), `keine Meldung zur fremden Datei: „${klage}"`);
+    await zumSchritt(generator, 'Marke');
+    gleich(
+      await generator.getByLabel('Schlüssel').inputValue(),
+      'bleibtstehen',
+      'die fremde Datei hat den Entwurf trotzdem ersetzt',
+    );
+
+    await generator.close();
+  });
+
   await pruefe('ein geladener Entwurf fragt, bevor er den offenen ersetzt', async () => {
     /*
        „Sechs Wege ersetzten das Deck, einer fragte" — eine Seite weiter und

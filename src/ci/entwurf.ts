@@ -361,11 +361,18 @@ export type PromptSchluessel = (typeof promptSchluessel)[number];
  * und die Prüfliste beklagte eine Datei, die in Ordnung war.
  */
 export function wortmarkeAusSvg(svg: string, dateiname: string): Wortmarkenentwurf {
+  /*
+     Vorgeschlagen wird nur, was wirklich malt. `none` ist eine Wahl und keine
+     Farbe — als Buchstabenton vorgeschlagen ergäbe es einen Schriftzug aus
+     Pfaden, die ausdrücklich nichts zeichnen. Und die leere Füllung ist die
+     Lücke, die `pruefeWortmarke()` meldet; sie hier zum Ton zu machen hieße,
+     eine Farbe zu erfinden, die niemand genannt hat.
+  */
   const gefunden = [
     ...new Set(
       readPaths(svg)
         .map((pfad) => pfad.fill)
-        .filter(Boolean),
+        .filter((fuellung) => fuellung && fuellung.toLowerCase() !== 'none'),
     ),
   ];
   return { svg, dateiname, letters: gefunden[0] ?? '', accent: gefunden[1] ?? '' };

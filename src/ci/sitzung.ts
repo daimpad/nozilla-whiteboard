@@ -119,7 +119,7 @@ export function liesEntwurf(): CiEntwurf | null {
   try {
     const gelesen = JSON.parse(roh) as Partial<CiEntwurf>;
     if (!gelesen || typeof gelesen !== 'object' || Array.isArray(gelesen)) return null;
-    return zusammen(gelesen);
+    return zusammen(gelesen).entwurf;
   } catch {
     return null;
   }
@@ -144,25 +144,76 @@ export function liesEntwurf(): CiEntwurf | null {
  * und was darin fehlt, hat nie jemand entschieden. Die Prüfliste sagt danach
  * ohnehin, was noch offen ist.
  */
-export function zusammen(gelesen: Partial<CiEntwurf>): CiEntwurf {
+export interface Zusammengelegt {
+  entwurf: CiEntwurf;
+  /** Felder, aus denen wirklich ein Wert kam. */
+  genommen: string[];
+  /**
+   * Felder, die in der Datei standen und nicht zu gebrauchen waren.
+   *
+   * Sie fallen auf die Vorbelegung zurück, und das ist richtig — aber nicht
+   * wortlos. Eine `.nzci.json`, in der `palette.ink` eine Zahl trägt, lud
+   * vorher grün durch: die Tinte stand danach auf nozillas Schwarz, die
+   * Prüfliste konnte davon nichts sagen (`#000000` ist ein gültiger Wert),
+   * und der Nächste arbeitete mit einer Farbe, die er nie gewählt hat. Das ist
+   * die Linie, die dieses Projekt an anderer Stelle andersherum entschieden
+   * hat: den Wert behalten, die Lücke zeigen.
+   */
+  verworfen: string[];
+}
+
+export function zusammen(gelesen: Partial<CiEntwurf>): Zusammengelegt {
   const leer = leererEntwurf();
   const roh = (gelesen ?? {}) as Record<string, unknown>;
+  const genommen: string[] = [];
+  const verworfen: string[] = [];
+
+  /** Ein Feld verbuchen: kam es an, oder fiel es auf die Vorbelegung zurück? */
+  const buche = (name: string, angekommen: boolean) => {
+    if (!(name in roh)) return;
+    (angekommen ? genommen : verworfen).push(name);
+  };
 
   const alsText = (wert: unknown, ersatz: string): string =>
     typeof wert === 'string' ? wert : ersatz;
   const alsZahl = (wert: unknown, ersatz: number): number =>
     typeof wert === 'number' && Number.isFinite(wert) ? wert : ersatz;
 
+  const text = (name: string, ersatz: string): string => {
+    const wert = alsText(roh[name], ersatz);
+    buche(name, typeof roh[name] === 'string');
+    return wert;
+  };
+
   /** Eine Gruppe gleichartiger Werte, Rolle für Rolle geprüft. */
   const gruppe = <T>(
+    name: string,
     vorgabe: Record<string, T>,
     wert: unknown,
     lies: (roh: unknown, ersatz: T) => T,
   ): Record<string, T> => {
     const gegeben = (wert && typeof wert === 'object' ? wert : {}) as Record<string, unknown>;
-    return Object.fromEntries(
-      Object.entries(vorgabe).map(([rolle, ersatz]) => [rolle, lies(gegeben[rolle], ersatz)]),
+    let angekommen = false;
+    const aus = Object.fromEntries(
+      Object.entries(vorgabe).map(([rolle, ersatz]) => {
+        const gelesen = lies(gegeben[rolle], ersatz);
+        if (rolle in gegeben && gelesen !== ersatz) angekommen = true;
+        return [rolle, gelesen];
+      }),
     );
+    /*
+       Ein Wert, der zufällig gleich der Vorbelegung ist, zählt trotzdem als
+       angekommen — sonst hieße „dieselbe Farbe wie nozilla" plötzlich
+       „unlesbar". Gefragt wird deshalb zusätzlich, ob überhaupt eine
+       *bekannte* Rolle mit passendem Typ dastand.
+    */
+    if (!angekommen) {
+      angekommen = Object.keys(vorgabe).some(
+        (rolle) => rolle in gegeben && lies(gegeben[rolle], vorgabe[rolle]) === gegeben[rolle],
+      );
+    }
+    buche(name, angekommen);
+    return aus;
   };
 
   const marke = roh.wortmarke;
@@ -180,19 +231,44 @@ export function zusammen(gelesen: Partial<CiEntwurf>): CiEntwurf {
     ? (roh.webfontFaces as unknown[])
     : leer.webfontFaces;
 
-  return {
-    id: alsText(roh.id, leer.id),
-    label: alsText(roh.label, leer.label),
-    markenname: alsText(roh.markenname, leer.markenname),
-    produkt: alsText(roh.produkt, leer.produkt),
-    palette: gruppe(leer.palette, roh.palette, alsText) as CiEntwurf['palette'],
-    textScale: gruppe(leer.textScale, roh.textScale, alsZahl) as CiEntwurf['textScale'],
-    sonderstufen: gruppe(leer.sonderstufen, roh.sonderstufen, alsZahl) as CiEntwurf['sonderstufen'],
+  buche('wortmarke', wortmarke !== null);
+  buche('webfontFaces', Array.isArray(roh.webfontFaces));
+  buche('auszeichnungEnger', typeof roh.auszeichnungEnger === 'number');
+  buche('zeichen', roh.zeichen === 'ohne-signatur' || roh.zeichen === 'nozilla');
+
+  const entwurf: CiEntwurf = {
+    id: text('id', leer.id),
+    label: text('label', leer.label),
+    markenname: text('markenname', leer.markenname),
+    produkt: text('produkt', leer.produkt),
+    palette: gruppe('palette', leer.palette, roh.palette, alsText) as CiEntwurf['palette'],
+    textScale: gruppe(
+      'textScale',
+      leer.textScale,
+      roh.textScale,
+      alsZahl,
+    ) as CiEntwurf['textScale'],
+    sonderstufen: gruppe(
+      'sonderstufen',
+      leer.sonderstufen,
+      roh.sonderstufen,
+      alsZahl,
+    ) as CiEntwurf['sonderstufen'],
     auszeichnungEnger: alsZahl(roh.auszeichnungEnger, leer.auszeichnungEnger),
-    stroke: gruppe(leer.stroke, roh.stroke, alsZahl) as CiEntwurf['stroke'],
-    shadowOffset: gruppe(leer.shadowOffset, roh.shadowOffset, alsZahl) as CiEntwurf['shadowOffset'],
-    fontFamily: gruppe(leer.fontFamily, roh.fontFamily, alsText) as CiEntwurf['fontFamily'],
-    pdfFontFamily: gruppe(leer.pdfFontFamily, roh.pdfFontFamily, (wert, ersatz) =>
+    stroke: gruppe('stroke', leer.stroke, roh.stroke, alsZahl) as CiEntwurf['stroke'],
+    shadowOffset: gruppe(
+      'shadowOffset',
+      leer.shadowOffset,
+      roh.shadowOffset,
+      alsZahl,
+    ) as CiEntwurf['shadowOffset'],
+    fontFamily: gruppe(
+      'fontFamily',
+      leer.fontFamily,
+      roh.fontFamily,
+      alsText,
+    ) as CiEntwurf['fontFamily'],
+    pdfFontFamily: gruppe('pdfFontFamily', leer.pdfFontFamily, roh.pdfFontFamily, (wert, ersatz) =>
       (pdfSchriften as readonly string[]).includes(wert as string) ? (wert as PdfSchrift) : ersatz,
     ) as CiEntwurf['pdfFontFamily'],
     /*
@@ -214,6 +290,8 @@ export function zusammen(gelesen: Partial<CiEntwurf>): CiEntwurf {
     wortmarke,
     zeichen: roh.zeichen === 'ohne-signatur' ? 'ohne-signatur' : 'nozilla',
   };
+
+  return { entwurf, genommen, verworfen };
 }
 
 /**

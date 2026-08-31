@@ -48,6 +48,7 @@ import {
   type Zeichenwahl,
 } from './entwurf';
 import { zeichenwahl } from './entwurf';
+import { SCHLUESSELREGEL } from './emitter';
 import { Abschnitt, Farbfeld, Textfeld, Wahlfeld, Zahlenfeld } from './felder';
 import {
   PALETTENTEXT,
@@ -135,7 +136,7 @@ export function MarkeSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aendere
         wert={entwurf.id}
         auf={(id) => aendere({ id })}
         platzhalter="probenhaus"
-        hinweis="Kleinschrift, Ziffern, Bindestriche."
+        hinweis={`${SCHLUESSELREGEL}.`}
       />
       <Textfeld
         label="Name in der Auswahl"

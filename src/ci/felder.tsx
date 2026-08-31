@@ -7,7 +7,7 @@
  * fremden CI unbedienbar. Die Marke gehört in die Vorschau daneben, nirgendwo
  * sonst.
  */
-import { useId, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { cx } from '@/components/ui/controls';
 import { normalisiereFarbe } from './farbwert';
 
@@ -162,10 +162,23 @@ export function Farbfeld({
      lesen lässt, bleibt stehen, wie es dasteht — der Rahmen ist rot, die
      Prüfliste nennt die Rolle, und ein stiller Ersatz behauptete, es sei etwas
      anderes gemeint gewesen.
+
+     **Und die Korrektur sagt, was sie getan hat.** `normalisiereFarbe()` gibt
+     den Satz dafür zurück, und der Kopf jener Datei schreibt ausdrücklich, wozu:
+     „Eine stille Korrektur ist eine Behauptung: ‚das war gemeint'." Der
+     Rücklauf-Leser hielt sich daran, dieses Feld nicht — es las nur den Wert
+     und warf den Satz weg. Der teuerste Fall dabei ist die weggefallene
+     Deckkraft: wer `rgba(17, 17, 17, 0.05)` aus einem Styleguide einsetzt,
+     sah danach `#111111` im Feld — Fast-Schwarz statt eines Fünf-Prozent-Grau —
+     und kein Wort dazu. Danach sieht es keine Prüfung mehr: `#111111` ist ein
+     gültiger Wert.
   */
+  const [korrigiert, setKorrigiert] = useState<string | null>(null);
   const raeumeAuf = () => {
     const korrektur = normalisiereFarbe(wert);
-    if (korrektur && korrektur.wert !== wert) auf(korrektur.wert);
+    if (!korrektur || korrektur.wert === wert) return;
+    auf(korrektur.wert);
+    setKorrigiert(korrektur.wie);
   };
 
   return (
@@ -195,7 +208,10 @@ export function Farbfeld({
             type="text"
             value={wert}
             spellCheck={false}
-            onChange={(event) => auf(event.target.value)}
+            onChange={(event) => {
+              setKorrigiert(null);
+              auf(event.target.value);
+            }}
             onBlur={raeumeAuf}
             className={cx(
               'h-8 w-28 shrink-0 rounded-sm border bg-ui-surface px-2 font-mono text-ui-body focus:outline-none',
@@ -206,6 +222,9 @@ export function Farbfeld({
           />
           <span className="truncate font-mono text-[11px] text-ui-faint">rgb({kanal})</span>
         </div>
+        {korrigiert ? (
+          <p className="mt-1 text-[11px] leading-snug text-ui-ink">Übernommen: {korrigiert}.</p>
+        ) : null}
         {hinweis ? <p className="mt-1 text-[11px] leading-snug text-ui-faint">{hinweis}</p> : null}
       </div>
     </div>

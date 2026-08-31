@@ -149,6 +149,35 @@ function nurObjekt(text: string): string {
   return text.slice(start);
 }
 
+/**
+ * Beginnt oder endet hier eine Zeichenkette?
+ *
+ * Nicht nur `"`, und das ist der Anlass für diese Funktion. `ohneKommentare`
+ * und `ohneNachkomma` führen Buch darüber, was in einer Zeichenkette steht —
+ * sie zählten aber nur gerade Anführungszeichen, während `geradeAnfuehrung`
+ * erst zwei Stufen später läuft. Bei einer Antwort mit typografischen
+ * Begrenzern stand `inText` deshalb nie auf true: aus
+ * `{ “produkt”: “Deck // Fläche” }` machte der Kommentarleser einen
+ * Zeilenkommentar ab dem `//`, warf den Rest der Zeile samt schließender
+ * Klammer weg — und der Bericht meldete das danach als Längenabbruch des
+ * Modells. Wer dem Rat folgte und „ab produkt fortsetzen" ließ, bekam
+ * dieselbe Antwort und dasselbe Ergebnis, beliebig oft.
+ *
+ * Die Familie wird als *ein* Begrenzer behandelt: jedes dieser Zeichen
+ * schaltet um. Das ist gröber als eine Paarung — `„…“` und `“…”` schließen
+ * verschieden, und das deutsche Schlusszeichen ist das englische
+ * Anfangszeichen —, und es reicht: hier wird nur entschieden, *wo* ein
+ * Kommentar sein darf, nicht was in einem Wert steht.
+ *
+ * Umgestellt wurde die Reihenfolge ausdrücklich **nicht**. `geradeAnfuehrung`
+ * fasst auch innerhalb von Werten an; sie vorzuziehen hieße, aus jedem
+ * deutschen „Wort" in einem Markennamen ein "Wort" zu machen, sobald irgendeine
+ * andere Stufe nötig war.
+ */
+function istBegrenzer(zeichen: string): boolean {
+  return zeichen === '"' || zeichen === '“' || zeichen === '”' || zeichen === '„';
+}
+
 /** Zeilen- und Blockkommentare heraus — außerhalb von Zeichenketten. */
 function ohneKommentare(text: string): string {
   let aus = '';
@@ -161,10 +190,10 @@ function ohneKommentare(text: string): string {
       aus += zeichen;
       if (maskiert) maskiert = false;
       else if (zeichen === '\\') maskiert = true;
-      else if (zeichen === '"') inText = false;
+      else if (istBegrenzer(zeichen)) inText = false;
       continue;
     }
-    if (zeichen === '"') {
+    if (istBegrenzer(zeichen)) {
       inText = true;
       aus += zeichen;
       continue;
@@ -198,10 +227,12 @@ function ohneNachkomma(text: string): string {
       aus += zeichen;
       if (maskiert) maskiert = false;
       else if (zeichen === '\\') maskiert = true;
-      else if (zeichen === '"') inText = false;
+      else if (istBegrenzer(zeichen)) inText = false;
       continue;
     }
-    if (zeichen === '"') inText = true;
+    // Dieselbe Buchführung wie oben, und aus demselben Grund: ein Komma
+    // *in* einem Wert darf nicht als Nachkomma gelten.
+    if (istBegrenzer(zeichen)) inText = true;
     if (zeichen === ',') {
       const rest = text.slice(i + 1);
       const naechstes = rest.replace(/^\s*/, '')[0];
@@ -238,6 +269,13 @@ function geradeAnfuehrung(text: string): string {
  * verlässlichere Schnitt), und `geradeAnfuehrung` bleibt vor ihm, weil ein
  * typografisches Anführungszeichen den Zähler sonst mitten in einer
  * Zeichenkette aussteigen ließe.
+ *
+ * Dasselbe Argument gilt für `ohneKommentare` und `ohneNachkomma` — nur läuft
+ * `geradeAnfuehrung` **nach** ihnen, und das bleibt so: sie fasst auch
+ * innerhalb von Werten an, und vorgezogen machte sie aus jedem deutschen
+ * „Wort" in einem Markennamen ein gerades. Die beiden führen deshalb ihre
+ * eigene Buchführung über `istBegrenzer()` und kennen die typografische
+ * Familie selbst.
  */
 const STUFEN: Array<{ was: string; tu: (text: string) => string }> = [
   { was: 'den Codezaun abgenommen', tu: ohneZaun },
@@ -293,11 +331,28 @@ export function abgebrochen(text: string): Abbruch | null {
   let tiefe = 0;
   let inText = false;
   let maskiert = false;
-  let letzterSchnitt = -1;
   let letzterSchluessel = '';
   let offenerSchluessel = '';
   let schluessel = '';
   let sammle = false;
+
+  /*
+     Ein Schnitt **je Ebene** und nicht nur auf der obersten.
+
+     Die vorige Fassung merkte sich Schnitte nur bei `tiefe === 1`, und damit
+     griff die Rettung ausgerechnet dort nicht, wo sie gebaut wurde: der Kopf
+     dieser Datei beschreibt den Abbruch mitten in `"paper": "#FAF` — also
+     *innerhalb* der Palette. Der letzte Schnitt auf Tiefe 1 war dann der vor
+     `"palette"`, und angeboten wurden `id` und `label`. Vierzehn fertige
+     Farbrollen fielen weg, und die Palette ist bei einer Modellantwort der
+     mit Abstand längste Block: das ist nicht der Randfall eines
+     Längenabbruchs, sondern sein Regelfall.
+
+     `rahmen` merkt sich dazu, ob eine Ebene eine Klammer oder eine Liste ist —
+     geschlossen wird mit dem Zeichen, das aufgemacht wurde.
+  */
+  const schnitt: number[] = [];
+  const rahmen: string[] = [];
 
   for (let i = 0; i < text.length; i += 1) {
     const zeichen = text[i];
@@ -324,37 +379,54 @@ export function abgebrochen(text: string): Abbruch | null {
       sammle = false;
       continue;
     }
-    if (zeichen === '{' || zeichen === '[') tiefe += 1;
-    else if (zeichen === '}' || zeichen === ']') tiefe -= 1;
-    else if (zeichen === ',' && tiefe === 1) {
-      // Hier endet ein Wert der obersten Ebene: *dieser* Schlüssel stand ganz
-      // da. Der offene wandert damit zum vollständigen.
-      letzterSchnitt = i;
-      letzterSchluessel = offenerSchluessel;
+    if (zeichen === '{' || zeichen === '[') {
+      tiefe += 1;
+      rahmen[tiefe] = zeichen;
+      schnitt[tiefe] = -1;
+    } else if (zeichen === '}' || zeichen === ']') {
+      tiefe -= 1;
+      // Ein Wert der Ebene darüber ist damit fertig.
+      if (tiefe >= 1) {
+        schnitt[tiefe] = i + 1;
+        if (tiefe === 1) letzterSchluessel = offenerSchluessel;
+      }
+    } else if (zeichen === ',' && tiefe >= 1) {
+      schnitt[tiefe] = i;
+      // Auf der obersten Ebene heißt das zugleich: *dieser* Schlüssel stand
+      // ganz da. Der offene wandert damit zum vollständigen.
+      if (tiefe === 1) letzterSchluessel = offenerSchluessel;
     }
 
-    if (tiefe === 1 && (zeichen === '}' || zeichen === ']')) {
-      letzterSchnitt = i + 1;
-      letzterSchluessel = offenerSchluessel;
-    }
     if (tiefe === 0 && i > 0) return null; // Das Objekt ist zu — kein Abbruch.
   }
 
-  if (tiefe <= 0 || letzterSchnitt < 0) return null;
+  if (tiefe <= 0) return null;
 
-  const kopf = text.slice(0, letzterSchnitt).replace(/,\s*$/, '');
-  try {
-    const wert: unknown = JSON.parse(`${kopf}}`);
-    if (!wert || typeof wert !== 'object' || Array.isArray(wert)) return null;
-    return {
-      objekt: wert as Record<string, unknown>,
-      letzterSchluessel,
-      offenerSchluessel,
-      zeichen: text.length,
-    };
-  } catch {
-    return null;
+  /*
+     Von innen nach außen: der tiefste Schnitt trägt am meisten. Schlägt er
+     fehl — ein halb geschriebener Schlüssel, eine Zahl ohne Ziffern —, gilt
+     der eine Ebene darüber.
+  */
+  for (let ebene = tiefe; ebene >= 1; ebene -= 1) {
+    if (schnitt[ebene] === undefined || schnitt[ebene] < 0) continue;
+    const kopf = text.slice(0, schnitt[ebene]).replace(/,\s*$/, '');
+    const zu = [];
+    for (let offen = ebene; offen >= 1; offen -= 1) zu.push(rahmen[offen] === '[' ? ']' : '}');
+    try {
+      const wert: unknown = JSON.parse(kopf + zu.join(''));
+      if (!wert || typeof wert !== 'object' || Array.isArray(wert)) continue;
+      return {
+        objekt: wert as Record<string, unknown>,
+        letzterSchluessel,
+        offenerSchluessel,
+        zeichen: text.length,
+      };
+    } catch {
+      // Diese Ebene trägt nicht — die nächsthöhere versuchen.
+    }
   }
+
+  return null;
 }
 
 /** Was die stufenweise Reparatur ergeben hat. */
@@ -697,6 +769,29 @@ const ERWARTET = promptSchluessel;
  * zweiter Weg in den Entwurf wäre genau die Sorte Abkürzung, die in diesem
  * Projekt schon zweimal auseinandergelaufen ist.
  */
+/**
+ * Wo das Modell fortsetzen soll — als Satzstück.
+ *
+ * Zwei Fälle, und sie brauchen zwei Formulierungen. Reißt die Antwort *in*
+ * einem Feld ab, ist der Punkt dieses Feld. Reißt sie zwischen zwei Feldern ab —
+ * nach der schließenden Klammer, nach dem Komma, mitten im nächsten
+ * Schlüsselnamen —, wird `offenerSchluessel` nicht mehr fortgeschrieben und
+ * bleibt auf dem gerade *fertig* gemeldeten stehen. Auf dem Bildschirm stand
+ * dann „zuletzt vollständig war ‚palette', abgerissen ist sie in ‚palette' …
+ * bitte es, ab ‚palette' fortzusetzen": ein Satz, der sich selbst widerspricht,
+ * und ein Rat, der das Modell an eine fertige Stelle schickt — es liefert
+ * denselben Block noch einmal und bricht wieder an derselben Stelle ab.
+ *
+ * Öffentlich, weil zwei Stellen denselben Satz brauchen: der Bericht und der
+ * Knopf für den Teilimport.
+ */
+export function fortsetzenAb(abbruch: Abbruch): string {
+  const offen = abbruch.offenerSchluessel;
+  if (offen && offen !== abbruch.letzterSchluessel) return `ab „${offen}"`;
+  if (abbruch.letzterSchluessel) return `mit dem Feld nach „${abbruch.letzterSchluessel}"`;
+  return 'von vorn';
+}
+
 export function teilRuecklauf(abbruch: Abbruch, basis: CiEntwurf): Ruecklauf {
   return liesRuecklauf(JSON.stringify(abbruch.objekt), basis);
 }
@@ -719,7 +814,19 @@ export function unterschiede(alt: CiEntwurf, neu: CiEntwurf): Aenderung[] {
     typeof wert === 'string' ? wert || '(leer)' : String(wert);
 
   const einzeln = (feld: Feld, name: string, a: unknown, b: unknown) => {
-    if (a === b) return;
+    /*
+       `Object.is` und nicht `===`, wegen genau eines Wertes: NaN. Ein leeres
+       Zahlenfeld schreibt ihn in den Entwurf (die Prüfliste meldet das zu
+       Recht als Fehler, der Wert steht aber da). Wer danach eine Antwort liest,
+       die dieses Feld nicht nennt, hatte NaN vorher und NaN nachher — und
+       `NaN === NaN` ist false. Die Zeile „NaN → NaN" stand in der
+       Änderungsliste und zählte mit: der Knopf hieß „Einen Wert übernehmen",
+       war offen, und der Satz „Die Antwort ließ sich lesen und ändert nichts"
+       blieb aus, weil er an derselben Länge hängt. Wer klickte, ersetzte den
+       Entwurf durch einen wertgleichen und verbrauchte dabei den Merker für
+       „Rückgängig".
+    */
+    if (Object.is(a, b)) return;
     aus.push({ feld, name, war: zeig(a), wird: zeig(b) });
   };
 
@@ -825,7 +932,7 @@ export function liesRuecklauf(roh: string, basis: CiEntwurf): Ruecklauf {
           {
             rang: 'fehler',
             feld: 'Rücklauf',
-            text: `Die Antwort hört nach ${abbruch.zeichen} Zeichen mitten im Satz auf — zuletzt vollständig war „${abbruch.letzterSchluessel || '(nichts)'}", abgerissen ist sie in „${abbruch.offenerSchluessel || '(unbekannt)'}". Das ist meist keine Panne, sondern die Längengrenze des Modells: bitte es, ab „${abbruch.offenerSchluessel || abbruch.letzterSchluessel}" fortzusetzen, und füge den Rest hier an.`,
+            text: `Die Antwort hört nach ${abbruch.zeichen} Zeichen mitten im Satz auf — zuletzt vollständig war „${abbruch.letzterSchluessel || '(nichts)'}"${abbruch.offenerSchluessel && abbruch.offenerSchluessel !== abbruch.letzterSchluessel ? `, abgerissen ist sie in „${abbruch.offenerSchluessel}"` : ''}. Das ist meist keine Panne, sondern die Längengrenze des Modells: bitte es, ${fortsetzenAb(abbruch)} fortzusetzen, und füge den Rest hier an.`,
           },
           {
             rang: 'uebergangen',

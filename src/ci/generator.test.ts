@@ -414,6 +414,37 @@ describe('die erzeugte Designdatei', () => {
     expect(formatiert).toBe(quelle);
   });
 
+  it('bleibt lintbar, auch wenn der Name unregelmäßigen Leerraum trägt', async () => {
+    /*
+       Gefragt wird **ESLint selbst** und nicht eine nachgebaute Regel —
+       dieselbe Linie wie bei Prettier eine Prüfung weiter oben.
+
+       Der Anlass: `no-irregular-whitespace` aus `eslint:recommended` schaut
+       auch in Kommentare (`skipComments` ist per Vorgabe aus). Ein Name mit
+       einem geschützten Leerzeichen — so kommt er beim Kopieren aus Word oder
+       von einer Webseite mit — machte die erzeugte Datei unlintbar: sie
+       übersetzte, Prettier war zufrieden, die Prüfliste schwieg, und
+       `npm run lint` brach in dem Repo ab, in das jemand sie gerade gelegt
+       hatte. Die Datei ist als Zulegedatei gemeint; sie darf das Repo, das sie
+       aufnimmt, nicht kaputt machen.
+
+       Und der zweite Fall ist der Fix von damals: die Sternchen-Folge im Namen
+       wurde mit einem *schmalen* Leerzeichen gebrochen — mit genau einem
+       Zeichen also, das diese Regel verbietet.
+    */
+    const roh = 'Alte\u00A0Post\u2009GmbH */ und\u3000danach\u0085mit\u200BZwischenraum';
+    const quelle = designdatei(probeEntwurf({ label: roh, markenname: roh }));
+
+    const { ESLint } = await import('eslint');
+    const eslint = new ESLint();
+    const [ergebnis] = await eslint.lintText(quelle, { filePath: 'src/themes/probe.ts' });
+    const meldungen = ergebnis.messages.map((m) => `${m.ruleId}: ${m.message}`);
+    expect(meldungen).toEqual([]);
+
+    // Und der Kopf trägt den Namen trotzdem — gefaltet, nicht weggelassen.
+    expect(quelle.slice(0, quelle.indexOf('*/'))).toContain('Alte Post GmbH');
+  });
+
   it('bleibt in dieser Form auch bei einem langen Schriftnamen', async () => {
     /*
        Die Prüfung darüber läuft auf dem Entwurf mit nozillas Schnitten, und
@@ -511,6 +542,76 @@ describe('die Prüfliste', () => {
     setActiveTheme(vorher);
   });
 
+  it('meldet ein Schriftgewicht, das die Hierarchie verlangt und kein Schnitt hat', () => {
+    /*
+       Beide Richtungen, und die erste hatte gefehlt: geprüft war nur, dass die
+       Regel auf den mitgelieferten CIs *schweigt*. Eine Regel, deren
+       Gegenrichtung niemand prüft, ist eine halbe — und die Gegenprobe hat es
+       vorgeführt: den Befund stillzulegen ließ jeden Test grün.
+
+       Der Fall selbst ist der Normalfall einer frisch lizenzierten Schrift:
+       nur der Regular ist da. `resolveFace()` gibt für 700 kein `null` zurück,
+       sondern den nächstliegenden Schnitt — der Browser simuliert auf der
+       Fläche fett, PNG, PDF und PPTX zeichnen die Regular-Umrisse, und die
+       beiden zeigen Verschiedenes.
+    */
+    const nurRegular = probeEntwurf({
+      webfontFaces: probeEntwurf().webfontFaces.filter((face) => face.weight === 400),
+    });
+    const gewichte = pruefe(nurRegular).filter((befund) =>
+      befund.text.includes('dafür gibt es keinen Schnitt'),
+    );
+    expect(gewichte.length).toBeGreaterThan(0);
+    expect(gewichte.every((befund) => befund.rang === 'warnung')).toBe(true);
+    // Und der Befund nennt das Gewicht, um das es geht — sonst sucht man es.
+    expect(gewichte.map((befund) => befund.text).join(' | ')).toMatch(/700/);
+
+    // Die Gegenrichtung: mit allen Schnitten kein Wort.
+    expect(
+      pruefe(probeEntwurf()).filter((befund) =>
+        befund.text.includes('dafür gibt es keinen Schnitt'),
+      ),
+    ).toEqual([]);
+  });
+
+  it('schlägt auf keiner mitgelieferten CI an', () => {
+    /*
+       Der teuerste Fehler, den diese Liste machen kann, ist ein **falscher
+       Alarm auf einer gültigen CI**. Er ist hier schon passiert (WCAG gegen
+       paper/white), und er ist teurer als eine Lücke: wer den ersten Befund
+       beim Öffnen als Rauschen abtut, tut es bei der fremden Marke wieder. Ein
+       Wächter, der auf der eigenen CI anschlägt, bringt sich selbst um.
+
+       Gebaut wird der Entwurf aus den Werten des Erscheinungsbilds — Palette,
+       Leiter, Striche, Schatten, Stapel, Schnitte. Wortmarke und Schlüssel
+       kommen aus der Probe: die eine trägt das Theme nur noch als Geometrie,
+       der andere ist für „nozilla" ausdrücklich gesperrt.
+    */
+    const vorher = activeTheme().id;
+    for (const id of MITGELIEFERT) {
+      setActiveTheme(id);
+      const theme = activeTheme();
+      const entwurf = probeEntwurf({
+        label: theme.label,
+        markenname: theme.brand.name,
+        produkt: theme.brand.product,
+        palette: { ...theme.palette },
+        textScale: { ...theme.textScale },
+        stroke: { ...theme.stroke },
+        shadowOffset: { ...theme.shadowOffset },
+        fontFamily: { ...theme.fontFamily },
+        pdfFontFamily: { ...theme.pdfFontFamily } as CiEntwurf['pdfFontFamily'],
+        webfontFaces: theme.webfont.faces.map((face) => ({ ...leererSchnitt(), ...face })),
+      });
+      const laut = pruefe(entwurf).filter((befund) => befund.rang !== 'hinweis');
+      expect(
+        laut.map((befund) => `${befund.rang}: ${befund.text}`),
+        id,
+      ).toEqual([]);
+    }
+    setActiveTheme(vorher);
+  });
+
   it('meldet zwei helle Töne, die dieselbe Farbe malen', () => {
     const gleich = pruefe(
       probeEntwurf({ palette: { ...probeEntwurf().palette, paper: '#FFFFFF' } }),
@@ -534,24 +635,66 @@ describe('die Prüfliste', () => {
     expect(befunde.some((b) => b.rang === 'warnung' && b.text.includes('Kontrast'))).toBe(true);
   });
 
-  it('meldet einen Schriftstapel ohne zweite Marken-Schrift', () => {
+  it('meldet einen Schriftstapel, der zu keiner zweiten Marken-Schrift führt', () => {
     /*
        Und zwar für *jede* Rolle. Die bestehende Prüfung in fonts.test.ts fängt
        nur die Auszeichnung: `ersatzkette()` stellt die eigene Rolle vorn ein,
        wenn der Stapel sie nicht nennt — `body` bekommt damit ['body','display']
        und ist länger als eins, ohne dass eine zweite Schrift im Spiel wäre.
     */
-    const einsam = pruefe(
-      probeEntwurf({
-        fontFamily: {
-          display: "'Zilla Slab', Georgia, serif",
-          body: "'Inter', system-ui, sans-serif",
-          mono: "'Space Mono', ui-monospace, monospace",
+    const ohneReserve = (entwurf: CiEntwurf) =>
+      pruefe(entwurf).filter((b) => b.text.includes('zu keiner zweiten Marken-Schrift'));
+
+    expect(
+      ohneReserve(
+        probeEntwurf({
+          fontFamily: {
+            display: "'Zilla Slab', Georgia, serif",
+            body: "'Inter', system-ui, sans-serif",
+            mono: "'Space Mono', ui-monospace, monospace",
+          },
+        }),
+      ),
+    ).toHaveLength(3);
+
+    /*
+       Der Fall, den die vorige Fassung durchgehen ließ: eine vierte Schrift mit
+       eigenen Schnitten, die aber keinen Stapel *anführt* — eine Symbolschrift
+       zum Beispiel. Sie sah aus wie eine Reserve und war keine:
+       `ersatzkette()` baut ihre Kette aus **Rollen** und findet eine Familie
+       nur über den ersten Namen eines Stapels. Gezählt wurde damals, wer
+       Schnitte hat; gewarnt wurde deshalb nicht, und ein ⌘ aus der
+       Symbolschrift fiel trotzdem aus PNG und PDF.
+    */
+    const mitSymbolschrift = probeEntwurf({
+      fontFamily: {
+        display: "'Zilla Slab', Georgia, serif",
+        body: "'Inter', 'Haus Symbol', system-ui, sans-serif",
+        mono: "'Space Mono', ui-monospace, monospace",
+      },
+      webfontFaces: [
+        ...probeEntwurf().webfontFaces,
+        {
+          ...leererSchnitt(),
+          family: 'Haus Symbol',
+          weight: 400,
+          style: 'normal',
+          file: 'HausSymbol.woff2',
         },
-      }),
-    );
-    const treffer = einsam.filter((b) => b.text.includes('nur eine Marken-Schrift'));
-    expect(treffer).toHaveLength(3);
+      ],
+    });
+    expect(ohneReserve(mitSymbolschrift).some((b) => b.text.includes('body'))).toBe(true);
+
+    // Und die Gegenrichtung: ein Stapel, der wirklich zu einer anderen Rolle
+    // führt, bekommt kein Wort.
+    const echt = probeEntwurf({
+      fontFamily: {
+        display: "'Zilla Slab', 'Inter', Georgia, serif",
+        body: "'Inter', 'Zilla Slab', system-ui, sans-serif",
+        mono: "'Space Mono', 'Inter', ui-monospace, monospace",
+      },
+    });
+    expect(ohneReserve(echt)).toHaveLength(0);
   });
 
   it('hält einen Stapel auf, dessen erster Name keinen Schnitt hat', () => {

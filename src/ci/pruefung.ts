@@ -25,7 +25,14 @@
  */
 import { nozillaTheme, readPaths, readViewBox } from '@/theme';
 import { AA, AA_GROSS, kanaele, kontrast, unterscheidbar } from '@/lib/contrast';
-import { paletteRollen, pdfSchriften, schriftRollen, textStufen, type CiEntwurf } from './entwurf';
+import {
+  paletteRollen,
+  pdfSchriften,
+  schriftRollen,
+  textStufen,
+  typeScaleAusEntwurf,
+  type CiEntwurf,
+} from './entwurf';
 import { bezeichnerProblem } from './emitter';
 
 export type Rang = 'fehler' | 'warnung' | 'hinweis';
@@ -314,6 +321,17 @@ function pruefeSchrift(entwurf: CiEntwurf): Befund[] {
   const feld = 'Schrift';
   const familien = new Set(entwurf.webfontFaces.map((face) => face.family));
 
+  /**
+   * Der Name, mit dem eine Rolle ihren Stapel anführt.
+   *
+   * Das ist die Größe, an der `ersatzkette()` im Export entlangrechnet: sie
+   * sucht zu jedem Namen im Stapel eine Rolle über `familyName(rolle)`, also
+   * über den *ersten* Namen des jeweiligen Stapels. Wer hier anders zählt,
+   * gibt Entwarnung über eine Reserve, die es im Export nicht gibt.
+   */
+  const leitname = (rolle: (typeof schriftRollen)[number]) =>
+    stapelNamen(entwurf.fontFamily[rolle])[0] ?? '';
+
   for (const rolle of schriftRollen) {
     const stapel = entwurf.fontFamily[rolle] ?? '';
     const namen = stapelNamen(stapel);
@@ -332,19 +350,32 @@ function pruefeSchrift(entwurf: CiEntwurf): Befund[] {
     }
 
     /*
-       Die zweite Marken-Schrift, und warum die bestehende Prüfung sie nicht
-       fängt: `ersatzkette()` stellt die eigene Rolle vorn ein, wenn der Stapel
-       sie nicht selbst nennt — `body` bekommt damit ['body','display'] und ist
-       länger als eins, ohne dass eine zweite Schrift im Spiel wäre. Die
-       Prüfung `length > 1` sieht deshalb nur die Auszeichnungsrolle. Gezählt
-       werden hier die Namen, die wirklich Schnitte haben.
+       Die zweite Marken-Schrift — und gezählt wird mit **derselben Rechnung,
+       die der Export benutzt**.
+
+       Das war zweimal falsch, in beide Richtungen. Erst zählte die Prüfung die
+       Länge von `ersatzkette()`, und die stellt die eigene Rolle vorn ein, wenn
+       der Stapel sie nicht nennt: `body` bekam ['body','display'] und war
+       länger als eins, ohne dass eine zweite Schrift im Spiel war. Dann zählte
+       sie die Namen mit Schnitten — und ließ damit eine Schrift durchgehen, die
+       `ersatzkette()` gar nicht findet: die Kette besteht aus **Rollen**, und
+       eine Familie, die keinen Stapel *anführt*, ist keine. Eine Symbolschrift
+       an zweiter Stelle mit eigenen Schnitten sah damit aus wie eine Reserve
+       und war keine — genau der Zustand, vor dem gewarnt werden soll, mit
+       ausdrücklicher Entwarnung davor.
+
+       Gezählt werden deshalb die Rollen, die diese Kette wirklich hergibt.
     */
-    const markenNamen = namen.filter((name) => familien.has(name));
-    if (markenNamen.length < 2) {
+    const kette = new Set([rolle]);
+    for (const name of namen) {
+      const andere = schriftRollen.find((kandidat) => leitname(kandidat) === name);
+      if (andere) kette.add(andere);
+    }
+    if (kette.size < 2) {
       befunde.push({
         rang: 'warnung',
         feld,
-        text: `Der Stapel für „${rolle}" nennt nur eine Marken-Schrift. Keine Schrift führt jedes Zeichen — Space Mono kennt ⌘, ⌫, ⇧ und ⌥ nicht —, und der Export sucht ein fehlendes Zeichen in genau dieser Reihenfolge. Ohne eine zweite fällt es aus PNG und PDF heraus, während der Bildschirm es aus einer Systemschrift holt und richtig aussieht.`,
+        text: `Der Stapel für „${rolle}" führt zu keiner zweiten Marken-Schrift. Keine Schrift führt jedes Zeichen — Space Mono kennt ⌘, ⌫, ⇧ und ⌥ nicht —, und der Export sucht ein fehlendes Zeichen der Reihe nach in den Schriften der *anderen Rollen*. Eine Familie, die keinen Stapel anführt, zählt dabei nicht: nenne an zweiter Stelle die Schrift, die vorn in einem anderen Stapel steht.`,
       });
     }
   }
@@ -372,6 +403,43 @@ function pruefeSchrift(entwurf: CiEntwurf): Befund[] {
         rang: 'fehler',
         feld,
         text: `„${familie}" hat keinen aufrechten Schnitt (style: normal).`,
+      });
+    }
+  }
+
+  /*
+     Und die Gewichte, die die Hierarchie wirklich verlangt.
+
+     Geprüft wurde bisher nur, ob eine Familie *einen* aufrechten Schnitt hat.
+     Eine frisch lizenzierte Schrift kommt aber oft nur als Regular — und die
+     Hierarchie verlangt display/700, body/600 und mono/700. `resolveFace()`
+     gibt für ein fehlendes Gewicht kein `null` zurück, sondern den
+     nächstliegenden Schnitt: jede Überschrift und jeder fette Lauf wird in
+     PNG, PDF und PPTX aus den Regular-Umrissen gezeichnet, während der Browser
+     auf der Fläche fett *simuliert*. Dieselbe Bauart wie „Der Bildschirm
+     ersetzt eine fehlende Glyphe, die Datei nicht": Fläche und Datei zeigen
+     Verschiedenes, und nichts schlägt an.
+  */
+  const verlangt = new Map<string, Set<number>>();
+  for (const stil of Object.values(typeScaleAusEntwurf(entwurf))) {
+    const familie = leitname(stil.family);
+    if (!familie) continue;
+    if (!verlangt.has(familie)) verlangt.set(familie, new Set());
+    verlangt.get(familie)?.add(stil.weight);
+  }
+  for (const [familie, gewichte] of verlangt) {
+    if (!familien.has(familie)) continue; // Der fehlende Name steht schon oben.
+    const vorhanden = new Set(
+      entwurf.webfontFaces
+        .filter((face) => face.family === familie && face.style === 'normal')
+        .map((face) => face.weight),
+    );
+    const fehlen = [...gewichte].filter((gewicht) => !vorhanden.has(gewicht)).sort((a, b) => a - b);
+    if (fehlen.length) {
+      befunde.push({
+        rang: 'warnung',
+        feld,
+        text: `Die Hierarchie setzt „${familie}" in ${fehlen.join(', ')}, und dafür gibt es keinen Schnitt. resolveFace() nimmt dann den nächstliegenden: der Bildschirm simuliert fett, PNG, PDF und PPTX zeichnen den vorhandenen Schnitt — und die beiden zeigen Verschiedenes.`,
       });
     }
   }
@@ -638,12 +706,49 @@ function pruefeWortmarke(entwurf: CiEntwurf): Befund[] {
 
   const pfade = readPaths(marke.svg).map((pfad) => pfad.fill);
   const gleich = (a: string, b: string) => a.toUpperCase() === b.toUpperCase();
+  /** Eine Angabe, die wirklich malt — `none` ist eine Wahl, leer ist eine Lücke. */
+  const malt = (fuellung: string) => Boolean(fuellung) && fuellung.toLowerCase() !== 'none';
 
-  if (!pfade.some((fuellung) => gleich(fuellung, marke.letters))) {
+  /*
+     Pfade ganz ohne Füllfarbe — der Fall, der die Buchstaben verschluckt hat.
+
+     `readPaths()` erbt die Füllung inzwischen vom umschließenden `<g>` und
+     liest auch `style="fill:…"`; was danach *immer noch* leer ist, holt seine
+     Farbe aus einer CSS-Klasse im `<style>`-Block, und die liest hier niemand.
+     Solche Pfade fallen aus jeder Ausgabe, weil die Zuordnung über die Farbe
+     geht — und das ist derselbe Fall wie eine dritte Füllfarbe, nur über das
+     fehlende Attribut statt über eine überzählige Farbe.
+
+     Ein Fehler und keine Warnung: die Wortmarke wäre unvollständig, und zwar
+     auf jeder Folie dieser Marke.
+  */
+  const ohneFuellung = pfade.filter((fuellung) => !fuellung).length;
+  if (ohneFuellung) {
     befunde.push({
       rang: 'fehler',
       feld,
-      text: `Kein Pfad in „${marke.letters}". Zugeordnet wird über die Füllfarbe, die in der Datei steht — nicht über die Palette und nicht über die Reihenfolge der Pfade. Gefunden wurden: ${[...new Set(pfade)].filter(Boolean).join(', ') || '(keine)'}.`,
+      text: `${ohneFuellung === 1 ? 'Ein Pfad trägt' : `${ohneFuellung} Pfade tragen`} keine Füllfarbe — auch keine von einem <g> geerbte. Zugeordnet wird über die Füllfarbe; ${ohneFuellung === 1 ? 'dieser Pfad fällt' : 'diese Pfade fallen'} aus jeder Ausgabe heraus. Häufigste Ursache: die Farben stehen in einer CSS-Klasse im <style>-Block. Exportiere die Datei mit fill an den Pfaden.`,
+    });
+  }
+
+  /*
+     Und eine leere Buchstabenfarbe ist keine gefundene. Der Vergleich unten
+     hielt `''` gegen `''` und war damit grün, während nichts stimmte — die
+     erzeugte Datei trug danach `letters: ''`, und `wordmarkFromSvg()` sammelte
+     zur Laufzeit alle Pfade *ohne* Füllung als Buchstaben ein: der Akzent wurde
+     zum Buchstaben und in Tinte gemalt.
+  */
+  if (!marke.letters.trim()) {
+    befunde.push({
+      rang: 'fehler',
+      feld,
+      text: 'Die Buchstabenfarbe fehlt. Sie ist keine Einstellung, sondern die Zuordnung: ohne sie weiß keine Ausgabe, welche Pfade der Schriftzug sind.',
+    });
+  } else if (!pfade.some((fuellung) => gleich(fuellung, marke.letters))) {
+    befunde.push({
+      rang: 'fehler',
+      feld,
+      text: `Kein Pfad in „${marke.letters}". Zugeordnet wird über die Füllfarbe, die in der Datei steht — nicht über die Palette und nicht über die Reihenfolge der Pfade. Gefunden wurden: ${[...new Set(pfade)].filter(malt).join(', ') || '(keine)'}.`,
     });
   }
   if (marke.accent && !pfade.some((fuellung) => gleich(fuellung, marke.accent))) {
@@ -662,7 +767,7 @@ function pruefeWortmarke(entwurf: CiEntwurf): Befund[] {
      stand. Dass die Marke zwei Farben kennt, ist eine Entscheidung dieses
      Werkzeugs; sie stumm durchzuziehen ist keine.
   */
-  const uebrig = [...new Set(pfade.filter(Boolean).map((fuellung) => fuellung.toUpperCase()))]
+  const uebrig = [...new Set(pfade.filter(malt).map((fuellung) => fuellung.toUpperCase()))]
     .filter((fuellung) => !gleich(fuellung, marke.letters))
     .filter((fuellung) => !marke.accent || !gleich(fuellung, marke.accent));
   if (uebrig.length) {
