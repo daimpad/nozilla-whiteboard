@@ -104,7 +104,7 @@ export function SettingsMenu() {
           </p>
 
           <div className="border-t border-ui">
-            <SectionTitle>Erscheinungsbild</SectionTitle>
+            <SectionTitle>Theme</SectionTitle>
             {/*
               Der Generator ist eine eigene Seite und kein Panel: er meldet ein
               Erscheinungsbild an und aktiviert es, um damit ein Probedeck zu
@@ -126,12 +126,8 @@ export function SettingsMenu() {
               )}
             >
               <Icon name="palette" size={15} />
-              CI-Generator
+              Eigenes Design erstellen
             </a>
-            <p className="px-2 pb-2 pt-1 text-[11px] leading-snug text-ui-faint">
-              Ein eigenes Erscheinungsbild anlegen — Farben, Schriften, Maße, Wortmarke. Öffnet sich
-              in einem eigenen Fenster.
-            </p>
           </div>
 
           <div className="border-t border-ui">

@@ -61,12 +61,63 @@ export function readViewBox(svg: string): readonly [number, number, number, numb
   return [box[0], box[1], box[2], box[3]] as const;
 }
 
-/** Die Pfade einer SVG-Datei mit ihrer Füllfarbe, in ihrer Reihenfolge. */
+/**
+ * Die Füllfarbe eines Tags — aus `style="fill:…"` oder aus dem Attribut.
+ *
+ * In dieser Reihenfolge, weil CSS es so entscheidet: eine Deklaration im
+ * `style` schlägt das Präsentationsattribut daneben. Ein Zeichenprogramm
+ * schreibt mal das eine, mal das andere, und Inkscape schreibt beides.
+ */
+function fillOf(tag: string): string {
+  const style = /style=["']([^"']*)["']/.exec(tag)?.[1];
+  const fromStyle = style ? /(?:^|;)\s*fill\s*:\s*([^;]+)/.exec(style)?.[1]?.trim() : undefined;
+  if (fromStyle) return fromStyle;
+  return /fill=["']([^"']+)["']/.exec(tag)?.[1] ?? '';
+}
+
+/**
+ * Die Pfade einer SVG-Datei mit ihrer Füllfarbe, in ihrer Reihenfolge.
+ *
+ * Die Füllfarbe wird **geerbt**, und das ist keine Gründlichkeit ohne Anlass.
+ * Die vorige Fassung las nur `fill=` am `<path>` selbst — und Illustrator,
+ * Figma und Inkscape schreiben für eine gruppierte Auswahl die Farbe ans
+ * umschließende `<g>`. Aus einer solchen Datei kamen alle Buchstabenpfade mit
+ * leerer Füllung zurück, und weil die Zuordnung über die Farbe geht, fielen
+ * sie aus jeder Ausgabe: auf der Folie, im SVG, im PDF und in der PPTX stand
+ * dann nur noch der Akzentpunkt.
+ *
+ * Was danach *immer noch* keine Farbe trägt — Pfade, die ihre Füllung aus
+ * einer CSS-Klasse im `<style>`-Block holen —, kommt mit leerer Füllung
+ * zurück und wird nicht erraten. Dafür ist `pruefeWortmarke` da: eine Farbe zu
+ * erfinden hieße zu behaupten, sie sei gemeint.
+ */
 export function readPaths(svg: string): Array<{ d: string; fill: string }> {
-  return [...svg.matchAll(/<path[^>]*\sd=["']([^"']+)["'][^>]*>/g)].map((match) => ({
-    d: match[1].replace(/\s+/g, ' ').trim(),
-    fill: /fill=["']([^"']+)["']/.exec(match[0])?.[1] ?? '',
-  }));
+  const paths: Array<{ d: string; fill: string }> = [];
+  /* Die Füllfarben der offenen Vorfahren, von außen nach innen. */
+  const inherited: string[] = [];
+
+  for (const match of svg.matchAll(/<(\/?)(svg|g|path)\b([^>]*)>/g)) {
+    const [tag, closing, name, rest] = match;
+
+    if (closing) {
+      if (name !== 'path') inherited.pop();
+      continue;
+    }
+
+    if (name === 'path') {
+      const d = /\sd=["']([^"']+)["']/.exec(tag)?.[1];
+      if (!d) continue;
+      const own = fillOf(tag);
+      const nearest = [...inherited].reverse().find(Boolean) ?? '';
+      paths.push({ d: d.replace(/\s+/g, ' ').trim(), fill: own || nearest });
+      continue;
+    }
+
+    // Ein selbstschließendes `<g/>` macht keinen Rahmen auf.
+    if (!rest.trimEnd().endsWith('/')) inherited.push(fillOf(tag));
+  }
+
+  return paths;
 }
 
 export function wordmarkFromSvg(

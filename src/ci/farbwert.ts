@@ -38,6 +38,27 @@ function kanal(zahl: number): string {
 }
 
 /**
+ * Ist diese Deckkraft voll?
+ *
+ * Sie kommt in zwei Schreibweisen, und **eine Zahl allein entscheidet die
+ * Frage nicht**: `rgba(228, 0, 58, 0.5)` ist halb durchsichtig, und
+ * `rgb(228 0 58 / 50%)` meint dasselbe — nur steht dort die 50, und 50 ist
+ * größer als 1. Die vorige Fassung fragte `parseFloat(…) < 1` und hielt die
+ * Prozentform deshalb für deckend: derselbe Wert, einmal gemeldet und einmal
+ * stumm verschluckt. Und die stumme Hälfte ist die häufigere — die
+ * Schrägstrich-Schreibweise ist die, die ein Sprachmodell heute schreibt.
+ */
+function deckend(roh: string | undefined): boolean {
+  if (roh === undefined) return true;
+  const zahl = Number.parseFloat(roh);
+  // Was sich nicht lesen lässt, gilt als deckend: eine Behauptung „die
+  // Deckkraft fiel weg" über einem Wert, den niemand entziffern kann, wäre
+  // eine Auskunft mehr, als hier zu haben ist.
+  if (!Number.isFinite(zahl)) return true;
+  return roh.trim().endsWith('%') ? zahl >= 100 : zahl >= 1;
+}
+
+/**
  * Aus einer Eingabe die kanonische Form — oder `null`, wenn sich nichts
  * Vernünftiges daraus lesen lässt.
  *
@@ -82,7 +103,7 @@ export function normalisiereFarbe(roh: string): Farbkorrektur | null {
        aus der Tinte und dem Papier, und eine halbdurchsichtige Signalfarbe
        gäbe es an keiner Stelle des Mischers.
     */
-    const durchsichtig = rgb[4] !== undefined && Number.parseFloat(rgb[4]) < 1;
+    const durchsichtig = !deckend(rgb[4]);
     return {
       wert: hex,
       wie: durchsichtig

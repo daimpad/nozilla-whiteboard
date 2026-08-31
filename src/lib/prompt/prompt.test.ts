@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { canvas, slideLayouts, toneNames } from '@/theme';
 import { cardVariants, shapeNames, slideBackgrounds } from '@/model/types';
 import { parseDeck } from '@/lib/markdown/deck';
-import { stripCodeFence } from '@/components/panels/PromptStudio';
+import { ohneCodezaun } from './zaun';
 import {
   buildExampleSection,
   buildPrompt,
@@ -107,19 +107,92 @@ describe('das mitgelieferte Beispiel', () => {
   });
 });
 
-describe('stripCodeFence', () => {
+describe('ohneCodezaun', () => {
   it('entfernt einen umschließenden Codeblock', () => {
-    expect(stripCodeFence('```markdown\n---\ntitle: X\n---\n```')).toBe('---\ntitle: X\n---');
-    expect(stripCodeFence('```\nhallo\n```')).toBe('hallo');
+    expect(ohneCodezaun('```markdown\n---\ntitle: X\n---\n```')).toBe('---\ntitle: X\n---');
+    expect(ohneCodezaun('```\nhallo\n```')).toBe('hallo');
   });
 
   it('lässt gewöhnlichen Text in Ruhe', () => {
-    expect(stripCodeFence('---\ntitle: X\n---')).toBe('---\ntitle: X\n---');
+    expect(ohneCodezaun('---\ntitle: X\n---')).toBe('---\ntitle: X\n---');
   });
 
   it('lässt einen Codeblock *innerhalb* des Decks stehen', () => {
     const deck = '---\ntitle: X\n---\n\n```ts\nconst a = 1;\n```';
-    expect(stripCodeFence(deck)).toBe(deck);
+    expect(ohneCodezaun(deck)).toBe(deck);
+  });
+
+  it('nimmt den Zaun auch mit einem Satz davor und dahinter', () => {
+    /*
+       Der häufigste Fall überhaupt — und der, den die vorige, durchweg
+       verankerte Fassung nicht kannte: sie ließ den Zaun stehen, `parseDeck`
+       bekam die Vorrede als Inhalt, und die Meldung lautete „Das liest sich
+       nicht wie ein Deck".
+    */
+    const antwort =
+      'Klar, hier ist das Deck:\n```md\n---\ntitle: X\n---\n```\nSoll ich noch etwas?';
+    expect(ohneCodezaun(antwort)).toBe('---\ntitle: X\n---');
+  });
+
+  it('greift dabei nicht in ein nacktes Deck hinein', () => {
+    /*
+       Die Gegenrichtung, und sie trägt die ganze Regel. Ein Deck darf selbst
+       einen Codeblock enthalten — die Willkommensmappe tut es. Wer den Satz
+       davor toleriert, ohne diesen Fall auszunehmen, holt aus einem nackten
+       Deck dessen *inneren* Block heraus und wirft alles andere weg.
+    */
+    const deck = '---\ntitle: X\n---\n\nText davor\n\n```ts\nconst a = 1;\n```\n\nText danach';
+    expect(ohneCodezaun(deck)).toBe(deck);
+  });
+
+  it('greift auch mit einem Satz davor nicht in ein Deck hinein', () => {
+    /*
+       Die Lücke, die der Schutz eine Stufe darüber nicht deckte: er fängt ein
+       nacktes Deck nur, solange der Text *mit* `---` beginnt. „Klar, hier ist
+       das Deck:" davor, und der Schnitt nahm den inneren Codeblock — gemessen
+       blieb vom ganzen Deck `const a = 1;` übrig.
+    */
+    const deck = '---\ntitle: X\n---\n\n# Folie\n\n```ts\nconst a = 1;\n```\n\n# Folie 2';
+    expect(ohneCodezaun(`Klar, hier ist das Deck:\n${deck}`)).toContain('# Folie 2');
+    expect(ohneCodezaun(`Klar, hier ist das Deck:\n${deck}`)).toContain('title: X');
+  });
+
+  it('behält den Inhalt, wenn nur der öffnende Zaun kam', () => {
+    /*
+       Die Form einer abgebrochenen Modellantwort: Vorrede, ein Zaun auf, und
+       der schließende kam nie, weil die Länge zu Ende war. Dann ist der erste
+       Zaun zugleich der letzte, und ein Schnitt „von der Zeile danach bis zur
+       Zeile davor" ergäbe die leere Zeichenkette.
+
+       Damit fiele die ganze Abbruchbehandlung weg: `abgebrochen()` bekäme
+       nichts zu sehen, gäbe `null` zurück, und statt „zuletzt vollständig war
+       X … bitte das Modell, ab Y fortzusetzen" samt dem Angebot des
+       Teilimports bliebe „Daraus wird kein JSON-Objekt: Unexpected end of JSON
+       input" — genau die Sackgasse, für die es `abgebrochen()` gibt.
+    */
+    expect(ohneCodezaun('Klar, hier ist die CI:\n```json\n{"id": "a"')).toContain('"id"');
+    // Und der Zaun selbst bleibt draußen — geschnitten wird nur nicht bis ins
+    // Leere. Dass daraus eine Abbruchdiagnose wird, prüft `ruecklauf.test.ts`:
+    // dort steht der Leser, hier steht nur der Zuschnitt.
+    expect(ohneCodezaun('```json\n{"id": "a"')).toBe('```json\n{"id": "a"');
+  });
+
+  it('schneidet bis zum letzten Zaun, nicht bis zum nächsten', () => {
+    /*
+       Die andere Hälfte desselben Falls: ein eingezäuntes Deck *mit* einem
+       Codeblock darin. Der nicht gierige Ausdruck endete am Öffner des inneren
+       Blocks — der Inhalt hörte mitten in der ersten Folie auf, `parseDeck`
+       las das anstandslos, und der Benutzer bekam ein Deck, dem stillschweigend
+       die Hälfte der Folien fehlte.
+    */
+    const deck = '---\ntitle: X\n---\n\n# Folie\n\n```ts\nconst a = 1;\n```\n\n# Folie 2';
+    const antwort = `Klar:\n\`\`\`markdown\n${deck}\n\`\`\`\nPasst das?`;
+    expect(ohneCodezaun(antwort)).toBe(deck);
+  });
+
+  it('lässt innere Zäune stehen, wenn der äußere fällt', () => {
+    const antwort = '```md\n---\ntitle: X\n---\n\n```ts\nconst a = 1;\n```\n```';
+    expect(ohneCodezaun(antwort)).toBe('---\ntitle: X\n---\n\n```ts\nconst a = 1;\n```');
   });
 });
 

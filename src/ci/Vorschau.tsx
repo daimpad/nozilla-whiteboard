@@ -12,7 +12,7 @@
  * daneben benutzt ausschließlich den `ui-*`-Namensraum.
  */
 import { useEffect, useMemo } from 'react';
-import { registerTheme, withTheme, type BrandTheme } from '@/theme';
+import { withTheme, type BrandTheme } from '@/theme';
 import { parseDeck } from '@/lib/markdown/deck';
 import { buildSlideScene } from '@/lib/export/scene';
 import { primsToSvgMarkup } from '@/lib/export/svg';
@@ -58,19 +58,29 @@ export interface Blatt {
  */
 export function zeichneProbe(theme: BrandTheme): Blatt[] {
   /*
-     Umgestellt wird **ohne Ansage**. `setActiveTheme()` heißt „jemand hat ein
-     anderes Erscheinungsbild gewählt" und weckt alles, was daran hängt —
-     darunter den Abonnenten aus `main.tsx`, der die Schriften neu anfordert.
-     Deren Ankunft löst aber genau das Neuzeichnen aus, das hierher geführt
-     hat: gemessen 11.505 Umläufe in sechs Sekunden, eine Seite, die einen Kern
-     auslastet, solange sie offen steht.
+     Umgestellt wird **ohne Ansage** und **ohne Anmeldung**. Beides hat einen
+     eigenen Grund, und der zweite ist der schwerere.
 
-     Hier wird nur gerechnet, und das geht niemanden sonst etwas an. Die
-     Schnitte des Entwurfs stehen ohnehin unter eigener Kennung im Dokument
-     (siehe oben) — der Setzer findet sie, ohne dass jemand aufgeweckt wird.
+     Ohne Ansage: `setActiveTheme()` heißt „jemand hat ein anderes
+     Erscheinungsbild gewählt" und weckt alles, was daran hängt — darunter den
+     Abonnenten aus `main.tsx`, der die Schriften neu anfordert. Deren Ankunft
+     löst aber genau das Neuzeichnen aus, das hierher geführt hat: gemessen
+     11.505 Umläufe in sechs Sekunden.
+
+     Ohne Anmeldung: hier stand `registerTheme(theme)`, und der Entwurf trug
+     dabei den Schlüssel, den jemand gerade ins Formular tippt. Wer „nozilla"
+     eintippte, **ersetzte damit die laufende nozilla-CI** — `registerTheme()`
+     ruft `activate()`, wenn der Schlüssel der gerade gültige ist, und danach
+     stand `palette.signal` auf dem Wert aus dem Formular. Nachgemessen: aus
+     #00FF9C wurde #FF0000, und der Eintrag in der Auswahlliste hieß fortan
+     wie das Formularfeld. Ein leerer Schlüssel meldete ein Erscheinungsbild
+     unter dem Namen „" an.
+
+     Nötig war die Anmeldung nur, solange über `setActiveTheme()` umgestellt
+     wurde — das schlägt im Verzeichnis nach. `withTheme()` belegt die
+     lebendigen Bindungen unmittelbar und fragt niemanden. Der Schlüssel des
+     Entwurfs gehört damit dorthin, wo er hingehört: in die erzeugte Datei.
   */
-  registerTheme(theme);
-
   return withTheme(theme, () => {
     const deck = parseDeck(PROBEDECK);
     return deck.slides.map((slide, nummer) => {

@@ -11,7 +11,15 @@ import { parseDeck, serializeDeck } from '@/lib/markdown/deck';
 import type { Deck } from '@/model/types';
 import { useDeckStore } from './deckStore';
 
-const STORAGE_KEY = 'nozilla-whiteboard:session:v1';
+/**
+ * Der Schlüssel der Deck-Sitzung.
+ *
+ * Öffentlich, weil eine zweite Seite daneben eine eigene Ablage führt: der
+ * CI-Generator merkt sich seinen Entwurf, damit ein ⌘R ihn nicht verliert. Die
+ * beiden dürfen sich unter keinen Umständen berühren, und ein Test hält sie
+ * auseinander — gefunden würde es sonst mitten in einem Vortrag.
+ */
+export const STORAGE_KEY = 'nozilla-whiteboard:session:v1';
 const AUTOSAVE_DELAY = 700;
 
 interface StoredSession {

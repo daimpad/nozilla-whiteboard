@@ -38,11 +38,13 @@ import {
   strichRollen,
   textStufen,
   neueKennung,
+  promptSchluessel,
   type CiEntwurf,
   type PdfSchrift,
   type Schnitt,
   type Schnittstil,
 } from './entwurf';
+import { ohneCodezaun } from '@/lib/prompt/zaun';
 import { normalisiereFarbe } from './farbwert';
 import type { Feld } from './pruefung';
 
@@ -56,19 +58,47 @@ export interface Ruecklaufbefund {
 }
 
 export interface Ruecklauf {
-  /** Der neue Entwurf, oder `null`, wenn sich gar nichts lesen ließ. */
+  /**
+   * Der Entwurf, der daraus **würde** — nicht der, der gilt.
+   *
+   * `liesRuecklauf()` schreibt nirgendwohin. Das war einmal anders: der Knopf
+   * hieß „Übernehmen und prüfen", geprüft wurde nach dem Übernehmen, und
+   * zurück ging es nur über „Zurücksetzen", das auch die Handarbeit wegwarf.
+   * Ein Rücklauf ist aber genau das, was dieses Projekt sonst überall mit
+   * einer Frage versieht: etwas, das vierzig Felder auf einmal ersetzt.
+   */
   entwurf: CiEntwurf | null;
   befunde: Ruecklaufbefund[];
+  /** Was sich dabei ändern würde — je Feld, war → wird. */
+  aenderungen: Aenderung[];
+  /** Gesetzt, wenn die Antwort mitten im Satz abbricht. */
+  abbruch: Abbruch | null;
+}
+
+/** Ein einzelner Wert, der sich ändern würde. */
+export interface Aenderung {
+  feld: Feld;
+  /** Der Name der Rolle, wie er im Formular steht. */
+  name: string;
+  war: string;
+  wird: string;
 }
 
 /* -------------------------------------------------------------------------- */
 /* Stufe 1 — aus dem Text ein Objekt                                           */
 /* -------------------------------------------------------------------------- */
 
-/** Den Codezaun abnehmen, mit oder ohne Sprachangabe. */
+/**
+ * Den Codezaun abnehmen — über denselben Leser wie der Deck-Prompt.
+ *
+ * Zwei Fassungen derselben Frage standen hier und in `PromptStudio`, und die
+ * dortige war verankert: „Klar, hier ist die CI:" davor, und der Zaun blieb
+ * stehen. Der häufigste Fall überhaupt, und in genau einem der beiden Wege
+ * kaputt — das ist die Sorte Abweichung, die man erst an der fremden Datei
+ * sieht.
+ */
 function ohneZaun(text: string): string {
-  const zaun = /```[a-zA-Z]*\s*\n([\s\S]*?)\n?```/.exec(text);
-  return zaun ? zaun[1] : text;
+  return ohneCodezaun(text);
 }
 
 /**
@@ -119,6 +149,35 @@ function nurObjekt(text: string): string {
   return text.slice(start);
 }
 
+/**
+ * Beginnt oder endet hier eine Zeichenkette?
+ *
+ * Nicht nur `"`, und das ist der Anlass für diese Funktion. `ohneKommentare`
+ * und `ohneNachkomma` führen Buch darüber, was in einer Zeichenkette steht —
+ * sie zählten aber nur gerade Anführungszeichen, während `geradeAnfuehrung`
+ * erst zwei Stufen später läuft. Bei einer Antwort mit typografischen
+ * Begrenzern stand `inText` deshalb nie auf true: aus
+ * `{ “produkt”: “Deck // Fläche” }` machte der Kommentarleser einen
+ * Zeilenkommentar ab dem `//`, warf den Rest der Zeile samt schließender
+ * Klammer weg — und der Bericht meldete das danach als Längenabbruch des
+ * Modells. Wer dem Rat folgte und „ab produkt fortsetzen" ließ, bekam
+ * dieselbe Antwort und dasselbe Ergebnis, beliebig oft.
+ *
+ * Die Familie wird als *ein* Begrenzer behandelt: jedes dieser Zeichen
+ * schaltet um. Das ist gröber als eine Paarung — `„…“` und `“…”` schließen
+ * verschieden, und das deutsche Schlusszeichen ist das englische
+ * Anfangszeichen —, und es reicht: hier wird nur entschieden, *wo* ein
+ * Kommentar sein darf, nicht was in einem Wert steht.
+ *
+ * Umgestellt wurde die Reihenfolge ausdrücklich **nicht**. `geradeAnfuehrung`
+ * fasst auch innerhalb von Werten an; sie vorzuziehen hieße, aus jedem
+ * deutschen „Wort" in einem Markennamen ein "Wort" zu machen, sobald irgendeine
+ * andere Stufe nötig war.
+ */
+function istBegrenzer(zeichen: string): boolean {
+  return zeichen === '"' || zeichen === '“' || zeichen === '”' || zeichen === '„';
+}
+
 /** Zeilen- und Blockkommentare heraus — außerhalb von Zeichenketten. */
 function ohneKommentare(text: string): string {
   let aus = '';
@@ -131,10 +190,10 @@ function ohneKommentare(text: string): string {
       aus += zeichen;
       if (maskiert) maskiert = false;
       else if (zeichen === '\\') maskiert = true;
-      else if (zeichen === '"') inText = false;
+      else if (istBegrenzer(zeichen)) inText = false;
       continue;
     }
-    if (zeichen === '"') {
+    if (istBegrenzer(zeichen)) {
       inText = true;
       aus += zeichen;
       continue;
@@ -168,10 +227,12 @@ function ohneNachkomma(text: string): string {
       aus += zeichen;
       if (maskiert) maskiert = false;
       else if (zeichen === '\\') maskiert = true;
-      else if (zeichen === '"') inText = false;
+      else if (istBegrenzer(zeichen)) inText = false;
       continue;
     }
-    if (zeichen === '"') inText = true;
+    // Dieselbe Buchführung wie oben, und aus demselben Grund: ein Komma
+    // *in* einem Wert darf nicht als Nachkomma gelten.
+    if (istBegrenzer(zeichen)) inText = true;
     if (zeichen === ',') {
       const rest = text.slice(i + 1);
       const naechstes = rest.replace(/^\s*/, '')[0];
@@ -208,6 +269,13 @@ function geradeAnfuehrung(text: string): string {
  * verlässlichere Schnitt), und `geradeAnfuehrung` bleibt vor ihm, weil ein
  * typografisches Anführungszeichen den Zähler sonst mitten in einer
  * Zeichenkette aussteigen ließe.
+ *
+ * Dasselbe Argument gilt für `ohneKommentare` und `ohneNachkomma` — nur läuft
+ * `geradeAnfuehrung` **nach** ihnen, und das bleibt so: sie fasst auch
+ * innerhalb von Werten an, und vorgezogen machte sie aus jedem deutschen
+ * „Wort" in einem Markennamen ein gerades. Die beiden führen deshalb ihre
+ * eigene Buchführung über `istBegrenzer()` und kennen die typografische
+ * Familie selbst.
  */
 const STUFEN: Array<{ was: string; tu: (text: string) => string }> = [
   { was: 'den Codezaun abgenommen', tu: ohneZaun },
@@ -218,11 +286,156 @@ const STUFEN: Array<{ was: string; tu: (text: string) => string }> = [
   { was: 'den Nachsatz hinter dem Objekt weggeschnitten', tu: nurObjekt },
 ];
 
+/**
+ * Wo eine abgebrochene Antwort aufhört — und was bis dahin vollständig ist.
+ *
+ * Der häufigste Grund für eine unlesbare Antwort ist kein Tippfehler, sondern
+ * ein **Abbruch in der Länge**: das Modell hört mitten in `"paper": "#FAF` auf.
+ * Von einer verunglückten Klammer ist das an der rohen Parser-Meldung nicht zu
+ * unterscheiden, und die Sackgasse ist dieselbe — nur dass hier zwölf von
+ * sechzehn Rollen schon dastehen und niemand sie bekommt.
+ *
+ * Abgeschnitten wird deshalb rückwärts bis zur letzten Stelle, an der ein Wert
+ * *fertig* war, und danach werden die offenen Klammern geschlossen. Was dabei
+ * herauskommt, ist gültiges JSON aus lauter vollständigen Feldern — angeboten
+ * und nie von selbst genommen.
+ */
+export interface Abbruch {
+  /** Das, was sich aus dem vollständigen Teil lesen ließ. */
+  objekt: Record<string, unknown>;
+  /**
+   * Der Schlüssel, dessen Wert zuletzt **ganz** dastand.
+   *
+   * Und das ist ein anderer als der, an dem die Antwort abriss. Die vorige
+   * Fassung führte nur einen: den zuletzt *begonnenen*. Sie meldete damit
+   * „zuletzt vollständig war ‚palette'" über einer Palette, die mitten in
+   * `"paper": "#FAF` abbrach — die eine Auskunft, auf die es hier ankommt, war
+   * genau verkehrt herum.
+   */
+  letzterSchluessel: string;
+  /** Der Schlüssel, in dem die Antwort abriss — der Punkt zum Fortsetzen. */
+  offenerSchluessel: string;
+  /** Wie viele Zeichen die Antwort hatte, bevor sie abbrach. */
+  zeichen: number;
+}
+
+/**
+ * Aus einem abgebrochenen Objekt den vollständigen Anfang.
+ *
+ * Gezählt wird mit Rücksicht auf Zeichenketten — dieselbe Buchführung wie in
+ * `nurObjekt()`. Gemerkt wird dabei jede Stelle, an der ein Wert der obersten
+ * Ebene zu Ende war (ein Komma oder eine schließende Klammer auf Tiefe 1) und
+ * welcher Schlüssel gerade zuletzt gelesen wurde.
+ */
+export function abgebrochen(text: string): Abbruch | null {
+  let tiefe = 0;
+  let inText = false;
+  let maskiert = false;
+  let letzterSchluessel = '';
+  let offenerSchluessel = '';
+  let schluessel = '';
+  let sammle = false;
+
+  /*
+     Ein Schnitt **je Ebene** und nicht nur auf der obersten.
+
+     Die vorige Fassung merkte sich Schnitte nur bei `tiefe === 1`, und damit
+     griff die Rettung ausgerechnet dort nicht, wo sie gebaut wurde: der Kopf
+     dieser Datei beschreibt den Abbruch mitten in `"paper": "#FAF` — also
+     *innerhalb* der Palette. Der letzte Schnitt auf Tiefe 1 war dann der vor
+     `"palette"`, und angeboten wurden `id` und `label`. Vierzehn fertige
+     Farbrollen fielen weg, und die Palette ist bei einer Modellantwort der
+     mit Abstand längste Block: das ist nicht der Randfall eines
+     Längenabbruchs, sondern sein Regelfall.
+
+     `rahmen` merkt sich dazu, ob eine Ebene eine Klammer oder eine Liste ist —
+     geschlossen wird mit dem Zeichen, das aufgemacht wurde.
+  */
+  const schnitt: number[] = [];
+  const rahmen: string[] = [];
+
+  for (let i = 0; i < text.length; i += 1) {
+    const zeichen = text[i];
+    if (inText) {
+      if (maskiert) maskiert = false;
+      else if (zeichen === '\\') maskiert = true;
+      else if (zeichen === '"') inText = false;
+      else if (sammle) schluessel += zeichen;
+      continue;
+    }
+    if (zeichen === '"') {
+      inText = true;
+      // Ein Schlüssel ist eine Zeichenkette auf Tiefe 1, der ein `:` folgt.
+      // Gesammelt wird auf Verdacht; steht danach kein Doppelpunkt, wird sie
+      // beim nächsten Anlauf überschrieben.
+      if (tiefe === 1) {
+        schluessel = '';
+        sammle = true;
+      }
+      continue;
+    }
+    if (zeichen === ':' && tiefe === 1) {
+      offenerSchluessel = schluessel || offenerSchluessel;
+      sammle = false;
+      continue;
+    }
+    if (zeichen === '{' || zeichen === '[') {
+      tiefe += 1;
+      rahmen[tiefe] = zeichen;
+      schnitt[tiefe] = -1;
+    } else if (zeichen === '}' || zeichen === ']') {
+      tiefe -= 1;
+      // Ein Wert der Ebene darüber ist damit fertig.
+      if (tiefe >= 1) {
+        schnitt[tiefe] = i + 1;
+        if (tiefe === 1) letzterSchluessel = offenerSchluessel;
+      }
+    } else if (zeichen === ',' && tiefe >= 1) {
+      schnitt[tiefe] = i;
+      // Auf der obersten Ebene heißt das zugleich: *dieser* Schlüssel stand
+      // ganz da. Der offene wandert damit zum vollständigen.
+      if (tiefe === 1) letzterSchluessel = offenerSchluessel;
+    }
+
+    if (tiefe === 0 && i > 0) return null; // Das Objekt ist zu — kein Abbruch.
+  }
+
+  if (tiefe <= 0) return null;
+
+  /*
+     Von innen nach außen: der tiefste Schnitt trägt am meisten. Schlägt er
+     fehl — ein halb geschriebener Schlüssel, eine Zahl ohne Ziffern —, gilt
+     der eine Ebene darüber.
+  */
+  for (let ebene = tiefe; ebene >= 1; ebene -= 1) {
+    if (schnitt[ebene] === undefined || schnitt[ebene] < 0) continue;
+    const kopf = text.slice(0, schnitt[ebene]).replace(/,\s*$/, '');
+    const zu = [];
+    for (let offen = ebene; offen >= 1; offen -= 1) zu.push(rahmen[offen] === '[' ? ']' : '}');
+    try {
+      const wert: unknown = JSON.parse(kopf + zu.join(''));
+      if (!wert || typeof wert !== 'object' || Array.isArray(wert)) continue;
+      return {
+        objekt: wert as Record<string, unknown>,
+        letzterSchluessel,
+        offenerSchluessel,
+        zeichen: text.length,
+      };
+    } catch {
+      // Diese Ebene trägt nicht — die nächsthöhere versuchen.
+    }
+  }
+
+  return null;
+}
+
 /** Was die stufenweise Reparatur ergeben hat. */
 interface Gelesen {
   objekt: Record<string, unknown> | null;
   getan: string[];
   fehler: string;
+  /** Gesetzt, wenn die Antwort mitten im Satz aufhört. */
+  abbruch: Abbruch | null;
 }
 
 function liesObjekt(roh: string): Gelesen {
@@ -245,7 +458,7 @@ function liesObjekt(roh: string): Gelesen {
   };
 
   let objekt = versuch();
-  if (objekt) return { objekt, getan, fehler: '' };
+  if (objekt) return { objekt, getan, fehler: '', abbruch: null };
 
   for (const stufe of STUFEN) {
     const neu = stufe.tu(text);
@@ -253,10 +466,11 @@ function liesObjekt(roh: string): Gelesen {
     text = neu;
     getan.push(stufe.was);
     objekt = versuch();
-    if (objekt) return { objekt, getan, fehler: '' };
+    if (objekt) return { objekt, getan, fehler: '', abbruch: null };
   }
 
-  return { objekt: null, getan, fehler };
+  // Erst wenn keine Stufe mehr hilft: sieht es nach einem Abbruch aus?
+  return { objekt: null, getan, fehler, abbruch: abgebrochen(text) };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -273,8 +487,25 @@ function liesObjekt(roh: string): Gelesen {
 class Bericht {
   readonly befunde: Ruecklaufbefund[] = [];
 
+  /**
+   * Die obersten Felder, aus denen wirklich ein Wert in den Entwurf ging.
+   *
+   * Gezählt wird das und nicht, was das Modell *mitgeschickt* hat. Die vorige
+   * Fassung nahm `Object.keys(objekt)` und meldete „Übernommen: 13 von 13"
+   * über einer Antwort, in der `textScale` eine Zeichenkette war und
+   * `palette` eine Liste — beides übergangen, beides mitgezählt. Genau die
+   * Sorte Zahl, die in diesem Projekt schon einmal teuer war: sie nennt
+   * eine und tut eine andere.
+   */
+  readonly genommen = new Set<string>();
+
   melde(rang: Ruecklaufrang, feld: Feld, text: string): void {
     this.befunde.push({ rang, feld, text });
+  }
+
+  /** Aus diesem obersten Feld ist mindestens ein Wert angekommen. */
+  nahm(schluessel: string): void {
+    this.genommen.add(schluessel);
   }
 
   /**
@@ -519,22 +750,153 @@ function nimmSchnitte(bericht: Bericht, roh: unknown): Schnitt[] | null {
 /* Alles zusammen                                                              */
 /* -------------------------------------------------------------------------- */
 
-/** Die Schlüssel, die im Prompt stehen — alles andere ist überzählig. */
-const ERWARTET = [
-  'id',
-  'label',
-  'markenname',
-  'produkt',
-  'palette',
-  'fontFamily',
-  'pdfFontFamily',
-  'webfontFaces',
-  'textScale',
-  'sonderstufen',
-  'auszeichnungEnger',
-  'stroke',
-  'shadowOffset',
-] as const;
+/**
+ * Die Schlüssel, die im Prompt stehen — alles andere ist überzählig.
+ *
+ * Gelesen und nicht getippt: `promptSchluessel` *ist* die Liste, aus der der
+ * Prompt seinen Rumpf baut. Eine zweite hier wäre eine Verabredung, an die
+ * sich niemand erinnert — und ein Feld, das nur der Prompt kennt, käme als
+ * „kennt der Generator nicht" zurück.
+ */
+const ERWARTET = promptSchluessel;
+
+/**
+ * Den vollständigen Anfang einer abgebrochenen Antwort lesen.
+ *
+ * Über `JSON.stringify` zurück in den einen Leser und nicht an ihm vorbei: der
+ * Teil ist bereits geparst, aber er soll dieselben Korrekturen, dieselben
+ * Übergehungen und denselben Bericht bekommen wie eine ganze Antwort. Ein
+ * zweiter Weg in den Entwurf wäre genau die Sorte Abkürzung, die in diesem
+ * Projekt schon zweimal auseinandergelaufen ist.
+ */
+/**
+ * Wo das Modell fortsetzen soll — als Satzstück.
+ *
+ * Zwei Fälle, und sie brauchen zwei Formulierungen. Reißt die Antwort *in*
+ * einem Feld ab, ist der Punkt dieses Feld. Reißt sie zwischen zwei Feldern ab —
+ * nach der schließenden Klammer, nach dem Komma, mitten im nächsten
+ * Schlüsselnamen —, wird `offenerSchluessel` nicht mehr fortgeschrieben und
+ * bleibt auf dem gerade *fertig* gemeldeten stehen. Auf dem Bildschirm stand
+ * dann „zuletzt vollständig war ‚palette', abgerissen ist sie in ‚palette' …
+ * bitte es, ab ‚palette' fortzusetzen": ein Satz, der sich selbst widerspricht,
+ * und ein Rat, der das Modell an eine fertige Stelle schickt — es liefert
+ * denselben Block noch einmal und bricht wieder an derselben Stelle ab.
+ *
+ * Öffentlich, weil zwei Stellen denselben Satz brauchen: der Bericht und der
+ * Knopf für den Teilimport.
+ */
+export function fortsetzenAb(abbruch: Abbruch): string {
+  const offen = abbruch.offenerSchluessel;
+  if (offen && offen !== abbruch.letzterSchluessel) return `ab „${offen}"`;
+  if (abbruch.letzterSchluessel) return `mit dem Feld nach „${abbruch.letzterSchluessel}"`;
+  return 'von vorn';
+}
+
+export function teilRuecklauf(abbruch: Abbruch, basis: CiEntwurf): Ruecklauf {
+  return liesRuecklauf(JSON.stringify(abbruch.objekt), basis);
+}
+
+/**
+ * Was zwischen zwei Entwürfen anders ist — Wert für Wert.
+ *
+ * Gerechnet und nicht mitgeschrieben: der Leser weiß, was er *gelesen* hat,
+ * aber nicht, ob es sich vom bisherigen Wert unterscheidet. Ein Modell, das
+ * die Palette wortgleich zurückgibt, hat sechzehn Rollen geliefert und ändert
+ * keine — und ein Knopf, der „16 Werte übernehmen" verspricht und nichts tut,
+ * ist genau die Sorte Zahl, die dieses Projekt schon einmal teuer bezahlt hat.
+ *
+ * Die Namen sind die des Formulars, damit die Zeile im Bericht auf ein Feld
+ * zeigt, das man auch findet.
+ */
+export function unterschiede(alt: CiEntwurf, neu: CiEntwurf): Aenderung[] {
+  const aus: Aenderung[] = [];
+  const zeig = (wert: unknown): string =>
+    typeof wert === 'string' ? wert || '(leer)' : String(wert);
+
+  const einzeln = (feld: Feld, name: string, a: unknown, b: unknown) => {
+    /*
+       `Object.is` und nicht `===`, wegen genau eines Wertes: NaN. Ein leeres
+       Zahlenfeld schreibt ihn in den Entwurf (die Prüfliste meldet das zu
+       Recht als Fehler, der Wert steht aber da). Wer danach eine Antwort liest,
+       die dieses Feld nicht nennt, hatte NaN vorher und NaN nachher — und
+       `NaN === NaN` ist false. Die Zeile „NaN → NaN" stand in der
+       Änderungsliste und zählte mit: der Knopf hieß „Einen Wert übernehmen",
+       war offen, und der Satz „Die Antwort ließ sich lesen und ändert nichts"
+       blieb aus, weil er an derselben Länge hängt. Wer klickte, ersetzte den
+       Entwurf durch einen wertgleichen und verbrauchte dabei den Merker für
+       „Rückgängig".
+    */
+    if (Object.is(a, b)) return;
+    aus.push({ feld, name, war: zeig(a), wird: zeig(b) });
+  };
+
+  for (const name of ['id', 'label', 'markenname', 'produkt'] as const) {
+    einzeln('Marke', name, alt[name], neu[name]);
+  }
+  for (const rolle of paletteRollen) {
+    einzeln('Farbe', rolle, alt.palette[rolle], neu.palette[rolle]);
+  }
+  for (const stufe of textStufen) {
+    einzeln('Maße', stufe, alt.textScale[stufe], neu.textScale[stufe]);
+  }
+  for (const stufe of sonderstufen) {
+    einzeln('Maße', stufe, alt.sonderstufen[stufe], neu.sonderstufen[stufe]);
+  }
+  for (const rolle of strichRollen) {
+    einzeln('Maße', rolle, alt.stroke[rolle], neu.stroke[rolle]);
+  }
+  for (const rolle of schattenRollen) {
+    einzeln('Maße', rolle, alt.shadowOffset[rolle], neu.shadowOffset[rolle]);
+  }
+  einzeln('Maße', 'auszeichnungEnger', alt.auszeichnungEnger, neu.auszeichnungEnger);
+  for (const rolle of schriftRollen) {
+    einzeln('Schrift', rolle, alt.fontFamily[rolle], neu.fontFamily[rolle]);
+    einzeln('Schrift', `${rolle} (PDF)`, alt.pdfFontFamily[rolle], neu.pdfFontFamily[rolle]);
+  }
+
+  /*
+     Die Schnitte werden als Ganzes verglichen und nicht Zeile für Zeile: die
+     Liste kann kürzer oder länger werden, und „der dritte Schnitt heißt jetzt
+     anders" wäre über einer verschobenen Liste eine Behauptung ins Blaue. Die
+     Kennung bleibt dabei außen vor — sie gehört dem Formular.
+
+     Genannt wird, **welche Zeilen gehen und welche kommen**, und nicht wie
+     viele es sind. Die vorige Fassung schrieb „9 Schnitte → 9 Schnitte": eine
+     Zeile, die zwei gleiche Zahlen zeigt und behauptet, dazwischen ändere sich
+     etwas. Wer neun Schnitte gegen neun andere tauscht — dieselbe Familie in
+     anderen Dateien ist der Normalfall — bekam damit als einzige Auskunft, es
+     bleibe bei neun.
+  */
+  const zeile = (face: CiEntwurf['webfontFaces'][number]) =>
+    `${face.family} ${face.weight} ${face.style} ${face.file}`;
+  /** Was in `a` steht und in `b` nicht — als Multimenge, also mit Vielfachheit. */
+  const ohne = (a: string[], b: string[]): string[] => {
+    const rest = [...b];
+    return a.filter((eintrag) => {
+      const stelle = rest.indexOf(eintrag);
+      if (stelle < 0) return true;
+      rest.splice(stelle, 1);
+      return false;
+    });
+  };
+  const weg = ohne(alt.webfontFaces.map(zeile), neu.webfontFaces.map(zeile));
+  const dazu = ohne(neu.webfontFaces.map(zeile), alt.webfontFaces.map(zeile));
+  // Steht auf beiden Seiten nichts, hat sich nur die Reihenfolge bewegt — und
+  // die ändert an keiner Ausgabe etwas. Eine Zeile „nichts → nichts" wäre die
+  // Sorte Meldung, deretwegen man Meldungen überliest.
+  if (weg.length || dazu.length) {
+    aus.push({
+      feld: 'Schrift',
+      name: 'Schnitte',
+      war: weg.length ? weg.join(' · ') : `${alt.webfontFaces.length} Schnitte, keiner fällt weg`,
+      wird: dazu.length
+        ? dazu.join(' · ')
+        : `${neu.webfontFaces.length} Schnitte, keiner kommt dazu`,
+    });
+  }
+
+  return aus;
+}
 
 /**
  * Aus der Antwort einen Entwurf — auf der Grundlage des bisherigen.
@@ -550,22 +912,42 @@ export function liesRuecklauf(roh: string, basis: CiEntwurf): Ruecklauf {
     return {
       entwurf: null,
       befunde: [{ rang: 'fehler', feld: 'Rücklauf', text: 'Das Feld ist leer.' }],
+      aenderungen: [],
+      abbruch: null,
     };
   }
 
-  const { objekt, getan, fehler } = liesObjekt(roh);
+  const { objekt, getan, fehler, abbruch } = liesObjekt(roh);
 
   if (!objekt) {
-    return {
-      entwurf: null,
-      befunde: [
-        {
-          rang: 'fehler',
-          feld: 'Rücklauf',
-          text: `Daraus wird kein JSON-Objekt${getan.length ? `, auch nachdem ${getan.join(', ')} wurde` : ''}: ${fehler}`,
-        },
-      ],
-    };
+    /*
+       Zwei verschiedene Sackgassen, und sie brauchen zwei verschiedene Sätze.
+       Bricht die Antwort in der Länge ab, ist der Weg heraus ein anderer als
+       bei einem Tippfehler — und er steht nur da, wenn jemand ihn hinschreibt.
+       Die rohe Parser-Meldung bleibt trotzdem stehen: wer einen Fehler meldet,
+       braucht sie. Sie ist nur nicht mehr die einzige Auskunft.
+    */
+    const befunde: Ruecklaufbefund[] = abbruch
+      ? [
+          {
+            rang: 'fehler',
+            feld: 'Rücklauf',
+            text: `Die Antwort hört nach ${abbruch.zeichen} Zeichen mitten im Satz auf — zuletzt vollständig war „${abbruch.letzterSchluessel || '(nichts)'}"${abbruch.offenerSchluessel && abbruch.offenerSchluessel !== abbruch.letzterSchluessel ? `, abgerissen ist sie in „${abbruch.offenerSchluessel}"` : ''}. Das ist meist keine Panne, sondern die Längengrenze des Modells: bitte es, ${fortsetzenAb(abbruch)} fortzusetzen, und füge den Rest hier an.`,
+          },
+          {
+            rang: 'uebergangen',
+            feld: 'Rücklauf',
+            text: `Die Meldung des Lesers, für den Fall dass es doch etwas anderes ist: ${fehler}`,
+          },
+        ]
+      : [
+          {
+            rang: 'fehler',
+            feld: 'Rücklauf',
+            text: `Daraus wird kein JSON-Objekt${getan.length ? `, auch nachdem ${getan.join(', ')} wurde` : ''}: ${fehler}`,
+          },
+        ];
+    return { entwurf: null, befunde, aenderungen: [], abbruch };
   }
 
   for (const was of getan) {
@@ -597,24 +979,40 @@ export function liesRuecklauf(roh: string, basis: CiEntwurf): Ruecklauf {
 
   for (const name of ['id', 'label', 'markenname', 'produkt'] as const) {
     const wert = nimmText(bericht, 'Marke', name, objekt[name]);
-    if (wert !== null) entwurf[name] = wert;
+    if (wert !== null) {
+      entwurf[name] = wert;
+      bericht.nahm(name);
+    }
   }
 
-  Object.assign(
+  /** Eine Gruppe übernehmen — und mitschreiben, ob dabei etwas ankam. */
+  const uebernimm = <T>(
+    ziel: Record<string, T>,
+    schluessel: string,
+    gelesen: Partial<Record<string, T>>,
+  ) => {
+    Object.assign(ziel, gelesen);
+    if (Object.keys(gelesen).length) bericht.nahm(schluessel);
+  };
+
+  uebernimm(
     entwurf.palette,
+    'palette',
     bericht.gruppe('Farbe', 'Die Palette', objekt.palette, paletteRollen, (wert, rolle) =>
       nimmFarbe(bericht, 'Farbe', rolle, wert),
     ),
   );
 
-  Object.assign(
+  uebernimm(
     entwurf.textScale,
+    'textScale',
     bericht.gruppe('Maße', 'Die Größenleiter', objekt.textScale, textStufen, (wert, rolle) =>
       nimmZahl(bericht, 'Maße', rolle, wert),
     ),
   );
-  Object.assign(
+  uebernimm(
     entwurf.sonderstufen,
+    'sonderstufen',
     bericht.gruppe(
       'Maße',
       'Die Stufen außerhalb der Leiter',
@@ -623,14 +1021,16 @@ export function liesRuecklauf(roh: string, basis: CiEntwurf): Ruecklauf {
       (wert, rolle) => nimmZahl(bericht, 'Maße', rolle, wert),
     ),
   );
-  Object.assign(
+  uebernimm(
     entwurf.stroke,
+    'stroke',
     bericht.gruppe('Maße', 'Die Strichstärken', objekt.stroke, strichRollen, (wert, rolle) =>
       nimmZahl(bericht, 'Maße', rolle, wert),
     ),
   );
-  Object.assign(
+  uebernimm(
     entwurf.shadowOffset,
+    'shadowOffset',
     bericht.gruppe(
       'Maße',
       'Die Schattenversätze',
@@ -640,15 +1040,32 @@ export function liesRuecklauf(roh: string, basis: CiEntwurf): Ruecklauf {
     ),
   );
 
-  if (objekt.auszeichnungEnger !== undefined) {
+  if (objekt.auszeichnungEnger === undefined) {
+    /*
+       Auch das Fehlen wird gemeldet, und das war die Lücke: dieser eine
+       Schlüssel lief nicht über `nimmText` und nicht über `bericht.gruppe`,
+       also über keinen der beiden Wege, die „kam nicht" sagen. Ein Modell,
+       das ihn ausließ, bekam dafür kein Wort — und die Laufweite der
+       Auszeichnung ist nichts, was man auf der Probefolie sieht.
+    */
+    bericht.melde(
+      'fehlt',
+      'Maße',
+      '„auszeichnungEnger" kam nicht — der bisherige Wert bleibt stehen.',
+    );
+  } else {
     // Die einzige Größe, die kein Folienmaß ist: die Laufweite steht in em, und
     // dort ist die Einheit richtig statt fremd.
     const wert = nimmZahl(bericht, 'Maße', 'auszeichnungEnger', objekt.auszeichnungEnger, ['em']);
-    if (wert !== null) entwurf.auszeichnungEnger = wert;
+    if (wert !== null) {
+      entwurf.auszeichnungEnger = wert;
+      bericht.nahm('auszeichnungEnger');
+    }
   }
 
-  Object.assign(
+  uebernimm(
     entwurf.fontFamily,
+    'fontFamily',
     bericht.gruppe(
       'Schrift',
       'Die Schriftstapel',
@@ -657,8 +1074,9 @@ export function liesRuecklauf(roh: string, basis: CiEntwurf): Ruecklauf {
       (wert, rolle) => nimmText(bericht, 'Schrift', rolle, wert),
     ),
   );
-  Object.assign(
+  uebernimm(
     entwurf.pdfFontFamily,
+    'pdfFontFamily',
     bericht.gruppe(
       'Schrift',
       'Die PDF-Ersatzschriften',
@@ -685,13 +1103,21 @@ export function liesRuecklauf(roh: string, basis: CiEntwurf): Ruecklauf {
   );
 
   const schnitte = nimmSchnitte(bericht, objekt.webfontFaces);
-  if (schnitte) entwurf.webfontFaces = schnitte;
+  if (schnitte) {
+    entwurf.webfontFaces = schnitte;
+    bericht.nahm('webfontFaces');
+  }
 
   bericht.melde(
     'gelesen',
     'Rücklauf',
-    `Übernommen: ${Object.keys(objekt).filter((schluessel) => (ERWARTET as readonly string[]).includes(schluessel)).length} von ${ERWARTET.length} Feldern. Was nicht kam, steht unten; die Prüfliste rechts urteilt danach über das Ganze.`,
+    `Übernommen: ${bericht.genommen.size} von ${ERWARTET.length} Feldern. Was nicht kam oder nicht taugte, steht unten; die Prüfliste rechts urteilt danach über das Ganze.`,
   );
 
-  return { entwurf, befunde: bericht.befunde };
+  return {
+    entwurf,
+    befunde: bericht.befunde,
+    aenderungen: unterschiede(basis, entwurf),
+    abbruch: null,
+  };
 }

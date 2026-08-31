@@ -34,18 +34,22 @@ import {
   type CiEntwurf,
 } from './entwurf';
 import { pruefe, stapelNamen, traegtFehler, trennbefunde } from './pruefung';
-import { anleitung, bezeichner, bezeichnerProblem, designdatei } from './emitter';
+import { anleitung, bezeichner, bezeichnerProblem, designdatei, text } from './emitter';
 
 registerThemes();
 
 /**
  * Die Erscheinungsbilder, die dieses Projekt **mitliefert**.
  *
- * Festgehalten *vor* dem ersten Test, und das ist keine Vorsicht ohne Grund:
- * `zeichneProbe()` meldet seinen Entwurf wirklich an, und `registerTheme()`
- * nimmt nichts wieder heraus. Nach der ersten Vorschau steht deshalb auch
- * „probenhaus" im Verzeichnis — für die Seite folgenlos, für eine Prüfung
- * über „jedes angemeldete Erscheinungsbild" aber irreführend.
+ * Festgehalten *vor* dem ersten Test — und heute nicht mehr, weil die Vorschau
+ * das Verzeichnis anfasst, sondern damit auffällt, wenn sie es wieder tut.
+ * Sie hat es einmal getan: `zeichneProbe()` rief `registerTheme(theme)` mit
+ * dem Schlüssel, den jemand gerade ins Formular tippt, und `registerTheme()`
+ * nimmt nichts wieder heraus. „probenhaus" stand danach im Verzeichnis, und
+ * wer „nozilla" eintippte, ersetzte damit die laufende nozilla-CI.
+ *
+ * Die Liste ist deshalb die Grundlage einer eigenen Zusicherung weiter unten:
+ * nach einer Vorschau muss sie dieselbe sein.
  */
 const MITGELIEFERT = availableThemes().map(({ id }) => id);
 
@@ -198,9 +202,77 @@ describe('das erzeugte Erscheinungsbild', () => {
     // jeder fremden Marke Überläufe, die nicht ihre sind.
     for (const blatt of zeichneProbe(nozillaTheme)) expect(blatt.ueberlauf).toEqual([]);
   });
+
+  it('meldet den Entwurf nicht an — und ersetzt damit keine laufende CI', () => {
+    /*
+       Der teuerste Fehler dieser Seite. `zeichneProbe()` rief einmal
+       `registerTheme(theme)`, und der Entwurf trägt den Schlüssel, den jemand
+       gerade ins Formular tippt. `registerTheme()` ruft `activate()`, wenn der
+       Schlüssel der gerade gültige ist: wer „nozilla" eintippte, **ersetzte
+       damit die laufende nozilla-CI**. Nachgemessen: `palette.signal` ging von
+       #00FF9C auf #FF0000, und der Eintrag in der Auswahlliste hieß fortan wie
+       das Formularfeld. Ein leerer Schlüssel meldete ein Erscheinungsbild unter
+       dem Namen „" an.
+
+       Geprüft wird am **Verzeichnis und an der gültigen CI**, nicht daran, ob
+       eine Funktion gerufen wurde: `withTheme()` belegt dieselben lebendigen
+       Bindungen und muss sie hinterher zurückgeben.
+    */
+    const gefaehrlich = probeEntwurf({ id: 'nozilla', label: 'Übernommen' });
+    zeichneProbe(themeAusEntwurf(gefaehrlich));
+
+    expect(availableThemes().map(({ id }) => id)).toEqual(MITGELIEFERT);
+    expect(activeTheme().palette.signal).toBe(nozillaTheme.palette.signal);
+    expect(activeTheme().label).toBe(nozillaTheme.label);
+  });
 });
 
 /* -------------------------------------------------------------------------- */
+
+describe('die Probefolien', () => {
+  it('tragen jede ihre eigene Nummer', () => {
+    /*
+       Die Fußzeile ist der Ort, an dem die Stufe `labelSmall` beurteilt wird,
+       und die Vorschau verspricht im Kopf, genau das Markup des SVG-Exports zu
+       zeigen. Vorher trug jede der vier Probefolien „1 / 4" — ein festes
+       `slideNumber: 1`, das man nur sieht, wenn man weiterblättert und
+       hinsieht.
+    */
+    const blaetter = zeichneProbe(themeAusEntwurf(probeEntwurf()));
+    expect(blaetter.length).toBeGreaterThan(1);
+    blaetter.forEach((blatt, index) => {
+      expect(blatt.markup, `Folie ${index + 1} trägt die falsche Nummer`).toContain(
+        `${index + 1} / ${blaetter.length}`,
+      );
+    });
+  });
+});
+
+describe('eine Schrift, die kein Stapel nennt', () => {
+  it('wird gemeldet — und eine benutzte nicht', () => {
+    /*
+       Ihre Dateien werden in jeder Sitzung geladen und nie gezeichnet. Die
+       Warnung stand, der Test fehlte; und beide Richtungen gehören geprüft,
+       sonst wäre eine Regel, die *jede* Familie meldet, genauso grün.
+    */
+    const entwurf = probeEntwurf();
+    const mitFremder: CiEntwurf = {
+      ...entwurf,
+      webfontFaces: [
+        ...entwurf.webfontFaces,
+        { family: 'Fremd', weight: 400, style: 'normal', file: 'fremd.woff2', kennung: 'f1' },
+      ],
+    };
+    const texte = (roh: CiEntwurf) =>
+      pruefe(roh)
+        .filter((befund) => befund.rang === 'warnung')
+        .map((befund) => befund.text)
+        .join(' | ');
+
+    expect(texte(mitFremder)).toMatch(/„Fremd" hat Schnitte, aber kein Stapel nennt sie/);
+    expect(texte(entwurf)).not.toMatch(/kein Stapel nennt sie/);
+  });
+});
 
 describe('die erzeugte Designdatei', () => {
   const entwurf = probeEntwurf();
@@ -265,6 +337,59 @@ describe('die erzeugte Designdatei', () => {
     expect(quelle).not.toContain('export const alte-post');
   });
 
+  it('lässt jeden Wert unverändert zurücklaufen', () => {
+    /*
+       Die Prüfung, die die **stille** Hälfte des Maskierens abdeckt — und die
+       gefehlt hat.
+
+       Prettier ist gegen sie blind: `const a = 'C:\fonts\Inter.woff2';` kommt
+       aus Prettier unverändert zurück, während der Wert dahinter zur Laufzeit
+       `C:<FF>ontsInter.woff2` ist. Die Schrift lädt dann nie, und der Export
+       fällt still auf die Ersatzschrift zurück: kein Fehler, keine Warnung,
+       nur eine andere Schrift.
+
+       Gemessen wird deshalb am **Wert** und nicht an der Zeichenkette: das
+       erzeugte Literal wird ausgewertet und gegen das Original gehalten. Was
+       das nicht beweist, ist, dass die ganze Datei übersetzt — dafür stehen
+       die Prüfungen darüber.
+    */
+    const hart = [
+      'C:\\fonts\\',
+      'C:\\fonts\\Inter.woff2',
+      "O'Brien",
+      'sagt "hallo"',
+      'beide \' und "',
+      'zwei\nZeilen',
+      'Muster */ Ende',
+      'Zilla Slab, Inter, ui-sans-serif',
+    ];
+
+    for (const wert of hart) {
+      const zurueck = Function(`return ${text(wert)};`)() as string;
+      expect(zurueck, `„${wert}" kam anders zurück`).toBe(wert);
+    }
+  });
+
+  it('faltet einen Umbruch im Kopfkommentar, statt die Spalte zu zerreißen', async () => {
+    /*
+       Ein Label mit einem Zeilenumbruch riss die ` * `-Spalte auf: ab der
+       zweiten Zeile stand der Text am linken Rand, ohne Stern. Prettier fasst
+       Blockkommentare nicht an, es gibt also keinen Diff und keinen Wurf — nur
+       einen Kopf, der aussieht wie abgeschnittener Code.
+    */
+    const quelle = designdatei(probeEntwurf({ label: 'Alte\nPost' }));
+    const kopf = quelle.slice(0, quelle.indexOf('*/'));
+    expect(kopf).toContain('Alte Post');
+    for (const zeile of kopf.split('\n').slice(1)) {
+      expect(zeile.trimStart().startsWith('*') || !zeile.trim()).toBe(true);
+    }
+
+    // Und die Datei bleibt in der Form, die Prettier schreibt.
+    const prettier = await import('prettier');
+    const optionen = await prettier.resolveConfig('src/themes/probe.ts');
+    expect(await prettier.format(quelle, { ...optionen, parser: 'typescript' })).toBe(quelle);
+  });
+
   it('kommt in der Form heraus, die Prettier ohnehin herstellt', async () => {
     /*
        Gefragt wird **Prettier selbst** und nicht eine nachgebaute Regel.
@@ -287,6 +412,71 @@ describe('die erzeugte Designdatei', () => {
       parser: 'typescript',
     });
     expect(formatiert).toBe(quelle);
+  });
+
+  it('bleibt lintbar, auch wenn der Name unregelmäßigen Leerraum trägt', async () => {
+    /*
+       Gefragt wird **ESLint selbst** und nicht eine nachgebaute Regel —
+       dieselbe Linie wie bei Prettier eine Prüfung weiter oben.
+
+       Der Anlass: `no-irregular-whitespace` aus `eslint:recommended` schaut
+       auch in Kommentare (`skipComments` ist per Vorgabe aus). Ein Name mit
+       einem geschützten Leerzeichen — so kommt er beim Kopieren aus Word oder
+       von einer Webseite mit — machte die erzeugte Datei unlintbar: sie
+       übersetzte, Prettier war zufrieden, die Prüfliste schwieg, und
+       `npm run lint` brach in dem Repo ab, in das jemand sie gerade gelegt
+       hatte. Die Datei ist als Zulegedatei gemeint; sie darf das Repo, das sie
+       aufnimmt, nicht kaputt machen.
+
+       Und der zweite Fall ist der Fix von damals: die Sternchen-Folge im Namen
+       wurde mit einem *schmalen* Leerzeichen gebrochen — mit genau einem
+       Zeichen also, das diese Regel verbietet.
+    */
+    const roh = 'Alte\u00A0Post\u2009GmbH */ und\u3000danach\u0085mit\u200BZwischenraum';
+    const quelle = designdatei(probeEntwurf({ label: roh, markenname: roh }));
+
+    const { ESLint } = await import('eslint');
+    const eslint = new ESLint();
+    const [ergebnis] = await eslint.lintText(quelle, { filePath: 'src/themes/probe.ts' });
+    const meldungen = ergebnis.messages.map((m) => `${m.ruleId}: ${m.message}`);
+    expect(meldungen).toEqual([]);
+
+    // Und der Kopf trägt den Namen trotzdem — gefaltet, nicht weggelassen.
+    expect(quelle.slice(0, quelle.indexOf('*/'))).toContain('Alte Post GmbH');
+  });
+
+  it('bleibt in dieser Form auch bei einem langen Schriftnamen', async () => {
+    /*
+       Die Prüfung darüber läuft auf dem Entwurf mit nozillas Schnitten, und
+       deren Zeilen sind kurz genug. Sie war deshalb grün, während der Fall,
+       um den es geht, danebenlag: „Neue Haas Grotesk Display Pro Condensed"
+       samt Dateiname ergab eine Zeile von 144 Zeichen, und Prettier bricht die
+       beim nächsten `npm run format` in vier auf. Die Datei im Repo ist dann
+       eine andere als die, die hier herauskam — und der Diff landet in einem
+       fremden Commit.
+
+       Eine Prüfung, deren Eingabe nie an die Grenze geht, prüft die Grenze
+       nicht.
+    */
+    const lang = designdatei(
+      probeEntwurf({
+        webfontFaces: [
+          {
+            ...leererSchnitt(),
+            family: 'Neue Haas Grotesk Display Pro Condensed',
+            weight: 400,
+            style: 'normal',
+            file: 'NeueHaasGroteskDisplayPro-CondensedRegular.woff2',
+          },
+        ],
+      }),
+    );
+    const prettier = await import('prettier');
+    const optionen = await prettier.resolveConfig('src/themes/probe.ts');
+    expect(await prettier.format(lang, { ...optionen, parser: 'typescript' })).toBe(lang);
+    // Und der Name steht wirklich drin — sonst prüfte das oben eine Datei
+    // ohne den Schnitt, um den es geht.
+    expect(lang).toContain('Neue Haas Grotesk Display Pro Condensed');
   });
 
   it('ist gültiges TypeScript und kein Text, der so aussieht', async () => {
@@ -352,6 +542,76 @@ describe('die Prüfliste', () => {
     setActiveTheme(vorher);
   });
 
+  it('meldet ein Schriftgewicht, das die Hierarchie verlangt und kein Schnitt hat', () => {
+    /*
+       Beide Richtungen, und die erste hatte gefehlt: geprüft war nur, dass die
+       Regel auf den mitgelieferten CIs *schweigt*. Eine Regel, deren
+       Gegenrichtung niemand prüft, ist eine halbe — und die Gegenprobe hat es
+       vorgeführt: den Befund stillzulegen ließ jeden Test grün.
+
+       Der Fall selbst ist der Normalfall einer frisch lizenzierten Schrift:
+       nur der Regular ist da. `resolveFace()` gibt für 700 kein `null` zurück,
+       sondern den nächstliegenden Schnitt — der Browser simuliert auf der
+       Fläche fett, PNG, PDF und PPTX zeichnen die Regular-Umrisse, und die
+       beiden zeigen Verschiedenes.
+    */
+    const nurRegular = probeEntwurf({
+      webfontFaces: probeEntwurf().webfontFaces.filter((face) => face.weight === 400),
+    });
+    const gewichte = pruefe(nurRegular).filter((befund) =>
+      befund.text.includes('dafür gibt es keinen Schnitt'),
+    );
+    expect(gewichte.length).toBeGreaterThan(0);
+    expect(gewichte.every((befund) => befund.rang === 'warnung')).toBe(true);
+    // Und der Befund nennt das Gewicht, um das es geht — sonst sucht man es.
+    expect(gewichte.map((befund) => befund.text).join(' | ')).toMatch(/700/);
+
+    // Die Gegenrichtung: mit allen Schnitten kein Wort.
+    expect(
+      pruefe(probeEntwurf()).filter((befund) =>
+        befund.text.includes('dafür gibt es keinen Schnitt'),
+      ),
+    ).toEqual([]);
+  });
+
+  it('schlägt auf keiner mitgelieferten CI an', () => {
+    /*
+       Der teuerste Fehler, den diese Liste machen kann, ist ein **falscher
+       Alarm auf einer gültigen CI**. Er ist hier schon passiert (WCAG gegen
+       paper/white), und er ist teurer als eine Lücke: wer den ersten Befund
+       beim Öffnen als Rauschen abtut, tut es bei der fremden Marke wieder. Ein
+       Wächter, der auf der eigenen CI anschlägt, bringt sich selbst um.
+
+       Gebaut wird der Entwurf aus den Werten des Erscheinungsbilds — Palette,
+       Leiter, Striche, Schatten, Stapel, Schnitte. Wortmarke und Schlüssel
+       kommen aus der Probe: die eine trägt das Theme nur noch als Geometrie,
+       der andere ist für „nozilla" ausdrücklich gesperrt.
+    */
+    const vorher = activeTheme().id;
+    for (const id of MITGELIEFERT) {
+      setActiveTheme(id);
+      const theme = activeTheme();
+      const entwurf = probeEntwurf({
+        label: theme.label,
+        markenname: theme.brand.name,
+        produkt: theme.brand.product,
+        palette: { ...theme.palette },
+        textScale: { ...theme.textScale },
+        stroke: { ...theme.stroke },
+        shadowOffset: { ...theme.shadowOffset },
+        fontFamily: { ...theme.fontFamily },
+        pdfFontFamily: { ...theme.pdfFontFamily } as CiEntwurf['pdfFontFamily'],
+        webfontFaces: theme.webfont.faces.map((face) => ({ ...leererSchnitt(), ...face })),
+      });
+      const laut = pruefe(entwurf).filter((befund) => befund.rang !== 'hinweis');
+      expect(
+        laut.map((befund) => `${befund.rang}: ${befund.text}`),
+        id,
+      ).toEqual([]);
+    }
+    setActiveTheme(vorher);
+  });
+
   it('meldet zwei helle Töne, die dieselbe Farbe malen', () => {
     const gleich = pruefe(
       probeEntwurf({ palette: { ...probeEntwurf().palette, paper: '#FFFFFF' } }),
@@ -375,24 +635,66 @@ describe('die Prüfliste', () => {
     expect(befunde.some((b) => b.rang === 'warnung' && b.text.includes('Kontrast'))).toBe(true);
   });
 
-  it('meldet einen Schriftstapel ohne zweite Marken-Schrift', () => {
+  it('meldet einen Schriftstapel, der zu keiner zweiten Marken-Schrift führt', () => {
     /*
        Und zwar für *jede* Rolle. Die bestehende Prüfung in fonts.test.ts fängt
        nur die Auszeichnung: `ersatzkette()` stellt die eigene Rolle vorn ein,
        wenn der Stapel sie nicht nennt — `body` bekommt damit ['body','display']
        und ist länger als eins, ohne dass eine zweite Schrift im Spiel wäre.
     */
-    const einsam = pruefe(
-      probeEntwurf({
-        fontFamily: {
-          display: "'Zilla Slab', Georgia, serif",
-          body: "'Inter', system-ui, sans-serif",
-          mono: "'Space Mono', ui-monospace, monospace",
+    const ohneReserve = (entwurf: CiEntwurf) =>
+      pruefe(entwurf).filter((b) => b.text.includes('zu keiner zweiten Marken-Schrift'));
+
+    expect(
+      ohneReserve(
+        probeEntwurf({
+          fontFamily: {
+            display: "'Zilla Slab', Georgia, serif",
+            body: "'Inter', system-ui, sans-serif",
+            mono: "'Space Mono', ui-monospace, monospace",
+          },
+        }),
+      ),
+    ).toHaveLength(3);
+
+    /*
+       Der Fall, den die vorige Fassung durchgehen ließ: eine vierte Schrift mit
+       eigenen Schnitten, die aber keinen Stapel *anführt* — eine Symbolschrift
+       zum Beispiel. Sie sah aus wie eine Reserve und war keine:
+       `ersatzkette()` baut ihre Kette aus **Rollen** und findet eine Familie
+       nur über den ersten Namen eines Stapels. Gezählt wurde damals, wer
+       Schnitte hat; gewarnt wurde deshalb nicht, und ein ⌘ aus der
+       Symbolschrift fiel trotzdem aus PNG und PDF.
+    */
+    const mitSymbolschrift = probeEntwurf({
+      fontFamily: {
+        display: "'Zilla Slab', Georgia, serif",
+        body: "'Inter', 'Haus Symbol', system-ui, sans-serif",
+        mono: "'Space Mono', ui-monospace, monospace",
+      },
+      webfontFaces: [
+        ...probeEntwurf().webfontFaces,
+        {
+          ...leererSchnitt(),
+          family: 'Haus Symbol',
+          weight: 400,
+          style: 'normal',
+          file: 'HausSymbol.woff2',
         },
-      }),
-    );
-    const treffer = einsam.filter((b) => b.text.includes('nur eine Marken-Schrift'));
-    expect(treffer).toHaveLength(3);
+      ],
+    });
+    expect(ohneReserve(mitSymbolschrift).some((b) => b.text.includes('body'))).toBe(true);
+
+    // Und die Gegenrichtung: ein Stapel, der wirklich zu einer anderen Rolle
+    // führt, bekommt kein Wort.
+    const echt = probeEntwurf({
+      fontFamily: {
+        display: "'Zilla Slab', 'Inter', Georgia, serif",
+        body: "'Inter', 'Zilla Slab', system-ui, sans-serif",
+        mono: "'Space Mono', 'Inter', ui-monospace, monospace",
+      },
+    });
+    expect(ohneReserve(echt)).toHaveLength(0);
   });
 
   it('hält einen Stapel auf, dessen erster Name keinen Schnitt hat', () => {

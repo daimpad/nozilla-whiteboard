@@ -131,6 +131,7 @@ src/
               schritte.tsx    Die acht Schritte und ihre Felder
               prompt.ts       Das Lastenheft für ein Sprachmodell
               ruecklauf.ts    Dessen Antwort zurücklesen — und jede Korrektur nennen
+              sitzung.ts      Der Entwurf über ein ⌘R hinweg (eigener Schlüssel)
               farbwert.ts     rgb(), Kurzform, fehlende Raute → #RRGGBB
               pruefung.ts     Jede Regel, die eine Designdatei bestehen muss
               emitter.ts      Entwurf → src/themes/<id>.ts
@@ -221,7 +222,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Vierzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Neunundvierzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
   `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
   Fassung passt nicht zur Bibliothek, deshalb
@@ -993,6 +994,408 @@ Nicht angefasst wird außerdem der **Schlüssel** `musterkunde`: er steht im
 Frontmatter jedes Beispiel-Decks und in vier Dateinamen. Die *Beschriftung* in
 der Auswahlliste heißt jetzt „Muster" — dieselbe Linie wie beim Untergrund
 `paper`, der das Weiß malt: Wert und Beschriftung dürfen auseinandergehen.
+
+**Eine Quittung ist kein Vorschlag.** Der Rücklauf des Sprachmodells wurde
+gelesen *und übernommen*, in einem Handgriff, unter einem Knopf namens
+„Übernehmen und prüfen" — geprüft wurde also nach dem Übernehmen. Zurück ging
+es nur über „Zurücksetzen", und das warf die Handarbeit gleich mit weg. Das ist
+„Sechs Wege ersetzten das Deck, einer fragte" noch einmal, mit einem Weg, der
+vierzig Felder auf einmal ersetzt.
+
+Gelesen und übernommen sind jetzt zwei Handgriffe, und dazwischen steht, was
+sich ändern *würde*: war → wird, je Feld. `liesRuecklauf()` schreibt nirgends
+hin — `ruecklauf.test.ts` friert den Entwurf dafür ein, wie `deckStore.test.ts`
+es tut. Dazu ein einstufiges Rückgängig.
+
+Zwei Dinge hängen daran. Gezählt wird der **Unterschied** und nicht das
+Gelieferte: ein Modell, das die Palette wortgleich zurückgibt, liefert sechzehn
+Rollen und ändert keine, und ein Knopf, der „16 Werte übernehmen" verspricht
+und nichts tut, ist die Sorte Zahl aus „Ein Knopf, der eine Zahl nennt und eine
+andere tut". Und ein Vorschlag **verfällt**: wer liest, dann in Schritt 3 eine
+Farbe von Hand setzt und danach übernimmt, bekäme sonst eine Rechnung gegen
+einen Stand, den es nicht mehr gibt.
+
+**Der häufigste Grund für eine unlesbare Antwort ist kein Tippfehler.** Es ist
+die Längengrenze des Modells: die Antwort hört mitten in `"paper": "#FAF` auf.
+An der rohen Parser-Meldung ist das von einer verunglückten Klammer nicht zu
+unterscheiden — und die Sackgasse war dieselbe, nur dass hier zwölf von
+sechzehn Rollen schon dastanden und niemand sie bekam.
+
+`abgebrochen()` schneidet deshalb rückwärts bis zur letzten Stelle, an der ein
+Wert *fertig* war, und schließt die offenen Klammern. Genannt werden die
+Stelle, das zuletzt vollständige Feld und der Satz, der die Sackgasse öffnet
+(„bitte das Modell, ab ‚paper' fortzusetzen"). Der Teilimport wird **angeboten
+und nie genommen**, und er läuft über `JSON.stringify` zurück in denselben
+Leser: ein zweiter Weg in den Entwurf wäre die Abkürzung, die hier schon
+zweimal auseinandergelaufen ist.
+
+**Acht Knöpfe in einer Leiste sind acht Tabstopps.** Wer ohne Maus arbeitet,
+lief auf *jedem* Schritt durch alle acht, bevor er im ersten Feld stand. Die
+Leiste ist jetzt eine `tablist` mit einem rollenden Tabstopp und ←/→/Home/End —
+keine erfundene Belegung, sondern die, die eine Reihe Reiter über einem Bereich
+ohnehin mitbringt. Nach **Tab** wird ausdrücklich nicht gegriffen: wer die
+Taste abfängt, mit der man weiterkommt, sperrt den Benutzer dort ein, wo er
+gerade steht.
+
+Und daran hing sofort ein Fehler, den erst der Rauchtest zeigte: `gehe()` setzt
+den Fokus nach einem Schrittwechsel auf die Überschrift des Bereichs — richtig,
+wenn der Sprung aus der Prüfliste kommt, und falsch, wenn er von der Pfeiltaste
+kommt. Der Fokus verließ damit die Leiste, der zweite Pfeil ging ins Leere, und
+sie war mit der Tastatur genau *einen* Schritt weit bedienbar. Die Leiste gibt
+`gehe()` deshalb die Kennung des Zielreiters mit — ein Weg, keine
+Reihenfolge-Akrobatik mit zwei `requestAnimationFrame`.
+
+Dazu trägt ein Befund jetzt einen **Anker**: „Zu Schritt 3" führte in den
+Schritt und dort vor sechzehn Farbfelder, und die Rolle, um die es ging, suchte
+man von Hand. Das ist die einzige Rückzahlung für das, was ein Wizard gegenüber
+einer langen Seite verliert — dort fand man eine Rolle mit ⌘F.
+
+**Der Entwurf lebte nur bis zum nächsten ⌘R.** Fünfzig Felder samt der
+ausgesuchten Wortmarken-Datei, und die Datei musste man erneut suchen. Der
+Grund, aus dem diese Seite keinen Store hat, gilt der **Sitzung des Decks** —
+ein eigener Schlüssel im `sessionStorage` berührt die an keiner Stelle, und
+`ruecklauf.test.ts` hält die beiden Zeichenketten auseinander. `sessionStorage`
+und nicht `localStorage`, weil ein Entwurf zu einem Anlass gehört und nicht zum
+Rechner: ein geschlossener Tab beendet ihn, ein ⌘R nicht.
+
+Zwei Fallen dabei. Die Frage „fortsetzen?" steht im *Initialisierer* von
+`useState` und nicht in einem Effekt — sonst stünde einen Bildrahmen lang der
+leere Entwurf da, die Vorschau rechnete ihn, und der Dialog käme über ein Bild,
+das gleich wieder verschwindet. Und beim Neuladen kommen **zwei** Dialoge, in
+dieser Reihenfolge: erst der `beforeunload` des Browsers, dann die eigene
+Frage. Ein `once('dialog')` im Rauchtest fängt deshalb den falschen, der zweite
+wird automatisch weggeklickt, und die Prüfung meldet einen Fehler, den es nicht
+gibt.
+
+**Zwei Dateifelder auf einer Seite, ein Selektor.** Mit „Entwurf laden" bekam
+der Generator ein zweites `input[type="file"]` — und drei Stellen im Rauchtest
+luden die Wortmarke über genau diesen Selektor. Getroffen wurde das erste, also
+das falsche; die Wortmarke kam nie an, und die Meldung lautete „die Designdatei
+steht nicht auf der Seite". Gesucht wird jetzt über `accept`.
+
+**Dreizehn Schlüssel, dreimal getippt.** Die obersten Felder des Prompts
+standen als Literale in `promptText()`, noch einmal in `ERWARTET` und ein
+drittes Mal im Test. Käme eines dazu und stünde nur im Prompt, meldete der
+Leser es als „kennt der Generator nicht": das Modell hätte den Prompt befolgt
+und würde dafür gerügt, bei grünem Test — der prüft ja die dritte Liste.
+`promptSchluessel` ist jetzt die eine, der Prompt baut seinen Rumpf daraus, und
+der `switch` darüber ist erschöpfend: ein neuer Schlüssel ohne Block bricht
+`tsc` ab statt einen Prompt zu erzeugen, der ein Feld verlangt, ohne zu sagen,
+was hineingehört.
+
+**Ein Codezaun, zwei Leser, einer davon verankert.** `stripCodeFence` im
+Deck-Prompt schnitt nur `^```…```$` — „Klar, hier ist das Deck:" davor, und der
+Zaun blieb stehen, `parseDeck` bekam die Vorrede als Inhalt. Der CI-Generator
+hatte daneben seine eigene, unverankerte Fassung. Beide lesen jetzt
+`ohneCodezaun()` in `lib/prompt/zaun.ts` — und eine Prüfung unter `lib/`
+importiert nicht mehr aus einer Komponente.
+
+Die Regel dort hat vier Stufen, und die zweite und dritte tragen sie: **ein
+Deck darf selbst einen Codezaun enthalten.** Wer den Satz davor toleriert, ohne
+das auszunehmen, holt aus einem nackten Deck dessen *inneren* Codeblock heraus
+und wirft alles andere weg. Erkannt wird es am `---` des Frontmatters.
+
+Die dritte hat zuerst gefehlt, und zwar als *Kommentar ohne Code*: der Schutz
+stand im Kopf der Datei, im Rumpf schützte er nur einen Text, der **mit** `---`
+beginnt. Steht „Klar, hier ist das Deck:" davor, fiel ein nacktes Deck weiter
+bis zum Schnitt durch — gemessen wurde aus einem Deck mit einem Codeblock
+`const a = 1;`, das ganze Deck ersetzt durch den Inhalt seines Blocks.
+Geschnitten wird deshalb bis zum **letzten** Zaun und nicht bis zum nächsten;
+der nächste ist bei einem Deck mit Codeblock dessen Öffner.
+
+**Prettier ist gegen die stille Hälfte des Maskierens blind.**
+`const a = 'C:\fonts\Inter.woff2';` kommt aus Prettier unverändert zurück,
+während der Wert dahinter zur Laufzeit `C:<FF>ontsInter.woff2` ist. Geprüft
+wird deshalb am **Wert**: das erzeugte Literal wird ausgewertet und gegen das
+Original gehalten. Was das nicht beweist, ist, dass die ganze Datei übersetzt —
+dafür stehen die Prüfungen daneben.
+
+**Ein Umbruch im Label zerriss die Kommentarspalte.** Ab der zweiten Zeile
+stand der Text am linken Rand, ohne Stern, und der Kopf sah aus wie
+abgeschnittener Code. Prettier fasst Blockkommentare nicht an, es gibt also
+keinen Diff und keinen Wurf. `imKommentar()` faltet jetzt zuerst und bricht
+danach die Sternchen-Folge — in dieser Reihenfolge.
+
+**Die rechte Spalte war ein einziger Scroller.** Wer die Prüfliste las,
+scrollte die Folie aus dem Bild — und das trifft genau dann, wenn es zählt:
+nach einem mittelmäßigen Rücklauf stehen zwanzig Befunde da, und die Frage
+lautet „was macht dieser Befund mit der Folie". Jetzt zwei Bereiche; bei Enge
+gibt die Folie nach und nicht die Liste.
+
+Die Prüfung dazu ist beim ersten Anlauf an derselben Stelle danebengegangen wie
+schon zweimal zuvor: sie scrollte einen **geratenen** Knoten
+(`parentElement.parentElement`), und über dem kaputten Stand war das eine Ebene
+daneben — die Gegenprobe blieb grün. Gescrollt wird jetzt der nächste
+*scrollbare* Vorfahr, und dass überhaupt gescrollt wurde, steht als eigene
+Zusicherung daneben.
+
+**Ein Formularfeld, das die laufende CI ersetzt.** Die Vorschau des Generators
+rief `registerTheme(theme)` — mit dem Schlüssel, den jemand gerade eintippt.
+Und `registerTheme()` ruft `activate()`, wenn der Schlüssel der gerade gültige
+ist: wer „nozilla" ins Feld schrieb, überschrieb damit die eigene CI.
+Nachgemessen: `palette.signal` ging von #00FF9C auf #FF0000, der Eintrag in der
+Auswahlliste hieß fortan wie das Formularfeld, und ein leeres Feld meldete ein
+Erscheinungsbild unter dem Namen „" an.
+
+Nötig war die Anmeldung nur, solange über `setActiveTheme()` umgestellt wurde —
+das schlägt im Verzeichnis nach. `withTheme()` belegt die lebendigen Bindungen
+unmittelbar und fragt niemanden. Die Regel dahinter ist allgemein: **„rechne
+kurz damit" und „jemand hat gewählt" sind zwei Vorgänge**, und nur der zweite
+geht das Verzeichnis und die Oberfläche etwas an.
+
+**Zwei Kennungen, ein Feld.** Der Schritt „Maße" führt vier Leitern
+untereinander, und `sm` und `lg` stehen in zweien davon: `ankerFuer('Maße',
+'sm')` ergab für die Größenleiter und für die Schattenversätze dieselbe
+Kennung. Zwei Felder mit derselben Kennung sind im DOM **ein** Feld —
+`getElementById` nimmt das erste, also sprang „Zum Feld" bei einem
+Schattenversatz in die Schriftgrößen und markierte dort einen Wert, an dem
+nichts falsch war. Ein Wegweiser, der auf die falsche Stelle zeigt, ist
+schlechter als keiner.
+
+`massAnker(gruppe, rolle)` verlangt die Gruppe jetzt als eigenen Typ, damit sie
+im Formular nicht zu vergessen ist. Geprüft wird an dem, was `pruefe()`
+**ausgibt** — die Kennungsfunktion allein wäre eindeutig, während im Formular
+die Gruppe fehlt —, und zusätzlich im Rauchtest am *Fokus*: eine doppelt
+vergebene Kennung ist im DOM nicht verboten, sie ist nur mehrdeutig, und
+mehrdeutig sieht in keiner Zusicherung anders aus als eindeutig.
+
+**Ein Merker, der nie verfällt, nimmt fremde Arbeit mit.** „Rückgängig" nimmt
+den *ganzen* Entwurf auf den Stand vor dem Rücklauf zurück. `ersetze()` legte
+den Merker an, `aendere()` — der Weg jedes einzelnen Handgriffs — räumte ihn
+nicht weg: wer den Rücklauf übernahm, danach zwölf Farben nachzog und dann in
+Schritt 1 auf den Knopf traf, verlor die zwölf. Für den *Vorschlag* galt die
+Regel längst (`gelesenGegen !== entwurf`); sie galt nur nicht für den Weg
+zurück.
+
+**Prozent ist keine Zahl unter eins.** `rgba(228, 0, 58, 0.5)` meldete den
+Verlust der Deckkraft, `rgb(228 0 58 / 50%)` nicht: `parseFloat('50%')` ist 50,
+und die Frage lautete `< 1`. Dieselbe Farbe, dieselbe halbe Deckkraft, einmal
+gesagt und einmal stumm verschluckt — und stumm war ausgerechnet die
+Schreibweise, die ein Sprachmodell heute schreibt.
+
+**„Zuletzt vollständig" war der Schlüssel, an dem es abriss.** Die
+Abbruchdiagnose führte einen einzigen Schlüssel: den zuletzt *begonnenen*. Sie
+meldete damit „zuletzt vollständig war ‚palette'" über einer Palette, die
+mitten in `"paper": "#FAF` aufhörte — die eine Auskunft, auf die es ankommt,
+genau verkehrt herum. Es sind zwei Fragen: was steht ganz da, und wo geht es
+weiter. Der Bericht nennt jetzt beide.
+
+**Eine Zahl, die das Gelieferte zählt und „Übernommen" heißt.** „Übernommen: 13
+von 13" stand über einer Antwort, in der zwölf Felder vom falschen Typ waren
+und übergangen wurden — gezählt wurden die Schlüssel des Objekts. Das ist „Ein
+Knopf, der eine Zahl nennt und eine andere tut" in Satzform, und die Antwort
+ist dieselbe: gezählt wird, was wirklich geschieht.
+
+Dazu ein zweiter Fall derselben Sorte: die Schnittliste meldete „9 Schnitte → 9
+Schnitte". Wer neun Schnitte gegen neun andere tauscht — dieselbe Familie in
+anderen Dateien, also den Normalfall —, bekam als einzige Auskunft, es bleibe
+bei neun. Genannt wird jetzt, **welche** Zeilen gehen und welche kommen.
+
+**Ein Schlüssel ohne den Weg, der ihn liest.** `auszeichnungEnger` lief weder
+über `nimmText` noch über `bericht.gruppe`, also über keinen der beiden Wege,
+die „kam nicht" sagen — ein Modell, das ihn ausließ, bekam dafür kein Wort, und
+die Laufweite der Auszeichnung sieht man auf der Probefolie nicht. Gezählt wird
+in der Prüfung deshalb gegen `promptSchluessel` und nicht gegen eine Zahl im
+Test: ein vierzehnter Schlüssel bekommt so keine stillschweigende Ausnahme.
+
+**Die fehlende Ablage war der zweite Weg in dieselbe Stille.** `sichereEntwurf`
+meldet eine *gescheiterte* Ablage — die *nicht vorhandene* gab wortlos `null`
+zurück, und die Folge ist dieselbe: es sichert sich nichts, und niemand erfährt
+es. Ein privates Fenster ist dabei kein erfundener Fall, sondern die
+Voreinstellung von Leuten, die ein fremdes Werkzeug ausprobieren.
+
+**Ein Prompt, der mehr verspricht, als die Prüfliste erlaubt.** Er beschrieb
+den Schlüssel als „Kleinschrift, Ziffern, Bindestriche" — und der Emitter zieht
+`-x` nur *vor einem Buchstaben* zu `X` zusammen, `probe-2024` ist also kein
+Bezeichner. Wer zu viel verspricht, bekommt vom Modell einen Schlüssel, den die
+Seite eine Ecke weiter zurückweist: der Fehler steht dann bei dem, der den
+Prompt befolgt hat. Geprüft wird an **beiden** Beispielen, die der Prompt
+nennt, gegen den Emitter, der urteilt.
+
+**Eine dritte Füllfarbe, die nirgends gezeichnet wird.** Die Wortmarke kennt
+zwei Farben: `wordmarkFromSvg()` sammelt die Pfade in `letters` und die in
+`accent` und verwirft den Rest, und `wortmarkeAusSvg()` nahm beim Einlesen
+stumm die ersten beiden. Eine dreifarbige Datei verlor damit ein Drittel ihrer
+Pfade — auf der Folie, im SVG, im PDF und in der PPTX. Dass es zwei Farben
+sind, ist eine Entscheidung dieses Werkzeugs; sie stumm durchzuziehen ist
+keine.
+
+**Eine erzeugte Zeile, die Prettier beim nächsten Lauf umbricht.** „Neue Haas
+Grotesk Display Pro Condensed" samt Dateiname ergibt einen Schnitt von 144
+Zeichen — die Datei aus dem Generator ist dann eine andere als die im Repo, und
+der Diff landet in einem fremden Commit. Nachgerechnet wird die Grenze
+**nicht**: `printWidth` ist weich, und eine nachgebaute Regel hat hier schon
+einmal das Falsche verurteilt. Gemessen wurde die andere Richtung — ein
+Objektliteral, das im Quelltext umgebrochen dasteht, lässt Prettier
+umgebrochen, auch wenn es längst in eine Zeile passte. Der Emitter schreibt es
+deshalb immer umgebrochen, und die Länge muss niemand kennen. Die Prüfung dazu
+läuft an einem langen Namen: eine Prüfung, deren Eingabe nie an die Grenze
+geht, prüft die Grenze nicht.
+
+**`StrictMode` ruft den Initialisierer von `useState` zweimal.** Das ist
+Absicht und soll Nebenwirkungen sichtbar machen — die Frage „Entwurf
+fortsetzen?" stand damit zweimal da, und wer beim ersten Mal „ja" und beim
+zweiten „nein" klickt, hat seinen Entwurf gelöscht, ohne das je gewollt zu
+haben. Gemerkt wird die Antwort, nicht die Frage.
+
+Und dieselbe Frage hatte eine zweite Hälfte: ein fortgesetzter Entwurf galt als
+**unberührt**. „Entwurf sichern" und „Zurücksetzen" blieben gesperrt, die Frage
+beim Schließen kam nicht, mitgeschrieben wurde nichts — bis irgendwann der
+erste Anschlag fiel. Wer den Entwurf zurückholte, um ihn herunterzuladen, stand
+vor einem grauen Knopf.
+
+**Und „Entwurf laden" war der siebente Weg.** Er warf fünfzig ausgefüllte
+Felder wortlos weg, während „Zurücksetzen" direkt daneben für dieselbe Tat um
+Erlaubnis bittet — „Sechs Wege ersetzten das Deck, einer fragte", eine Seite
+weiter. Ein Fehlgriff im Dateidialog genügte.
+
+**Eine fremde `.json` riss die Seite weg, wo eine Meldung stand.** `zusammen()`
+legte `...gelesen` über den leeren Entwurf, ohne einen Feldtyp zu prüfen — und
+`pruefe()` läuft in einem `useMemo` *während des Renderns* und greift auf
+`entwurf.id.trim()` zu. Eine Datei mit `{"id": 42}` warf dort einen TypeError,
+und der `try/catch` um „Entwurf laden" fängt ihn nicht: `ersetze()` plant nur
+eine Zustandsänderung, gerendert wird danach. Gemessen: weißes Fenster, keine
+Meldung, kein Formular — obwohl direkt daneben der Satz „… ist kein gesicherter
+Entwurf" für genau diesen Fall gebaut ist.
+
+**Ein alter Quelltext unter einer Überschrift mit Dateinamen.** Die Vorschau
+hält bei einem offenen Fehler den letzten tragfähigen Stand fest, und das ist
+richtig — sie ist der Grund, aus dem jemand hier ist. Über der Folie stand der
+Vermerk „nicht mehr aktuell", über dem Quelltext nicht: dort gab sich ein alter
+Stand für den aktuellen aus, und zwar unter `src/themes/<id>.ts`.
+
+**Ein Wächter, der genau seinen Fall wegfiltert.** Die Warnung „eine dritte
+Füllfarbe, die nirgends gezeichnet wird" rechnete über `pfade.filter(Boolean)`
+— und schloss damit die Pfade **ohne** Füllfarbe aus, also genau die, die auch
+nirgends gezeichnet werden. Der Grund, warum es welche gibt: `readPaths()` las
+`fill` nur als Attribut am `<path>`, und Illustrator, Figma und Inkscape
+schreiben die Farbe für eine gruppierte Auswahl ans umschließende `<g>`.
+
+Die Folge ist so groß, wie sie klingt. Die Buchstabenpfade kamen mit leerer
+Füllung zurück, `wortmarkeAusSvg()` schlug deshalb die *Akzentfarbe* als
+Buchstabenton vor, und auf der Folie, im SVG, im PDF und in der PPTX stand
+danach nur noch der Akzentpunkt. Gemessen an der Wortmarke des Musterkunden:
+die Pfaddaten der Buchstaben fielen von 4152 auf 51 Zeichen. Die Prüfliste
+sagte kein Wort, der Knopf „Designdatei" war offen, und die erzeugte Datei trug
+eine Buchstabenfarbe, die niemand gewählt hat.
+
+Die Reparatur hat zwei Hälften, und die zweite ist die wichtigere.
+`readPaths()` erbt die Füllung jetzt vom Vorfahren und liest auch
+`style="fill:…"` — damit gehen die üblichen Exporte durch. Was danach *immer
+noch* keine Farbe trägt (die Farben stehen in einer CSS-Klasse), wird
+**gemeldet und nicht erraten**: eine Farbe zu erfinden hieße zu behaupten, sie
+sei gemeint.
+
+Und ein dritter Fall hing daran: eine leere Buchstabenfarbe kam durch, weil die
+Prüfung `pfade.some(gleich('', ''))` fragte — leer gegen leer ist gleich. Die
+Datei trug danach `letters: ''`, und `wordmarkFromSvg()` sammelte zur Laufzeit
+alle Pfade *ohne* Füllung als Buchstaben ein: der Akzent wurde zum Buchstaben
+und in Tinte gemalt.
+
+**Zwei Leser derselben Antwort, und nur einer kannte die Anführungszeichen.**
+Der Kopf von `STUFEN` begründet, warum `geradeAnfuehrung` vor `nurObjekt`
+steht: der Klammerzähler stiege sonst mitten in einer Zeichenkette aus.
+Dasselbe Argument gilt für `ohneKommentare` und `ohneNachkomma` — und dort war
+es nicht angewandt. Aus `{ “produkt”: “Deck // Fläche” }` machte der
+Kommentarleser einen Zeilenkommentar ab dem `//` und warf den Rest der Zeile
+samt schließender Klammer weg.
+
+Gemeldet wurde das danach als **Längenabbruch des Modells** über einer
+vollständigen Antwort. Wer dem Rat folgte und „ab produkt" fortsetzen ließ,
+bekam dieselbe Antwort und dasselbe Ergebnis, beliebig oft. Der realistische
+Auslöser für das `//` ist ein Dateiname auf einem CDN — dort ist der Verlust
+die ganze Schnittliste.
+
+Umgestellt wurde die Reihenfolge ausdrücklich **nicht**: `geradeAnfuehrung`
+fasst auch innerhalb von Werten an, und vorgezogen machte sie aus jedem
+deutschen „Wort" in einem Markennamen ein gerades. Die beiden führen jetzt über
+`istBegrenzer()` ihre eigene Buchführung.
+
+**Die Rettung griff nicht dort, wo sie gebaut wurde.** Der Kopf von `Abbruch`
+beschreibt den Fall: die Antwort hört mitten in `"paper": "#FAF` auf, zwölf von
+sechzehn Rollen stehen schon da, und niemand bekommt sie. Gemerkt wurden
+Schnitte aber nur auf der obersten Ebene — bei einem Abbruch *innerhalb* der
+Palette war der letzte Schnitt der vor `"palette"`, und angeboten wurden zwei
+Felder. Weil die Palette der längste Block einer Modellantwort ist, ist das
+nicht der Rand des Längenabbruchs, sondern sein Regelfall. Geschnitten wird
+jetzt je Ebene, von innen nach außen.
+
+**`NaN === NaN` ist false, und ein leeres Zahlenfeld schreibt NaN.** Die
+Änderungsliste führte deshalb „auszeichnungEnger · NaN → NaN": der Knopf
+versprach „Einen Wert übernehmen" über einer Antwort, die nichts ändert, der
+Satz „ändert nichts" blieb aus (er hängt an derselben Länge), und wer klickte,
+verbrauchte den Merker für „Rückgängig" für nichts. `Object.is` fängt es.
+
+**Zwei Rechnungen für dieselbe Frage, zum zweiten Mal.** Die Warnung „nur eine
+Marken-Schrift" zählte die Namen im Stapel, die *Schnitte haben* —
+`ersatzkette()` im Export baut ihre Kette dagegen aus **Rollen** und findet
+eine Familie nur über den ersten Namen eines Stapels. Eine Symbolschrift an
+zweiter Stelle sah damit aus wie eine Reserve und war keine: das ⌘, das der
+Bildschirm aus ihr holt, fiel aus PNG und PDF, und die Prüfliste hatte vorher
+ausdrücklich Entwarnung gegeben. Gezählt wird jetzt dieselbe Kette, die der
+Export geht.
+
+**Der Bildschirm simuliert fett, die Datei nicht.** Geprüft wurde, ob eine
+Familie *einen* aufrechten Schnitt hat — die Hierarchie verlangt aber
+display/700, body/600 und mono/700. Eine frisch lizenzierte Schrift kommt oft
+nur als Regular; `resolveFace()` gibt dann kein `null` zurück, sondern den
+nächstliegenden Schnitt. Jede Überschrift wird in PNG, PDF und PPTX aus den
+Regular-Umrissen gezeichnet, während der Browser auf der Fläche fett simuliert
+— dieselbe Bauart wie „Der Bildschirm ersetzt eine fehlende Glyphe, die Datei
+nicht".
+
+**Die erzeugte Datei machte das Repo unlintbar, in das man sie legt.**
+`no-irregular-whitespace` aus `eslint:recommended` schaut auch in Kommentare
+(`skipComments` ist per Vorgabe aus). Ein Name mit einem geschützten
+Leerzeichen — so kommt er beim Kopieren aus Word — stand ungefaltet im
+Kopfkommentar: die Datei übersetzte, Prettier war zufrieden, die Prüfliste
+schwieg, und `npm run lint` brach ab. Und der Fix von damals trug den Fehler
+bei sich: die Sternchen-Folge im Namen wurde mit einem *schmalen* Leerzeichen
+gebrochen, also mit genau einem Zeichen, das diese Regel verbietet.
+
+Geprüft wird deshalb mit **ESLint selbst** und nicht mit einer nachgebauten
+Regel — dieselbe Linie wie bei Prettier eine Prüfung weiter oben.
+
+**Eine Korrektur, die nicht sagt, dass sie eine ist.** `normalisiereFarbe()`
+gibt zwei Werte zurück, und der Kopf jener Datei schreibt aus, wozu: „Eine
+stille Korrektur ist eine Behauptung: ‚das war gemeint'." Der Rücklauf-Bericht
+hielt sich daran, das Farbfeld daneben nicht — es las den Wert und warf den
+Satz weg. Wer `rgba(17, 17, 17, 0.05)` aus einem Styleguide einsetzte, hatte
+danach Fast-Schwarz im Feld statt eines Fünf-Prozent-Grau, ohne ein Wort. Und
+danach sieht es keine Prüfung mehr: `#111111` ist ein gültiger Wert.
+
+**Eine fremde `.json` wurde stumm zum leeren Entwurf.** `zusammen()` prüft seit
+dem weißen Fenster jeden Wert und fällt sonst auf die Vorbelegung zurück —
+wortlos. Eine `package.json` ergab damit exakt `leererEntwurf()`, es gab keine
+Meldung, und der Sprung nach Schritt 1 sah aus wie ein gelungener Ladevorgang,
+obwohl fünfzig Felder ersetzt wurden. Der Satz „… ist kein gesicherter Entwurf"
+stand daneben und wurde nie erreicht. `zusammen()` gibt jetzt zurück, was ankam
+und was verworfen wurde: aus nichts wird kein Entwurf, und eine Rolle mit
+falschem Typ wird genannt statt stumm durch nozillas Wert ersetzt.
+
+**Derselbe Satz an zwei Stellen, und nur einer wurde verschärft.** Der Prompt
+beschrieb den Schlüssel neu („ein Bindestrich nur vor einem Buchstaben"), der
+Hinweis unter dem Feld, in das derselbe Wert von Hand getippt wird, blieb bei
+„Kleinschrift, Ziffern, Bindestriche." Wer ihm folgte, bekam einen harten
+Fehler und einen gesperrten Knopf — wörtlich der Vorwurf, wegen dessen der
+Prompt verschärft wurde, nur eine Datei weiter. `SCHLUESSELREGEL` steht jetzt
+neben `bezeichner()`, also neben der Rechnung, die den Satz wahr macht.
+
+**Eine Härtungsliste, die man tippt, prüft die Hälfte.** Der Test gegen das
+weiße Fenster führte sieben oberste Felder von fünfzehn; `label`, `markenname`,
+`produkt` und `fontFamily` fehlten, und `pruefe()` fasst die genauso an. Die
+Liste wird jetzt aus `Object.keys(leererEntwurf())` gerechnet — dieselbe Linie
+wie beim Prompt, dessen Schlüssel auch gelesen und nicht getippt werden. Und
+die Gegenrichtung vergleicht seither den **ganzen** Entwurf statt drei von
+zwölf Gruppen: `stroke: leer.stroke` zu schreiben wäre sonst unbemerkt
+geblieben.
+
+**Und der teuerste Wächter ist der, der auf der eigenen CI anschlägt.** Es gibt
+ihn jetzt als Test: jedes mitgelieferte Erscheinungsbild wird zu einem Entwurf
+gemacht und durch `pruefe()` geschickt, und kein Befund über dem Rang „zu
+wissen" darf dabei herauskommen. Zwei der Regeln oben — die Ersatzkette und die
+Schriftgewichte — sind erst dadurch als richtig belegt und nicht nur als
+scharf.
 
 ---
 

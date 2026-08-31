@@ -318,6 +318,38 @@ export function themeAusEntwurf(entwurf: CiEntwurf): BrandTheme {
 }
 
 /**
+ * Die Schlüssel, nach denen der Prompt fragt — und die der Rücklauf liest.
+ *
+ * Sie standen dreimal getippt da: als Literale in `promptText()`, noch einmal
+ * in `ERWARTET` und ein drittes Mal im Test. Drei Listen über dieselbe Sache
+ * sind keine Redundanz, sondern eine Verabredung, an die sich niemand
+ * erinnert: käme morgen ein Feld dazu und stünde es nur im Prompt, meldete der
+ * Leser es als „Diese Felder kennt der Generator nicht" — das Modell hätte den
+ * Prompt befolgt und würde dafür gerügt, und der Test bliebe grün, weil er die
+ * dritte Liste prüft.
+ *
+ * Die Reihenfolge ist die, in der die Felder im Prompt stehen; er baut seinen
+ * Rumpf daraus.
+ */
+export const promptSchluessel = [
+  'id',
+  'label',
+  'markenname',
+  'produkt',
+  'palette',
+  'fontFamily',
+  'pdfFontFamily',
+  'webfontFaces',
+  'textScale',
+  'sonderstufen',
+  'auszeichnungEnger',
+  'stroke',
+  'shadowOffset',
+] as const;
+
+export type PromptSchluessel = (typeof promptSchluessel)[number];
+
+/**
  * Aus einer SVG-Datei ein Wortmarken-Entwurf — samt Vorschlag für die beiden
  * Füllfarben.
  *
@@ -329,11 +361,18 @@ export function themeAusEntwurf(entwurf: CiEntwurf): BrandTheme {
  * und die Prüfliste beklagte eine Datei, die in Ordnung war.
  */
 export function wortmarkeAusSvg(svg: string, dateiname: string): Wortmarkenentwurf {
+  /*
+     Vorgeschlagen wird nur, was wirklich malt. `none` ist eine Wahl und keine
+     Farbe — als Buchstabenton vorgeschlagen ergäbe es einen Schriftzug aus
+     Pfaden, die ausdrücklich nichts zeichnen. Und die leere Füllung ist die
+     Lücke, die `pruefeWortmarke()` meldet; sie hier zum Ton zu machen hieße,
+     eine Farbe zu erfinden, die niemand genannt hat.
+  */
   const gefunden = [
     ...new Set(
       readPaths(svg)
         .map((pfad) => pfad.fill)
-        .filter(Boolean),
+        .filter((fuellung) => fuellung && fuellung.toLowerCase() !== 'none'),
     ),
   ];
   return { svg, dateiname, letters: gefunden[0] ?? '', accent: gefunden[1] ?? '' };

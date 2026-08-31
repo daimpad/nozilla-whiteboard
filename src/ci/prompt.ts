@@ -26,15 +26,18 @@
  * `entwurf.ts` als Grund dafür, dass die Feldliste gelesen wird.
  */
 import { nozillaTheme } from '@/theme';
+import { SCHLUESSELREGEL } from './emitter';
 import {
   paletteRollen,
   pdfSchriften,
+  promptSchluessel,
   schattenRollen,
   schriftRollen,
   sonderstufen,
   strichRollen,
   textStufen,
   type CiEntwurf,
+  type PromptSchluessel,
 } from './entwurf';
 import {
   LEITERTEXT,
@@ -45,9 +48,165 @@ import {
   STUFENTEXT,
 } from './texte';
 
-/** Eine Zeile „schlüssel — wofür", wie sie im Prompt steht. */
-function zeile(schluessel: string, was: string, beispiel: string | number): string {
-  return `  "${schluessel}": ${typeof beispiel === 'number' ? beispiel : `"${beispiel}"`}   // ${was}`;
+/**
+ * Eine Zeile „schlüssel — wofür", wie sie im Prompt steht.
+ *
+ * Das Komma steht **vor** dem Kommentar und nicht dahinter, und es steht
+ * überhaupt da — beides war einmal anders. Der gezeigte Rumpf trug zwischen
+ * den Feldern gar keins: durchweg kein gültiges JSON, in einem Block, der
+ * ausdrücklich als ```json ausgezeichnet und als Vorlage gemeint ist. Ein
+ * Modell, das die Form buchstabengetreu nachahmt, liefert damit etwas, das
+ * `JSON.parse` an der zweiten Zeile abweist — und der Rücklauf hat keine Stufe,
+ * die ein *fehlendes* Komma ergänzen könnte. Rund sechzig gelieferte Werte
+ * fielen weg, und die Meldung zeigte auf Position 25 statt auf die Vorlage.
+ *
+ * Gefunden hat es keine Prüfung, sondern erst ein `JSON.parse` über den
+ * gezeigten Block. Genau das steht jetzt als Prüfung daneben.
+ */
+function zeile(schluessel: string, was: string, beispiel: string | number, komma = true): string {
+  const wert = typeof beispiel === 'number' ? beispiel : `"${beispiel}"`;
+  return `  "${schluessel}": ${wert}${komma ? ',' : ''}   // ${was}`;
+}
+
+/** Dieselben Zeilen, das Komma auf allen bis auf der letzten. */
+function felder(eintraege: Array<[string, string, string | number]>): string[] {
+  return eintraege.map(([schluessel, was, beispiel], index) =>
+    zeile(schluessel, was, beispiel, index < eintraege.length - 1),
+  );
+}
+
+/**
+ * Der Rumpf des JSON — je Schlüssel ein Block, in der Reihenfolge der Liste.
+ *
+ * Gebaut und nicht hingeschrieben: `promptSchluessel` ist dieselbe Liste, an
+ * der der Rücklauf misst, was er kennt. Stünde sie hier ein zweites Mal, wäre
+ * ein Feld, das nur der Prompt nennt, für den Leser überzählig — das Modell
+ * hätte den Prompt befolgt und würde dafür gerügt.
+ *
+ * Der `switch` ist erschöpfend über die Union: kommt ein Schlüssel dazu und
+ * fehlt hier sein Block, bricht `tsc` ab. Ein `default`, das eine leere Zeile
+ * liefert, hätte stattdessen einen Prompt ergeben, der ein Feld verlangt, ohne
+ * zu sagen, was hineingehört.
+ */
+function block(schluessel: PromptSchluessel): string[] {
+  /**
+   * Eine Gruppe: Kopfzeile, Rollen mit Komma bis auf die letzte, Schlussklammer.
+   *
+   * Das Komma **hinter** der Schlussklammer steht immer — bis auf die letzte
+   * Gruppe des Objekts, und die ist `shadowOffset`. Deshalb hat sie unten ihre
+   * eigene Zeile.
+   */
+  const gruppe = (kopf: string, zeilen: string[], schluss = '  },'): string[] => [
+    kopf,
+    ...zeilen.map((zeile) => `  ${zeile}`),
+    schluss,
+    '',
+  ];
+
+  switch (schluessel) {
+    case 'id':
+      return [
+        /*
+           Die Regel ist enger, als sie zuerst dastand, und die Enge ist echt:
+           der Emitter macht aus dem Schlüssel einen Exportnamen und zieht dazu
+           `-x` zu `X` zusammen. Das greift nur vor einem *Buchstaben* — aus
+           `probe-2024` würde `probe-2024`, und das ist kein Bezeichner. Wer
+           hier „Ziffern und Bindestriche" verspricht, lässt ein Modell einen
+           Schlüssel liefern, den die Prüfliste eine Seite weiter ablehnt: der
+           Fehler steht dann bei dem, der den Prompt befolgt hat.
+        */
+        zeile('id', SCHLUESSELREGEL, 'probenhaus'),
+      ];
+    case 'label':
+      return [zeile('label', 'der Name in der Auswahlliste', 'Probenhaus')];
+    case 'markenname':
+      return [
+        zeile('markenname', 'steht als Urheber in jedem PDF und jeder PPTX', 'Probenhaus GmbH'),
+      ];
+    case 'produkt':
+      return [zeile('produkt', 'steht in der Beschreibung jedes SVG', 'Probenhaus Folien'), ''];
+    case 'palette':
+      return gruppe(
+        '  "palette": {   // sechzehn Rollen, jede als #RRGGBB',
+        felder(
+          paletteRollen.map((rolle) => [rolle, PALETTENTEXT[rolle], nozillaTheme.palette[rolle]]),
+        ),
+      );
+    case 'fontFamily':
+      return gruppe(
+        '  "fontFamily": {   // je ein CSS-Stapel; der erste Name muss unten einen Schnitt haben',
+        felder(
+          schriftRollen.map((rolle) => [
+            rolle,
+            `${SCHRIFTTEXT[rolle]} — dahinter die andere Marken-Schrift, dann das System`,
+            nozillaTheme.fontFamily[rolle],
+          ]),
+        ),
+      );
+    case 'pdfFontFamily':
+      return gruppe(
+        `  "pdfFontFamily": {   // die Ersatzschrift im PDF, nur ${pdfSchriften.join(' | ')}`,
+        felder(
+          schriftRollen.map((rolle) => [
+            rolle,
+            SCHRIFTTEXT[rolle],
+            nozillaTheme.pdfFontFamily[rolle],
+          ]),
+        ),
+      );
+    case 'webfontFaces':
+      return [
+        '  "webfontFaces": [   // jeder selbst gehostete Schnitt, als .woff2',
+        '    { "family": "Zilla Slab", "weight": 400, "style": "normal", "file": "zilla-slab-400.woff2" }',
+        '  ],',
+        '',
+      ];
+    case 'textScale':
+      return gruppe(
+        '  "textScale": {   // die Größenleiter in Folien-Einheiten; sie muss steigen',
+        felder(
+          textStufen.map((stufe) => [stufe, LEITERTEXT[stufe], nozillaTheme.textScale[stufe]]),
+        ),
+      );
+    case 'sonderstufen':
+      return gruppe(
+        '  "sonderstufen": {   // drei Größen, die auf keiner Stufe der Leiter sitzen',
+        felder(
+          sonderstufen.map((stufe) => [
+            stufe,
+            STUFENTEXT[stufe],
+            nozillaTheme.typeScale[stufe].size,
+          ]),
+        ),
+      );
+    case 'auszeichnungEnger':
+      return [
+        zeile(
+          'auszeichnungEnger',
+          'um wie viel em die Auszeichnung enger läuft; 0 lässt die Leiter, wie sie ist',
+          0,
+        ),
+        '',
+      ];
+    case 'stroke':
+      return gruppe(
+        '  "stroke": {   // Strichstärken in Folien-Einheiten',
+        felder(strichRollen.map((rolle) => [rolle, STRICHTEXT[rolle], nozillaTheme.stroke[rolle]])),
+      );
+    case 'shadowOffset':
+      // Die letzte Gruppe des Objekts — ihre Schlussklammer trägt kein Komma.
+      return gruppe(
+        '  "shadowOffset": {   // harte Versätze, kein Weichzeichner',
+        felder(
+          schattenRollen.map((rolle) => [
+            rolle,
+            SCHATTENTEXT[rolle],
+            nozillaTheme.shadowOffset[rolle],
+          ]),
+        ),
+        '  }',
+      ).slice(0, -1);
+  }
 }
 
 /**
@@ -102,67 +261,7 @@ export function promptText(entwurf: CiEntwurf): string {
     '',
     '```json',
     '{',
-    zeile(
-      'id',
-      'Kleinschrift, Ziffern, Bindestriche; steht im Frontmatter jedes Decks',
-      'probenhaus',
-    ),
-    zeile('label', 'der Name in der Auswahlliste', 'Probenhaus'),
-    zeile('markenname', 'steht als Urheber in jedem PDF und jeder PPTX', 'Probenhaus GmbH'),
-    zeile('produkt', 'steht in der Beschreibung jedes SVG', 'Probenhaus Folien'),
-    '',
-    '  "palette": {   // sechzehn Rollen, jede als #RRGGBB',
-    ...paletteRollen.map(
-      (rolle) => `  ${zeile(rolle, PALETTENTEXT[rolle], nozillaTheme.palette[rolle])}`,
-    ),
-    '  },',
-    '',
-    '  "fontFamily": {   // je ein CSS-Stapel; der erste Name muss unten einen Schnitt haben',
-    ...schriftRollen.map(
-      (rolle) =>
-        `  ${zeile(rolle, `${SCHRIFTTEXT[rolle]} — dahinter die andere Marken-Schrift, dann das System`, nozillaTheme.fontFamily[rolle])}`,
-    ),
-    '  },',
-    '',
-    `  "pdfFontFamily": {   // die Ersatzschrift im PDF, nur ${pdfSchriften.join(' | ')}`,
-    ...schriftRollen.map(
-      (rolle) => `  ${zeile(rolle, SCHRIFTTEXT[rolle], nozillaTheme.pdfFontFamily[rolle])}`,
-    ),
-    '  },',
-    '',
-    '  "webfontFaces": [   // jeder selbst gehostete Schnitt, als .woff2',
-    '    { "family": "Zilla Slab", "weight": 400, "style": "normal", "file": "zilla-slab-400.woff2" }',
-    '  ],',
-    '',
-    '  "textScale": {   // die Größenleiter in Folien-Einheiten; sie muss steigen',
-    ...textStufen.map(
-      (stufe) => `  ${zeile(stufe, LEITERTEXT[stufe], nozillaTheme.textScale[stufe])}`,
-    ),
-    '  },',
-    '',
-    '  "sonderstufen": {   // drei Größen, die auf keiner Stufe der Leiter sitzen',
-    ...sonderstufen.map(
-      (stufe) => `  ${zeile(stufe, STUFENTEXT[stufe], nozillaTheme.typeScale[stufe].size)}`,
-    ),
-    '  },',
-    '',
-    zeile(
-      'auszeichnungEnger',
-      'um wie viel em die Auszeichnung enger läuft; 0 lässt die Leiter, wie sie ist',
-      0,
-    ),
-    '',
-    '  "stroke": {   // Strichstärken in Folien-Einheiten',
-    ...strichRollen.map(
-      (rolle) => `  ${zeile(rolle, STRICHTEXT[rolle], nozillaTheme.stroke[rolle])}`,
-    ),
-    '  },',
-    '',
-    '  "shadowOffset": {   // harte Versätze, kein Weichzeichner',
-    ...schattenRollen.map(
-      (rolle) => `  ${zeile(rolle, SCHATTENTEXT[rolle], nozillaTheme.shadowOffset[rolle])}`,
-    ),
-    '  }',
+    ...promptSchluessel.flatMap(block),
     '}',
     '```',
     '',
