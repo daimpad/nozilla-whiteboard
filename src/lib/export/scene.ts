@@ -556,6 +556,70 @@ export function elementPaint(
   };
 }
 
+/**
+ * Verschwindet der Körper dieses Elements im Untergrund?
+ *
+ * Auf einer Weiß-Folie malt ein Element mit dem Ton „Weiß" und der Füllung
+ * „Fläche" #FFFFFF auf #FFFFFF — gemessen am fertigen Markup, und damit
+ * vollständig unsichtbar. Es bleibt dabei im Modell, in der Ebenenliste und in
+ * der `.md` stehen und lässt sich anwählen; zu sehen ist nichts. Fünf der
+ * achtzig Kombinationen aus Untergrund, Ton und Füllung treffen es, und der
+ * Untergrund `paper` ist die Vorgabe jeder neuen Folie.
+ *
+ * Gefragt wird nach **allem, was der Körper malt**, und nicht nach der Fläche
+ * allein. Der erste Anlauf meldete auch eine Kontur in der Farbe des
+ * Untergrunds — und traf damit ausschließlich Elemente, deren Fläche man
+ * sieht: bei `solid` zieht der Strich seinen Ton aus dem Element, bei
+ * `outline` aus dem Untergrund, und in beiden Fällen steht daneben eine
+ * sichtbare Füllung oder ein Gegenton. Eine Warnung über einem Element, das
+ * gut aussieht, ist die Sorte Wächter, die man abschaltet.
+ *
+ * Umgefärbt wird **nichts** — die Farbe hat jemand gewählt, und eine stille
+ * Korrektur wäre die Behauptung „das war nicht gemeint". Gesagt gehört es
+ * trotzdem, und der Inspektor sagt es: dieselbe Linie wie beim fehlenden
+ * Alternativtext.
+ *
+ * Die Rechnung steht hier und nicht in der Oberfläche, weil hier die Farben
+ * entstehen — eine Bedienfläche, die Marken-Töne vergleicht, hätte sie sich
+ * borgen müssen.
+ */
+export function unsichtbareFlaeche(element: CanvasElement, bg: BackgroundStyle): boolean {
+  const { fill, stroke } = elementPaint(element, bg).body;
+  // Ohne Füllung und ohne Strich malt der Körper gar nichts — das ist die
+  // Füllung „Ohne" und keine Panne.
+  if (!fill && !stroke) return false;
+  const grund = bg.fill.toUpperCase();
+  const gleich = (ton: string | undefined) => !ton || ton.toUpperCase() === grund;
+  return gleich(fill) && gleich(stroke);
+}
+
+/**
+ * Wirkt der Innenabstand bei dieser Elementart?
+ *
+ * Eine Rechnung, zwei Kunden: der Zeichner richtet sich danach, und der
+ * Inspektor zeigt das Feld danach. Vorher stand es bei **jeder** Art da, und
+ * gemessen wirkte es bei sechs von elf gar nicht — die Fabrik gab dem
+ * Abzeichen trotzdem 16 mit, dem Zeichen 12 und der Form 20 (zwei Werte, die
+ * auf keiner Stufe der CI-Skala stehen). Wer den Regler bewegte, sah nichts
+ * geschehen.
+ *
+ * Beim Text hängt es an der Füllung: ohne Fläche gibt es keinen Rand, an dem
+ * ein Abstand messbar wäre.
+ */
+export function nutztInnenabstand(element: CanvasElement): boolean {
+  switch (element.kind) {
+    case 'card':
+    case 'table':
+    case 'chart':
+      return true;
+    case 'text':
+    case 'markdown':
+      return element.fill !== 'none';
+    default:
+      return false;
+  }
+}
+
 /** Die Drehung eines Elements als Matrix um seine eigene Mitte. */
 function elementMatrix(element: CanvasElement): Mat {
   const base = matTranslate(element.x, element.y);

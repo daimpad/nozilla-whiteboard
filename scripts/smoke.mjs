@@ -1329,6 +1329,71 @@ async function main() {
     }
   });
 
+  await pruefe('der Inspektor zeigt nur, was auch etwas tut', async () => {
+    /*
+       Zwei Fehler derselben Sorte, beide gemessen und keiner sichtbar: ein
+       Feld, das nichts bewirkt, und eine Fläche, die nichts malt.
+
+       Der Innenabstand stand bei jeder Elementart da; gerechnet wirkt er bei
+       fünf von elf, und die Fabrik gab dem Badge trotzdem 16 mit, dem Zeichen
+       12 und der Form 20. Wer den Regler bewegte, sah nichts geschehen — die
+       schlimmste Art von Bedienelement, denn sie lässt einen an sich selbst
+       zweifeln.
+
+       Und ein Element mit dem Ton „Weiß" und der Füllung „Fläche" malt auf
+       einer Weiß-Folie #FFFFFF auf #FFFFFF. Es steht in der Ebenenliste,
+       lässt sich anwählen, hat Maße — und ist auf der Folie, im SVG, im PDF
+       und in der .pptx nicht zu sehen. Umgefärbt wird nichts: die Farbe hat
+       jemand gewählt. Gesagt gehört es.
+
+       Geprüft wird hier und nicht nur in `scene.test.ts`, weil die Rechnung
+       dort das eine ist und der Weg zum Benutzer das andere. Eine Funktion,
+       die richtig rechnet, und ein Inspektor, der sie nicht ruft, sehen in
+       jeder Zusicherung gleich aus.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.waitForTimeout(500);
+    await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
+    await seite.waitForTimeout(600);
+
+    const inspektor = seite.locator('aside[aria-label="Inspektor"]');
+    gleich(
+      await inspektor.getByText('Innenabstand', { exact: true }).count(),
+      1,
+      'die Karte zeigt kein Feld für den Innenabstand',
+    );
+
+    /* ------------------------------------- die Fläche in der Untergrundfarbe */
+    const warnung = () => inspektor.getByText('genau die Farbe des Untergrunds').count();
+    gleich(await warnung(), 0, 'die gerahmte Karte wird schon beklagt');
+
+    await inspektor.getByRole('button', { name: 'Weiß', exact: true }).click();
+    await seite.waitForTimeout(300);
+    await inspektor.locator('select').first().selectOption('flat');
+    await seite.waitForTimeout(400);
+    gleich(await warnung(), 1, 'Weiß auf Weiß wird nicht gemeldet');
+
+    /*
+       Die Gegenrichtung, an der der erste Anlauf dieser Regel gescheitert
+       ist: dieselbe Farbe mit einem Rahmen ist sichtbar — der Strich kommt
+       aus dem Ton des Elements und nicht aus dem Untergrund. Eine Warnung
+       über einem Element, das gut aussieht, ist die Sorte Wächter, die man
+       abschaltet.
+    */
+    await inspektor.locator('select').first().selectOption('framed');
+    await seite.waitForTimeout(400);
+    gleich(await warnung(), 0, 'die gerahmte Fläche wird zu Unrecht beklagt');
+
+    /* ------------------------------------------ und das Feld, das nichts tut */
+    await seite.locator('aside button').filter({ hasText: 'Badge' }).first().click();
+    await seite.waitForTimeout(600);
+    gleich(
+      await inspektor.getByText('Innenabstand', { exact: true }).count(),
+      0,
+      'das Badge zeigt ein Feld für einen Abstand, den es nicht zeichnet',
+    );
+  });
+
   console.log('\nSchutz der Arbeit:');
 
   /*
