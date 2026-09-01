@@ -7,6 +7,7 @@
  * the scene builder and the PDF writer share.
  */
 import type { Deck } from '@/model/types';
+import { escapeXml } from './svg';
 
 export interface ResolvedImage {
   src: string;
@@ -69,6 +70,17 @@ export function collectImageSources(deck: Deck): string[] {
 
   for (const slide of deck.slides) {
     scanMarkdown(slide.markdown);
+    /*
+       Auch die Notizen: das Handout setzt sie mit `typesetMarkdown()` und
+       macht aus einem `![…](…)` sehr wohl ein Bild-Primitiv. Hier fehlten sie,
+       und daran hingen drei Folgen, von denen keine etwas sagte — der Setzer
+       kannte die Maße nicht und nahm seinen Rückfall „volle Spaltenbreite,
+       Verhältnis 0,5625" (ein 300 × 300-Bild stand mit 1104 × 621 da, und
+       alles darunter rutschte), der PDF-Weg fand keinen Eintrag und stieg
+       stumm aus, und als fehlend gemeldet wurde es auch nicht, weil die
+       Quelle nie eingesammelt worden war.
+    */
+    scanMarkdown(slide.meta.notes ?? '');
     for (const element of slide.elements) {
       if (element.kind === 'image' && element.src) found.add(element.src);
       if (element.kind === 'markdown') scanMarkdown(element.markdown);
@@ -220,20 +232,24 @@ export function sizeResolver(map: ImageMap) {
   };
 }
 
-/** Replace remote/relative hrefs with their data URLs so an SVG is standalone. */
+/**
+ * Verweise durch ihre Daten-URI ersetzen, damit ein SVG für sich steht.
+ *
+ * Maskiert wird mit **derselben** Funktion, die das Markup geschrieben hat.
+ * Hier stand eine zweite, und die beiden waren sich über ein Zeichen uneinig:
+ * `escapeXml()` macht aus `'` ein `&apos;`, die zweite nicht. Ein Pfad mit
+ * einem Apostroph — `claude's-logo.png` — wurde deshalb gesucht, wie er nicht
+ * im Markup steht, nicht gefunden und stehen gelassen. Im exportierten SVG
+ * blieb ein relativer Verweis, obwohl der Dateikopf zusagt, die Datei stehe
+ * für sich; und im PNG fehlte das Bild ersatzlos, weil ein über eine Blob-URL
+ * geladenes SVG keine externen Ressourcen holen darf. Mit `&` im Pfad griff
+ * die Ersetzung, mit `'` nicht — ein Fehler an genau einem Zeichen.
+ */
 export function inlineImageHrefs(svg: string, map: ImageMap): string {
   let out = svg;
   for (const [src, entry] of map) {
     if (src === entry.dataUrl) continue;
-    out = out.split(escapeXmlAttr(src)).join(entry.dataUrl);
+    out = out.split(escapeXml(src)).join(entry.dataUrl);
   }
   return out;
-}
-
-function escapeXmlAttr(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }

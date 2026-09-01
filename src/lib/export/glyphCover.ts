@@ -233,25 +233,50 @@ export function leereDeckung(): GlyphCover {
  * Zurück kommt je Stück der Versatz **in Zeichen**, nicht in Punkten: wo das
  * Stück steht, misst der Aufrufer selbst gegen die echte Schrift.
  */
-export function splitByFace(
-  run: SceneRun,
-  cover: GlyphCover,
-): { text: string; at: number; face: FaceRef | null }[] {
-  const stuecke: { text: string; at: number; face: FaceRef | null }[] = [];
+export interface FaceStueck {
+  text: string;
+  at: number;
+  face: FaceRef | null;
+  /**
+   * Keine der Schriften führt dieses Zeichen.
+   *
+   * Es bekommt ein eigenes Stück, damit der Aufrufer es *auslassen* kann,
+   * ohne seine Nachbarn zu verschieben. Vorher gab `faceFor()` auch für ein
+   * ungedecktes Zeichen den gewünschten Schnitt zurück, das Stück blieb also
+   * ganz — und jsPDF ließ das Zeichen beim Kodieren fallen. Weil die Nachbarn
+   * im selben `doc.text()` standen, rückten sie um dessen Vorschub nach
+   * links: aus „A😀B" wurde ein „AB", dessen B um vier Millimeter zu weit
+   * links stand. Der Umriss-Weg lässt an derselben Stelle eine Lücke, denn er
+   * fragt je Zeichen. Zwei Ausgaben, zwei verschiedene Zeilen.
+   */
+  ungedeckt?: boolean;
+}
+
+export function splitByFace(run: SceneRun, cover: GlyphCover): FaceStueck[] {
+  const stuecke: FaceStueck[] = [];
+  const ungedeckt = new Set(cover.uncovered);
+  let letzteFace: FaceRef | null = null;
   let index = 0;
 
   for (const zeichen of run.text) {
     const codePoint = zeichen.codePointAt(0);
-    const face =
+    if (ungedeckt.has(zeichen)) {
+      stuecke.push({ text: zeichen, at: index, face: null, ungedeckt: true });
+      index += zeichen.length;
+      continue;
+    }
+
+    const face: FaceRef | null =
       codePoint === undefined || codePoint <= 0x20
         ? // Zwischenraum bleibt beim vorigen Stück; ihn zu trennen erzeugte
           // Stücke, die nichts zeichnen, aber alles zerschneiden.
-          (stuecke[stuecke.length - 1]?.face ?? cover.faceFor(run.font, 0x20))
+          (letzteFace ?? cover.faceFor(run.font, 0x20))
         : cover.faceFor(run.font, codePoint);
 
     const letztes = stuecke[stuecke.length - 1];
-    if (letztes && letztes.face?.id === face?.id) letztes.text += zeichen;
+    if (letztes && !letztes.ungedeckt && letztes.face?.id === face?.id) letztes.text += zeichen;
     else stuecke.push({ text: zeichen, at: index, face });
+    letzteFace = face;
     index += zeichen.length;
   }
 

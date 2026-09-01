@@ -214,8 +214,7 @@ function drawScene(
         drawSegs(doc, prim.segs, prim, scale, backdrop, prim.closed);
         break;
       case 'text':
-        setOpacity(prim.opacity ?? 1);
-        drawText(doc, prim, scale, backdrop, fonts, cover);
+        drawText(doc, prim, scale, fonts, cover, setOpacity);
         break;
       case 'image':
         setOpacity(prim.opacity ?? 1);
@@ -367,13 +366,26 @@ function ellipseToSegs(prim: Extract<ScenePrim, { t: 'ellipse' }>): Seg[] {
 /* Text                                                                        */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Ein Textprimitiv.
+ *
+ * Die Deckkraft eines Laufs geht über die GState und **nicht** über das
+ * Verrechnen gegen den Folienuntergrund. Der Kopf von `flatten()` begründet
+ * das Abflachen für Flächen — überlappende Teilpfade würden sich an den
+ * Stoßstellen doppelt verdunkeln —, und für Striche gilt das weiter. Für Text
+ * gilt es nicht, und dort war es falsch: die CI baut ihre Hierarchie über
+ * Farben mit Deckkraft (`elementTones.ink.textMuted` ist Papier bei 64 %), und
+ * auf einer hellen Folie steht die dunkle Karte dazwischen. Gegen den *hellen*
+ * Untergrund gerechnet wurde daraus ein sehr helles Grau auf schwarzer Karte —
+ * gemessen unlesbar, während SVG und `.pptx` denselben Text richtig zeigten.
+ */
 function drawText(
   doc: jsPDF,
   prim: Extract<ScenePrim, { t: 'text' }>,
   scale: number,
-  backdrop: Rgba,
   fonts: FontMap,
   cover: GlyphCover,
+  setOpacity: (value: number) => void,
 ): void {
   const angleDeg = prim.rotate ?? 0;
   const rad = (angleDeg * Math.PI) / 180;
@@ -384,10 +396,10 @@ function drawText(
     if (!run.text) continue;
     const color = parseColor(run.color);
     if (!color || color.a === 0) continue;
-    const flat = color.a < 1 ? blend(color, backdrop) : color;
 
+    setOpacity((prim.opacity ?? 1) * color.a);
     doc.setFontSize(run.font.size * scale);
-    doc.setTextColor(flat.r, flat.g, flat.b);
+    doc.setTextColor(color.r, color.g, color.b);
 
     /*
        Ein Lauf kann mehr als einen Schnitt brauchen.
@@ -401,6 +413,14 @@ function drawText(
        wie zuvor.
     */
     for (const stueck of splitByFace(run, cover)) {
+      /*
+         Ein Zeichen, das keine der Schriften führt, wird ausgelassen — und
+         zwar *nur* es. jsPDF ließe es ohnehin fallen; stünde es aber noch in
+         einem Stück mit seinen Nachbarn, rückten die um seinen Vorschub nach
+         links. Der Umriss-Weg lässt an derselben Stelle eine Lücke, und beide
+         Ausgaben sollen dieselbe Zeile zeigen.
+      */
+      if (stueck.ungedeckt) continue;
       const embedded =
         (stueck.face && fonts.get(fontKey(stueck.face.role, stueck.face.weight))) ??
         fonts.get(fontKey(run.font.family, run.font.weight));
@@ -423,7 +443,7 @@ function drawText(
     }
 
     if (run.underline || run.strike) {
-      drawDecoration(doc, prim, run, scale, flat, cos, sin);
+      drawDecoration(doc, prim, run, scale, color, cos, sin);
     }
   }
 }
@@ -482,7 +502,13 @@ function drawImage(
 ): void {
   const entry = options.images?.get(prim.href);
   const source = entry?.dataUrl ?? (prim.href.startsWith('data:') ? prim.href : null);
-  if (!source) return;
+  if (!source) {
+    // Der zweite stille Ausstieg. Der `catch` unten meldet ein Bild, das
+    // jsPDF nicht verdaut; hier fehlt es schon in der Karte, und ohne diese
+    // Zeile fehlte es im PDF *und* in jeder Meldung.
+    meldeFehlendeBilder([prim.href]);
+    return;
+  }
 
   const format = entry?.format ?? guessFormat(source);
   /*
@@ -497,20 +523,42 @@ function drawImage(
   */
   const kasten = einpassen(prim, entry?.w, entry?.h);
   const beschnitten = kasten.w > prim.w + 0.01 || kasten.h > prim.h + 0.01;
+  const ecke = jsPdfEcke(prim, kasten);
   try {
     if (beschnitten) {
-      // „Füllend" heißt: den Kasten voll machen und den Überstand abschneiden.
-      // Ohne den Beschnitt liefe das Bild über seinen eigenen Rahmen hinaus.
+      /*
+         „Füllend" heißt: den Kasten voll machen und den Überstand
+         abschneiden. Ohne den Beschnitt liefe das Bild über seinen eigenen
+         Rahmen hinaus.
+
+         Geklemmt wird über einen **Pfad** und nicht über `doc.rect(...)`.
+         jsPDF reicht ein fehlendes Stil-Argument an `putStyle` durch, und das
+         fällt auf `defaultPathOperation` = `"S"` zurück: der Pfad wurde
+         gestrichen und dabei verbraucht, das `W` danach fand keinen Pfad mehr
+         — kein Beschnitt, dafür ein schwarzes Rechteck quer über dem Bild.
+         jsPDF schreibt die richtige Benutzung an seine eigene `clip()`: erst
+         eine Zeichenoperation mit dem Stil `null`, dann klemmen. Und der Pfad
+         ist die *gedrehte* Hülle des Elements, nicht sein achsenparalleler
+         Kasten — sonst schnitte er bei einer Drehung am falschen Ort.
+      */
       doc.saveGraphicsState();
-      doc.rect(prim.x * scale, prim.y * scale, prim.w * scale, prim.h * scale);
+      const [start, ...legs] = huelle(prim);
+      doc.lines(
+        legs.map(([x, y]) => [x - start[0], y - start[1]]),
+        start[0] * scale,
+        start[1] * scale,
+        [scale, scale],
+        null,
+        true,
+      );
       doc.clip();
       doc.discardPath();
     }
     doc.addImage(
       source,
       format,
-      kasten.x * scale,
-      kasten.y * scale,
+      ecke.x * scale,
+      ecke.y * scale,
       kasten.w * scale,
       kasten.h * scale,
       undefined,
@@ -528,6 +576,51 @@ function drawImage(
     */
     meldeFehlendeBilder([prim.href]);
   }
+}
+
+/**
+ * Wo das Bild anzusetzen ist, damit jsPDF um denselben Punkt dreht wie das SVG.
+ *
+ * Ein `image`-Primitiv trägt seine Ecke **nach** der Matrix und dreht um genau
+ * diesen Punkt — so schreibt es `svg.ts` (`rotate(a x y)`), und `scene.ts`
+ * rechnet die Ecke eigens dafür aus, damit Bild und Rahmen zusammenfallen.
+ * jsPDF dreht dagegen um `(x, y + h)`, also um die *untere* linke Ecke des
+ * ungedrehten Rechtecks. Gemessen an einem 400 × 100-Bild bei (450, −50) mit
+ * 90°: der Rahmen des Elements lag bei x 350…450, das Bild bei x 550…650 —
+ * zwei getrennte Dinge auf derselben Folie, und in PowerPoint an einer dritten
+ * Stelle.
+ *
+ * Gerechnet wird deshalb die Ecke, die jsPDFs eigene Drehung dorthin bringt,
+ * wo das SVG sie hat. Ohne Drehung fällt die Rechnung auf den Kasten zurück.
+ */
+function jsPdfEcke(
+  prim: Extract<ScenePrim, { t: 'image' }>,
+  kasten: { x: number; y: number; w: number; h: number },
+): { x: number; y: number } {
+  if (!prim.rotate) return kasten;
+  const bogen = (prim.rotate * Math.PI) / 180;
+  const sin = Math.sin(bogen);
+  const cos = Math.cos(bogen);
+  // Die linke obere Ecke des Bildkastens, gedreht um die Ecke des Primitivs.
+  const dx = kasten.x - prim.x;
+  const dy = kasten.y - prim.y;
+  const ziel = { x: prim.x + dx * cos - dy * sin, y: prim.y + dx * sin + dy * cos };
+  return { x: ziel.x - kasten.h * sin, y: ziel.y - kasten.h + kasten.h * cos };
+}
+
+/** Die vier Ecken des Primitivs, gedreht wie das SVG sie dreht. */
+function huelle(prim: Extract<ScenePrim, { t: 'image' }>): Array<[number, number]> {
+  const bogen = ((prim.rotate ?? 0) * Math.PI) / 180;
+  const sin = Math.sin(bogen);
+  const cos = Math.cos(bogen);
+  return (
+    [
+      [0, 0],
+      [prim.w, 0],
+      [prim.w, prim.h],
+      [0, prim.h],
+    ] as Array<[number, number]>
+  ).map(([dx, dy]) => [prim.x + dx * cos - dy * sin, prim.y + dx * sin + dy * cos]);
 }
 
 /**
