@@ -254,13 +254,23 @@ class Layout {
 
       case 'paragraph': {
         const paragraph = token as Tokens.Paragraph;
-        // A paragraph that is only an image becomes a figure.
-        const only = paragraph.tokens?.length === 1 ? paragraph.tokens[0] : null;
-        if (only && only.type === 'image') {
-          this.image(only as Tokens.Image, indent);
-          return;
-        }
-        this.gapBefore(base * 0.35);
+        /*
+           Ein Bild wird eine Abbildung — auch dann, wenn Text danebensteht.
+
+           Erkannt wurde es nur, wenn der Absatz aus **genau einem** Token
+           bestand. Stand ein Wort daneben — „Siehe ![Logo](logo.png) hier." —,
+           ging der Absatz den Inline-Weg, und dort wird aus einem
+           `image`-Token stillschweigend ein *kursiver Textlauf mit dem
+           Alternativtext*: das Bild fiel aus jeder Ausgabe, und auf der Folie
+           stand „Logo" in Kursiv. Wer ein Bild einsetzt und Worte daneben
+           schreibt, bekam Worte.
+
+           Getrennt wird deshalb: die Bilder werden zu Abbildungen, der Rest zu
+           Absätzen, in der Reihenfolge des Textes. Das ist eine andere
+           Anordnung als im Browser — dort läuft ein Bild im Text mit —, aber
+           es ist die Anordnung, die dieses Werkzeug für ein Bild kennt, und
+           kein stiller Verlust.
+        */
         const style = typeScale[this.baseStyle];
         const spec = font({
           family: style.family,
@@ -268,7 +278,32 @@ class Layout {
           weight: style.weight,
           tracking: style.tracking,
         });
-        const runs = flattenInline(paragraph.tokens ?? [], spec, this.palette.text);
+        const teile = paragraph.tokens ?? [];
+        const bilder = teile.filter((teil) => teil.type === 'image');
+        if (bilder.length > 0) {
+          let stapel: Token[] = [];
+          const setzeStapel = () => {
+            const runs = flattenInline(stapel, spec, this.palette.text);
+            stapel = [];
+            if (runs.every((run) => run.text.trim() === '')) return;
+            this.gapBefore(base * 0.35);
+            this.paragraph(runs, base * style.lineHeight, indent);
+            this.y += base * 0.42;
+          };
+          for (const teil of teile) {
+            if (teil.type === 'image') {
+              setzeStapel();
+              this.image(teil as Tokens.Image, indent);
+              continue;
+            }
+            stapel.push(teil);
+          }
+          setzeStapel();
+          return;
+        }
+
+        this.gapBefore(base * 0.35);
+        const runs = flattenInline(teile, spec, this.palette.text);
         this.paragraph(runs, base * style.lineHeight, indent);
         this.y += base * 0.42;
         return;
@@ -432,13 +467,44 @@ class Layout {
     }
 
     if (inlineTokens.length > 0) {
-      const runs = inlineTokens.flatMap((child) => {
+      /*
+         Ein Absatz bleibt ein Absatz — auch im Listenpunkt.
+
+         Verschmolzen wurde hier alles zu *einer* Laufreihe: ein lockerer
+         Listenpunkt (Leerzeile zwischen zwei Absätzen, die gewöhnliche
+         Schreibweise für einen mehrteiligen Punkt) klebte damit zusammen zu
+         „Erster Absatz.Zweiter Absatz." — ohne Leerzeichen, ohne Umbruch, in
+         jeder Ausgabe. Absätze gehen deshalb einzeln durch, alles andere wird
+         wie zuvor zusammengezogen.
+      */
+      let gesammelt: StyledRun[] = [];
+      let erster = true;
+      const setze = () => {
+        if (gesammelt.length === 0) return;
+        if (!erster) this.y += base * 0.3;
+        this.paragraph(gesammelt, lineHeight, contentIndent);
+        gesammelt = [];
+        erster = false;
+      };
+      for (const child of inlineTokens) {
+        /*
+           Die Leerzeile *ist* die Grenze. Ein lockerer Listenpunkt bekommt von
+           marked kein `paragraph`, sondern zwei `text`-Kinder mit einem
+           `space` dazwischen — und weil hier alles zu einer Laufreihe
+           verschmolzen wurde, stand danach „Erster Absatz.Zweiter Absatz."
+        */
+        if (child.type === 'space') {
+          setze();
+          continue;
+        }
         const withTokens = child as Token & { tokens?: Token[]; text?: string };
-        return withTokens.tokens
-          ? flattenInline(withTokens.tokens, spec, this.palette.text)
-          : [{ text: withTokens.text ?? '', font: spec, color: this.palette.text }];
-      });
-      this.paragraph(runs, lineHeight, contentIndent);
+        gesammelt.push(
+          ...(withTokens.tokens
+            ? flattenInline(withTokens.tokens, spec, this.palette.text)
+            : [{ text: withTokens.text ?? '', font: spec, color: this.palette.text }]),
+        );
+      }
+      setze();
     } else {
       this.y += lineHeight;
     }
@@ -779,6 +845,26 @@ export function flattenInline(
         case 'br':
           out.push({ text: '', font: spec, color: currentColor, hardBreak: true });
           break;
+        case 'html': {
+          /*
+             Rohes HTML wird nicht gesetzt — auf Blockebene steht das
+             ausgeschrieben („exporting it as vector text would be a lie"), und
+             inline galt es nicht: `<br>` fiel in den `default`-Zweig und stand
+             danach als Text auf der Folie, samt spitzer Klammern. Wer in einem
+             Markdown-Feld einen Umbruch erzwingen wollte — die verbreitetste
+             Schreibweise dafür —, bekam ihn ausgedruckt statt ausgeführt.
+
+             `<br>` ist die eine Ausnahme, und zwar keine erfundene: marked
+             liefert dafür nur deshalb kein `br`-Token, weil das Zeichen nicht
+             am Zeilenende steht. Alles andere wird stillschweigend
+             weggelassen, wie auf Blockebene.
+          */
+          const roh = (withTokens.text ?? '').trim();
+          if (/^<br\s*\/?>$/i.test(roh)) {
+            out.push({ text: '', font: spec, color: currentColor, hardBreak: true });
+          }
+          break;
+        }
         case 'image':
           out.push({
             text: (token as Tokens.Image).text || '',
@@ -919,9 +1005,17 @@ export function wrapRuns(runs: readonly StyledRun[], maxWidth: number): Position
       flush();
       continue;
     }
-    const pieces = run.text.split(/(\s+)/).filter((piece) => piece !== '');
+    /*
+       Geschnitten wird an Weißraum — **außer am geschützten Leerzeichen**.
+
+       `\s` schließt U+00A0 ein, und `trim()` zählt es ebenfalls als Weißraum:
+       `10&nbsp;km` wurde damit an genau der Stelle umgebrochen, an der es
+       nicht umgebrochen werden soll. `decodeEntities()` übersetzt `&nbsp;`
+       richtig — und der Umbruch machte die Übersetzung sofort wieder zunichte.
+    */
+    const pieces = run.text.split(/([^\S\u00a0]+)/).filter((piece) => piece !== '');
     for (const piece of pieces) {
-      const isSpace = piece.trim() === '';
+      const isSpace = piece !== '' && !/[^\s]|\u00a0/.test(piece);
       const width = measureText(piece, run.font);
 
       if (isSpace) {
@@ -934,15 +1028,27 @@ export function wrapRuns(runs: readonly StyledRun[], maxWidth: number): Position
         continue;
       }
 
-      if (x + width <= maxWidth || current.length === 0) {
-        if (width > maxWidth && current.length === 0) {
-          // A single unbreakable token wider than the line: break by character.
-          for (const chunk of breakByCharacter(piece, run.font, maxWidth)) {
-            if (x > 0) flush();
-            push(run, chunk.text, chunk.width);
-          }
-          continue;
+      /*
+         Ein Wort, das breiter ist als die Zeile, wird zeichenweise gebrochen —
+         und zwar auch dann, wenn schon etwas auf der Zeile steht.
+
+         Der Zeichenbruch stand *innerhalb* des Zweigs „passt noch" und
+         zusätzlich hinter `current.length === 0`: er griff also nur, wenn das
+         lange Wort allein auf der Zeile stand. Stand ein Wort davor, fiel das
+         lange in den `flush(); push()` darunter — und lief über die Kante des
+         Elements hinaus, im SVG, im PDF und in der `.pptx`. Der Kopf dieser
+         Funktion verspricht `overflow-wrap: anywhere`.
+      */
+      if (width > maxWidth) {
+        if (current.length > 0) flush();
+        for (const chunk of breakByCharacter(piece, run.font, maxWidth)) {
+          if (x > 0) flush();
+          push(run, chunk.text, chunk.width);
         }
+        continue;
+      }
+
+      if (x + width <= maxWidth || current.length === 0) {
         push(run, piece, width);
         continue;
       }
