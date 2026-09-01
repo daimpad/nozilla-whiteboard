@@ -154,8 +154,16 @@ export function elementTexts(element: CanvasElement): Textfeld[] {
       if (element.label) nimm('Überschrift', 'label', element.label);
       nimm('Zellen', 'data', element.data);
       break;
-    case 'icon':
     case 'connector':
+      /*
+         Ein Verbinder trägt eine Beschriftung („abgelehnt" am Pfeil eines
+         Flussdiagramms), und sie stand hier bei den Arten *ohne* Text. Sie war
+         damit nicht zu finden und über „Alle ersetzen" nicht zu ändern —
+         dasselbe, was dem Diagramm schon einmal passiert ist.
+      */
+      if (element.label) nimm('Beschriftung', 'label', element.label);
+      break;
+    case 'icon':
     case 'wordmark':
       break;
     default: {

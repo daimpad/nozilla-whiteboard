@@ -255,6 +255,22 @@ function spalteFuer(element: CanvasElement): { w: number; h: number } {
  */
 const ZUSAMMENFASSEN_MS = 600;
 
+/**
+ * Ein Element ändern — und dabei den Rohblock fallen lassen.
+ *
+ * `unknownRaw` hält den Block einer Elementart, die diese Fassung nicht kennt,
+ * damit er beim Sichern wortgleich zurückgeht. Sobald jemand das Element
+ * anfasst, gilt das nicht mehr: sonst stünde beim nächsten Öffnen wieder der
+ * alte Block da und die eben gemachte Änderung nirgends. Dieselbe Regel wie
+ * bei `SlideMeta.unreadable`, und sie steht hier, weil hier jede Änderung
+ * vorbeikommt.
+ */
+function geaendert(element: CanvasElement, patch: Partial<CanvasElement>): CanvasElement {
+  const neu = { ...element, ...patch } as CanvasElement;
+  if (neu.unknownRaw) delete neu.unknownRaw;
+  return neu;
+}
+
 export const useDeckStore = create<EditorState>()((set, get) => {
   /**
    * Der zuletzt abgelegte Schritt — woraufhin und wann.
@@ -723,7 +739,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
           dirty: true,
           deck: withElements(state, (elements) =>
             elements.map((element) =>
-              targets.has(element.id) ? ({ ...element, ...patch } as CanvasElement) : element,
+              targets.has(element.id) ? geaendert(element, patch) : element,
             ),
           ),
         };
@@ -738,7 +754,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
             elements.map((element) => {
               if (!targets.has(element.id)) return element;
               const patch = updater(element);
-              return patch ? ({ ...element, ...patch } as CanvasElement) : element;
+              return patch ? geaendert(element, patch) : element;
             }),
           ),
         };

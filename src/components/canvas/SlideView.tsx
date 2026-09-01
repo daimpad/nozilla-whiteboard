@@ -11,6 +11,8 @@ import { canvas, motion } from '@/theme';
 import { kindLabels, labelOf } from '@/lib/labels';
 import { useFontsVersion } from '@/hooks/useFonts';
 import { useThemeVersion } from '@/hooks/useTheme';
+import { useImageSizes } from '@/hooks/useImageSizes';
+import { bildmass } from '@/lib/export/images';
 import {
   backgroundStyle,
   buildElementPrims,
@@ -67,6 +69,17 @@ function SlideViewImpl({
      gesetzt. Ohne das bleibt der erste, falsch gesetzte Satz stehen.
   */
   const fonts = useFontsVersion();
+  /*
+     Die Bildmaße — dieselben, mit denen der Export rechnet.
+
+     Ohne sie fiel der Setzer für ein Markdown-Bild auf „volle Spaltenbreite,
+     Verhältnis 0,5625" zurück: ein 300 × 300 großes Logo stand hier 1104 × 621
+     da und in jeder Ausgabe 300 × 300, und der Absatz darunter begann einmal
+     unterhalb des Folienrands und einmal in der oberen Hälfte. Der Kopf dieser
+     Datei verspricht *genau das Markup* des SVG-Exports; ohne dieselben Maße
+     stimmt der Satz nicht.
+  */
+  const bilder = useImageSizes(deck);
   // Ein Wechsel des Erscheinungsbilds ändert jede Farbe und jedes Maß der
   // Szene. Ohne diesen Zähler bliebe das gemerkte Markup stehen.
   const skin = useThemeVersion();
@@ -80,10 +93,14 @@ function SlideViewImpl({
     [slide.meta.background, skin],
   );
 
-  // `fonts` steht bewusst in der Liste, obwohl der Rumpf es nicht liest: es ist
-  // der Schlüssel, der den Merker verfallen lässt. Gilt für alle drei hier.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const backdrop = useMemo(() => primsToSvgMarkup(buildSlideBackdrop(slide)), [slide, fonts, skin]);
+  // `fonts` und `bilder` stehen bewusst in der Liste, obwohl der Rumpf sie
+  // nicht liest: sie sind die Schlüssel, die den Merker verfallen lassen.
+  // Gilt für alle drei hier.
+  const backdrop = useMemo(
+    () => primsToSvgMarkup(buildSlideBackdrop(slide, { resolveImageSize: bildmass })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [slide, fonts, skin, bilder],
+  );
 
   const footer = useMemo(
     () =>
@@ -128,6 +145,7 @@ function SlideViewImpl({
             animate={animateReveals && step > 0 && step === revealStep}
             index={index}
             fonts={fonts}
+            bilder={bilder}
             skin={skin}
             focusable={focusable}
             onFocusElement={onFocusElement}
@@ -150,6 +168,8 @@ interface ElementLayerProps {
   index: number;
   /** Zählt hoch, sobald die Schriften da sind — siehe `SlideViewImpl`. */
   fonts: number;
+  /** Zähler der Bildmaße — lässt den Merker verfallen, sobald sie eintreffen. */
+  bilder: number;
   /** Zählt hoch, sobald ein anderes Erscheinungsbild gilt. */
   skin: number;
   focusable: boolean;
@@ -162,14 +182,15 @@ const ElementLayer = memo(function ElementLayer({
   animate,
   index,
   fonts,
+  bilder,
   skin,
   focusable,
   onFocusElement,
 }: ElementLayerProps) {
   const markup = useMemo(
-    () => primsToSvgMarkup(buildElementPrims(element, background)),
+    () => primsToSvgMarkup(buildElementPrims(element, background, { resolveImageSize: bildmass })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [element, background, fonts, skin],
+    [element, background, fonts, skin, bilder],
   );
 
   const animation = element.reveal?.animation ?? 'rise';

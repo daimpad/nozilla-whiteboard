@@ -113,6 +113,22 @@ export interface ElementBase {
   opacity: number;
   locked: boolean;
   reveal?: Reveal;
+  /**
+   * Der Rohblock einer Elementart, die diese Fassung nicht kennt.
+   *
+   * Dieselbe Linie wie `SlideMeta.unreadable` und wie ein unbekanntes `theme:`
+   * im Frontmatter: **den Wert behalten, die Lücke zeigen.** Ein `kind`, das
+   * nicht in `elementKinds` steht — ein Tippfehler beim Handeditieren, ein
+   * Sprachmodell, das über die elf Arten hinausschreibt, ein Deck aus einer
+   * neueren Fassung —, wurde vorher zu `shape` und alles Übrige fiel weg. Auf
+   * der Folie stand ein leerer Kasten, und **Öffnen und Sichern genügte**, um
+   * den Inhalt endgültig zu verlieren.
+   *
+   * Solange dieses Feld steht, schreibt der Serialisierer den Block wortgleich
+   * zurück. Wer das Element ändert, verliert es — sonst stünde beim nächsten
+   * Öffnen wieder der alte Block da und die eben gemachte Änderung nirgends.
+   */
+  unknownRaw?: Record<string, unknown>;
   /** Optionaler Name für die Ebenenliste. */
   name?: string;
   /**

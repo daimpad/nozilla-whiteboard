@@ -59,6 +59,7 @@ import {
 } from '@/model/types';
 import { readFileAsDataUrl } from '@/lib/export/download';
 import { overflowOf } from '@/lib/overflow';
+import { kartenFelder } from '@/lib/export/scene';
 import { selectCurrentSlide, useDeckStore, useSelectedElements } from '@/state/deckStore';
 import { useThemeVersion } from '@/hooks/useTheme';
 import {
@@ -782,13 +783,23 @@ function KindFields({ element, patch }: KindFieldsProps) {
               options={cardVariants.map((value) => ({ value, label: labelOf(cardLabels, value) }))}
             />
           </Field>
-          <Field label="Label">
-            <input
-              className="nz-field"
-              value={element.label ?? ''}
-              onChange={(event) => patch({ label: event.target.value } as Partial<CanvasElement>)}
-            />
-          </Field>
+          {/*
+            Gezeigt wird, was die Variante wirklich benutzt — gefragt wird
+            `kartenFelder()`, also dieselbe Rechnung, nach der gezeichnet wird.
+            Vorher standen beide Felder bei jeder Variante da: wer bei „Zitat"
+            ein Label eintrug, sah es auf der Folie nie (und in der `.pptx`
+            sehr wohl), und das Zeichen war bei drei von fünf Varianten
+            folgenlos.
+          */}
+          {kartenFelder(element.variant).label ? (
+            <Field label={element.variant === 'step' ? 'Nummer' : 'Label'}>
+              <input
+                className="nz-field"
+                value={element.label ?? ''}
+                onChange={(event) => patch({ label: event.target.value } as Partial<CanvasElement>)}
+              />
+            </Field>
+          ) : null}
           <Field label="Titel">
             <textarea
               rows={2}
@@ -805,11 +816,13 @@ function KindFields({ element, patch }: KindFieldsProps) {
               onChange={(event) => patch({ body: event.target.value } as Partial<CanvasElement>)}
             />
           </Field>
-          <IconField
-            value={element.icon}
-            allowNone
-            onChange={(icon) => patch({ icon } as Partial<CanvasElement>)}
-          />
+          {kartenFelder(element.variant).icon ? (
+            <IconField
+              value={element.icon}
+              allowNone
+              onChange={(icon) => patch({ icon } as Partial<CanvasElement>)}
+            />
+          ) : null}
         </>
       );
 

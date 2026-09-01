@@ -108,6 +108,24 @@ export type ScenePrim =
        * als Anzeigename, den keine Hilfstechnik liest.
        */
       alt?: string;
+      /**
+       * Wie das Bild in seinen Kasten kommt.
+       *
+       * Gehört in die **Szene** und nicht nur ins Modell — aus demselben Grund
+       * wie `alt` eine Zeile darüber: jede Ausgabe braucht es, und keine kann
+       * es sich selbst zusammenreimen. Es fehlte hier, und die Folge war
+       * dieselbe Sorte Schaden wie damals beim Alternativtext, nur sichtbar:
+       * der Inspektor bot „Ganz sichtbar" und „Füllend" an, schrieb die Wahl
+       * in die `.md` und kündigte sie dem Sprachmodell an — gelesen hat sie
+       * niemand. Das SVG passte immer ein (fest `xMidYMid meet`), PDF und PPTX
+       * zogen immer auf den Kasten. Ein 2:1-Bild in einem 400 × 400-Kasten
+       * stand damit auf derselben Folie einmal eingepasst und einmal auf die
+       * halbe Höhe gestaucht.
+       *
+       * Ohne Angabe wird eingepasst — das ist, was die Fläche und das SVG
+       * bisher taten, und damit ändert sich für ein bestehendes Deck nichts.
+       */
+      fit?: 'cover' | 'contain';
       opacity?: number;
       rotate?: number;
     };
@@ -602,7 +620,32 @@ export function buildElementPrims(
   switch (element.kind) {
     case 'shape': {
       const geometry = shapeGeometry(element.shape, element.w, element.h);
-      emitBody(geometry.segs, geometry.closed);
+      /*
+         Eine **offene** Form hat keine Fläche, die man füllen könnte.
+
+         „Rahmen" sind vier Eckwinkel, „Klammer" ist ein Haken — beide sind
+         Striche und keine Umrisse. Mit „Füllung: Fläche" bekam der Körper
+         deshalb einen Farbwert und keine Kontur, und `svg.ts` schreibt für
+         einen offenen Pfad `fill="none"`: gemessen kam
+         `<path d="…" fill="none"/>` heraus, also **gar nichts**. Das Element
+         blieb im Modell, in der Ebenenliste und in der `.md` stehen, ließ sich
+         anwählen — und war auf der Fläche, im SVG, im PNG, im PDF und in der
+         `.pptx` verschwunden, ohne ein Wort.
+
+         Gezeichnet wird deshalb die Kontur. Das ist die einzige Lesart, die
+         eine offene Form für „hier soll etwas stehen" hat, und es ist, was
+         jedes Zeichenprogramm tut.
+      */
+      const koerper =
+        !geometry.closed && paint.body.fill && !paint.body.stroke
+          ? {
+              stroke: paint.line,
+              strokeWidth: strokeWidthOf(element.strokeWeight),
+              lineJoin: 'miter' as const,
+              lineCap: 'square' as const,
+            }
+          : undefined;
+      emitBody(geometry.segs, geometry.closed, koerper);
       if (element.label?.trim()) {
         const result = typesetText(element.label, element.labelStyle ?? 'body', {
           width: Math.max(8, element.w - element.padding * 2),
@@ -781,14 +824,36 @@ export function buildElementPrims(
             opacity: opacity === 1 ? undefined : opacity,
           });
         }
+        /*
+           Die linke obere Ecke **nach** der Matrix, nicht davor.
+
+           `rotate` an einem Primitiv dreht um (x, y) — so steht es am
+           `text`-Primitiv, und so rechnet `svg.ts`. Hier stand aber die
+           *ungedrehte* Ecke des Elements: gedreht wurde damit um die linke
+           obere Ecke, während `elementMatrix()` alles andere am selben Element
+           um die Mitte dreht. Bei 90° und einem 400 × 100-Bild lagen Rahmen und
+           Schatten bei x 250…350 / y 50…450, das Bild bei x 0…100 / y 200…600 —
+           zwei getrennte Dinge auf derselben Folie, und das Bild links aus der
+           Folie heraus. Der Klickbereich (`CanvasStage`, `transformOrigin:
+           'center center'`) lag dort, wo das Bild *nicht* war, und die `.pptx`
+           setzte es an eine dritte Stelle.
+
+           `typesetToScene()` macht es achthundert Zeilen weiter unten für
+           dasselbe Primitiv richtig; hier fehlte es. Weil `elementMatrix` erst
+           um die Mitte dreht und dann verschiebt, ist die Ecke nach der Matrix
+           genau der Punkt, um den auch gedreht werden muss: die beiden
+           Rechnungen liefern dieselben vier Ecken.
+        */
+        const ecke = applyMatrix(matrix, 0, 0);
         out.push({
           t: 'image',
-          x: element.x,
-          y: element.y,
+          x: ecke.x,
+          y: ecke.y,
           w: element.w,
           h: element.h,
           href: element.src,
           alt: element.alt || undefined,
+          fit: element.fit,
           opacity: opacity === 1 ? undefined : opacity,
           rotate: element.rotation || undefined,
         });
@@ -939,6 +1004,40 @@ function wordmarkScene(
 /* -------------------------------------------------------------------------- */
 /* Karten                                                                      */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * Welche Felder eine Kartenvariante wirklich benutzt.
+ *
+ * Eine Rechnung, drei Kunden: `cardScene()` zeichnet danach, der PPTX-Weg
+ * schreibt danach, und der Inspektor zeigt die Felder danach. Vorher wusste es
+ * jeder für sich, und die drei waren sich uneinig: bei „Zitat" und „Notiz"
+ * bot der Inspektor ein Label an, die Fläche zeichnete es nicht — und die
+ * `.pptx` schrieb es als eigenen Absatz über das Zitat. Dieselbe Karte, zwei
+ * Ergebnisse. Das Zeichen bot der Inspektor bei jeder Variante an; gezeichnet
+ * wurde es bei zweien.
+ *
+ * Verloren ging dabei nichts: die Felder überleben den Weg in die `.md`. Es
+ * wurde nur nichts daraus, und ein Feld, dessen Inhalt niemand liest, ist
+ * schlimmer als kein Feld.
+ */
+export function kartenFelder(variant: CardElement['variant']): {
+  label: boolean;
+  icon: boolean;
+} {
+  switch (variant) {
+    case 'stat':
+      return { label: true, icon: false };
+    case 'step':
+      // Das Label ist hier die Ziffer im Quadrat — ohne Angabe eine 1.
+      return { label: true, icon: false };
+    case 'feature':
+      return { label: true, icon: true };
+    case 'note':
+      return { label: false, icon: true };
+    case 'quote':
+      return { label: false, icon: false };
+  }
+}
 
 function cardScene(
   element: CardElement,
@@ -1323,12 +1422,23 @@ function pushZentriert(
     weight: style.weight,
     tracking: style.tracking,
   });
-  const breite = measureText(text, spec);
+  /*
+     Die Stufe `label` schreibt groß, und das gehört zu ihr wie ihre Laufweite:
+     die 0,12 em sind für Versalien gerechnet. `typesetText()` wendet `caps` an,
+     hier fehlte es — dieselbe CI-Stufe stand damit in einem Element zweimal
+     verschieden da: die Überschrift „UMSATZ JE REGION" groß, die Kategorien
+     „Nord"/„Süd" darunter gemischt, und die gesperrte Laufweite lag an einem
+     Text, für den sie nicht gedacht ist.
+
+     **Vor** dem Messen, sonst wandert die Zentrierung: Versalien sind breiter.
+  */
+  const gesetzt = style.caps ? text.toLocaleUpperCase('de-DE') : text;
+  const breite = measureText(gesetzt, spec);
   out.push(
     ...textPrim(
       mitte - breite / 2,
       y,
-      [{ dx: 0, text, font: spec, color: farbe, width: breite }],
+      [{ dx: 0, text: gesetzt, font: spec, color: farbe, width: breite }],
       matrix,
       opacity,
     ),

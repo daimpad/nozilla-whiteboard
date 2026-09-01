@@ -197,9 +197,33 @@ export function parseSlide(chunk: string): Slide {
       if (record.bare === true) meta.bare = true;
 
       if (Array.isArray(record.elements)) {
+        /*
+           Kennungen werden hier eindeutig gemacht und nicht in der Fabrik:
+           `normalizeElement` sieht immer nur *ein* Element und kann von seinen
+           Geschwistern nichts wissen. Hier stehen sie beieinander.
+
+           Der Anlass ist der naheliegendste Handgriff überhaupt: einen
+           Element-Block im `nzl`-Abschnitt kopieren, um eine zweite Karte
+           anzulegen. Danach stand dieselbe `id` zweimal, und weil
+           `updateElements()` im Store über ein `Set` der Kennungen filtert,
+           bewegte ein Ziehen der linken Karte auch die rechte — bei einer
+           Auswahl, die nur einen Eintrag zeigte. `snippetToElements()` und
+           `duplicateSlide()` vergeben längst frische Kennungen; der Weg über
+           die Datei war die eine Lücke.
+        */
+        const vergeben = new Set<string>();
         elements = record.elements
           .map((entry, index) => normalizeElement(entry, index))
-          .filter((entry): entry is CanvasElement => entry !== null);
+          .filter((entry): entry is CanvasElement => entry !== null)
+          .map((entry) => {
+            if (!vergeben.has(entry.id)) {
+              vergeben.add(entry.id);
+              return entry;
+            }
+            const frisch = { ...entry, id: createId(entry.kind) };
+            vergeben.add(frisch.id);
+            return frisch;
+          });
       }
     }
   }

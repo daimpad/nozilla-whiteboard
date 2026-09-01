@@ -224,18 +224,37 @@ export function markdownToBlocks(source: string, options: BlockOptions = {}): Bl
       case 'table': {
         const table = token as Tokens.Table;
         flush();
+        /*
+           Eine Tabelle wird in `small` gesetzt, und zwar unabhängig von
+           `baseStyle` — genau wie der Setzer es tut (`typeset.ts`, `table()`:
+           `const style = typeScale.small`). Hier stand fest `bodyStrong`/`body`,
+           also 16 statt 13: jede Tabelle war in der `.pptx` 23 % größer als auf
+           der Fläche, im SVG und im PDF — und das in Spalten, deren Breite
+           `tableColumnWidths()` mit den Maßen von `small` gerechnet hat. Eine
+           eng gesetzte Kopfzelle brach damit in PowerPoint um und sonst nirgends.
+
+           Auch der Ton kommt von dort: die Kopfzeile in der Tinte, die Zeilen
+           gedämpft. Beides stand hier auf `palette.text`.
+        */
+        const zelle = (fett: boolean) =>
+          font({
+            family: typeScale.small.family as FontSpec['family'],
+            size: typeScale.small.size * scale,
+            weight: fett ? 600 : typeScale.small.weight,
+            tracking: typeScale.small.tracking,
+          });
         out.push({
           t: 'table',
           table: {
             header: table.header.map((cell) =>
-              flattenInline(cell.tokens ?? [], spec('bodyStrong'), palette.text),
+              flattenInline(cell.tokens ?? [], zelle(true), palette.text),
             ),
             align: table.header.map((_, index) => {
               const richtung = table.align?.[index];
               return richtung === 'right' ? 'r' : richtung === 'center' ? 'ctr' : 'l';
             }),
             rows: table.rows.map((row) =>
-              row.map((cell) => flattenInline(cell.tokens ?? [], spec('body'), palette.text)),
+              row.map((cell) => flattenInline(cell.tokens ?? [], zelle(false), palette.muted)),
             ),
           },
         });

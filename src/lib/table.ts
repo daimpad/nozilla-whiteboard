@@ -58,7 +58,23 @@ export function parseTable(source: string, mitKopf: boolean): Tabelle {
     // Der führende und der abschließende Strich einer Markdown-Tabelle
     // gehören zum Rahmen und nicht zum Inhalt; ohne dieses Abschneiden
     // entstünde vorn und hinten je eine leere Spalte.
-    const inhalt = zeile.trim().replace(/\\\|/g, MASKE).replace(/^\|/, '').replace(/\|$/, '');
+    /*
+       Nur rechts beschneiden, nicht links.
+
+       Ein `trim()` über die ganze Zeile entfernte den **führenden Trenner** —
+       bei Tabulatoren und der Zwei-Leerzeichen-Schreibweise ist er Leerraum.
+       Eine leere erste Zelle fiel damit weg, und alle Zellen der Zeile
+       rutschten eine Spalte nach links: aus einer Tabellenkalkulation kopiert,
+       mit einer Gruppenspalte, die nur in der ersten Zeile gefüllt ist, stand
+       danach „Hamburg" unter „Region" und die letzte Spalte leer. In
+       Strich-Schreibweise (`|  | Hamburg | 20 |`) und bei einer leeren Zelle
+       *mitten* in der Zeile ging es gut — es traf ausschließlich die erste.
+    */
+    const inhalt = zeile
+      .replace(/\s+$/, '')
+      .replace(/\\\|/g, MASKE)
+      .replace(/^\s*\|/, '')
+      .replace(/\|$/, '');
     if (!inhalt.trim()) continue;
 
     const zellen = inhalt.split(TRENNER).map((zelle) => zelle.trim().split(MASKE).join('|'));

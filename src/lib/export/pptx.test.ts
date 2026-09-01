@@ -13,7 +13,7 @@
 import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
 import { parseDeck } from '@/lib/markdown/deck';
-import { brand, nozillaTheme, palette, registerTheme, setActiveTheme } from '@/theme';
+import { brand, nozillaTheme, palette, registerTheme, setActiveTheme, typeScale } from '@/theme';
 import { deckToPptx, EMU, SLIDE_CX, SLIDE_CY } from './pptx';
 import { footerMark } from './scene';
 import { footerFrame } from '@/lib/layout/slideLayout';
@@ -442,6 +442,91 @@ describe('Folieninhalt', () => {
     for (const [, text] of slide1.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)) {
       expect(text).not.toMatch(/[\r\n\t]/);
     }
+  });
+});
+
+describe('was die .pptx zeigt und die Fläche nicht', () => {
+  /**
+   * Eine Folie mit einem Element bauen und ihr XML lesen.
+   *
+   * Über `deckToPptx` und das wirklich entstandene ZIP — eine Zusicherung über
+   * eine Zeichenkette beweist hier nichts, das steht im Kopf dieser Datei.
+   */
+  const folieMit = async (nzl: string[]) => {
+    const quelle = ['<!-- nzl', 'elements:', ...nzl, '-->', '', '# Probe'].join('\n');
+    const teile = await readZip(await deckToPptx(parseDeck(quelle), { images: new Map() }));
+    return teile.get('ppt/slides/slide1.xml') ?? '';
+  };
+
+  it('dreht eine Form nicht ein zweites Mal', async () => {
+    /*
+       `buildElementPrims()` schickt jedes Segment durch
+       `transformSegs(segs, elementMatrix(element))` — die Drehung steckt schon
+       in den Koordinaten. Der PPTX-Weg schrieb sie zusätzlich als `rot` in die
+       `a:xfrm`: die Form stand in PowerPoint um 60° gedreht statt um 30, und
+       bei 90° hob es sich auf und die Datei zeigte gar keine Drehung, während
+       Fläche, SVG und PDF sie zeigten.
+    */
+    const xml = await folieMit([
+      '  - kind: shape',
+      '    x: 100',
+      '    y: 200',
+      '    w: 400',
+      '    h: 100',
+      '    rotation: 30',
+    ]);
+    expect(xml).toContain('<a:custGeom');
+    expect(xml).not.toMatch(/<a:xfrm rot="[^0]/);
+  });
+
+  it('setzt Tabellenzellen in derselben Stufe wie der Setzer', async () => {
+    /*
+       Der Setzer zeichnet Tabellen immer in `typeScale.small`; der PPTX-Weg
+       schrieb fest `bodyStrong`/`body`. Jede Tabelle war damit 23 % größer als
+       auf der Fläche — und das in Spalten, deren Breite mit den Maßen von
+       `small` gerechnet ist.
+    */
+    const xml = parts.get('ppt/slides/slide2.xml') ?? '';
+    const groessen = [...xml.matchAll(/<a:rPr[^>]*sz="(\d+)"/g)].map(([, wert]) => Number(wert));
+    const zellen = groessen.filter((wert) => wert < 1600);
+    expect(zellen.length).toBeGreaterThan(0);
+    // `sz` ist in Hundertstel Punkt, eine Folien-Einheit ist drei viertel Punkt.
+    expect(Math.max(...zellen)).toBe(Math.round(typeScale.small.size * 0.75 * 100));
+  });
+
+  it('füllt die Kopfzeile einer Tabelle nicht', async () => {
+    // Der Setzer malt sie nicht — er zeichnet je Zeile nur die Linie darunter.
+    // Die `.pptx` hatte einen grauen Balken obenauf, den sonst niemand kennt.
+    const xml = parts.get('ppt/slides/slide2.xml') ?? '';
+    const zellen = [...xml.matchAll(/<a:tcPr[\s\S]*?<\/a:tcPr>/g)].map(([treffer]) => treffer);
+    expect(zellen.length).toBeGreaterThan(0);
+    /*
+       Die Füllung steht am **Ende** der Sequenz, nach den Linien — die tragen
+       selbst ein `solidFill` für ihre Farbe. Gefragt wird deshalb genau die
+       letzte Angabe jeder Zelle.
+    */
+    expect(zellen.every((zelle) => zelle.endsWith('<a:noFill/></a:tcPr>'))).toBe(true);
+  });
+
+  it('trägt die Beschriftung einer Form und eines Verbinders mit', async () => {
+    /*
+       Sie stehen in der Szene als Text-Primitive, und der PPTX-Weg filtert
+       Textprimitive aus der Geometrie. `TEXT_KINDS` kennt nur Bausteine mit
+       eigenen Textfeldern — ein Flussdiagramm aus beschrifteten Formen und
+       Verbindern war in PowerPoint ein leeres Kastendiagramm.
+    */
+    const xml = await folieMit([
+      '  - kind: shape',
+      '    label: Antrag pruefen',
+      '  - kind: connector',
+      '    x: 400',
+      '    y: 300',
+      '    label: abgelehnt',
+    ]);
+    // Beide Beschriftungen laufen über die Label-Stufe, also in Versalien.
+    const texte = [...xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(([, wert]) => wert);
+    expect(texte).toContain('ANTRAG PRUEFEN');
+    expect(texte).toContain('ABGELEHNT');
   });
 });
 
