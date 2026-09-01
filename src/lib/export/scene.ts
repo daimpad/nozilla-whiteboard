@@ -23,6 +23,7 @@ import {
   stroke as strokeTokens,
   strokeWidth as strokeWidthOf,
   typeScale,
+  type TypeStyleName,
 } from '@/theme';
 import {
   iconDef,
@@ -1097,6 +1098,20 @@ function wordmarkPrims(
   return prims;
 }
 
+/**
+ * Wie groß die Überschrift einer Karte wirklich wird.
+ *
+ * Die Kennzahl-Karte deckelt ihre Ziffer auf 42 % der Kartenhöhe — sonst ragt
+ * eine 88 Einheiten hohe Zahl aus einer 190 Einheiten hohen Karte heraus, und
+ * genau so hoch ist die Kennzahl-Karte im mitgelieferten Deck. Der PPTX-Weg
+ * schrieb dagegen die volle Stufe `headline`, und in PowerPoint stand die Zahl
+ * um ein Zehntel zu groß über ihrem Kasten.
+ */
+export function kartenTitelGroesse(element: CardElement): number {
+  const stufe = typeScale[kartenFelder(element.variant).titel];
+  return element.variant === 'stat' ? Math.min(stufe.size, element.h * 0.42) : stufe.size;
+}
+
 /** Die Maße der Wortmarke bei einer gegebenen Höhe. */
 function wordmarkSize(height: number): { w: number; h: number } {
   const [, , vw, vh] = wordmark.viewBox;
@@ -1150,19 +1165,31 @@ function wordmarkScene(
 export function kartenFelder(variant: CardElement['variant']): {
   label: boolean;
   icon: boolean;
+  /** Die Typo-Stufe der Überschrift. */
+  titel: TypeStyleName;
+  /** Die Typo-Stufe des Fließtexts. */
+  rumpf: TypeStyleName;
 } {
   switch (variant) {
     case 'stat':
-      return { label: true, icon: false };
+      return { label: true, icon: false, titel: 'headline', rumpf: 'small' };
     case 'step':
       // Das Label ist hier die Ziffer im Quadrat — ohne Angabe eine 1.
-      return { label: true, icon: false };
+      return { label: true, icon: false, titel: 'h4', rumpf: 'small' };
     case 'feature':
-      return { label: true, icon: true };
+      return { label: true, icon: true, titel: 'h4', rumpf: 'small' };
     case 'note':
-      return { label: false, icon: true };
+      return { label: false, icon: true, titel: 'h4', rumpf: 'small' };
     case 'quote':
-      return { label: false, icon: false };
+      /*
+         Das Zitat ist die Ausnahme, und sie war der Fehler: der Titel steht in
+         `lead` (Inter Regular, ohne Sperrung) und der Rumpf — die
+         Quellenangabe — in `label`, also Space Mono Bold in Versalien. Der
+         PPTX-Weg führte dafür seine eigene Tabelle und setzte `h4` und
+         `small`: dieselbe Karte, in PowerPoint in einer anderen Schrift, in
+         einem anderen Gewicht und in gemischter Schreibweise.
+      */
+      return { label: false, icon: false, titel: 'lead', rumpf: 'label' };
   }
 }
 
@@ -1187,8 +1214,8 @@ function cardScene(
     case 'stat': {
       if (element.label)
         y += pushLabel(out, element.label, pad, y, innerWidth, paint, matrix, element.opacity) + 8;
-      const style = typeScale.headline;
-      const size = Math.min(style.size, element.h * 0.42);
+      const style = typeScale[kartenFelder(element.variant).titel];
+      const size = kartenTitelGroesse(element);
       const spec = font({
         family: style.family,
         size,
@@ -1217,14 +1244,14 @@ function cardScene(
     }
 
     case 'quote': {
-      const quote = typesetText(element.title, 'lead', {
+      const quote = typesetText(element.title, kartenFelder(element.variant).titel, {
         width: innerWidth,
         palette: elementTypesetPalette(paint),
       });
       out.push(...typesetToScene(quote, pad, y, matrix, element.opacity));
       y += quote.height + gap;
       if (element.body) {
-        const attribution = typesetText(element.body, 'label', {
+        const attribution = typesetText(element.body, kartenFelder(element.variant).rumpf, {
           width: innerWidth,
           palette: { ...elementTypesetPalette(paint), text: paint.muted },
         });
@@ -1612,9 +1639,10 @@ function pushTitleAndBody(
   width: number,
   matrix: Mat,
 ): number {
+  const felder = kartenFelder(element.variant);
   let cursor = y;
   if (element.title) {
-    const title = typesetText(element.title, 'h4', {
+    const title = typesetText(element.title, felder.titel, {
       width,
       palette: elementTypesetPalette(paint),
     });
@@ -1622,7 +1650,7 @@ function pushTitleAndBody(
     cursor += title.height + 8;
   }
   if (element.body) {
-    const body = typesetText(element.body, 'small', {
+    const body = typesetText(element.body, felder.rumpf, {
       width,
       palette: { ...elementTypesetPalette(paint), text: paint.muted },
     });
