@@ -170,3 +170,22 @@ describe('zaehleFunde', () => {
     expect(zaehleFunde(parseDeck('# aaa\n'), 'a')).toBe(0);
   });
 });
+
+/* -------------------------------------------------------------------------- */
+
+describe('die Beschriftung eines Verbinders', () => {
+  it('ist zu finden und zu ersetzen', () => {
+    // Sie stand bei den Arten *ohne* Text und war damit weder zu finden noch
+    // über „Alle ersetzen" zu ändern — dasselbe, was dem Diagramm schon
+    // einmal passiert ist.
+    const verbinder = createElement('connector', { label: 'abgelehnt' });
+    expect(elementTexts(verbinder)).toContainEqual({
+      feld: 'Beschriftung',
+      schluessel: 'label',
+      text: 'abgelehnt',
+    });
+
+    // Und die Gegenrichtung: ohne Beschriftung meldet er nichts.
+    expect(elementTexts(createElement('connector', {}))).toEqual([]);
+  });
+});

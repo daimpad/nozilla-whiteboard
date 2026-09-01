@@ -145,6 +145,74 @@ function formatOf(dataUrl: string): string {
 }
 
 /** A `resolveImageSize` callback for the typesetter, backed by an `ImageMap`. */
+/* -------------------------------------------------------------------------- */
+/* Die Maße, die auch die Fläche braucht                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Ein Merker allein für die **Maße** der Bilder.
+ *
+ * Der Export löst sie über `resolveDeckImages()` auf und rastert dabei jedes
+ * Bild; die Fläche braucht das nicht — sie braucht nur Breite und Höhe, und
+ * zwar dieselben. Sie hatte sie nicht: `SlideView` rief `buildSlideBackdrop()`
+ * und `buildElementPrims()` **ohne** Optionen, also war `resolveImageSize`
+ * undefiniert und der Setzer fiel auf „volle Spaltenbreite, Verhältnis 0,5625"
+ * zurück. Ein 300 × 300 großes Logo stand auf dem Bildschirm 1104 × 621 groß
+ * da und in jeder Ausgabe 300 × 300; der Absatz darunter begann auf der Fläche
+ * unterhalb des Folienrands und im Export in der oberen Hälfte.
+ *
+ * Das widerspricht dem Satz, mit dem `SlideView` überschrieben ist: sie
+ * zeichnet, indem sie *genau das Markup* einsetzt, das der SVG-Export erzeugt.
+ * Ohne dieselben Maße stimmt das nicht.
+ */
+const masse = new Map<string, { w: number; h: number }>();
+const laufend = new Set<string>();
+const hoerer = new Set<() => void>();
+let masseVersion = 0;
+
+/** Das Maß eines Bildes, wenn es schon bekannt ist. */
+export function bildmass(src: string): { w: number; h: number } | undefined {
+  return masse.get(src);
+}
+
+export function bildmasseVersion(): number {
+  return masseVersion;
+}
+
+export function subscribeBildmasse(fn: () => void): () => void {
+  hoerer.add(fn);
+  return () => hoerer.delete(fn);
+}
+
+/**
+ * Die Maße dieser Quellen besorgen, soweit sie fehlen.
+ *
+ * Läuft je Quelle genau einmal — auch wenn zwanzig Folienvorschauen dieselbe
+ * Datei zeigen. Ein Fehlschlag wird hier **nicht** gemeldet: das tut der
+ * Export über `meldeFehlendeBilder()`, und zwar dann, wenn wirklich eine Datei
+ * entsteht. Zweimal dieselbe Klage über dasselbe tote Bild wäre eine zu viel.
+ */
+export function fordereBildmasse(quellen: readonly string[]): void {
+  for (const src of quellen) {
+    if (!src || masse.has(src) || laufend.has(src)) continue;
+    laufend.add(src);
+    void loadImage(src)
+      .then((image) => {
+        masse.set(src, {
+          w: image.naturalWidth || image.width,
+          h: image.naturalHeight || image.height,
+        });
+        masseVersion += 1;
+        for (const fn of hoerer) fn();
+      })
+      .catch(() => {
+        // Ein totes Bild bleibt ohne Maß; der Setzer nimmt dann seinen
+        // Rückfall, und der Export sagt Bescheid.
+      })
+      .finally(() => laufend.delete(src));
+  }
+}
+
 export function sizeResolver(map: ImageMap) {
   return (src: string): { w: number; h: number } | undefined => {
     const entry = map.get(src);

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   escapeCommentTerminators,
   parseDeck,
+  parseSlide,
   serializeDeck,
   splitFrontmatter,
   splitSlides,
@@ -342,5 +343,80 @@ describe('ein `nzl`-Block, der sich nicht lesen lässt', () => {
     // ein Fehlalarm, und Fehlalarme bringen echte Warnungen um ihre Wirkung.
     const deck = parseDeck(['<!-- nzl', '-->', '', '# Eins', ''].join('\n'));
     expect(deck.slides[0].meta.unreadable).toBeUndefined();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('was eine Datei mitbringen kann', () => {
+  it('macht doppelte Kennungen eindeutig', () => {
+    /*
+       Einen Element-Block im `nzl`-Abschnitt kopieren ist der naheliegendste
+       Weg, eine zweite Karte anzulegen — und danach stand dieselbe `id`
+       zweimal. `updateElements()` filtert über ein `Set` der Kennungen: ein
+       Ziehen der linken Karte bewegte auch die rechte, bei einer Auswahl, die
+       nur einen Eintrag zeigte.
+    */
+    const slide = parseSlide(
+      [
+        '<!-- nzl',
+        'elements:',
+        '  - kind: card',
+        '    id: doppelt',
+        '  - kind: card',
+        '    id: doppelt',
+        '-->',
+        '',
+        '# Probe',
+      ].join('\n'),
+    );
+    expect(slide.elements).toHaveLength(2);
+    expect(new Set(slide.elements.map((element) => element.id)).size).toBe(2);
+    // Und die erste behält ihre — nur die Wiederholung bekommt eine neue.
+    expect(slide.elements[0].id).toBe('doppelt');
+  });
+
+  it('behält den Block einer Elementart, die es hier nicht gibt', () => {
+    /*
+       Der teuerste Fehler dieser Datei, in klein: `oneOf(raw.kind, …, 'shape')`
+       machte aus `kind: heading` ein Rechteck, der `switch` ließ alles Übrige
+       fallen, und **Öffnen und Sichern genügte**, um den Inhalt endgültig zu
+       verlieren. Dieselbe Linie wie beim unlesbaren `nzl`-Block und beim
+       unbekannten `theme:`: den Wert behalten, die Lücke zeigen.
+
+       Geprüft wird an der **gesicherten Datei** und nicht am Modell — das
+       Modell weiß von dem Block ohnehin nichts, und trotzdem wäre nichts
+       verloren, wenn er beim Schreiben wieder dastünde.
+    */
+    const quelle = [
+      '<!-- nzl',
+      'elements:',
+      '  - kind: heading',
+      '    text: Ein Satz, den diese Fassung nicht kennt',
+      '    x: 40',
+      '    y: 40',
+      '-->',
+      '',
+      '# Probe',
+    ].join('\n');
+
+    const deck = parseDeck(quelle);
+    const zurueck = serializeDeck(deck);
+    expect(zurueck).toContain('kind: heading');
+    expect(zurueck).toContain('Ein Satz, den diese Fassung nicht kennt');
+
+    // Und er verfällt, sobald jemand das Element ändert — sonst stünde beim
+    // nächsten Öffnen der alte Block da und die Änderung nirgends.
+    const geaendert = {
+      ...deck,
+      slides: deck.slides.map((slide) => ({
+        ...slide,
+        elements: slide.elements.map((element) => {
+          const { unknownRaw: _weg, ...rest } = element;
+          return { ...rest, x: 99 } as typeof element;
+        }),
+      })),
+    };
+    expect(serializeDeck(geaendert)).not.toContain('kind: heading');
   });
 });

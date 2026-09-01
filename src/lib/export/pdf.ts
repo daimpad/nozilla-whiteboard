@@ -38,7 +38,7 @@ export interface PdfOptions {
   /** Override the slide-unit → point scale. */
   scale?: number;
   /** Bitmap data for `image` primitives, keyed by `href`. */
-  images?: Map<string, { dataUrl: string; format: string }>;
+  images?: Map<string, { dataUrl: string; format: string; w?: number; h?: number }>;
   /**
    * Die Marken-Schriften einbetten (Vorgabe). Aus, wenn die Szene ohnehin
    * schon in Umrisse gewandelt wurde — dann gibt es keinen Text mehr, den eine
@@ -485,18 +485,39 @@ function drawImage(
   if (!source) return;
 
   const format = entry?.format ?? guessFormat(source);
+  /*
+     jsPDF kennt kein `preserveAspectRatio`: es zieht das Bild auf das
+     angegebene Rechteck. Eingepasst wird deshalb hier, und zwar aus den echten
+     Maßen — vorher stand ein 2:1-Bild in einem 400 × 400-Kasten auf der Fläche
+     und im SVG eingepasst da und im PDF auf die halbe Höhe gestaucht:
+     dieselbe Folie, zwei Bilder.
+
+     Ohne bekannte Maße bleibt es beim Strecken. Das ist nicht schön und
+     trotzdem richtig: raten hieße, ein Verhältnis zu erfinden.
+  */
+  const kasten = einpassen(prim, entry?.w, entry?.h);
+  const beschnitten = kasten.w > prim.w + 0.01 || kasten.h > prim.h + 0.01;
   try {
+    if (beschnitten) {
+      // „Füllend" heißt: den Kasten voll machen und den Überstand abschneiden.
+      // Ohne den Beschnitt liefe das Bild über seinen eigenen Rahmen hinaus.
+      doc.saveGraphicsState();
+      doc.rect(prim.x * scale, prim.y * scale, prim.w * scale, prim.h * scale);
+      doc.clip();
+      doc.discardPath();
+    }
     doc.addImage(
       source,
       format,
-      prim.x * scale,
-      prim.y * scale,
-      prim.w * scale,
-      prim.h * scale,
+      kasten.x * scale,
+      kasten.y * scale,
+      kasten.w * scale,
+      kasten.h * scale,
       undefined,
       'FAST',
       prim.rotate ? -prim.rotate : 0,
     );
+    if (beschnitten) doc.restoreGraphicsState();
   } catch {
     /*
        Ein kaputtes Bild darf den ganzen Export nicht abbrechen — aber es
@@ -507,6 +528,34 @@ function drawImage(
     */
     meldeFehlendeBilder([prim.href]);
   }
+}
+
+/**
+ * Das Rechteck, in dem das Bild wirklich landet.
+ *
+ * Die Szene sagt, wie eingepasst werden soll; das SVG kann das selbst
+ * (`preserveAspectRatio`), jsPDF nicht — es zieht das Bild stur auf das
+ * angegebene Rechteck. Gerechnet wird deshalb hier, und zwar aus den echten
+ * Maßen des Bildes: ohne sie ist jede Einpassung eine Erfindung, und dann
+ * bleibt es beim Strecken.
+ */
+function einpassen(
+  prim: Extract<ScenePrim, { t: 'image' }>,
+  breite: number | undefined,
+  hoehe: number | undefined,
+): { x: number; y: number; w: number; h: number } {
+  const kasten = { x: prim.x, y: prim.y, w: prim.w, h: prim.h };
+  if (!breite || !hoehe || prim.w <= 0 || prim.h <= 0) return kasten;
+
+  const eigen = breite / hoehe;
+  const platz = prim.w / prim.h;
+  // `contain` nimmt den kleineren Maßstab (Luft an zwei Seiten), `cover` den
+  // größeren (Überstand an zwei Seiten, der beschnitten wird).
+  const breiter = prim.fit === 'cover' ? eigen < platz : eigen > platz;
+
+  const w = breiter ? prim.w : prim.h * eigen;
+  const h = breiter ? prim.w / eigen : prim.h;
+  return { x: prim.x + (prim.w - w) / 2, y: prim.y + (prim.h - h) / 2, w, h };
 }
 
 function guessFormat(dataUrl: string): string {

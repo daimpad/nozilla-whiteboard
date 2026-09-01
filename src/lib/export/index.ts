@@ -208,7 +208,7 @@ export async function renderPdf(
     images: new Map(
       [...images.values()].map((image) => [
         image.src,
-        { dataUrl: image.dataUrl, format: image.format },
+        { dataUrl: image.dataUrl, format: image.format, w: image.w, h: image.h },
       ]),
     ),
   });
@@ -267,7 +267,7 @@ export async function renderHandoutPdf(
     images: new Map(
       [...images.values()].map((image) => [
         image.src,
-        { dataUrl: image.dataUrl, format: image.format },
+        { dataUrl: image.dataUrl, format: image.format, w: image.w, h: image.h },
       ]),
     ),
   });

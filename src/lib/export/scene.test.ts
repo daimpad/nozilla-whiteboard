@@ -18,7 +18,14 @@
  * wer ihnen ein Feld hinzufügt, sieht hier, dass er es getan hat.
  */
 import { describe, expect, it } from 'vitest';
-import { buildSlideBackdrop, buildSlideChrome } from './scene';
+import {
+  buildElementPrims,
+  buildSlideBackdrop,
+  buildSlideChrome,
+  kartenFelder,
+  type ScenePrim,
+} from './scene';
+import { primsToSvgMarkup } from './svg';
 import { createEmptySlide } from '@/lib/markdown/deck';
 import { createElement } from '@/model/factory';
 import type { Deck, Slide } from '@/model/types';
@@ -94,5 +101,144 @@ describe('die Fußzeile einer Folie', () => {
     expect(buildSlideChrome(folie(), deck(), { ...optionen, slideNumber: 4 })).not.toEqual(
       schlicht,
     );
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('was ein Element zeichnet', () => {
+  /** Die Hülle aller Pfadsegmente eines Prims. */
+  const huelle = (prims: ScenePrim[]) => {
+    // Nur die Kontur: der Schatten liegt versetzt und verschöbe die Hülle.
+    const punkte = prims.flatMap((prim) =>
+      prim.t === 'path' && prim.stroke
+        ? prim.segs.flatMap((seg) => ('x' in seg ? [{ x: seg.x, y: seg.y }] : []))
+        : [],
+    );
+    return {
+      x0: Math.min(...punkte.map((p) => p.x)),
+      x1: Math.max(...punkte.map((p) => p.x)),
+      y0: Math.min(...punkte.map((p) => p.y)),
+      y1: Math.max(...punkte.map((p) => p.y)),
+    };
+  };
+
+  it('dreht ein Bild um dieselbe Mitte wie seinen Rahmen', () => {
+    /*
+       Das `image`-Primitiv ging als einziges an `elementMatrix()` vorbei: es
+       bekam die *ungedrehte* Ecke plus einen Winkel, und `svg.ts` dreht um
+       (x, y) — also um die linke obere Ecke, während alles andere am selben
+       Element um die Mitte gedreht wird. Bei 90° und 400 × 100 lagen Rahmen
+       und Schatten bei x 250…350 / y 50…450 und das Bild bei x 0…100 /
+       y 200…600: zwei getrennte Dinge auf derselben Folie, das Bild links aus
+       der Folie heraus, und der Klickbereich dort, wo es nicht ist.
+
+       Geprüft wird an der **Hülle**, nicht am Winkel: der Kasten des Bildes
+       muss dort liegen, wo der Kasten seines eigenen Rahmens liegt.
+    */
+    const bild = createElement('image', {
+      x: 100,
+      y: 200,
+      w: 400,
+      h: 100,
+      rotation: 90,
+      src: 'logo.png',
+      fill: 'outline',
+    });
+    const prims = buildElementPrims(bild);
+    const rahmen = huelle(prims);
+    const gemalt = prims.find((prim) => prim.t === 'image');
+    expect(gemalt?.t).toBe('image');
+    if (gemalt?.t !== 'image') return;
+
+    // Die Ecke des Bildes ist eine Ecke seines Rahmens.
+    const ecken = [
+      [rahmen.x0, rahmen.y0],
+      [rahmen.x1, rahmen.y0],
+      [rahmen.x1, rahmen.y1],
+      [rahmen.x0, rahmen.y1],
+    ];
+    expect(
+      ecken.some(([x, y]) => Math.abs(x - gemalt.x) < 0.01 && Math.abs(y - gemalt.y) < 0.01),
+    ).toBe(true);
+
+    // Und die Gegenrichtung: ohne Drehung ändert sich nichts.
+    const gerade = buildElementPrims({ ...bild, rotation: 0 });
+    const ohne = gerade.find((prim) => prim.t === 'image');
+    expect(ohne?.t === 'image' && ohne.x).toBe(100);
+    expect(ohne?.t === 'image' && ohne.y).toBe(200);
+  });
+
+  it('trägt die Einpassung in die Szene', () => {
+    // `fit` stand im Modell, im Inspektor und in der `.md` — und in keiner
+    // Ausgabe. Ein Feld, dessen Inhalt niemand liest, ist schlimmer als keins.
+    for (const fit of ['cover', 'contain'] as const) {
+      const bild = createElement('image', { src: 'a.png', fit });
+      const prim = buildElementPrims(bild).find((p) => p.t === 'image');
+      expect(prim?.t === 'image' && prim.fit).toBe(fit);
+    }
+  });
+
+  it('zeichnet eine offene Form auch dann, wenn sie gefüllt werden soll', () => {
+    /*
+       „Rahmen" und „Klammer" sind Striche und haben keine Fläche. Mit
+       „Füllung: Fläche" bekam der Körper einen Farbwert und keine Kontur, und
+       ein offener Pfad wird mit `fill="none"` geschrieben: gemessen kam
+       `<path d="…" fill="none"/>` heraus — das Element war aus jeder Ausgabe
+       verschwunden, stand aber weiter in der Ebenenliste und in der `.md`.
+    */
+    for (const shape of ['frame', 'bracket'] as const) {
+      const form = createElement('shape', { shape, fill: 'flat', w: 200, h: 100 });
+      const markup = primsToSvgMarkup(buildElementPrims(form));
+      expect(markup, `${shape} zeichnet nichts`).toMatch(/stroke="/);
+    }
+
+    // Die Gegenrichtung: „ohne" heißt weiterhin nichts, und eine geschlossene
+    // Form wird weiterhin gefüllt.
+    expect(buildElementPrims(createElement('shape', { shape: 'frame', fill: 'none' }))).toEqual([]);
+    expect(
+      primsToSvgMarkup(
+        buildElementPrims(createElement('shape', { shape: 'rectangle', fill: 'flat' })),
+      ),
+    ).toMatch(/fill="#/);
+  });
+
+  it('setzt die Kategorien eines Diagramms in Versalien wie jede andere Label-Stufe', () => {
+    // `typeScale.label` schreibt groß, und die 0,12 em Laufweite sind dafür
+    // gerechnet. `typesetText()` wendet `caps` an, `pushZentriert()` nicht —
+    // dieselbe Stufe stand in einem Element zweimal verschieden da.
+    const diagramm = createElement('chart', {
+      data: 'Nord  12\nSüd  20',
+      label: 'Umsatz',
+      w: 420,
+      h: 300,
+    });
+    const texte = buildElementPrims(diagramm)
+      .filter((prim) => prim.t === 'text')
+      .flatMap((prim) => (prim.t === 'text' ? prim.runs.map((run) => run.text) : []));
+    expect(texte.join(' ')).toContain('NORD');
+    expect(texte.join(' ')).not.toContain('Nord');
+  });
+
+  it('nennt für jede Kartenvariante dieselben Felder, die sie zeichnet', () => {
+    /*
+       Die Rechnung, die drei Kunden teilen. Geprüft wird sie an dem, was
+       wirklich herauskommt: wo `kartenFelder` „Label" sagt, muss das Label auf
+       der Folie stehen — und wo es „nein" sagt, darf es nirgends stehen.
+    */
+    for (const variant of ['stat', 'quote', 'step', 'note', 'feature'] as const) {
+      const karte = createElement('card', {
+        variant,
+        label: 'MERKMAL',
+        title: 'Titel',
+        w: 320,
+        h: 220,
+      });
+      const texte = buildElementPrims(karte)
+        .filter((prim) => prim.t === 'text')
+        .flatMap((prim) => (prim.t === 'text' ? prim.runs.map((run) => run.text) : []))
+        .join(' ');
+      expect(texte.includes('MERKMAL'), `${variant}: Label`).toBe(kartenFelder(variant).label);
+    }
   });
 });

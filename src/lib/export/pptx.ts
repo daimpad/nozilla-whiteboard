@@ -36,6 +36,7 @@ import {
   buildElementPrims,
   footerMark,
   elementPaint,
+  kartenFelder,
   type BackgroundStyle,
   type ScenePrim,
 } from './scene';
@@ -147,6 +148,9 @@ interface MediaItem {
   file: string;
   ext: string;
   bytes: Uint8Array;
+  /** Die echten Maße — ohne sie ist jede Einpassung eine Erfindung. */
+  w: number;
+  h: number;
 }
 
 /**
@@ -199,7 +203,7 @@ function collectMedia(images: ImageMap): MediaItem[] {
 
     const ext = IMAGE_TYPES[mime] ?? 'png';
     index += 1;
-    out.push({ src: image.src, file: `image${index}.${ext}`, ext, bytes });
+    out.push({ src: image.src, file: `image${index}.${ext}`, ext, bytes, w: image.w, h: image.h });
   }
   return out;
 }
@@ -288,7 +292,7 @@ function buildSlide(slide: Slide, deck: Deck, context: SlideContext): BuiltSlide
     // Fußzeile ist hier die Ausnahme, die Marke ist keine.
     const mark = footerMark(bg.muted);
     for (const prim of mark.prims) {
-      const shape = primToShape(prim, nextId, 0);
+      const shape = primToShape(prim, nextId);
       if (shape) shapes.push(shape);
     }
 
@@ -395,7 +399,7 @@ function elementShapes(
     const item = context.media.find((entry) => entry.src === element.src);
     if (!item) return [];
     if (!used.includes(item)) used.push(item);
-    return [pictureShape(nextId(), element, used.indexOf(item) + 1)];
+    return [pictureShape(nextId(), element, used.indexOf(item) + 1, item)];
   }
 
   /*
@@ -426,7 +430,7 @@ function elementShapes(
 
   // Alles Gezeichnete zuerst — Rahmen, Schatten, Icon, Verbinder.
   for (const prim of geometry) {
-    const shape = primToShape(prim, nextId, element.rotation);
+    const shape = primToShape(prim, nextId);
     if (shape) out.push(shape);
   }
 
@@ -438,7 +442,16 @@ function elementShapes(
   // Beschriftung gezeigt — dieselbe Falle wie damals bei der Wortmarke, und
   // dieselbe Antwort: der Weg, der seine Fußzeile selbst setzt, muss auch
   // selbst hinsehen.
-  if (element.kind === 'chart') {
+  if (element.kind === 'chart' || element.kind === 'shape' || element.kind === 'connector') {
+    /*
+       Form und Verbinder kamen dazu, und aus demselben Grund wie das Diagramm:
+       ihre Beschriftung steht in der **Szene** (scene.ts setzt sie als
+       Text-Primitiv), und oben werden Textprimitive aus der Geometrie
+       gefiltert. `TEXT_KINDS` kennt nur Bausteine mit eigenen Textfeldern, also
+       fiel sie hier heraus — ein Flussdiagramm aus beschrifteten Formen und
+       Verbindern war in PowerPoint ein leeres Kastendiagramm, während Fläche,
+       SVG, PNG und PDF es richtig zeigten.
+    */
     for (const prim of prims) {
       if (prim.t !== 'text') continue;
       out.push(...scenenTextShape(prim, nextId));
@@ -614,7 +627,13 @@ function elementParagraphs(element: CanvasElement, bg: BackgroundStyle): Paragra
       // Stufen und Abstände wie in `cardScene()`: Label, dann +6, Titel,
       // dann +8, Fließtext in der gedämpften Tinte.
       const out: Paragraph[] = [];
-      if (element.label && element.variant !== 'step') {
+      /*
+         Gefragt wird `kartenFelder()`, also dieselbe Rechnung, nach der
+         `cardScene()` zeichnet. Hier stand `variant !== 'step'`, und damit
+         schrieb die `.pptx` bei „Zitat" und „Notiz" ein Label, das auf der
+         Fläche, im SVG, im PNG und im PDF nirgends steht.
+      */
+      if (element.label && kartenFelder(element.variant).label && element.variant !== 'step') {
         out.push(inlineToParagraph(element.label, 'label', { color: paint.muted }));
       }
       if (element.title) {
@@ -647,7 +666,25 @@ function elementParagraphs(element: CanvasElement, bg: BackgroundStyle): Paragra
 /* Primitive → Form                                                            */
 /* -------------------------------------------------------------------------- */
 
-function primToShape(prim: ScenePrim, nextId: IdFn, rotation: number): string | null {
+/**
+ * Ein gezeichnetes Primitiv als PowerPoint-Form.
+ *
+ * **Ohne Drehung**, und das ist der Punkt. Ein `ScenePrim` trägt seine Drehung
+ * bereits in den Koordinaten: `buildElementPrims()` schickt jedes Segment durch
+ * `transformSegs(segs, elementMatrix(element))`, und `elementMatrix` dreht um
+ * die Elementmitte. Hier stand trotzdem `element.rotation` und wurde als `rot`
+ * in die `a:xfrm` geschrieben — die Form war in PowerPoint doppelt gedreht.
+ *
+ * Gemessen an einem 400 × 100-Rechteck mit 30°: die Segmente haben die Hülle
+ * 101,8…498,2 / 106,7…393,3, also schon gedreht; mit dem zweiten `rot` stand
+ * die Form um 60° gedreht da. Bei 90° hob es sich auf und die `.pptx` zeigte
+ * *gar keine* Drehung, während Fläche, SVG und PDF sie zeigten.
+ *
+ * Das Bild ist die Ausnahme und bleibt es: `pictureShape()` setzt seine Drehung
+ * über `xfrm`, weil ein `p:pic` keine eigene Geometrie hat, die man drehen
+ * könnte — PowerPoint dreht dort um die Mitte, und genau das meint das Modell.
+ */
+function primToShape(prim: ScenePrim, nextId: IdFn): string | null {
   switch (prim.t) {
     case 'rect':
       return segsShape(
@@ -661,14 +698,13 @@ function primToShape(prim: ScenePrim, nextId: IdFn, rotation: number): string | 
         ],
         prim,
         true,
-        rotation,
       );
 
     case 'ellipse':
-      return ellipseShape(nextId(), prim, rotation);
+      return ellipseShape(nextId(), prim);
 
     case 'path':
-      return segsShape(nextId(), prim.segs, prim, prim.closed, rotation);
+      return segsShape(nextId(), prim.segs, prim, prim.closed);
 
     default:
       return null;
@@ -698,7 +734,6 @@ function segsShape(
   segs: readonly Seg[],
   paint: PaintLike,
   closed: boolean,
-  rotation: number,
 ): string | null {
   if (segs.length === 0) return null;
   const box = segsBounds(segs);
@@ -746,7 +781,8 @@ function segsShape(
     y: box.y,
     w,
     h,
-    rotation,
+    // Ohne `rotation`: die Segmente tragen sie schon.
+    rotation: 0,
     geometry: geom,
     fill: closed ? paint.fill : undefined,
     line: lineXml(paint),
@@ -754,17 +790,13 @@ function segsShape(
   });
 }
 
-function ellipseShape(
-  id: number,
-  prim: Extract<ScenePrim, { t: 'ellipse' }>,
-  rotation: number,
-): string {
+function ellipseShape(id: number, prim: Extract<ScenePrim, { t: 'ellipse' }>): string {
   return shape(id, 'Ellipse', {
     x: prim.cx - prim.rx,
     y: prim.cy - prim.ry,
     w: prim.rx * 2,
     h: prim.ry * 2,
-    rotation,
+    rotation: 0,
     geometry: '<a:prstGeom prst="ellipse"><a:avLst/></a:prstGeom>',
     fill: prim.fill,
     line: lineXml(prim),
@@ -1135,7 +1167,7 @@ function tableShape(
   // Linien mitten durch die Schrift legen.
   const rowHeight = emu(TABLE_ROW_HEIGHT);
 
-  const cell = (runs: StyledRun[], header: boolean, spalte: number): string => {
+  const cell = (runs: StyledRun[], spalte: number): string => {
     const para: Paragraph = {
       runs,
       level: 0,
@@ -1162,21 +1194,30 @@ function tableShape(
       '<a:lnL><a:noFill/></a:lnL><a:lnR><a:noFill/></a:lnR><a:lnT><a:noFill/></a:lnT>' +
       `<a:lnB w="${emu(strokeWidthOf('hair'))}" cap="flat">${solidFill(bg.line)}` +
       '<a:prstDash val="solid"/></a:lnB>' +
-      (header ? solidFill(bg.codeBackground) : '<a:noFill/>') +
+      /*
+         **Keine** Füllung, auch nicht in der Kopfzeile.
+
+         Hier stand `solidFill(bg.codeBackground)` für die Kopfzeile — und der
+         Setzer malt sie nicht: `typeset.ts` zeichnet je Zeile nur die
+         waagerechte Linie darunter und setzt die Kopfzeile in der Tinte statt
+         gedämpft. Dieselbe Tabelle hatte damit in PowerPoint einen grauen
+         Balken obenauf, den Fläche, SVG und PDF nicht kennen. Die CI kennt ihn
+         auch nicht: eine Tabelle ist dort eine Folge von Zeilen, kein Raster
+         und keine Kopfleiste.
+      */
+      '<a:noFill/>' +
       '</a:tcPr></a:tc>'
     );
   };
 
   const rows = [
     `<a:tr h="${rowHeight}">` +
-      table.header.map((runs, index) => cell(runs, true, index)).join('') +
+      table.header.map((runs, index) => cell(runs, index)).join('') +
       '</a:tr>',
     ...table.rows.map(
       (row) =>
         `<a:tr h="${rowHeight}">` +
-        Array.from({ length: columns }, (_, index) => cell(row[index] ?? [], false, index)).join(
-          '',
-        ) +
+        Array.from({ length: columns }, (_, index) => cell(row[index] ?? [], index)).join('') +
         '</a:tr>',
     ),
   ];
@@ -1202,11 +1243,61 @@ function tableShape(
 /* Bild                                                                        */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Das Bild einpassen — über `a:srcRect`, den einzigen Weg, den OOXML kennt.
+ *
+ * `a:stretch` zieht das Bild auf den Rahmen; ein Ausschnitt entsteht, indem
+ * man vom *Quellbild* Prozente abschneidet. Für „Füllend" ist das genau
+ * richtig. Für „Ganz sichtbar" geht es nicht — man kann nichts *hinzufügen* —,
+ * deshalb wird dort der Rahmen selbst auf das Seitenverhältnis gebracht, und
+ * zwar mittig im vorgesehenen Kasten. Das ist dasselbe, was das SVG mit
+ * `xMidYMid meet` tut und was `einpassen()` im PDF rechnet.
+ */
+function bildkasten(
+  element: Extract<CanvasElement, { kind: 'image' }>,
+  item: MediaItem | undefined,
+): { x: number; y: number; w: number; h: number; srcRect: string } {
+  const kasten = { x: element.x, y: element.y, w: element.w, h: element.h, srcRect: '' };
+  const breite = item?.w;
+  const hoehe = item?.h;
+  if (!breite || !hoehe || element.w <= 0 || element.h <= 0) return kasten;
+
+  const eigen = breite / hoehe;
+  const platz = element.w / element.h;
+  if (Math.abs(eigen - platz) < 0.001) return kasten;
+
+  if (element.fit === 'cover') {
+    // Der Überstand wird vom Quellbild abgeschnitten, je zur Hälfte links und
+    // rechts beziehungsweise oben und unten. `a:srcRect` zählt in Tausendstel
+    // Prozent.
+    const anteil = eigen > platz ? 1 - platz / eigen : 1 - eigen / platz;
+    const rand = Math.round((anteil / 2) * 100000);
+    if (rand <= 0) return kasten;
+    kasten.srcRect =
+      eigen > platz
+        ? `<a:srcRect l="${rand}" r="${rand}"/>`
+        : `<a:srcRect t="${rand}" b="${rand}"/>`;
+    return kasten;
+  }
+
+  const w = eigen > platz ? element.w : element.h * eigen;
+  const h = eigen > platz ? element.w / eigen : element.h;
+  return {
+    x: element.x + (element.w - w) / 2,
+    y: element.y + (element.h - h) / 2,
+    w,
+    h,
+    srcRect: '',
+  };
+}
+
 function pictureShape(
   id: number,
   element: Extract<CanvasElement, { kind: 'image' }>,
   relIndex: number,
+  item?: MediaItem,
 ): string {
+  const kasten = bildkasten(element, item);
   return [
     '<p:pic>',
     /*
@@ -1219,9 +1310,10 @@ function pictureShape(
       (element.alt ? ` descr="${escapeXml(element.alt)}"` : '') +
       '/>',
     '<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>',
-    `<p:blipFill><a:blip r:embed="rId${relIndex + 10}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>`,
+    `<p:blipFill><a:blip r:embed="rId${relIndex + 10}"/>${kasten.srcRect}` +
+      '<a:stretch><a:fillRect/></a:stretch></p:blipFill>',
     '<p:spPr>',
-    xfrm(element.x, element.y, element.w, element.h, element.rotation),
+    xfrm(kasten.x, kasten.y, kasten.w, kasten.h, element.rotation),
     '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>',
     '</p:spPr>',
     '</p:pic>',

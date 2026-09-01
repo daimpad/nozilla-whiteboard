@@ -143,7 +143,8 @@ function primToSvg(prim: ScenePrim): string {
       const kopf =
         `<image x="${round(prim.x)}" y="${round(prim.y)}" width="${round(prim.w)}" ` +
         `height="${round(prim.h)}" href="${escapeXml(prim.href)}" ` +
-        `preserveAspectRatio="xMidYMid meet"${transform}${opacity}`;
+        `preserveAspectRatio="${prim.fit === 'cover' ? 'xMidYMid slice' : 'xMidYMid meet'}"` +
+        `${transform}${opacity}`;
       /*
          Der Alternativtext steht als `<title>`, weil das die Stelle ist, an
          der eine Hilfstechnik ihn sucht — in einer `.svg`-Datei genauso wie

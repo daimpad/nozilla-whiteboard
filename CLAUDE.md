@@ -1397,6 +1397,124 @@ wissen" darf dabei herauskommen. Zwei der Regeln oben — die Ersatzkette und di
 Schriftgewichte — sind erst dadurch als richtig belegt und nicht nur als
 scharf.
 
+**Ein Bild drehte sich um seine Ecke, sein Rahmen um die Mitte.** Alles, was
+ein Element zeichnet, geht über `transformSegs(segs, elementMatrix(element))`,
+und `elementMatrix` dreht um die Elementmitte — das `image`-Primitiv ging als
+einziges daran vorbei: es bekam die *ungedrehte* Ecke plus einen Winkel, und
+`svg.ts` dreht um (x, y). Bei 90° und 400 × 100 lagen Rahmen und Schatten bei x
+250…350 / y 50…450 und das Bild bei x 0…100 / y 200…600 — zwei getrennte Dinge
+auf derselben Folie, das Bild links aus der Folie heraus, und der Klickbereich
+(`transformOrigin: 'center center'`) dort, wo es nicht ist. Die `.pptx` setzte
+es an eine dritte Stelle.
+
+`typesetToScene()` macht es achthundert Zeilen weiter unten für dasselbe
+Primitiv richtig — es fehlte nur hier. Geprüft wird an der **Hülle**: der
+Kasten des Bildes muss dort liegen, wo der Kasten seines eigenen Rahmens liegt,
+nicht am Winkel.
+
+**Und der PPTX-Weg drehte ein zweites Mal.** Die Segmente tragen die Drehung
+schon; `primToShape()` schrieb sie zusätzlich als `rot` in die `a:xfrm`.
+Gemessen an einem 400 × 100-Rechteck mit 30°: die Segmente haben die Hülle
+101,8…498,2 / 106,7…393,3, also schon gedreht — mit dem zweiten `rot` stand die
+Form um 60° gedreht da. Bei 90° hob es sich auf, und die `.pptx` zeigte *gar
+keine* Drehung, während drei andere Wege sie zeigten. Das Bild bleibt die
+Ausnahme: ein `p:pic` hat keine eigene Geometrie, die man drehen könnte.
+
+**„Einpassung" erreichte keine einzige Ausgabe.** `ImageElement.fit` stand im
+Modell, im Inspektor („Ganz sichtbar" / „Füllend"), in der `.md` und im
+Deck-Prompt — und die `ScenePrim` hatte kein solches Feld. Das SVG passte immer
+ein (fest `xMidYMid meet`), PDF und PPTX zogen immer auf den Kasten: ein
+2:1-Bild in einem 400 × 400-Kasten stand auf derselben Folie einmal eingepasst
+und einmal auf die halbe Höhe gestaucht. Wer „Füllend" wählte, änderte nichts.
+
+Es steht jetzt in der Szene wie seinerzeit `alt`, und jede Ausgabe liest es an
+einer Stelle: SVG über `meet`/`slice`, PPTX über `a:srcRect` (Ausschnitt)
+beziehungsweise einen auf das Verhältnis gebrachten Rahmen, PDF über ein
+gerechnetes Rechteck samt Beschnitt — jsPDF kennt kein `preserveAspectRatio`.
+Ohne bekannte Maße bleibt es beim Strecken: eine Einpassung ohne die echten
+Maße wäre eine Erfindung.
+
+**Die Fläche maß Markdown-Bilder anders als der Export.** `SlideView` rief
+`buildSlideBackdrop()` und `buildElementPrims()` **ohne Optionen** — also war
+`resolveImageSize` undefiniert, und der Setzer fiel auf „volle Spaltenbreite,
+Verhältnis 0,5625" zurück. Ein 300 × 300 großes Logo stand auf dem Bildschirm
+1104 × 621 groß da und in jeder Ausgabe 300 × 300; der Absatz darunter begann
+auf der Fläche unterhalb des Folienrands und im Export in der oberen Hälfte.
+Wer die Folie so setzte, dass sie auf dem Bildschirm passt, bekam eine Datei
+mit einem Drittel des Bildes und einem Loch darunter.
+
+Das widerspricht dem Satz, mit dem `SlideView` überschrieben ist — sie
+zeichnet, indem sie *genau das Markup* einsetzt, das der SVG-Export erzeugt.
+Die Maße kommen jetzt aus einem eigenen Merker (`bildmass`,
+`fordereBildmasse`), der nur Breite und Höhe holt und nicht wie der Export
+jedes Bild rastert; ein Zähler daran lässt die `useMemo` verfallen, sobald sie
+eintreffen — dieselbe Bauart wie bei den Schriften.
+
+**Eine unbekannte Elementart war ein stiller Löschbefehl.** `oneOf(raw.kind,
+elementKinds, 'shape')` machte aus einem `kind: heading` — einem Tippfehler
+beim Handeditieren, einem Sprachmodell, das über die elf Arten hinausschreibt —
+ein Rechteck, und der `switch` darunter ließ alles Übrige fallen. Auf der Folie
+stand ein leerer Kasten, und **Öffnen und Sichern genügte**: der Block stand
+danach als `kind: shape` in der Datei, der Satz nirgends mehr. Wörtlich der
+teuerste Fehler dieses Projekts, eine Ebene tiefer.
+
+Der Rohblock bleibt jetzt in `ElementBase.unknownRaw` liegen und wird
+wortgleich zurückgeschrieben — dieselbe Linie wie beim unlesbaren `nzl`-Block
+und beim unbekannten `theme:`. Und er verfällt, sobald jemand das Element
+anfasst: `geaendert()` im Store räumt ihn weg, sonst stünde beim nächsten
+Öffnen wieder der alte Block da und die eben gemachte Änderung nirgends.
+Geprüft wird an der **gesicherten Datei**, nicht am Modell.
+
+**Eine doppelte Kennung aus der Datei blieb doppelt.** Einen Element-Block im
+`nzl`-Abschnitt zu kopieren ist der naheliegendste Weg, eine zweite Karte
+anzulegen — danach stand dieselbe `id` zweimal, und weil `updateElements()`
+über ein `Set` der Kennungen filtert, bewegte ein Ziehen der linken Karte auch
+die rechte, bei einer Auswahl, die einen Eintrag zeigte. Eindeutig gemacht wird
+es in `parseSlide`, wo die Geschwister beieinanderstehen: `normalizeElement`
+sieht immer nur *ein* Element.
+
+**Drei Dinge, die nur die `.pptx` anders machte.** Tabellenzellen setzte sie in
+`bodyStrong`/`body` (16) statt in `small` (13), also 23 % größer als die Fläche
+— und das in Spalten, deren Breite `tableColumnWidths()` mit den Maßen von
+`small` rechnet; eine eng gesetzte Kopfzelle brach dort um und sonst nirgends.
+Die Kopfzeile jeder Tabelle bekam eine Füllung, die der Setzer nicht malt. Und
+die Beschriftung von Form und Verbinder fiel ganz heraus: sie steht in der
+Szene als Text-Primitiv, der PPTX-Weg filtert Textprimitive aus der Geometrie,
+und `TEXT_KINDS` kennt nur Bausteine mit eigenen Textfeldern — ein
+Flussdiagramm war in PowerPoint ein leeres Kastendiagramm.
+
+**Eine offene Form mit „Füllung: Fläche" verschwand.** „Rahmen" sind vier
+Eckwinkel, „Klammer" ist ein Haken — beides Striche ohne Fläche. Der Körper
+bekam damit einen Farbwert und keine Kontur, und ein offener Pfad wird mit
+`fill="none"` geschrieben: gemessen kam `<path d="…" fill="none"/>` heraus,
+also nichts. Das Element blieb im Modell, in der Ebenenliste und in der `.md`
+stehen und ließ sich anwählen — und war aus jeder Ausgabe verschwunden, ohne
+ein Wort. Gezeichnet wird jetzt die Kontur: die einzige Lesart, die eine offene
+Form für „hier soll etwas stehen" hat.
+
+**Vier Felder, die nur manche Varianten benutzen — und drei, die sich uneinig
+waren.** Der Inspektor bot bei jeder Kartenvariante Label und Zeichen an;
+gezeichnet wurde das Label bei dreien, das Zeichen bei zweien. Und die `.pptx`
+schrieb das Label auch dort, wo die Fläche es nicht zeichnet: bei „Zitat" stand
+es dort als eigener Absatz über dem Zitat. Verloren ging nichts — die Felder
+überleben den Weg in die `.md`; es wurde nur nichts daraus, und ein Feld,
+dessen Inhalt niemand liest, ist schlimmer als kein Feld.
+`kartenFelder(variant)` ist jetzt die eine Rechnung, und alle drei fragen sie.
+
+**Und der Rauchtest hielt die alte Schreibweise fest.** Die Prüfung „ein
+Diagramm zeichnet die Zahlen, die drinstehen" suchte `>Eins<` — die drei
+Zahlen daneben fielen bei der Umstellung auf Versalien nicht auf, weil Ziffern
+keine Schreibweise haben. Nur der Text verrät sie, und die Prüfung sucht ihn
+jetzt in beiden Richtungen: groß muss dastehen, gemischt darf nicht.
+
+**Ein `trim()` fraß den führenden Trenner.** Bei Tabulatoren und der
+Zwei-Leerzeichen-Schreibweise *ist* er Leerraum: eine leere erste Zelle fiel
+weg, und alle Zellen der Zeile rutschten eine Spalte nach links. Aus einer
+Tabellenkalkulation kopiert, mit einer Gruppenspalte, die nur in der ersten
+Zeile gefüllt ist, stand danach „Hamburg" unter „Region" und die letzte Spalte
+leer. In Strich-Schreibweise und bei einer leeren Zelle *mitten* in der Zeile
+ging es gut — es traf ausschließlich die erste.
+
 ---
 
 ## Git

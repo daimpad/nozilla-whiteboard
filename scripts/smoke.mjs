@@ -804,8 +804,19 @@ async function main() {
     await feld.fill('Eins  10\nZwei  90');
     await seite.waitForTimeout(800);
 
+    /*
+       In Versalien, und das ist der Punkt: die Kategorien laufen über
+       `typeScale.label`, und diese Stufe schreibt groß — ihre Laufweite von
+       0,12 em ist dafür gerechnet. `pushZentriert()` wandte `caps` lange nicht
+       an, und dieselbe CI-Stufe stand damit in einem Element zweimal
+       verschieden da: die Überschrift groß, die Kategorie darunter gemischt.
+
+       Die drei Zahlen oben fielen dabei nicht auf — Ziffern haben keine
+       Schreibweise. Nur der Text verrät es.
+    */
     const nachher = (await folie()).markup;
-    wahr(nachher.includes('>Eins<'), 'die neuen Beschriftungen stehen nicht auf der Folie');
+    wahr(nachher.includes('>EINS<'), 'die neuen Beschriftungen stehen nicht auf der Folie');
+    wahr(!nachher.includes('>Eins<'), 'die Kategorie steht nicht in Versalien');
     wahr(!nachher.includes('>2023<'), 'die alten Beschriftungen stehen noch da');
   });
 

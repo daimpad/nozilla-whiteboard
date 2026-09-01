@@ -315,6 +315,20 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
   if (!isRecord(raw)) return null;
 
   const kind = oneOf(raw.kind, elementKinds, 'shape');
+  /*
+     Eine Art, die diese Fassung nicht kennt, wird gezeichnet *und* behalten.
+
+     `oneOf` macht aus `kind: heading` ein `shape`, und der `switch` weiter
+     unten lässt alles Übrige fallen: auf der Folie stand ein leerer Kasten,
+     und beim nächsten Sichern war der Inhalt weg — Öffnen und Speichern
+     genügte. Der Rohblock bleibt deshalb liegen und wird wortgleich
+     zurückgeschrieben; die Fläche zeigt derweil das Rechteck, damit die Folie
+     nicht auseinanderfällt.
+  */
+  const unknownRaw =
+    typeof raw.kind === 'string' && !(elementKinds as readonly string[]).includes(raw.kind)
+      ? { ...raw }
+      : undefined;
   const size = defaultSize[kind];
   const base: ElementBase = {
     id: str(raw.id) || createId(kind),
@@ -325,6 +339,7 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
     h: Math.max(kind === 'connector' ? 0 : 1, num(raw.h, size.h)),
     rotation: num(raw.rotation, 0),
     z: num(raw.z, index),
+    ...(unknownRaw ? { unknownRaw } : {}),
     tone: oneOf(raw.tone, Object.keys(elementTones) as ToneName[], defaultTone[kind]),
     fill: oneOf(raw.fill, fillStyles, defaultFill[kind]),
     strokeWeight: oneOf(
@@ -451,6 +466,13 @@ function normalizeReveal(raw: unknown): { step: number; animation: RevealAnimati
  * und Größe bleiben immer stehen — sie sind der ganze Zweck der Übung.
  */
 export function minimizeElement(element: CanvasElement): Record<string, unknown> {
+  /*
+     Ein Block, den diese Fassung nicht lesen konnte, geht wortgleich zurück.
+     Alles andere hier wäre eine Behauptung über etwas, das wir nicht kennen —
+     und genau die hat den Inhalt einmal gelöscht.
+  */
+  if (element.unknownRaw) return element.unknownRaw;
+
   const kind = element.kind;
   const out: Record<string, unknown> = {
     id: element.id,

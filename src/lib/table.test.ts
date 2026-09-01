@@ -80,3 +80,33 @@ describe('die Markdown-Tabelle daraus', () => {
     expect(toMarkdownTable(t)).toContain('A\\|B');
   });
 });
+
+/* -------------------------------------------------------------------------- */
+
+describe('eine leere erste Zelle', () => {
+  it('überlebt jede Trennweise', () => {
+    /*
+       Aus einer Tabellenkalkulation kopiert, mit einer Gruppenspalte, die nur
+       in der ersten Zeile gefüllt ist. Das `trim()` über die ganze Zeile
+       entfernte den **führenden Trenner** — bei Tabulatoren und der
+       Zwei-Leerzeichen-Schreibweise ist er Leerraum —, und alle Zellen
+       rutschten eine Spalte nach links: „Hamburg" stand unter „Region", die
+       Spalte „Wert" war leer.
+    */
+    const tab = parseTable('Region\tStadt\tWert\nNord\tKiel\t12\n\tHamburg\t20', true);
+    expect(tab.zeilen[1]).toEqual(['', 'Hamburg', '20']);
+
+    const leerzeichen = parseTable('a  b  c\n  y  z', true);
+    expect(leerzeichen.zeilen[0]).toEqual(['', 'y', 'z']);
+
+    /*
+       Die drei Gegenrichtungen, ohne die die Regel nur eine halbe wäre: die
+       Strich-Schreibweise ging schon vorher gut, eine leere Zelle *mitten* in
+       der Zeile auch, und der Rahmenstrich am Zeilenanfang darf weiterhin
+       keine leere Spalte erzeugen.
+    */
+    expect(parseTable('| a | b |\n|  | y |', true).zeilen[0]).toEqual(['', 'y']);
+    expect(parseTable('a  b  c\nx\t\t3', true).zeilen[0]).toEqual(['x', '', '3']);
+    expect(parseTable('| a | b |\n| x | y |', true).kopf).toEqual(['a', 'b']);
+  });
+});
