@@ -1515,6 +1515,46 @@ Zeile gefüllt ist, stand danach „Hamburg" unter „Region" und die letzte Spa
 leer. In Strich-Schreibweise und bei einer leeren Zelle *mitten* in der Zeile
 ging es gut — es traf ausschließlich die erste.
 
+**Ein Regler, der bei sechs von elf Arten nichts tut.** Der Innenabstand stand
+im Inspektor bei jeder Elementart, und gemessen wirkt er bei fünf: Karte,
+Tabelle, Diagramm und — nur mit Fläche — Text und Markdown. Die Fabrik gab dem
+Badge trotzdem 16 mit, dem Zeichen 12 und der Form 20; zwei dieser Zahlen
+stehen auf keiner Stufe der CI-Skala. Wer den Regler bewegte, sah nichts
+geschehen, und das ist die schlimmste Sorte Bedienelement: sie lässt einen an
+sich selbst zweifeln.
+
+`nutztInnenabstand()` ist deshalb eine Rechnung mit zwei Kunden — der Inspektor
+zeigt danach, gezeichnet wird danach. Geprüft wird sie am **Ergebnis**: für
+jede Art und jede Füllung einmal mit Abstand 0 und einmal mit 40 zeichnen und
+das Markup vergleichen. Was sich ändert, muss sie bejahen; was gleich bleibt,
+verneinen. Eine getippte Liste wäre eine zweite Wahrheit über den Zeichner
+gewesen.
+
+**Und daneben eine Fläche, die genau die Farbe des Untergrunds hat.** Fünf der
+achtzig Kombinationen aus Untergrund, Ton und Füllung malen nichts, was sich
+abhebt — darunter `paper` + Ton „Weiß" + „Fläche", also die Vorgabe jeder neuen
+Folie und ein Ton aus der ersten Reihe. Das Element steht danach in der
+Ebenenliste, lässt sich anwählen, hat Maße, und ist auf der Folie, im SVG, im
+PDF und in der .pptx nicht zu sehen. Umgefärbt wird nichts — die Farbe hat
+jemand gewählt —, aber gesagt gehört es.
+
+**Der erste Anlauf dieser Warnung schlug auf sichtbaren Elementen an.** Er
+meldete zusätzlich eine *Kontur* in der Untergrundfarbe und traf damit
+ausschließlich Elemente, deren Fläche man sieht: bei `framed` zieht der Strich
+seinen Ton aus dem Element, bei `outline` aus dem Untergrund, und in beiden
+Fällen steht eine sichtbare Füllung oder ein Gegenton daneben. Dreißig
+Kombinationen hätten geklagt statt fünf. Widerlegt hat es nicht das Nachdenken,
+sondern die Tabelle: einmal alle achtzig durchgerechnet und angesehen, welche
+wirklich unsichtbar sind. Gefragt wird jetzt nach **allem, was der Körper
+malt** — eine Warnung über einem Element, das gut aussieht, ist die Sorte
+Wächter, die man abschaltet.
+
+Beides hängt an einer Stelle, die keine Zusicherung in `scene.test.ts` zeigt:
+die Rechnung kann stimmen und der Inspektor sie trotzdem nicht rufen. Der
+Rauchtest setzt deshalb wirklich einen Ton, wählt wirklich eine Füllung und
+liest, was in der Leiste steht — in beide Richtungen, denn die Gegenprobe ist
+hier der eigentliche Befund.
+
 ---
 
 ## Git

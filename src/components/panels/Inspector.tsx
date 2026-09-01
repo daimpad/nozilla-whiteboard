@@ -59,7 +59,12 @@ import {
 } from '@/model/types';
 import { readFileAsDataUrl } from '@/lib/export/download';
 import { overflowOf } from '@/lib/overflow';
-import { kartenFelder } from '@/lib/export/scene';
+import {
+  backgroundStyle,
+  kartenFelder,
+  nutztInnenabstand,
+  unsichtbareFlaeche,
+} from '@/lib/export/scene';
 import { selectCurrentSlide, useDeckStore, useSelectedElements } from '@/state/deckStore';
 import { useThemeVersion } from '@/hooks/useTheme';
 import {
@@ -363,6 +368,16 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
   // Nur bei einer einzelnen Auswahl: bei mehreren wüsste man nicht, welcher
   // Kasten gemeint ist, und „anpassen" träfe alle.
   const ueberlauf = elements.length === 1 && first ? overflowOf(first) : 0;
+  /*
+     Der Untergrund der offenen Folie — er entscheidet, welche Farben ein
+     Element überhaupt zeigt. Ohne ihn ließe sich nicht sagen, ob eine Fläche
+     im Untergrund verschwindet.
+  */
+  const folie = useDeckStore(selectCurrentSlide);
+  const unsichtbar =
+    elements.length === 1 &&
+    first !== undefined &&
+    unsichtbareFlaeche(first, backgroundStyle(folie?.meta.background ?? 'paper'));
 
   /*
      Der Schlüssel sagt dem Verlauf, was für ein Handgriff das war: dieselben
@@ -568,13 +583,38 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
             }))}
           />
         </Field>
-        <NumberField
-          label="Innenabstand"
-          value={first.padding}
-          min={0}
-          onChange={(padding) => patch({ padding })}
-        />
+        {/*
+          Gezeigt wird das Feld nur, wo es etwas tut — gefragt wird
+          `nutztInnenabstand()`, also dieselbe Rechnung, nach der gezeichnet
+          wird. Vorher stand es bei jeder Art da und wirkte gemessen bei sechs
+          von elf gar nicht: wer den Regler bewegte, sah nichts geschehen.
+        */}
+        {nutztInnenabstand(first) ? (
+          <NumberField
+            label="Innenabstand"
+            value={first.padding}
+            min={0}
+            onChange={(padding) => patch({ padding })}
+          />
+        ) : null}
       </div>
+
+      {/*
+        Und eine Fläche, die genau die Farbe des Untergrunds hat, ist keine.
+        Umgefärbt wird nichts — die Farbe hat jemand gewählt —, aber gesagt
+        gehört es: sonst steht das Element in der Ebenenliste, lässt sich
+        anwählen und ist auf der Folie, im SVG, im PDF und in der .pptx nicht
+        zu sehen. Dieselbe Linie wie beim fehlenden Alternativtext.
+      */}
+      {unsichtbar ? (
+        <p className="flex items-start gap-2 border border-ui-warn bg-ui-warn-bg px-2 py-1.5 text-ui-body text-ui-ink">
+          <Icon name="triangle-exclamation" size={14} className="mt-0.5 shrink-0 text-ui-warn" />
+          <span>
+            Die Fläche hat genau die Farbe des Untergrunds — von diesem Element ist auf der Folie
+            nichts zu sehen.
+          </span>
+        </p>
+      ) : null}
 
       {/* ------------------------------------------------------ kind-specific */}
       <KindFields element={first} patch={patch} />

@@ -19,16 +19,27 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  backgroundStyle,
   buildElementPrims,
   buildSlideBackdrop,
   buildSlideChrome,
   kartenFelder,
+  nutztInnenabstand,
+  unsichtbareFlaeche,
   type ScenePrim,
 } from './scene';
 import { primsToSvgMarkup } from './svg';
 import { createEmptySlide } from '@/lib/markdown/deck';
 import { createElement } from '@/model/factory';
-import type { Deck, Slide } from '@/model/types';
+import {
+  fillStyles,
+  slideBackgrounds,
+  type CanvasElement,
+  type Deck,
+  type ElementKind,
+  type Slide,
+} from '@/model/types';
+import { toneNames } from '@/theme';
 
 const folie = (patch: Partial<Slide> = {}): Slide =>
   createEmptySlide({
@@ -240,5 +251,112 @@ describe('was ein Element zeichnet', () => {
         .join(' ');
       expect(texte.includes('MERKMAL'), `${variant}: Label`).toBe(kartenFelder(variant).label);
     }
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('was die Oberfläche über das Gezeichnete behauptet', () => {
+  /** Ein Element jeder Art, mit genug Inhalt, dass ein Abstand messbar wäre. */
+  const inhalt: Record<string, Record<string, unknown>> = {
+    text: { text: 'Hallo Welt' },
+    markdown: { markdown: '# Titel\n\nEin Absatz.' },
+    card: { title: 'Titel', body: 'Text' },
+    badge: { text: 'Neu' },
+    icon: { icon: 'rocket' },
+    shape: { label: 'Text' },
+    connector: { label: 'ab' },
+    image: { src: 'a.png' },
+    table: { data: 'a  b\n1  2' },
+    chart: { data: 'a  1\nb  2' },
+    wordmark: {},
+  };
+
+  it('zeigt den Innenabstand genau dort, wo er etwas tut', () => {
+    /*
+       Die Rechnung wird an dem geprüft, was **wirklich herauskommt**: für jede
+       Art und jede Füllung wird gezeichnet, einmal mit Abstand 0 und einmal
+       mit 40, und das Markup verglichen. Was sich ändert, muss
+       `nutztInnenabstand()` bejahen — und was gleich bleibt, verneinen.
+
+       Ohne diese Richtung wäre die Funktion eine zweite Wahrheit über den
+       Zeichner: gemessen wirkte der Abstand bei sechs von elf Arten gar
+       nicht, während der Inspektor das Feld überall zeigte und die Fabrik dem
+       Abzeichen 16, dem Zeichen 12 und der Form 20 mitgab.
+    */
+    for (const [kind, felder] of Object.entries(inhalt)) {
+      for (const fill of ['flat', 'none'] as const) {
+        const bauen = (padding: number) =>
+          createElement(
+            kind as ElementKind,
+            {
+              ...felder,
+              fill,
+              padding,
+              w: 260,
+              h: 160,
+            } as Partial<CanvasElement>,
+          );
+        const ohne = bauen(0);
+        const mit = bauen(40);
+        const wirkt =
+          primsToSvgMarkup(buildElementPrims(ohne)) !== primsToSvgMarkup(buildElementPrims(mit));
+        expect(nutztInnenabstand(ohne), `${kind}/${fill}`).toBe(wirkt);
+      }
+    }
+  });
+
+  it('meldet einen Körper, der ganz in der Farbe des Untergrunds gemalt wird', () => {
+    /*
+       Die Liste ist die Messung und keine Meinung: alle achtzig Kombinationen
+       aus Untergrund, Ton und Füllung durchgerechnet, und genau diese fünf
+       malen nichts, was sich vom Untergrund abhebt. Drei Dinge stehen darin,
+       die den Befund tragen — der Untergrund `paper` ist die Vorgabe jeder
+       neuen Folie, `white` ein Ton aus der ersten Reihe des Inspektors, und
+       kein einziger Fall trägt die Füllung `solid` oder `outline`: deren
+       Strich hebt sich immer ab.
+
+       Ändert eine Marke ihre Palette, wird diese Zusicherung rot. Das ist der
+       Sinn — dann gehört nachgesehen, welche Wahl im Inspektor neuerdings
+       nichts mehr tut.
+    */
+    const treffer: string[] = [];
+    for (const hintergrund of slideBackgrounds) {
+      const bg = backgroundStyle(hintergrund);
+      for (const tone of toneNames) {
+        for (const fill of fillStyles) {
+          const element = createElement('shape', { tone, fill, w: 200, h: 100 });
+          if (unsichtbareFlaeche(element, bg)) treffer.push(`${hintergrund}/${tone}/${fill}`);
+        }
+      }
+    }
+    expect(treffer).toEqual([
+      'paper/white/flat',
+      'cream/paper/flat',
+      'ink/ink/flat',
+      'signal/signal/flat',
+      'grid/white/flat',
+    ]);
+
+    /*
+       Und die Messung dahinter, am fertigen Markup: dieselbe Farbe steht
+       wirklich zweimal da, und der Körper trägt keinen Strich, der sie noch
+       verriete.
+    */
+    const unsichtbar = createElement('shape', { tone: 'white', fill: 'flat', w: 200, h: 100 });
+    const aufWeiss = backgroundStyle('paper');
+    const markup = primsToSvgMarkup(buildElementPrims(unsichtbar, aufWeiss));
+    expect(markup).toContain(`fill="${aufWeiss.fill}"`);
+    expect(markup).not.toContain('stroke=');
+
+    /*
+       Die Gegenrichtung, an der der erste Anlauf gescheitert ist: dasselbe
+       Element mit `solid` bekommt einen Strich aus seinem eigenen Ton, steht
+       also sichtbar da — und bekommt deshalb keine Klage, obwohl seine Fläche
+       weiterhin die des Untergrunds ist.
+    */
+    const mitStrich = createElement('shape', { tone: 'white', fill: 'framed', w: 200, h: 100 });
+    expect(unsichtbareFlaeche(mitStrich, aufWeiss)).toBe(false);
+    expect(primsToSvgMarkup(buildElementPrims(mitStrich, aufWeiss))).toContain('stroke=');
   });
 });
