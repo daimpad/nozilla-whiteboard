@@ -62,7 +62,7 @@ import { overflowOf } from '@/lib/overflow';
 import {
   backgroundStyle,
   kartenFelder,
-  nutztInnenabstand,
+  elementFelder,
   unsichtbareFlaeche,
 } from '@/lib/export/scene';
 import { selectCurrentSlide, useDeckStore, useSelectedElements } from '@/state/deckStore';
@@ -373,6 +373,26 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
      Element überhaupt zeigt. Ohne ihn ließe sich nicht sagen, ob eine Fläche
      im Untergrund verschwindet.
   */
+  /*
+     Welche gemeinsamen Felder diese Art überhaupt benutzt — dieselbe Rechnung,
+     nach der gezeichnet wird. Bei mehreren Ausgewählten entscheidet die erste;
+     die Leiste zeigt ohnehin deren Werte.
+
+     `first` ist `CanvasElement` und trotzdem oft nichts: `elements[0]` einer
+     leeren Auswahl. Der Compiler sieht das nicht — der Abbruch „Nichts
+     ausgewählt" steht dreißig Zeilen weiter unten, und Merker müssen vor ihm
+     stehen, weil ein Haken nicht bedingt gerufen werden darf.
+  */
+  const felder = first
+    ? elementFelder(first)
+    : {
+        drehung: false,
+        ton: false,
+        fuellung: false,
+        strichstaerke: false,
+        schatten: false,
+        innenabstand: false,
+      };
   const folie = useDeckStore(selectCurrentSlide);
   const unsichtbar =
     elements.length === 1 &&
@@ -500,12 +520,19 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
         <NumberField label="Y" value={first.y} onChange={(y) => patch({ y })} />
         <NumberField label="Breite" value={first.w} min={1} onChange={(w) => patch({ w })} />
         <NumberField label="Höhe" value={first.h} min={0} onChange={(h) => patch({ h })} />
-        <NumberField
-          label="Drehung"
-          value={first.rotation}
-          step={1}
-          onChange={(rotation) => patch({ rotation })}
-        />
+        {/*
+          Die Wortmarke wird nie gedreht, und dann gehört auch kein Feld dafür
+          hierher: der Wert stand vorher im Modell und in der `.md`, gezeichnet
+          wurde er nirgends — nur der Auswahlrahmen drehte sich mit.
+        */}
+        {felder.drehung ? (
+          <NumberField
+            label="Drehung"
+            value={first.rotation}
+            step={1}
+            onChange={(rotation) => patch({ rotation })}
+          />
+        ) : null}
         <NumberField
           label="Deckkraft %"
           value={Math.round(first.opacity * 100)}
@@ -533,63 +560,77 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
       ) : null}
 
       {/* ------------------------------------------------------------- CI */}
-      <Field label="Ton">
-        <div className="flex flex-wrap gap-1">
-          {toneNames.map((name) => (
-            <button
-              key={name}
-              type="button"
-              title={elementTones[name].label}
-              aria-label={elementTones[name].label}
-              aria-pressed={first.tone === name}
-              onClick={() => patch({ tone: name as ToneName })}
-              className={cx(
-                'h-6 w-6 rounded-sm border transition-transform duration-fast ease-standard',
-                first.tone === name
-                  ? 'scale-110 border-ui-accent ring-2 ring-ui-accent'
-                  : 'border-ui hover:scale-105',
-              )}
-              style={{
-                background: elementTones[name].surface,
-                boxShadow: `inset 0 0 0 2px ${elementTones[name].line}`,
-              }}
-            />
-          ))}
-        </div>
-      </Field>
+      {/*
+        Gezeigt wird jedes dieser Felder nur, wo es etwas tut — gefragt wird
+        `elementFelder()`, also dieselbe Rechnung, nach der gezeichnet wird.
+        Getroffen sind zwei Arten: die Wortmarke malt keinen Körper (ihre Farbe
+        kommt aus der Variante), und der Verbinder ist ein Strich ohne Fläche.
+        Gemessen taten dort sechs beziehungsweise zwei Bedienelemente nichts,
+        und wer einen Regler bewegt und nichts geschehen sieht, zweifelt an
+        sich selbst.
+      */}
+      {felder.ton ? (
+        <Field label="Ton">
+          <div className="flex flex-wrap gap-1">
+            {toneNames.map((name) => (
+              <button
+                key={name}
+                type="button"
+                title={elementTones[name].label}
+                aria-label={elementTones[name].label}
+                aria-pressed={first.tone === name}
+                onClick={() => patch({ tone: name as ToneName })}
+                className={cx(
+                  'h-6 w-6 rounded-sm border transition-transform duration-fast ease-standard',
+                  first.tone === name
+                    ? 'scale-110 border-ui-accent ring-2 ring-ui-accent'
+                    : 'border-ui hover:scale-105',
+                )}
+                style={{
+                  background: elementTones[name].surface,
+                  boxShadow: `inset 0 0 0 2px ${elementTones[name].line}`,
+                }}
+              />
+            ))}
+          </div>
+        </Field>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-2">
-        <Field label="Füllung">
-          <Select
-            value={first.fill}
-            onChange={(event) => patch({ fill: event.target.value as FillStyle })}
-            options={fillStyles.map((value) => ({ value, label: labelOf(fillLabels, value) }))}
-          />
-        </Field>
-        <Field label="Strichstärke">
-          <Select
-            value={first.strokeWeight}
-            onChange={(event) => patch({ strokeWeight: event.target.value as StrokeName })}
-            options={strokeNames.map((value) => ({ value, label: labelOf(strokeLabels, value) }))}
-          />
-        </Field>
-        <Field label="Schatten" hint="Harter Versatz, kein Weichzeichner.">
-          <Select
-            value={first.shadow}
-            onChange={(event) => patch({ shadow: event.target.value as ShadowName })}
-            options={shadowNames.map((value) => ({
-              value,
-              label: value === 'none' ? 'Ohne' : `${shadowOffset[value]} px`,
-            }))}
-          />
-        </Field>
-        {/*
-          Gezeigt wird das Feld nur, wo es etwas tut — gefragt wird
-          `nutztInnenabstand()`, also dieselbe Rechnung, nach der gezeichnet
-          wird. Vorher stand es bei jeder Art da und wirkte gemessen bei sechs
-          von elf gar nicht: wer den Regler bewegte, sah nichts geschehen.
-        */}
-        {nutztInnenabstand(first) ? (
+        {felder.fuellung ? (
+          <Field label="Füllung">
+            <Select
+              value={first.fill}
+              onChange={(event) => patch({ fill: event.target.value as FillStyle })}
+              options={fillStyles.map((value) => ({ value, label: labelOf(fillLabels, value) }))}
+            />
+          </Field>
+        ) : null}
+        {felder.strichstaerke ? (
+          <Field label="Strichstärke">
+            <Select
+              value={first.strokeWeight}
+              onChange={(event) => patch({ strokeWeight: event.target.value as StrokeName })}
+              options={strokeNames.map((value) => ({
+                value,
+                label: labelOf(strokeLabels, value),
+              }))}
+            />
+          </Field>
+        ) : null}
+        {felder.schatten ? (
+          <Field label="Schatten" hint="Harter Versatz, kein Weichzeichner.">
+            <Select
+              value={first.shadow}
+              onChange={(event) => patch({ shadow: event.target.value as ShadowName })}
+              options={shadowNames.map((value) => ({
+                value,
+                label: value === 'none' ? 'Ohne' : `${shadowOffset[value]} px`,
+              }))}
+            />
+          </Field>
+        ) : null}
+        {felder.innenabstand ? (
           <NumberField
             label="Innenabstand"
             value={first.padding}

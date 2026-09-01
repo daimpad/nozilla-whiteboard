@@ -584,6 +584,13 @@ export function elementPaint(
  * borgen müssen.
  */
 export function unsichtbareFlaeche(element: CanvasElement, bg: BackgroundStyle): boolean {
+  // Wer gar keinen Körper malt, kann ihn auch nicht im Untergrund verlieren.
+  // Die Wortmarke tat beides nicht und wurde trotzdem beklagt: `elementPaint`
+  // rechnet ihr eine Fläche aus, die `wordmarkPrims` nie ausgibt — gemessen
+  // 3867 Zeichen sichtbares Markup, in dem die Untergrundfarbe kein einziges
+  // Mal vorkommt, und darüber die Warnung, es sei nichts zu sehen.
+  if (!elementFelder(element).fuellung) return false;
+
   const { fill, stroke } = elementPaint(element, bg).body;
   // Ohne Füllung und ohne Strich malt der Körper gar nichts — das ist die
   // Füllung „Ohne" und keine Panne.
@@ -594,19 +601,75 @@ export function unsichtbareFlaeche(element: CanvasElement, bg: BackgroundStyle):
 }
 
 /**
- * Wirkt der Innenabstand bei dieser Elementart?
+ * Welche gemeinsamen Felder dieses Element wirklich benutzt.
  *
- * Eine Rechnung, zwei Kunden: der Zeichner richtet sich danach, und der
- * Inspektor zeigt das Feld danach. Vorher stand es bei **jeder** Art da, und
- * gemessen wirkte es bei sechs von elf gar nicht — die Fabrik gab dem
- * Abzeichen trotzdem 16 mit, dem Zeichen 12 und der Form 20 (zwei Werte, die
- * auf keiner Stufe der CI-Skala stehen). Wer den Regler bewegte, sah nichts
- * geschehen.
+ * Eine Rechnung, drei Kunden: der Zeichner richtet sich danach, der Inspektor
+ * zeigt die Felder danach, und die Arbeitsfläche gibt den Drehgriff danach
+ * aus. Vorher wusste es jeder für sich, und der Inspektor bot alles bei jeder
+ * Art an — gemessen wirkte davon einiges nirgends.
  *
- * Beim Text hängt es an der Füllung: ohne Fläche gibt es keinen Rand, an dem
- * ein Abstand messbar wäre.
+ * Ein Eintrag je Bedienelement und nicht eine Gruppe: `tone` und
+ * `strokeWeight` gehen beim Verbinder durch, `fill` und `shadow` nicht, und
+ * eine gemeinsame Frage hätte die beiden toten mitgetragen.
+ *
+ * Der **Innenabstand** stand bei jeder Art da und wirkt bei fünf von elf; die
+ * Fabrik gab dem Abzeichen trotzdem 16 mit, dem Zeichen 12 und der Form 20
+ * (zwei Werte, die auf keiner Stufe der CI-Skala stehen). Beim Text hängt es
+ * an der Füllung: ohne Fläche gibt es keinen Rand, an dem ein Abstand messbar
+ * wäre.
+ *
+ * Die **Wortmarke** trägt die Regeln des CI im Bauch, und daran hängt alles
+ * Übrige. Gedreht wird sie nie — „Was wir nie tun — drehen" —, und einen
+ * Körper malt sie nicht: ihre Farbe kommt aus der Variante und nicht aus Ton
+ * und Füllung. Gemessen ändert keines der sechs Felder ein Zeichen an ihrem
+ * Markup, und zwar in jeder Variante. Beim Drehgriff war es schlimmer als
+ * nichts — der Auswahlrahmen drehte sich mit, die Wortmarke nicht, und man sah
+ * einen schrägen Kasten um ein gerades Zeichen.
+ *
+ * Der **Verbinder** ist ein Strich. Er hat eine Farbe und eine Stärke, aber
+ * keine Fläche, die sich füllen oder mit einem Schatten hinterlegen ließe;
+ * beide Felder standen trotzdem da und taten nichts.
+ *
+ * Wer einen Regler bewegt und nichts geschehen sieht, zweifelt an sich selbst.
  */
-export function nutztInnenabstand(element: CanvasElement): boolean {
+export interface ElementFelder {
+  /** Dreht sich dieses Element? */
+  drehung: boolean;
+  /** Hat es überhaupt eine eigene Farbe? */
+  ton: boolean;
+  /** Hat es eine Fläche, die sich füllen lässt? */
+  fuellung: boolean;
+  /** Zeichnet es eine Kontur? */
+  strichstaerke: boolean;
+  /** Wirft es einen Schatten? */
+  schatten: boolean;
+  /** Wirkt sein Innenabstand? */
+  innenabstand: boolean;
+}
+
+export function elementFelder(element: CanvasElement): ElementFelder {
+  if (element.kind === 'wordmark') {
+    return {
+      drehung: false,
+      ton: false,
+      fuellung: false,
+      strichstaerke: false,
+      schatten: false,
+      innenabstand: false,
+    };
+  }
+  const strich = element.kind === 'connector';
+  return {
+    drehung: true,
+    ton: true,
+    fuellung: !strich,
+    strichstaerke: true,
+    schatten: !strich,
+    innenabstand: innenabstandWirkt(element),
+  };
+}
+
+function innenabstandWirkt(element: CanvasElement): boolean {
   switch (element.kind) {
     case 'card':
     case 'table':

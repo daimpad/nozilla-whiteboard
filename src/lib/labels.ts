@@ -139,6 +139,25 @@ export const connectorLabels: Record<string, string> = {
   elbow: 'Winkel',
 };
 
+/**
+ * Die acht Griffe am Auswahlrahmen.
+ *
+ * Sie hießen für eine Hilfstechnik „Resize nw" — englisch, und dazu ein
+ * Schlüssel des Codes als Ansage. Gesehen hat es niemand, denn diese
+ * Beschriftung steht nur im Barrierebaum; das Sprachsieb ließ sie durch, weil
+ * „resize" ein Verb ist und seine beiden Listen Substantive führen.
+ */
+export const handleLabels: Record<string, string> = {
+  nw: 'oben links',
+  n: 'oben',
+  ne: 'oben rechts',
+  e: 'rechts',
+  se: 'unten rechts',
+  s: 'unten',
+  sw: 'unten links',
+  w: 'links',
+};
+
 /** Balken oder Linie. */
 export const chartLabels: Record<string, string> = {
   bar: 'Balken',

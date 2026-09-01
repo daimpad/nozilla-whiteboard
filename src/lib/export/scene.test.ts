@@ -24,9 +24,10 @@ import {
   buildSlideBackdrop,
   buildSlideChrome,
   kartenFelder,
-  nutztInnenabstand,
+  elementFelder,
   unsichtbareFlaeche,
   type ScenePrim,
+  type ElementFelder,
 } from './scene';
 import { primsToSvgMarkup } from './svg';
 import { createEmptySlide } from '@/lib/markdown/deck';
@@ -39,7 +40,7 @@ import {
   type ElementKind,
   type Slide,
 } from '@/model/types';
-import { toneNames } from '@/theme';
+import { shadowNames, strokeNames, toneNames } from '@/theme';
 
 const folie = (patch: Partial<Slide> = {}): Slide =>
   createEmptySlide({
@@ -272,12 +273,69 @@ describe('was die Oberfläche über das Gezeichnete behauptet', () => {
     wordmark: {},
   };
 
+  it('nennt Drehung und Körper genau dort, wo sie etwas tun', () => {
+    /*
+       Dieselbe Prüfung wie beim Innenabstand, für die beiden anderen Felder:
+       gezeichnet wird mit dem einen Wert und mit dem anderen, und verglichen
+       wird das Markup. Getroffen wird davon genau eine Art — die Wortmarke
+       trägt die Regeln des CI im Bauch und ist gegen Drehung, Ton, Füllung,
+       Strichstärke und Schatten taub; der Verbinder ist ein Strich und hat
+       weder Füllung noch Schatten. Acht Bedienelemente standen dafür im
+       Inspektor, und der Drehgriff war schlimmer als nichts: der
+       Auswahlrahmen drehte sich mit, das Zeichen nicht.
+    */
+    for (const [kind, felder] of Object.entries(inhalt)) {
+      const bau = (patch: Record<string, unknown>) =>
+        primsToSvgMarkup(
+          buildElementPrims(
+            createElement(
+              kind as ElementKind,
+              {
+                ...felder,
+                w: 300,
+                h: 200,
+                ...patch,
+              } as Partial<CanvasElement>,
+            ),
+          ),
+        );
+
+      const drehtSich = bau({ rotation: 0 }) !== bau({ rotation: 30 });
+      expect(elementFelder(createElement(kind as ElementKind)).drehung, `${kind}/Drehung`).toBe(
+        drehtSich,
+      );
+
+      /*
+         Ein Eintrag je Bedienelement, und gemessen wird jedes für sich. Eine
+         gemeinsame Frage („hat es einen Körper") hätte die beiden toten Felder
+         des Verbinders mitgetragen: Ton und Strichstärke wirken dort, Füllung
+         und Schatten nicht.
+
+         Gemessen wird mit `fill: 'framed'` — mit der Vorgabe „ohne Fläche"
+         wäre bei Text und Markdown alles stumm, und die Prüfung liefe ins
+         Leere.
+      */
+      const felderAmMarkup: Array<[keyof ElementFelder, string, readonly string[]]> = [
+        ['ton', 'tone', toneNames],
+        ['fuellung', 'fill', fillStyles],
+        ['strichstaerke', 'strokeWeight', strokeNames],
+        ['schatten', 'shadow', shadowNames],
+      ];
+      for (const [name, feld, werte] of felderAmMarkup) {
+        const markup = werte.map((wert) => bau({ fill: 'framed', [feld]: wert }));
+        expect(elementFelder(createElement(kind as ElementKind))[name], `${kind}/${name}`).toBe(
+          new Set(markup).size > 1,
+        );
+      }
+    }
+  });
+
   it('zeigt den Innenabstand genau dort, wo er etwas tut', () => {
     /*
        Die Rechnung wird an dem geprüft, was **wirklich herauskommt**: für jede
        Art und jede Füllung wird gezeichnet, einmal mit Abstand 0 und einmal
        mit 40, und das Markup verglichen. Was sich ändert, muss
-       `nutztInnenabstand()` bejahen — und was gleich bleibt, verneinen.
+       `elementFelder().innenabstand` bejahen — und was gleich bleibt, verneinen.
 
        Ohne diese Richtung wäre die Funktion eine zweite Wahrheit über den
        Zeichner: gemessen wirkte der Abstand bei sechs von elf Arten gar
@@ -301,7 +359,7 @@ describe('was die Oberfläche über das Gezeichnete behauptet', () => {
         const mit = bauen(40);
         const wirkt =
           primsToSvgMarkup(buildElementPrims(ohne)) !== primsToSvgMarkup(buildElementPrims(mit));
-        expect(nutztInnenabstand(ohne), `${kind}/${fill}`).toBe(wirkt);
+        expect(elementFelder(ohne).innenabstand, `${kind}/${fill}`).toBe(wirkt);
       }
     }
   });
@@ -358,5 +416,26 @@ describe('was die Oberfläche über das Gezeichnete behauptet', () => {
     const mitStrich = createElement('shape', { tone: 'white', fill: 'framed', w: 200, h: 100 });
     expect(unsichtbareFlaeche(mitStrich, aufWeiss)).toBe(false);
     expect(primsToSvgMarkup(buildElementPrims(mitStrich, aufWeiss))).toContain('stroke=');
+
+    /*
+       Und die Wortmarke gar nicht: sie malt keinen Körper, `elementPaint`
+       rechnet ihr aber einen aus. Der erste Anlauf dieser Warnung beklagte
+       damit ein Zeichen, das mit 3867 Zeichen Markup sichtbar dasteht und die
+       Untergrundfarbe kein einziges Mal führt — genau der Fehlalarm, gegen
+       den der Kopf von `unsichtbareFlaeche` geschrieben ist.
+    */
+    for (const hintergrund of slideBackgrounds) {
+      const bg = backgroundStyle(hintergrund);
+      for (const tone of toneNames) {
+        for (const fill of fillStyles) {
+          const marke = createElement('wordmark', { tone, fill, w: 300, h: 80 });
+          expect(unsichtbareFlaeche(marke, bg), `${hintergrund}/${tone}/${fill}`).toBe(false);
+        }
+      }
+    }
+    const marke = createElement('wordmark', { tone: 'white', fill: 'flat', w: 300, h: 80 });
+    const gemalt = primsToSvgMarkup(buildElementPrims(marke, aufWeiss));
+    expect(gemalt.length).toBeGreaterThan(1000);
+    expect(gemalt).not.toContain(`fill="${aufWeiss.fill}"`);
   });
 });

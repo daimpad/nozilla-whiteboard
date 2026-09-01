@@ -1555,6 +1555,63 @@ Rauchtest setzt deshalb wirklich einen Ton, wählt wirklich eine Füllung und
 liest, was in der Leiste steht — in beide Richtungen, denn die Gegenprobe ist
 hier der eigentliche Befund.
 
+**Sechs Bedienelemente an der Wortmarke, die nichts taten — und die
+Bibliothek sagte es an ihrer Kachel.** Der Hinweis unter „Wortmarke" lautet
+seit je „Nie drehen, nie umfärben, nie verzerren, nie mit Schatten"; der
+Inspektor bot alle vier trotzdem an. Ton, Füllung,
+Strichstärke, Schatten, Innenabstand und Drehung standen im Inspektor wie bei
+jeder anderen Art. Gemessen ändert keines davon ein Zeichen an ihrem Markup,
+und zwar in jeder Variante: die Wortmarke malt keinen Körper — ihre Farbe kommt
+aus `variant` —, und gedreht wird sie nie, „Was wir nie tun — drehen". Der
+Drehgriff war dabei schlimmer als nichts. Der Winkel ging ins Modell und in die
+`.md`, der Auswahlrahmen und der Klickbereich drehten sich mit, das Zeichen
+nicht: ein schräger Kasten um ein gerades Logo, und der Klickbereich dort, wo
+das Logo nicht ist. Wörtlich „Ein Bild drehte sich um seine Ecke, sein Rahmen
+um die Mitte", nur ohne jede Drehung.
+
+Dazu ein zweiter Fall, den erst die Tabelle zeigte: **der Verbinder ist ein
+Strich.** Ton und Strichstärke wirken bei ihm, Füllung und Schatten nicht —
+zwei weitere Felder, die dastanden und nichts taten. Deshalb ein Eintrag je
+Bedienelement und nicht eine Frage „hat es einen Körper": die gemeinsame Frage
+hätte die beiden mitgetragen.
+
+`elementFelder()` ist deshalb die eine Rechnung mit drei Kunden — der Zeichner,
+der Inspektor, die Arbeitsfläche —, und `nutztInnenabstand()` ist darin
+aufgegangen. Geprüft wird auch sie am **Ergebnis**: für jede Art einmal mit und
+einmal ohne Drehung zeichnen, und für den Körper alle Werte von Ton, Füllung,
+Strichstärke und Schatten durchgehen. Was sich ändert, muss sie bejahen.
+
+**Und die Warnung von gestern schlug auf ihr an.** „Eine Fläche in genau der
+Farbe des Untergrunds" fragte `elementPaint`, und das rechnet auch der
+Wortmarke eine Fläche aus — ausgegeben wird sie nie. Gemessen: 3867 Zeichen
+sichtbares Markup, in dem die Untergrundfarbe kein einziges Mal vorkommt, und
+darüber der Satz, es sei nichts zu sehen. Derselbe Fehlalarm, gegen den der
+Kopf dieser Funktion einen Absatz weiter oben geschrieben ist — eine Warnung
+über einem Element, das gut aussieht. Gefragt wird jetzt zuerst, ob dieses
+Element überhaupt einen Körper malt.
+
+**Und der Merker stand vor dem Abbruch.** `first` ist in `ElementPanel` als
+`CanvasElement` getippt und ist trotzdem oft nichts — es ist `elements[0]`
+einer leeren Auswahl, und der Abbruch „Nichts ausgewählt." steht dreißig Zeilen
+weiter unten, weil ein Haken nicht bedingt gerufen werden darf. Ein
+`elementFelder(first)` davor warf damit bei jeder leeren Auswahl, der Inspektor
+verschwand, und neun Rauchtest-Prüfungen liefen in einen Zeitablauf beim Klick
+auf einen Reiter, den es nicht mehr gab. `tsc` sagte nichts —
+`noUncheckedIndexedAccess` ist aus, und `elements[0]` gilt ihm als gesetzt.
+Gefunden hat es der Rauchtest, und zwar an neun Prüfungen am Stück: ein
+einzelner roter Handgriff wäre als Zufall durchgegangen.
+
+**„Resize nw" stand an acht Griffen, und niemand konnte es sehen.** Die Ansage
+der Größengriffe war englisch und dazu ein Schlüssel des Codes — `aria-
+label={`Resize ${handle}`}`. Vor Augen steht sie nie; sie ist die Beschriftung,
+die *nur* eine Hilfstechnik liest, und damit die eine Stelle, an der ein Blick
+ins Fenster nichts findet. Das Sprachsieb sah die Zeichenkette und ließ sie
+durch: seine beiden Listen führen Substantive und Funktionswörter, und „resize"
+ist ein Verb. Gefunden hat es kein Test, sondern das Lesen der Datei; der
+Eintrag in der Liste fängt nur die Wiederholung. Die acht Namen stehen jetzt in
+`labels.ts`, wo die deutschen Beschriftungen wohnen — „Größe ändern: oben
+links".
+
 ---
 
 ## Git

@@ -1392,6 +1392,64 @@ async function main() {
       0,
       'das Badge zeigt ein Feld für einen Abstand, den es nicht zeichnet',
     );
+
+    /*
+       Die Wortmarke trägt die Regeln des CI im Bauch, und die Bibliothek sagt
+       sie sogar an ihrer Kachel: „Nie drehen, nie umfärben, nie verzerren, nie
+       mit Schatten". Der Inspektor bot trotzdem alle vier an, dazu Füllung und
+       Innenabstand — sechs Bedienelemente ohne Wirkung. Der Drehgriff war
+       dabei schlimmer als nichts: der Rahmen drehte sich mit, das Zeichen
+       nicht.
+    */
+    await seite.locator('aside button').filter({ hasText: 'Wortmarke' }).first().click();
+    await seite.waitForTimeout(600);
+    for (const feld of ['Ton', 'Füllung', 'Strichstärke', 'Schatten', 'Drehung']) {
+      gleich(
+        await inspektor.getByText(feld, { exact: true }).count(),
+        0,
+        `die Wortmarke zeigt „${feld}" — ein Feld, das an ihr nichts tut`,
+      );
+    }
+    gleich(
+      await seite.locator('[data-handle="rotate"]').count(),
+      0,
+      'die Wortmarke hat einen Drehgriff, obwohl sie sich nicht dreht',
+    );
+
+    /*
+       Und der Verbinder ist ein Strich: Ton und Strichstärke wirken, Füllung
+       und Schatten nicht. Die Gegenrichtung steht ausdrücklich daneben — eine
+       Leiste, die zu wenig zeigt, ist so schlimm wie eine, die zu viel zeigt.
+    */
+    await seite.locator('aside button').filter({ hasText: 'Pfeil' }).first().click();
+    await seite.waitForTimeout(600);
+    for (const feld of ['Ton', 'Strichstärke']) {
+      gleich(
+        await inspektor.getByText(feld, { exact: true }).count(),
+        1,
+        `dem Verbinder fehlt „${feld}", obwohl es bei ihm wirkt`,
+      );
+    }
+    for (const feld of ['Füllung', 'Schatten']) {
+      gleich(
+        await inspektor.getByText(feld, { exact: true }).count(),
+        0,
+        `der Verbinder zeigt „${feld}" — ein Strich hat keine Fläche`,
+      );
+    }
+    gleich(
+      await seite.locator('[data-handle="rotate"]').count(),
+      1,
+      'dem Verbinder fehlt der Drehgriff',
+    );
+
+    // Und die Griffe sagen an, was sie tun — auf Deutsch. „Resize nw" stand
+    // hier, und nur eine Hilfstechnik konnte es lesen.
+    gleich(
+      await seite.getByRole('button', { name: 'Größe ändern: oben links' }).count(),
+      1,
+      'der Griff oben links sagt nicht auf Deutsch an, was er tut',
+    );
   });
 
   console.log('\nSchutz der Arbeit:');

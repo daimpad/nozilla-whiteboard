@@ -91,6 +91,14 @@ const SUBSTANTIV = new Set(
     // Aus dem Sperren-Knopf, der beide Zweige in einem Attribut trug.
     'lock',
     'unlock',
+    // Aus `aria-label={`Resize ${handle}`}` an den acht Griffen des
+    // Auswahlrahmens — acht englische Ansagen an der meistbenutzten
+    // Bedienung der Fläche, und keine davon steht vor Augen: nur eine
+    // Hilfstechnik liest sie. Das Sieb *sah* die Zeichenkette und ließ sie
+    // durch, weil „resize" ein Verb ist und diese beiden Listen Substantive
+    // führen. Gefunden hat es keine Liste, sondern ein Blick in die Datei —
+    // dieser Eintrag fängt nur die Wiederholung.
+    'resize',
     // Aus dem Hinweis „1280×720 vectors" im Export-Menü — eine Vorlage in
     // einem Attribut, in der nach dem Auflösen genau ein Wort übrig bleibt.
     'vectors',
