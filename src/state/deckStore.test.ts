@@ -800,3 +800,61 @@ describe('im ganzen Deck ersetzen', () => {
     expect(store().deck.slides[0]).not.toBe(store().past[0].slides[0]);
   });
 });
+
+describe('der Rohblock einer unbekannten Elementart', () => {
+  const QUELLE = [
+    '<!-- nzl',
+    'elements:',
+    '  - kind: heading',
+    '    id: h-1',
+    '    x: 10',
+    '    y: 10',
+    '    text: Ein Satz, den diese Fassung nicht kennt',
+    '-->',
+    '',
+    '# Probe',
+  ].join('\n');
+
+  /**
+   * Jede Aktion, die Elemente anfasst — und was sie in der Datei bewirkt.
+   *
+   * Der Rohblock verfiel bisher in `geaendert()`, und das riefen zwei von
+   * zwölf Aktionen. Die anderen spreizten direkt, der Block blieb stehen, und
+   * beim Sichern stand wortgleich der alte Text in der Datei: das Modell war
+   * geändert, die Datei nicht. Geprüft wird deshalb an der **gesicherten
+   * Datei** und nicht am Modell — dasselbe Urteil wie beim unlesbaren
+   * `nzl`-Block einer Folie.
+   */
+  const handgriffe: Array<[string, () => void]> = [
+    ['nudgeSelection', () => store().nudgeSelection(5, 5)],
+    ['setElementTone', () => store().setElementTone('signal')],
+    ['setRevealStep', () => store().setRevealStep(1)],
+    ['alignSelection', () => store().alignSelection('left')],
+    ['reorderSelection', () => store().reorderSelection('front')],
+    ['updateElements', () => store().updateElements(store().selection, { x: 42 })],
+    ['transformElements', () => store().transformElements(() => ({ y: 42 }), store().selection)],
+  ];
+
+  for (const [name, tun] of handgriffe) {
+    it(`verfällt bei ${name}`, () => {
+      const deck = parseDeck(QUELLE);
+      useDeckStore.setState({
+        deck,
+        slideIndex: 0,
+        selection: deck.slides[0].elements.map((element) => element.id),
+      });
+      expect(serializeDeck(store().deck)).toContain('kind: heading');
+      tun();
+      expect(serializeDeck(store().deck)).not.toContain('kind: heading');
+    });
+  }
+
+  it('bleibt stehen, solange niemand das Element anfasst', () => {
+    // Die Gegenrichtung: ein Handgriff an der *Folie* darf den Block nicht
+    // wegräumen — sonst wäre der Wert weg, den er retten soll.
+    const deck = parseDeck(QUELLE);
+    useDeckStore.setState({ deck, slideIndex: 0, selection: [] });
+    store().setSlideMeta({ background: 'ink' });
+    expect(serializeDeck(store().deck)).toContain('kind: heading');
+  });
+});

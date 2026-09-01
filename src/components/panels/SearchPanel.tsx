@@ -11,14 +11,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { searchDeck, zaehleFunde, type Treffer } from '@/lib/search';
 import { slideTitle } from '@/model/types';
+import { zaehle } from '@/lib/labels';
 import { useDeckStore } from '@/state/deckStore';
 import { Button, IconButton, cx } from '@/components/ui/controls';
 
 /** „1 Folie" und „4 Folien" — Deutsch zählt anders als eine Zeichenkette. */
-function zaehle(anzahl: number, eins: string, viele: string): string {
-  return `${anzahl} ${anzahl === 1 ? eins : viele}`;
-}
-
 export function SearchPanel() {
   const deck = useDeckStore((state) => state.deck);
   const close = useDeckStore((state) => state.toggleSearch);

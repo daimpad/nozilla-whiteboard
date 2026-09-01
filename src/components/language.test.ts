@@ -258,6 +258,8 @@ function literale(source: string): string[] {
  */
 function sichtbareTexte(source: string): string[] {
   const out: string[] = [];
+  /** Texte, die zwischen zwei Ausdrücken stehen — siehe unten, Punkt 3b. */
+  const ausTextknoten: string[] = [];
 
   // 1 · Als Attribut: label="…" oder label={'…'}.
   for (const match of source.matchAll(
@@ -308,13 +310,46 @@ function sichtbareTexte(source: string): string[] {
   // „Notizen · {slideTitle(…)}" steht das deutsche Wort vor einem Ausdruck.
   // Und er fängt nicht immer mit einem Buchstaben an — die Hilfszeile beginnt
   // mit einem Pfeil.
+  /*
+     Hinter `>` **oder** hinter `}`: ein Textknoten fängt nicht immer an einem
+     Element an. „{deck.slides.length} slide{…}" stand so in der Übersicht —
+     sichtbarer englischer Text in einem Bereich, den ⌘K aus dem Editor und aus
+     dem Vortrag öffnet —, und das Sieb war grün, weil der Text hinter einer
+     geschweiften Klammer begann. Genau die Schreibweise, in der eine Zahl mit
+     ihrem Wort steht.
+  */
   for (const match of source.matchAll(/>\s*([^<>{}\n][^<>{}\n]{3,90})\s*[<{]/g)) {
-    // Kein Textknoten fängt mit einer schließenden Klammer an — wohl aber die
-    // Rückgabe einer Funktion hinter einem generischen Typ:
-    // `Array<string | false>): string {`. Das `>` gehört dort der Klammer und
-    // nicht einem Element, und „string" endet auf `-ing`.
     if (/^[)\]}]/.test(match[1])) continue;
     if (/[A-Za-zÄÖÜäöü]/.test(match[1])) out.push(match[1]);
+  }
+
+  /*
+     Und hinter einer schließenden geschweiften Klammer — **auf derselben
+     Zeile**. „{deck.slides.length} slide{…}" stand so in der Übersicht,
+     sichtbarer englischer Text, und das Sieb war grün: sein Muster verlangte
+     einen Textknoten *hinter einem Element*. Genau in dieser Schreibweise
+     steht eine Zahl mit ihrem Wort.
+
+     Die Zeilenbindung ist der Unterschied zwischen einem Wächter und einem
+     Ärgernis: über Zeilen hinweg gelesen wäre jedes `}` am Ende eines
+     Ausdrucks der Anfang eines „Textknotens", und vierzig Zeilen Code
+     (`aria-selected=`, `case 'move':`) stünden als Beschriftung da.
+  */
+  for (const match of source.matchAll(/\}[ \t]*([^<>{}\n][^<>{}\n]{2,90})[ \t]*[<{]/g)) {
+    if (/^[)\]}]/.test(match[1])) continue;
+    // Was auf `=` endet, ist der Name eines Attributs und keine Beschriftung:
+    // `<Icon width={64} fill={…} />` steht zwischen zwei Ausdrücken genau so
+    // da wie ein Textknoten.
+    if (/=$/.test(match[1].trim())) continue;
+    /*
+       Diese Fundstellen gehen **am Klempnerei-Filter vorbei**, und das ist der
+       Punkt. „slide" ist durchgehend klein und sähe wie ein Klassenname aus —
+       genau deshalb kam es durch. Ein Text, der im JSX *zwischen* zwei
+       Ausdrücken steht, ist aber keine Klempnerei, sondern per Bauart
+       sichtbar. Was hier hereinkommt, ist durch die Zeilenbindung und den
+       `=`-Filter schon eng gefasst; gemessen bleibt kein Codeschnipsel übrig.
+    */
+    if (/[A-Za-zÄÖÜäöü]/.test(match[1])) ausTextknoten.push(match[1]);
   }
 
   /*
@@ -352,10 +387,10 @@ function sichtbareTexte(source: string): string[] {
   // Tailwind-Klassen ist voller `rounded`, `dashed`, `leading` und `tracking`,
   // und die Regel nach der Wortform verurteilte sie reihenweise. Sie steht
   // aber nicht vor Augen — sie *macht* das, was vor Augen steht.
-  return out
-    .map((text) => text.trim())
-    .filter(Boolean)
-    .filter((text) => !istKlempnerei(text));
+  return [
+    ...out.map((text) => text.trim()).filter((text) => text && !istKlempnerei(text)),
+    ...ausTextknoten.map((text) => text.trim()).filter(Boolean),
+  ];
 }
 
 function istEnglisch(text: string): boolean {

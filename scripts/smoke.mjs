@@ -1496,6 +1496,52 @@ async function main() {
     gleich(await folien(), 1, 'das neue Deck kam nicht');
   });
 
+  await pruefe('eine wiederhergestellte Sitzung gilt als ungesichert', async () => {
+    /*
+       Die Sitzung ist ungesicherte Arbeit — sie steht in keiner Datei und hat
+       keinen Dateigriff. `loadDeck()` setzte trotzdem `dirty: false`, und
+       `darfErsetzen()` fragt genau daran: alle sechs Ersetzungswege liefen
+       wortlos über die wiederhergestellte Arbeit hinweg, und
+       siebenhundert Millisekunden später schrieb die Selbstsicherung den
+       Verlust fest. Wörtlich der Fehler, gegen den `darfErsetzen()` gebaut
+       wurde, nur eine Ebene tiefer.
+
+       Gelegt wird die Sitzung über ein Startskript und nicht kurz vor dem
+       Neuladen — dazwischen liegt `beforeunload`, und dort schreibt die
+       Selbstsicherung den offenen Stand darüber.
+    */
+    await seite.addInitScript(() => {
+      localStorage.setItem(
+        'nozilla-whiteboard:session:v1',
+        JSON.stringify({
+          markdown: '# Aus der Sitzung\n\nEin Satz, der nirgends sonst steht.',
+          fileName: 'sitzung.md',
+          slideIndex: 0,
+          savedAt: 1,
+        }),
+      );
+    });
+    await seite.reload({ waitUntil: 'networkidle' });
+    await seite.waitForTimeout(1200);
+    wahr(await stehtAufFolie(seite, 'Aus der Sitzung'), 'die Sitzung kam beim Start nicht zurück');
+
+    // Und jetzt die Frage: ohne sie wäre die Arbeit weg.
+    let gefragt = false;
+    const ablehnen = (dialog) => {
+      gefragt = true;
+      void dialog.dismiss();
+    };
+    seite.on('dialog', ablehnen);
+    await seite.keyboard.press('Control+Shift+KeyN');
+    await seite.waitForTimeout(900);
+    seite.off('dialog', ablehnen);
+    wahr(gefragt, 'ein neues Deck fragte nicht, obwohl die Sitzung ungesichert ist');
+    wahr(
+      await stehtAufFolie(seite, 'Aus der Sitzung'),
+      'die Sitzung überlebte die Ablehnung nicht',
+    );
+  });
+
   await pruefe('ein unlesbarer Block überlebt das Sichern', async () => {
     /*
        Der Fehler, gegen den das hier steht: ein Doppelpunkt zu viel im YAML

@@ -6,6 +6,7 @@
 import { useEffect, useRef } from 'react';
 import { canvas } from '@/theme';
 import { slideTitle } from '@/model/types';
+import { zaehle } from '@/lib/labels';
 import { useDeckStore } from '@/state/deckStore';
 import { SlideView } from '@/components/canvas/SlideView';
 import { IconButton, cx } from '@/components/ui/controls';
@@ -36,7 +37,7 @@ export function Overview() {
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-ui bg-ui-surface px-3">
         <h2 className="text-ui-title font-semibold">Übersicht</h2>
         <span className="text-[11px] text-ui-faint">
-          {deck.slides.length} slide{deck.slides.length === 1 ? '' : 's'}
+          {zaehle(deck.slides.length, 'Folie', 'Folien')}
         </span>
         <div className="ml-auto flex items-center gap-1">
           <IconButton

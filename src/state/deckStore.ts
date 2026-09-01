@@ -266,8 +266,20 @@ const ZUSAMMENFASSEN_MS = 600;
  * vorbeikommt.
  */
 function geaendert(element: CanvasElement, patch: Partial<CanvasElement>): CanvasElement {
-  const neu = { ...element, ...patch } as CanvasElement;
-  if (neu.unknownRaw) delete neu.unknownRaw;
+  return ohneElementRohblock({ ...element, ...patch } as CanvasElement);
+}
+
+/**
+ * Den Rohblock einer unbekannten Elementart fallen lassen.
+ *
+ * Das Gegenstück zum `ohneRohblock()` weiter unten — dort geht es um den
+ * unlesbaren `nzl`-Block einer *Folie*, hier um den Block eines *Elements*.
+ * Beide folgen derselben Regel: den Wert behalten, bis jemand ihn anfasst.
+ */
+function ohneElementRohblock(element: CanvasElement): CanvasElement {
+  if (!element.unknownRaw) return element;
+  const neu = { ...element } as CanvasElement;
+  delete neu.unknownRaw;
   return neu;
 }
 
@@ -352,14 +364,34 @@ export const useDeckStore = create<EditorState>()((set, get) => {
     ),
   });
 
+  /*
+     Jede Änderung an den Elementen der offenen Folie läuft hier durch — und
+     das ist die Stelle, an der der Rohblock einer unbekannten Elementart
+     verfällt.
+
+     Vorher tat das `geaendert()`, und gerufen wurde es von zwei Aktionen:
+     `updateElements` und `transformElements`. Die anderen zehn spreizten
+     direkt (`{ ...element, x: element.x + dx }`), und der Rohblock blieb
+     stehen: `nudgeSelection`, `alignSelection`, `distributeSelection`,
+     `reorderSelection`, `setElementTone`, `setRevealStep`, „Alle ersetzen"
+     und die Einfüge-Wege änderten das Modell, und beim Sichern stand
+     wortgleich der alte Block in der Datei — die Änderung nirgends.
+
+     Eine Liste von Stellen, an denen man einen Rohblock wegräumen *muss*,
+     wäre eine Liste von Stellen, an denen man es vergisst. Deshalb hier: wer
+     ein Element durch ein anderes Objekt ersetzt, hat es angefasst.
+  */
   const withElements = (
     state: EditorState,
     producer: (elements: CanvasElement[]) => CanvasElement[],
   ): Deck =>
-    mapSlide(state, state.slideIndex, (slide) => ({
-      ...slide,
-      elements: producer(slide.elements),
-    }));
+    mapSlide(state, state.slideIndex, (slide) => {
+      const vorher = new Set<CanvasElement>(slide.elements);
+      const elements: CanvasElement[] = producer(slide.elements).map((element) =>
+        element.unknownRaw && !vorher.has(element) ? ohneElementRohblock(element) : element,
+      );
+      return { ...slide, elements };
+    });
 
   const selectedRects = (state: EditorState): Array<{ element: CanvasElement; rect: Rect }> => {
     const slide = currentSlide(state);
