@@ -1612,6 +1612,189 @@ Eintrag in der Liste fängt nur die Wiederholung. Die acht Namen stehen jetzt in
 `labels.ts`, wo die deutschen Beschriftungen wohnen — „Größe ändern: oben
 links".
 
+**Der PPTX-Weg setzte jedes Textprimitiv der Szene neu.**
+`inlineToParagraph(text, 'label')` gab jedem, was diesen Weg nimmt, Space Mono
+Bold 12 in Versalien. Für die Beschriftung eines Diagramms stimmte das
+zufällig, für die einer Form nicht: eine Form mit `labelStyle: 'h3'` stand auf
+der Fläche in Zilla Slab 34 in gemischter Schreibweise und in der `.pptx` in
+Space Mono 12 in Versalien — `labelStyle` erreichte die Datei überhaupt nicht.
+Ein `SceneRun` trägt Familie, Größe, Gewicht, Laufweite und Farbe schon; er ist
+genau das, was ein `StyledRun` braucht. Und **der Test dazu erwartete die
+Versalien** und hat den Fehler damit bestätigt statt ihn zu finden — er
+vergleicht jetzt mit dem SVG derselben Folie.
+
+**Zwei Stiltabellen für dieselbe Karte.** `cardScene()` setzt beim Zitat den
+Titel in `lead` und die Quellenangabe in `label`, `elementParagraphs()` schrieb
+`h4` und `small`: dieselbe Karte, in PowerPoint in einer anderen Schrift, in
+einem anderen Gewicht und in gemischter Schreibweise statt in Versalien. Und
+die Kennzahl deckelt die Szene auf 42 % der Kartenhöhe — ohne den Deckel ragte
+die Zahl über ihren Kasten, und zwar bei der Kennzahl-Karte des mitgelieferten
+Decks. `kartenFelder()` nennt jetzt auch die Stufen, `kartenTitelGroesse()` die
+gedeckelte Größe.
+
+**Die Deckkraft hörte in der `.pptx` an drei Stellen auf.** `shape()` gab sie
+nur an die Füllung weiter, `lineXml()` rief `solidFill` einstellig: eine
+gerahmte Form verblasste, ihr Rahmen blieb schwarz, und eine Form mit „Füllung:
+Kontur" — also auch jeder Verbinder und jede Diagrammachse — blieb ganz
+undurchsichtig. Ein Bild kannte sie gar nicht; `<a:alphaModFix>` ist der dafür
+vorgesehene Weg und fehlte schlicht, und ein zu 35 % eingeblendetes
+Hintergrundbild stand voll deckend über der Folie.
+
+**jsPDF dreht ein Bild um die andere Ecke.** Ein `image`-Primitiv trägt seine
+Ecke *nach* der Matrix und dreht um genau diesen Punkt — `scene.ts` rechnet sie
+eigens dafür aus, `svg.ts` schreibt `rotate(a x y)`. jsPDF dreht um `(x, y +
+h)`, also um die untere linke Ecke des ungedrehten Rechtecks. Gemessen an einem
+400 × 100-Bild bei (450, −50) mit 90°: der Rahmen des Elements lag bei x
+350…450, das Bild bei x 550…650. Gerechnet wird deshalb die Ecke, die jsPDFs
+eigene Drehung dorthin bringt, wo das SVG sie hat.
+
+**`doc.rect()` ohne Stil-Argument streicht und verbraucht den Pfad.** jsPDF
+reicht ein fehlendes Argument an `putStyle` durch, und das fällt auf
+`defaultPathOperation` = `"S"` zurück; das `W` danach fand keinen aktuellen
+Pfad. Für „Füllend" gab es damit **keinen Beschnitt**, dafür ein schwarzes
+Rechteck über dem Bild. jsPDF schreibt die richtige Benutzung an seine eigene
+`clip()`: erst eine Zeichenoperation mit dem Stil `null`, dann klemmen — und
+der Pfad ist die *gedrehte* Hülle, nicht der achsenparallele Kasten.
+
+**Die Deckkraft eines Textlaufs gehört nicht abgeflacht.** Der Kopf von
+`flatten()` begründet das Abflachen für Flächen — überlappende Teilpfade
+verdunkeln sich an den Stoßstellen sonst doppelt —, und für Striche gilt es
+weiter. Für Text galt es nicht: die CI baut ihre Hierarchie über Farben mit
+Deckkraft (`elementTones.ink.textMuted` ist Papier bei 64 %), und auf einer
+hellen Folie steht die dunkle Karte dazwischen. Gegen den *hellen* Untergrund
+gerechnet wurde daraus ein sehr helles Grau auf schwarzer Karte, während SVG
+und `.pptx` denselben Text richtig zeigten.
+
+**Ein ungedecktes Zeichen zog den Rest des Laufs nach links.** `faceFor()` gibt
+für ein Zeichen, das keine der Schriften führt, trotzdem den gewünschten
+Schnitt zurück; `splitByFace()` ließ es damit im Stück, und jsPDF ließ es beim
+Kodieren fallen. Weil die Nachbarn im selben `doc.text()` standen, rückten sie
+um seinen Vorschub nach — der Umriss-Weg lässt an derselben Stelle eine Lücke.
+Zwei Ausgaben, zwei verschiedene Zeilen. Es bekommt jetzt ein eigenes Stück und
+wird ausgelassen.
+
+**Ein Steuerzeichen im Text macht die Datei ungültig, die Fläche nicht.** Ein
+aus Word eingefügter Absatz trägt an jedem manuellen Zeilenumbruch U+000B, aus
+einem PDF kopierter Text U+000C; beide überleben Öffnen und Sichern. Auf der
+Fläche fällt nichts auf — dort geht dasselbe Markup über `innerHTML` in ein
+lebendes `<svg>`, und der HTML-Parser ist nachsichtig. Die exportierte `.svg`
+ist dagegen kein wohlgeformtes XML mehr, und der PNG-Weg legt genau dieses SVG
+in ein `<img>`: der Export scheitert mit „Das SVG ließ sich nicht als Bild
+laden", einem Satz, der auf die Ursache nicht zeigt. Geprüft wird deshalb mit
+einem **XML-Parser** an der fertigen Datei.
+
+**Zwei Maskierfunktionen, uneinig über ein Zeichen.** `escapeXml()` macht aus
+`'` ein `&apos;`, `escapeXmlAttr()` in `images.ts` nicht — `inlineImageHrefs()`
+suchte deshalb eine Zeichenkette, die im Markup nicht steht. Ein Pfad mit einem
+Apostroph blieb als relativer Verweis in der exportierten `.svg` stehen, obwohl
+der Dateikopf zusagt, sie stehe für sich; und im PNG fehlte das Bild ersatzlos,
+weil ein über eine Blob-URL geladenes SVG keine externen Ressourcen holen darf.
+Mit `&` im Pfad griff die Ersetzung, mit `'` nicht.
+
+**Ein Bild in den Notizen wurde nie eingesammelt.** `collectImageSources()`
+durchsucht Fließtext, Markdown-Elemente und `element.src` — die Notizen nicht,
+und `buildHandoutScene()` setzt sie sehr wohl. Drei Folgen, keine sagte etwas:
+der Setzer kannte die Maße nicht und blies ein 300 × 300-Bild auf 1104 × 621
+auf, der PDF-Weg stieg vor dem `catch` mit `meldeFehlendeBilder()` aus, und als
+fehlend gemeldet wurde es auch nicht — die Quelle war nie eingesammelt worden.
+
+**Ein Querstrich im Fließtext teilte die Folie beim Sichern.** `---` nach einer
+Leerzeile ist in Markdown ein Trennstrich und in diesem Dateiformat der
+Folientrenner; geschrieben wurde der Text wortgleich hinaus. Der Weg dorthin
+ist kein Sonderfall: `serializeDeck → parseDeck` läuft bei jeder
+Selbstsicherung und bei jedem Wort, das der Vortragskanal hinüberschickt — im
+Vortrag sah der Referent danach eine andere Folie als das Publikum. Geschrieben
+wird jetzt `- - -`: derselbe Trennstrich nach CommonMark, den der Trenner-
+Ausdruck nicht sieht. Damit ist auch der zweite Fall erledigt, ein Deck ohne
+Frontmatter, dessen erste Folie mit einem Querstrich beginnt —
+`splitFrontmatter()` hielt ihn für den Beginn eines Frontmatters und verlor die
+Folie ganz.
+
+**Ein `nzl`-Block in einem Codeblock wurde herausgeschnitten.** `splitSlides()`
+zählt Codezäune sorgfältig mit, `parseSlide()` tat es nicht: es suchte über den
+ganzen Brocken. Eine Folie, die das Dateiformat *zeigt* — also das Willkommens-
+Deck —, verlor beim Öffnen den halben Codeblock aus ihrem Text, und die
+Beispielwerte wurden zu den echten Metadaten der Folie. Die Lagerechnung steht
+jetzt an einer Stelle und hat drei Kunden: teilen, den Block finden, und beim
+Schreiben wissen, welche Zeile als Trenner gelesen würde.
+
+**`trim()` frisst die Einrückung, `replace(/^\n+/)` nicht.** `parseSlide()`
+nimmt vorn nur Zeilenumbrüche weg, `serializeSlide()` nahm mit `trim()` auch
+die Leerzeichen: aus einem eingerückten Codeblock — vier Leerzeichen, die
+Schreibweise aus CommonMark — wurde ein Absatz mit einer eingerückten Zeile
+darunter.
+
+**Der Zeichenbruch griff nur bei einem Wort, das allein auf der Zeile stand.**
+Er saß *innerhalb* des Zweigs „passt noch" und zusätzlich hinter
+`current.length === 0`. Stand ein Wort davor, lief das lange über die Kante des
+Elements hinaus — obwohl der Kopf von `wrapRuns` `overflow-wrap: anywhere`
+verspricht.
+
+**`\s` schließt das geschützte Leerzeichen ein.** `decodeEntities()` übersetzt
+`&nbsp;` richtig nach U+00A0, und der Umbruch machte die Übersetzung sofort
+wieder zunichte: `run.text.split(/(\s+)/)` schnitt dort, und `piece.trim() ===
+''` hielt es für Weißraum. Geschnitten wird jetzt an `[^\S\u00a0]+` — Weißraum
+außer diesem einen.
+
+**Die Leerzeile ist die Absatzgrenze, auch im Listenpunkt.** Ein lockerer Punkt
+bekommt von marked kein `paragraph`, sondern zwei `text`-Kinder mit einem
+`space` dazwischen; verschmolzen stand danach „Erster Absatz.Zweiter Absatz." —
+ohne Leerzeichen, ohne Umbruch, in jeder Ausgabe.
+
+**Block-HTML wurde ehrlich verworfen, Inline-HTML wörtlich abgedruckt.** Die
+Haltung steht auf Blockebene ausgeschrieben — rohes HTML wird nicht gesetzt,
+„exporting it as vector text would be a lie" —, inline galt sie nicht: `<br>`
+fiel in den `default`-Zweig und stand als Text auf der Folie, samt spitzer
+Klammern. Es ist die verbreitetste Schreibweise für einen erzwungenen Umbruch.
+
+**Eine Abbildung wurde nur erkannt, wenn sie allein im Absatz stand.** Stand
+ein Wort daneben, ging der Absatz den Inline-Weg, und dort macht
+`flattenInline` aus einem `image`-Token stillschweigend einen *kursiven
+Textlauf mit dem Alternativtext*: das Bild fiel aus jeder Ausgabe. Wer ein Bild
+einsetzte und Worte danebenschrieb, bekam Worte.
+
+**Zehn von zwölf Aktionen ließen den Rohblock stehen.** `geaendert()` räumt
+`unknownRaw` weg und wurde von `updateElements` und `transformElements`
+gerufen; alle anderen spreizten direkt (`{ ...element, x: element.x + dx }`).
+Das Modell war geändert, die Datei nicht — beim Sichern stand wortgleich der
+alte Block darin. Eine Liste von Stellen, an denen man einen Rohblock wegräumen
+*muss*, wäre eine Liste von Stellen, an denen man es vergisst; es steht jetzt
+in `withElements()`, wo jede Änderung an den Elementen durchläuft.
+
+**Der Vortragskanal schickte das Deck genau zweimal.** Beim Einhängen und auf
+`hallo`; danach ging nur noch der Stand hinüber. Die Übersicht ist im Vortrag
+aber voll bedienbar — ⌘K öffnet sie, und an jeder Kachel stehen „schieben",
+„duplizieren" und „löschen". Wer dort eine Folie löschte, sah in der
+Referentenansicht eine andere Folie als das Publikum: die Notizen gehörten zur
+alten Nummerierung, der Zähler zeigte eine Folie zu viel.
+
+**Eine wiederhergestellte Sitzung galt als gesichert.** `loadDeck()` setzt
+`dirty: false` — richtig für eine geöffnete Datei, falsch für die Sitzung: die
+steht in keiner Datei, und einen Dateigriff gibt es auch nicht.
+`darfErsetzen()` fragt genau an `dirty`, und damit liefen alle sechs
+Ersetzungswege wortlos über die wiederhergestellte Arbeit hinweg. Wörtlich der
+Fehler, gegen den `darfErsetzen()` gebaut wurde, eine Ebene tiefer.
+
+**Und „3 slides" stand englisch in der Übersicht.** Das Sieb war grün, und zwar
+bauartbedingt: sein Textknoten-Muster verlangt, dass der Text hinter einem `>`
+beginnt — hier begann er hinter einem `}`, also in genau der Schreibweise, in
+der eine Zahl mit ihrem Wort steht. Die neue Regel ist an die Zeile gebunden
+und lässt Attributnamen aus; ohne beides stünden vierzig Zeilen Code als
+Beschriftung da. Und sie geht am Klempnerei-Filter *vorbei*: „slide" ist
+durchgehend klein, und genau deshalb kam es durch — ein Text zwischen zwei
+Ausdrücken im JSX ist per Bauart sichtbar.
+
+**Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
+einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
+`i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,
+die Glyphen selbst zeichnen, können das nicht: die CI führt in neun Schnitten
+keinen kursiven, `resolveFace()` gibt den nächstliegenden zurück, und im
+eingebetteten PDF wie im PNG steht der Text aufrecht. Nachgemessen mit `pdfjs-
+dist`: „Aufrecht" und „Kursiv" kommen beide als `Inter-Regular` zurück. Die
+Reparatur ist eine Entscheidung und keine Zeile Code — entweder ein gescherter
+Umriss (was der Browser tut) in beiden Wegen, oder ein kursiver Schnitt in der
+CI. Bis dahin steht es hier.
+
 ---
 
 ## Git
