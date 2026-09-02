@@ -64,3 +64,23 @@ describe('die Zahlen eines Diagramms', () => {
     expect(skala.max).toBeGreaterThan(skala.min);
   });
 });
+
+describe('deutsche Tausenderpunkte', () => {
+  it('liest eine Ganzzahl mit mehreren Punkten', () => {
+    /*
+       Der Punkt galt nur als Tausendertrenner, wenn ein Komma dabeistand —
+       eine deutsche Ganzzahl hat aber keines. Aus „1.234.567" wurde `NaN`, und
+       `parseChartData` warf die ganze Zeile weg: die Reihe hatte einen Balken
+       weniger, ohne ein Wort.
+    */
+    expect(parseChartData('Nord\t1.234.567')).toEqual([
+      { label: 'Nord', value: 1234567, signal: false },
+    ]);
+    expect(parseChartData('Nord\t1.234.567,5')[0].value).toBe(1234567.5);
+
+    // Und die Gegenrichtung: ein *einzelner* Punkt bleibt ein Dezimalpunkt.
+    // „3.5" ist drei Komma fünf, und raten wäre hier schlimmer als lesen.
+    expect(parseChartData('Nord\t3.5')[0].value).toBe(3.5);
+    expect(parseChartData('Nord\t1.240')[0].value).toBe(1.24);
+  });
+});

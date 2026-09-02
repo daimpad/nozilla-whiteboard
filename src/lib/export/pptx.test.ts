@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 import { parseDeck } from '@/lib/markdown/deck';
 import { brand, nozillaTheme, palette, registerTheme, setActiveTheme, typeScale } from '@/theme';
 import { deckToPptx, EMU, SLIDE_CX, SLIDE_CY } from './pptx';
-import { buildSlideScene, footerMark } from './scene';
+import { buildSlideScene, footerMark, tabellenLabelHoehe } from './scene';
 import { sceneToSvg } from './svg';
 import { footerFrame } from '@/lib/layout/slideLayout';
 import { createZip, crc32, utf8 } from './zip';
@@ -614,6 +614,27 @@ describe('was die .pptx zeigt und die Fläche nicht', () => {
     expect(xml).not.toContain('sz="6600"');
   });
 
+  it('setzt die Ziffer einer Schritt-Karte so groß wie die Fläche', async () => {
+    /*
+       Das Quadrat ist 44 Einheiten breit, und die 24 der Ziffer ist daneben
+       gewählt und nicht aus der Typo-Leiter genommen. Der PPTX-Weg schrieb
+       dafür die Stufe `h3` — 34 statt 24, also 42 % zu groß im selben Quadrat
+       —, dazu ein eigenes `STEP_SIZE = 44` mit dem Kommentar „siehe scene.ts".
+       Zwei Zahlen für dieselbe Zeichnung.
+    */
+    const xml = await folieMit([
+      '  - kind: card',
+      '    variant: step',
+      '    label: "7"',
+      '    title: Titel',
+      '    w: 320',
+      '    h: 220',
+    ]);
+    // 24 Einheiten → ¾ Punkt je Einheit → 1800 Hundertstel Punkt.
+    expect(xml).toContain('sz="1800"');
+    expect(xml).not.toContain('sz="2550"');
+  });
+
   it('setzt die Quellenangabe eines Zitats wie die Fläche', async () => {
     /*
        Die Zitat-Karte ist die eine Variante, die aus der Reihe fällt: Titel in
@@ -633,6 +654,122 @@ describe('was die .pptx zeigt und die Fläche nicht', () => {
     const texte = [...xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(([, wert]) => wert);
     expect(texte.join(' ')).toContain('ANNA BEISPIEL');
     expect(texte.join(' ')).not.toContain('Anna Beispiel');
+  });
+
+  it('dreht die Beschriftung mit und blendet sie mit ein', async () => {
+    /*
+       Ein Textprimitiv der Szene trägt beides — `opacity` vom Element und
+       `rotate` als Grad **um (x, y)**. `scenenTextShape()` gab keines davon
+       weiter: die Beschriftung einer gedrehten Form lag in PowerPoint
+       waagerecht neben ihr, während die Form gedreht war, und eine zu 35 %
+       eingeblendete Beschriftung stand voll deckend da.
+
+       Geprüft wird an der **Hülle**, nicht am Winkel: PowerPoint dreht um die
+       *Mitte* des Rahmens, das SVG um (x, y) — der Rahmen muss deshalb
+       verschoben dastehen, damit beide Drehungen an derselben Stelle enden.
+    */
+    const nzl = [
+      '  - kind: shape',
+      '    x: 200',
+      '    y: 200',
+      '    w: 400',
+      '    h: 100',
+      '    rotation: 30',
+      '    opacity: 0.35',
+      '    label: Antrag',
+    ];
+    const xml = await folieMit(nzl);
+    const rahmen = xml.match(
+      /name="Beschriftung[^"]*"[\s\S]*?<a:xfrm rot="(\d+)"><a:off x="(-?\d+)" y="(-?\d+)"\/><a:ext cx="(\d+)" cy="(\d+)"/,
+    );
+    expect(rahmen, 'kein gedrehter Rahmen für die Beschriftung').not.toBeNull();
+    const [, rot, ox, oy, cx, cy] = rahmen!.map(Number);
+    expect(rot).toBe(30 * 60000);
+    expect(xml).toMatch(/name="Beschriftung[^"]*"[\s\S]*?<a:alpha val="35000"\/>/);
+
+    // Die Mitte des Rahmens muss dort liegen, wo die Drehung um (x, y) sie
+    // hinbringt — das ist die eine Zahl, die beide Wege gemeinsam haben.
+    const szene = buildSlideScene(
+      parseDeck(['<!-- nzl', 'elements:', ...nzl, '-->', '', '# Probe'].join('\n')).slides[0],
+      parseDeck('# Probe'),
+      {},
+    );
+    const text = szene.prims.find((prim) => prim.t === 'text' && prim.rotate);
+    expect(text, 'die Szene dreht die Beschriftung gar nicht').toBeDefined();
+    if (text?.t !== 'text') throw new Error('kein Textprimitiv');
+    const bogen = ((text.rotate ?? 0) * Math.PI) / 180;
+    const hoehe = cy / EMU;
+    const dx = cx / EMU / 2;
+    const dy = hoehe / 2 - hoehe / 1.5;
+    const soll = {
+      x: text.x + dx * Math.cos(bogen) - dy * Math.sin(bogen),
+      y: text.y + dx * Math.sin(bogen) + dy * Math.cos(bogen),
+    };
+    expect(ox / EMU + dx).toBeCloseTo(soll.x, 1);
+    expect(oy / EMU + hoehe / 2).toBeCloseTo(soll.y, 1);
+  });
+
+  it('blendet eine Tabelle mit ein', async () => {
+    /*
+       `tableShape()` bekam nie eine Deckkraft: eine zu 35 % eingeblendete
+       Tabelle stand in PowerPoint voll deckend da — Zellen wie Linien —,
+       während Fläche, SVG und PDF sie blass zeigten.
+    */
+    const xml = await folieMit([
+      '  - kind: table',
+      '    x: 100',
+      '    y: 100',
+      '    w: 600',
+      '    h: 300',
+      '    opacity: 0.35',
+      '    data: |',
+      '      Was\tWert',
+      '      Eins\t1',
+    ]);
+    const rahmen = xml.slice(xml.indexOf('<p:graphicFrame>'));
+    expect(rahmen).toContain('<a:tbl>');
+    // Die Linie unter jeder Zelle und die Schrift darin — beide gedämpft.
+    const zellen = [...rahmen.matchAll(/<a:tcPr[\s\S]*?<\/a:tcPr>/g)].map(([treffer]) => treffer);
+    expect(zellen.length).toBeGreaterThan(0);
+    for (const zelle of zellen) expect(zelle).toContain('<a:alpha val="35000"/>');
+    expect(rahmen).toMatch(/<a:rPr[\s\S]*?<a:alpha val="\d+"\/>/);
+  });
+
+  it('misst die Überschrift einer Tabelle, statt eine Zeile zu raten', async () => {
+    /*
+       Hier stand `typeScale.label.size * lineHeight * 1.6`, also fest eine
+       Zeile — `tableScene()` misst dagegen mit `typesetText()`. Eine
+       Überschrift, die über die Breite hinausgeht, bricht auf der Fläche um
+       und lag in PowerPoint über der ersten Tabellenzeile.
+    */
+    const lang =
+      'Eine Überschrift, die über die Breite dieser Tabelle deutlich hinausgeht und umbricht';
+    const xml = await folieMit([
+      '  - kind: table',
+      '    x: 100',
+      '    y: 100',
+      '    w: 600',
+      '    h: 300',
+      '    padding: 24',
+      `    label: ${lang}`,
+      '    data: |',
+      '      Was\tWert',
+      '      Eins\t1',
+    ]);
+    const kopf = xml.match(
+      /name="Überschrift[^"]*"[\s\S]*?<a:off x="(-?\d+)" y="(-?\d+)"\/><a:ext cx="(\d+)" cy="(\d+)"/,
+    );
+    const tabelle = xml.match(/<p:graphicFrame>[\s\S]*?<a:off x="(-?\d+)" y="(-?\d+)"/);
+    expect(kopf, 'keine Überschrift im Paket').not.toBeNull();
+    expect(tabelle, 'keine Tabelle im Paket').not.toBeNull();
+
+    // Dieselbe Rechnung, nach der die Fläche zeichnet — und die Tabelle steht
+    // genau darunter.
+    const soll = tabellenLabelHoehe(lang, 600 - 24 * 2);
+    expect(Number(tabelle![2]) / EMU).toBeCloseTo(Number(kopf![2]) / EMU + soll, 1);
+    // Und die Gegenrichtung: eine geratene Zeile wäre kleiner, weil die
+    // Überschrift zweizeilig ist.
+    expect(soll).toBeGreaterThan(typeScale.label.size * typeScale.label.lineHeight * 1.6);
   });
 });
 
@@ -695,6 +832,62 @@ describe('Bilder', () => {
       [['p.png', PIXEL]],
     );
     expect(voll.get('ppt/slides/slide1.xml')).not.toContain('alphaModFix');
+  });
+
+  it('nimmt Rahmen und Schatten eines Bildes mit', async () => {
+    /*
+       Ein Bild ist nicht nur ein `p:pic`: die Szene malt dazu den
+       Versatzschatten und — bei jeder Füllung außer „Ohne" — einen Rahmen aus
+       `paint.line` in der gewählten Strichstärke. `elementShapes()` kehrte mit
+       dem Bild sofort zurück, und beides fiel heraus: Fläche, SVG, PNG und PDF
+       zeigten sie, die `.pptx` als einziger Weg nicht.
+    */
+    const mit = await build(
+      [
+        '<!-- nzl',
+        'elements:',
+        '  - kind: image',
+        '    x: 0',
+        '    y: 0',
+        '    w: 400',
+        '    h: 300',
+        '    src: p.png',
+        '    fill: framed',
+        '    strokeWeight: heavy',
+        '    shadow: lg',
+        '-->',
+      ].join('\n'),
+      [['p.png', PIXEL]],
+    );
+    /*
+       Die Gegenrichtung steht daneben und ist hier die eigentliche Messung:
+       gezählt wird der *Unterschied* zwischen einem Bild mit Rahmen und
+       Schatten und einem ohne beides. Die Folie trägt ohnehin Geometrie — die
+       kleine Wortmarke in der Fußzeile —, und eine nackte Zählung bewiese
+       deshalb nichts.
+    */
+    const ohne = await build(
+      [
+        '<!-- nzl',
+        'elements:',
+        '  - kind: image',
+        '    x: 0',
+        '    y: 0',
+        '    w: 400',
+        '    h: 300',
+        '    src: p.png',
+        '    fill: none',
+        '    shadow: none',
+        '-->',
+      ].join('\n'),
+      [['p.png', PIXEL]],
+    );
+    const zaehle = (teile: Map<string, string>) =>
+      [...(teile.get('ppt/slides/slide1.xml') ?? '').matchAll(/<a:custGeom>/g)].length;
+
+    expect(mit.get('ppt/slides/slide1.xml')).toContain('<p:pic>');
+    expect(ohne.get('ppt/slides/slide1.xml')).toContain('<p:pic>');
+    expect(zaehle(mit) - zaehle(ohne)).toBe(2);
   });
 
   it('schreibt den Alternativtext dorthin, wo er vorgelesen wird', async () => {

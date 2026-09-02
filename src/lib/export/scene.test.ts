@@ -17,7 +17,7 @@
  * Was bleibt, ist diese Prüfung. Sie hält fest, was die Erzeuger lesen — und
  * wer ihnen ein Feld hinzufügt, sieht hier, dass er es getan hat.
  */
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   backgroundStyle,
   buildElementPrims,
@@ -30,17 +30,28 @@ import {
   type ElementFelder,
 } from './scene';
 import { primsToSvgMarkup } from './svg';
+import { segsBounds } from '@/lib/geometry/path';
 import { createEmptySlide } from '@/lib/markdown/deck';
 import { createElement } from '@/model/factory';
 import {
   fillStyles,
+  shapeNames,
   slideBackgrounds,
   type CanvasElement,
   type Deck,
   type ElementKind,
   type Slide,
 } from '@/model/types';
-import { shadowNames, strokeNames, toneNames } from '@/theme';
+import {
+  availableThemes,
+  palette,
+  setActiveTheme,
+  stroke,
+  shadowNames,
+  strokeNames,
+  toneNames,
+} from '@/theme';
+import { registerThemes } from '@/themes';
 
 const folie = (patch: Partial<Slide> = {}): Slide =>
   createEmptySlide({
@@ -257,21 +268,26 @@ describe('was ein Element zeichnet', () => {
 
 /* -------------------------------------------------------------------------- */
 
+/** Für jede Elementart der Inhalt, ohne den sie nichts zeichnet. */
+const inhalt: Record<string, Record<string, unknown>> = {
+  text: { text: 'Hallo Welt' },
+  markdown: { markdown: '# Titel\n\nEin Absatz.' },
+  card: { title: 'Titel', body: 'Text' },
+  badge: { text: 'Neu' },
+  // Der Rahmen „Kasten" und ein Label, das über die Breite hinausgeht: ohne
+  // beides misst der Innenabstand an Zeichen und Form nichts — das war die
+  // Lücke, durch die er dort jahrelang als „wirkt nicht" durchging.
+  icon: { icon: 'rocket', frame: 'box' },
+  shape: { label: 'Ein Label, das über die Breite dieser Form hinausgeht' },
+  connector: { label: 'ab' },
+  image: { src: 'a.png' },
+  table: { data: 'a  b\n1  2' },
+  chart: { data: 'a  1\nb  2' },
+  wordmark: {},
+};
+
 describe('was die Oberfläche über das Gezeichnete behauptet', () => {
   /** Ein Element jeder Art, mit genug Inhalt, dass ein Abstand messbar wäre. */
-  const inhalt: Record<string, Record<string, unknown>> = {
-    text: { text: 'Hallo Welt' },
-    markdown: { markdown: '# Titel\n\nEin Absatz.' },
-    card: { title: 'Titel', body: 'Text' },
-    badge: { text: 'Neu' },
-    icon: { icon: 'rocket' },
-    shape: { label: 'Text' },
-    connector: { label: 'ab' },
-    image: { src: 'a.png' },
-    table: { data: 'a  b\n1  2' },
-    chart: { data: 'a  1\nb  2' },
-    wordmark: {},
-  };
 
   it('nennt Drehung und Körper genau dort, wo sie etwas tun', () => {
     /*
@@ -311,22 +327,51 @@ describe('was die Oberfläche über das Gezeichnete behauptet', () => {
          des Verbinders mitgetragen: Ton und Strichstärke wirken dort, Füllung
          und Schatten nicht.
 
-         Gemessen wird mit `fill: 'framed'` — mit der Vorgabe „ohne Fläche"
-         wäre bei Text und Markdown alles stumm, und die Prüfung liefe ins
-         Leere.
+         Und gemessen wird über **jede Füllung**. Die erste Fassung dieser
+         Prüfung zeichnete nur mit `fill: 'framed'` und fragte `elementFelder`
+         nach dem Element mit seiner *Vorgabe*-Füllung — zwei verschiedene
+         Elemente also, und genau in dieser Lücke saßen dreiundvierzig tote
+         Bedienelemente: ohne Fläche kommen Tinte und Linie aus dem Untergrund,
+         der Ton tut dann nichts, und bei Text, Markdown, Zeichen, Verbinder
+         und Tabelle ist „ohne Fläche" die Vorgabe. Wer einen frisch
+         eingesetzten Text anwählte, sah drei Regler, die nichts taten.
       */
       const felderAmMarkup: Array<[keyof ElementFelder, string, readonly string[]]> = [
         ['ton', 'tone', toneNames],
-        ['fuellung', 'fill', fillStyles],
         ['strichstaerke', 'strokeWeight', strokeNames],
         ['schatten', 'shadow', shadowNames],
       ];
-      for (const [name, feld, werte] of felderAmMarkup) {
-        const markup = werte.map((wert) => bau({ fill: 'framed', [feld]: wert }));
-        expect(elementFelder(createElement(kind as ElementKind))[name], `${kind}/${name}`).toBe(
-          new Set(markup).size > 1,
+      for (const fill of fillStyles) {
+        const gesagt = elementFelder(
+          createElement(kind as ElementKind, { fill } as Partial<CanvasElement>),
         );
+        for (const [name, feld, werte] of felderAmMarkup) {
+          const markup = werte.map((wert) => bau({ fill, [feld]: wert }));
+          expect(gesagt[name], `${kind}/${fill}/${name}`).toBe(new Set(markup).size > 1);
+        }
       }
+      // Die Füllung selbst: ändert sie das Bild, muss sie im Inspektor stehen.
+      const ueberFuellungen = fillStyles.map((fill) => bau({ fill }));
+      expect(elementFelder(createElement(kind as ElementKind)).fuellung, `${kind}/fuellung`).toBe(
+        new Set(ueberFuellungen).size > 1,
+      );
+    }
+
+    /*
+       Und die offenen Formen: „Rahmen" ist ein Eckwinkel, „Klammer" ein Haken.
+       `emitBody()` malt einen Schatten nur für einen geschlossenen Pfad — beide
+       werfen also nie einen, und der Regler stand trotzdem da.
+    */
+    for (const shape of shapeNames) {
+      const bau = (shadow: (typeof shadowNames)[number]) =>
+        primsToSvgMarkup(
+          buildElementPrims(
+            createElement('shape', { shape, fill: 'flat', shadow, w: 200, h: 100 }),
+          ),
+        );
+      expect(elementFelder(createElement('shape', { shape })).schatten, `${shape}/schatten`).toBe(
+        bau('none') !== bau('lg'),
+      );
     }
   });
 
@@ -360,6 +405,120 @@ describe('was die Oberfläche über das Gezeichnete behauptet', () => {
         const wirkt =
           primsToSvgMarkup(buildElementPrims(ohne)) !== primsToSvgMarkup(buildElementPrims(mit));
         expect(elementFelder(ohne).innenabstand, `${kind}/${fill}`).toBe(wirkt);
+      }
+    }
+  });
+
+  it('malt Quadrat und Balken einer Karte in derselben Signalrolle wie den Rest', () => {
+    /*
+       `elementPaint()` schlägt die Signalfarbe auf Tinte um, sobald das
+       Element selbst signalfarben ist — genau dafür gibt es `paint.signal`,
+       und `iconScene()` bekommt sie in derselben Karte übergeben. Das Quadrat
+       der Schritt-Karte und der Balken der Notizkarte griffen daneben auf
+       `bg.signal` zurück: auf einer Karte im Ton „Signal" standen sie in
+       derselben Farbe wie ihre Fläche und waren weg, die Ziffer im Quadrat
+       gleich mit.
+
+       Und die Deckkraft: jedes andere Primitiv desselben Elements bekommt sie
+       mit. Diese beiden gingen leer aus — bei „Deckkraft 0" blieben ein
+       grünes Quadrat und ein grüner Balken voll deckend stehen.
+    */
+    for (const variant of ['step', 'note'] as const) {
+      const karte = (tone: 'paper' | 'signal', opacity: number) =>
+        createElement('card', {
+          variant,
+          tone,
+          opacity,
+          fill: 'flat',
+          label: '7',
+          title: 'Titel',
+          body: 'Rumpf',
+          w: 320,
+          h: 220,
+        });
+      const auf = (tone: 'paper' | 'signal', opacity: number) =>
+        primsToSvgMarkup(buildElementPrims(karte(tone, opacity), backgroundStyle('paper')));
+
+      /*
+         Gesucht wird der Akzent selbst und nicht irgendein Grün im Markup: auf
+         einer signalfarbenen Karte *ist* die Fläche grün, und eine Zählung
+         über die ganze Datei bewiese nichts. Das Quadrat der Schritt-Karte ist
+         44 × 44, der Balken der Notizkarte so breit wie eine schwere Linie und
+         so hoch wie die Karte.
+      */
+      const akzent = (tone: 'paper' | 'signal') => {
+        const prims = buildElementPrims(karte(tone, 1), backgroundStyle('paper'));
+        for (const prim of prims) {
+          if (prim.t !== 'path') continue;
+          const box = segsBounds(prim.segs);
+          if (!box) continue;
+          const trifft =
+            variant === 'step'
+              ? Math.round(box.w) === 44 && Math.round(box.h) === 44
+              : Math.round(box.w) === Math.round(stroke.heavy) && Math.round(box.h) === 220;
+          if (trifft) return prim.fill;
+        }
+        return undefined;
+      };
+      expect(akzent('paper'), `${variant}/paper`).toBe(palette.signal);
+      expect(akzent('signal'), `${variant}/signal`).toBe(palette.ink);
+
+      // Und kein gemalter Pfad ohne Deckkraft, wenn das Element durchsichtig ist.
+      const pfade = [...auf('paper', 0.4).matchAll(/<path [^>]*fill="[^"]+"[^>]*>/g)].map(
+        ([treffer]) => treffer,
+      );
+      expect(pfade.length, `${variant}/Pfade`).toBeGreaterThan(0);
+      for (const pfad of pfade) expect(pfad, `${variant}/Deckkraft`).toContain('opacity="0.4"');
+    }
+  });
+
+  it('meldet nichts über ein Element, an dem etwas zu sehen ist', () => {
+    /*
+       Die Probe aufs Exempel, über **jede** Art, jeden Untergrund, jeden Ton
+       und jede Füllung: was die Warnung meldet, muss im Markup auch wirklich
+       unsichtbar sein.
+
+       Die erste Fassung fragte `elementPaint(element, bg).body` — den Erzeuger
+       der Farben und nicht das Gezeichnete. Zwei Arten malen ihren Körper gar
+       nicht daraus (das Bild zeichnet Rahmen und Bild, die offene Form eine
+       Kontur), und bei jeder Art mit Text steht neben der unsichtbaren Fläche
+       ein sichtbarer Satz. Gemessen waren es fünfundvierzig Fehlalarme —
+       darunter jede Textfolie mit weißer Fläche auf weißem Papier, also der
+       Regelfall. Eine Warnung über einem Element, das gut aussieht, ist die
+       Sorte Wächter, die man abschaltet; der Kopf der Funktion sagt das seit
+       ihrem ersten Tag, und sie hat es zweimal selbst nicht eingehalten.
+    */
+    for (const [kind, felder] of Object.entries(inhalt)) {
+      for (const hintergrund of slideBackgrounds) {
+        const bg = backgroundStyle(hintergrund);
+        for (const tone of toneNames) {
+          for (const fill of fillStyles) {
+            const element = createElement(
+              kind as ElementKind,
+              {
+                ...felder,
+                tone,
+                fill,
+                w: 300,
+                h: 200,
+              } as Partial<CanvasElement>,
+            );
+            if (!unsichtbareFlaeche(element, bg)) continue;
+            const markup = primsToSvgMarkup(buildElementPrims(element, bg));
+            const farben = [...markup.matchAll(/(?:fill|stroke)="([^"]+)"/g)].map(
+              ([, wert]) => wert,
+            );
+            const sichtbar =
+              markup.includes('<image') ||
+              farben.some(
+                (farbe) =>
+                  farbe !== 'none' &&
+                  farbe !== 'transparent' &&
+                  farbe.toUpperCase() !== bg.fill.toUpperCase(),
+              );
+            expect(sichtbar, `${kind}/${hintergrund}/${tone}/${fill}`).toBe(false);
+          }
+        }
       }
     }
   });
@@ -437,5 +596,94 @@ describe('was die Oberfläche über das Gezeichnete behauptet', () => {
     const gemalt = primsToSvgMarkup(buildElementPrims(marke, aufWeiss));
     expect(gemalt.length).toBeGreaterThan(1000);
     expect(gemalt).not.toContain(`fill="${aufWeiss.fill}"`);
+  });
+});
+
+describe('was die Oberfläche behauptet, gilt auch unter fremder Marke', () => {
+  /*
+     Beide Rechnungen lesen Marken-Werte: `elementFelder()` über das erzeugte
+     Markup, `unsichtbareFlaeche()` über `elementPaint` und `backgroundStyle`.
+     Eine Prüfung, die nur nozilla durchgeht, sagt über die zweite Marke nichts
+     — und die zweite Marke ist der Zweck dieses Werkzeugs. Dieselbe Linie wie
+     bei „geht jedes angemeldete Erscheinungsbild durch" in `brandTheme.test.ts`.
+  */
+  const vorher = availableThemes().map((theme) => theme.id);
+  beforeAll(() => registerThemes());
+  afterAll(() => setActiveTheme('nozilla'));
+
+  it('nennt für jedes Erscheinungsbild dieselben Felder wie das Markup', () => {
+    registerThemes();
+    for (const theme of availableThemes()) {
+      setActiveTheme(theme.id);
+      for (const [kind, felder] of Object.entries(inhalt)) {
+        const bau = (patch: Record<string, unknown>) =>
+          primsToSvgMarkup(
+            buildElementPrims(
+              createElement(
+                kind as ElementKind,
+                {
+                  ...felder,
+                  w: 300,
+                  h: 200,
+                  ...patch,
+                } as Partial<CanvasElement>,
+              ),
+            ),
+          );
+        expect(
+          elementFelder(createElement(kind as ElementKind)).drehung,
+          `${theme.id}/${kind}/Drehung`,
+        ).toBe(bau({ rotation: 0 }) !== bau({ rotation: 30 }));
+        const paare: Array<[keyof ElementFelder, string, readonly string[]]> = [
+          ['ton', 'tone', toneNames],
+          ['strichstaerke', 'strokeWeight', strokeNames],
+          ['schatten', 'shadow', shadowNames],
+        ];
+        for (const fill of fillStyles) {
+          const gesagt = elementFelder(
+            createElement(kind as ElementKind, { fill } as Partial<CanvasElement>),
+          );
+          for (const [name, feld, werte] of paare) {
+            const markup = werte.map((wert) => bau({ fill, [feld]: wert }));
+            expect(gesagt[name], `${theme.id}/${kind}/${fill}/${name}`).toBe(
+              new Set(markup).size > 1,
+            );
+          }
+        }
+      }
+    }
+    // Der Stand des Verzeichnisses vor dem Test — `registerTheme()` nimmt
+    // nichts wieder heraus, und eine spätere Prüfung soll dieselbe Liste sehen.
+    expect(availableThemes().map((theme) => theme.id)).toContain(vorher[0]);
+  });
+
+  it('meldet für jedes Erscheinungsbild nur, was wirklich unsichtbar ist', () => {
+    registerThemes();
+    for (const theme of availableThemes()) {
+      setActiveTheme(theme.id);
+      const treffer: string[] = [];
+      for (const hintergrund of slideBackgrounds) {
+        const bg = backgroundStyle(hintergrund);
+        for (const tone of toneNames) {
+          for (const fill of fillStyles) {
+            const element = createElement('shape', { tone, fill, w: 200, h: 100 });
+            if (unsichtbareFlaeche(element, bg)) treffer.push(`${hintergrund}/${tone}/${fill}`);
+          }
+        }
+      }
+      /*
+         Dieselben fünf wie bei nozilla, und das ist kein Zufall: sie entstehen
+         daraus, dass ein Ton und ein Untergrund *denselben* Palettenwert
+         nennen. Eine Marke, die das anders anlegt, wird hier rot — und dann
+         gehört nachgesehen, welche Wahl im Inspektor neuerdings nichts tut.
+      */
+      expect(treffer, theme.id).toEqual([
+        'paper/white/flat',
+        'cream/paper/flat',
+        'ink/ink/flat',
+        'signal/signal/flat',
+        'grid/white/flat',
+      ]);
+    }
   });
 });

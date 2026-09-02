@@ -22,6 +22,7 @@
 import {
   brand,
   canvas as canvasTokens,
+  color,
   palette,
   strokeWidth as strokeWidthOf,
   typeScale,
@@ -37,7 +38,9 @@ import {
   footerMark,
   elementPaint,
   kartenFelder,
+  kartenZiffer,
   kartenTitelGroesse,
+  tabellenLabelHoehe,
   type BackgroundStyle,
   type ScenePrim,
 } from './scene';
@@ -400,7 +403,30 @@ function elementShapes(
     const item = context.media.find((entry) => entry.src === element.src);
     if (!item) return [];
     if (!used.includes(item)) used.push(item);
-    return [pictureShape(nextId(), element, used.indexOf(item) + 1, item)];
+    /*
+       Erst das Beiwerk, dann das Bild.
+
+       Ein Bild ist nicht nur ein `p:pic`: die Szene malt dazu den
+       Versatzschatten und — bei jeder Füllung außer „Ohne" — einen Rahmen aus
+       `paint.line` in der gewählten Strichstärke. Hier wurde mit dem Bild
+       sofort zurückgekehrt, und beides fiel heraus: Fläche, SVG, PNG und PDF
+       zeigten Rahmen und Schatten, die `.pptx` als einziger Weg nicht. Wer ein
+       Bild mit Rahmen setzte und die Datei weitergab, bekam sie ohne zurück.
+
+       Das transparente Trägerrechteck bleibt draußen — es hält im SVG nur die
+       Hülle zusammen und wäre in PowerPoint eine unsichtbare Form, die man
+       versehentlich anfasst.
+    */
+    const beiwerk = buildElementPrims(element, bg).filter(
+      (prim) => prim.t !== 'image' && !(prim.t === 'path' && prim.fill === 'transparent'),
+    );
+    const out: string[] = [];
+    for (const prim of beiwerk) {
+      const shape = primToShape(prim, nextId);
+      if (shape) out.push(shape);
+    }
+    out.push(pictureShape(nextId(), element, used.indexOf(item) + 1, item));
+    return out;
   }
 
   /*
@@ -475,7 +501,11 @@ function elementShapes(
     let y = element.y + element.padding;
 
     if (element.label) {
-      const hoehe = typeScale.label.size * typeScale.label.lineHeight * 1.6;
+      // Gemessen, nicht geraten: hier stand `label.size * lineHeight * 1.6`,
+      // also genau eine Zeile plus Abstand. Eine Überschrift, die über die
+      // Breite hinausgeht, bricht auf der Fläche um — in PowerPoint lag sie
+      // dann über der ersten Tabellenzeile.
+      const hoehe = tabellenLabelHoehe(element.label, breite);
       out.push(
         textShape(
           nextId(),
@@ -506,6 +536,7 @@ function elementShapes(
           TABLE_ROW_HEIGHT * (block.table.rows.length + 1),
           block.table,
           bg,
+          element.opacity,
         ),
       );
     }
@@ -526,15 +557,37 @@ function elementShapes(
     // Die Ziffer einer Schritt-Karte sitzt im grünen Quadrat und ist dort
     // Gestaltung, nicht Fließtext — sie bekommt ihren eigenen Rahmen.
     if (element.kind === 'card' && element.variant === 'step') {
+      /*
+         Kante und Schrift kommen aus `kartenZiffer()`, also aus derselben
+         Rechnung, nach der die Szene zeichnet. Hier standen ein eigenes
+         `STEP_SIZE = 44` mit dem Kommentar „siehe scene.ts" und für die Ziffer
+         die Stufe `h3` — 34 statt 24, also 42 % zu groß im selben Quadrat.
+      */
+      const ziffer = kartenZiffer();
       out.push(
         textShape(
           nextId(),
           'Schritt',
           element.x + element.padding,
           element.y + element.padding + 10,
-          STEP_SIZE,
-          STEP_SIZE,
-          [inlineToParagraph(element.label?.trim() || '1', 'h3', { align: 'ctr' })],
+          ziffer.kante,
+          ziffer.kante,
+          [
+            {
+              runs: [
+                {
+                  text: element.label?.trim() || '1',
+                  font: ziffer.schrift,
+                  color: color.inkOnSignal,
+                },
+              ],
+              level: 0,
+              bullet: 'none',
+              align: 'ctr',
+              spaceBefore: 0,
+              lineHeight: 1.2,
+            },
+          ],
           { anchor: 't', rotation: element.rotation, opacity: element.opacity },
         ),
       );
@@ -543,9 +596,6 @@ function elementShapes(
 
   return out;
 }
-
-/** Die Kantenlänge des Ziffernquadrats einer Schritt-Karte (siehe `scene.ts`). */
-const STEP_SIZE = 44;
 
 /**
  * Wo der Textrahmen eines Elements sitzt.
@@ -573,7 +623,7 @@ function textBox(element: CanvasElement): { x: number; y: number; w: number; h: 
       case 'stat':
         break;
       case 'step':
-        top = pad + STEP_SIZE + 12;
+        top = pad + kartenZiffer().kante + 12;
         break;
       default:
         break;
@@ -880,7 +930,10 @@ function shape(id: number, name: string, spec: ShapeSpec): string {
 
 function xfrm(x: number, y: number, w: number, h: number, rotation?: number): string {
   // PowerPoint dreht um die Mitte der Form, in 60000steln eines Grades.
-  const rot = rotation ? ` rot="${Math.round(((rotation % 360) + 360) % 360) * 60000}"` : '';
+  // 60000stel eines Grades — die Rundung gehört deshalb auf das Ergebnis und
+  // nicht auf die Gradzahl: gerundet stand ein um 30,5° gedrehtes Element in
+  // PowerPoint auf 30°, während drei andere Wege den halben Grad zeigten.
+  const rot = rotation ? ` rot="${Math.round((((rotation % 360) + 360) % 360) * 60000)}"` : '';
   return (
     `<a:xfrm${rot}><a:off x="${emu(x)}" y="${emu(y)}"/>` +
     `<a:ext cx="${Math.max(1, emu(w))}" cy="${Math.max(1, emu(h))}"/></a:xfrm>`
@@ -979,17 +1032,52 @@ function scenenTextShape(prim: Extract<ScenePrim, { t: 'text' }>, nextId: IdFn):
     lineHeight: 1.2,
   };
 
+  const w = Math.max(8, breite + groesse);
+  const h = groesse * 1.5;
+  /*
+     Deckkraft und Drehung kamen hier nie an.
+
+     Ein Textprimitiv trägt beides — `opacity` vom Element, `rotate` als Grad
+     **um (x, y)**. Ohne die Deckkraft stand die Beschriftung eines zu 35 %
+     eingeblendeten Diagramms in PowerPoint voll deckend da, ohne die Drehung
+     lag das Label einer gedrehten Form waagerecht neben ihr, während die Form
+     selbst gedreht war: die Segmente tragen ihre Drehung schon, der Text nicht.
+
+     Und die beiden Drehpunkte sind nicht derselbe: PowerPoint dreht um die
+     *Mitte* des Rahmens. Der Rahmen wird deshalb dorthin gelegt, wo ihn
+     PowerPoints eigene Drehung hinbringt — dieselbe Rechnung wie `jsPdfEcke()`
+     im PDF-Weg, aus demselben Grund.
+  */
+  const mitte = drehePunkt(
+    prim.x + w / 2,
+    prim.y - groesse + h / 2,
+    prim.rotate ?? 0,
+    prim.x,
+    prim.y,
+  );
   return [
-    textShape(
-      nextId(),
-      'Beschriftung',
-      prim.x,
-      prim.y - groesse,
-      Math.max(8, breite + groesse),
-      groesse * 1.5,
-      [absatz],
-    ),
+    textShape(nextId(), 'Beschriftung', mitte.x - w / 2, mitte.y - h / 2, w, h, [absatz], {
+      rotation: prim.rotate,
+      opacity: prim.opacity,
+    }),
   ];
+}
+
+/** Einen Punkt um (ax, ay) drehen — Grad, im Uhrzeigersinn wie im SVG. */
+function drehePunkt(
+  x: number,
+  y: number,
+  grad: number,
+  ax: number,
+  ay: number,
+): { x: number; y: number } {
+  if (!grad) return { x, y };
+  const rad = (grad * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const dx = x - ax;
+  const dy = y - ay;
+  return { x: ax + dx * cos - dy * sin, y: ay + dx * sin + dy * cos };
 }
 
 /**
@@ -1224,6 +1312,7 @@ function tableShape(
   h: number,
   table: TableModel,
   bg: BackgroundStyle,
+  opacity?: number,
 ): string {
   const columns = Math.max(1, table.header.length);
   /*
@@ -1258,7 +1347,10 @@ function tableShape(
     };
     return (
       '<a:tc><a:txBody><a:bodyPr/><a:lstStyle/>' +
-      paragraphXml(para) +
+      // Die Deckkraft des Elements gilt für die Zellen wie für jeden anderen
+      // Text — sie kam hier nie an: eine zu 35 % eingeblendete Tabelle stand
+      // in PowerPoint voll deckend da, samt ihrer Linien.
+      paragraphXml(para, opacity) +
       '</a:txBody>' +
       // `a:tcPr` ist im Schema eine *Sequenz*: erst die Linien (lnL, lnR,
       // lnT, lnB), dann die Füllung. Umgekehrt ist die Datei ungültig.
@@ -1272,7 +1364,7 @@ function tableShape(
          nur — eine Tabelle ist dort eine Folge von Zeilen, kein Raster.
       */
       '<a:lnL><a:noFill/></a:lnL><a:lnR><a:noFill/></a:lnR><a:lnT><a:noFill/></a:lnT>' +
-      `<a:lnB w="${emu(strokeWidthOf('hair'))}" cap="flat">${solidFill(bg.line)}` +
+      `<a:lnB w="${emu(strokeWidthOf('hair'))}" cap="flat">${solidFill(bg.line, opacity)}` +
       '<a:prstDash val="solid"/></a:lnB>' +
       /*
          **Keine** Füllung, auch nicht in der Kopfzeile.

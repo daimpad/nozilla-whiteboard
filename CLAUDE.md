@@ -1784,6 +1784,73 @@ Beschriftung da. Und sie geht am Klempnerei-Filter *vorbei*: „slide" ist
 durchgehend klein, und genau deshalb kam es durch — ein Text zwischen zwei
 Ausdrücken im JSX ist per Bauart sichtbar.
 
+**Eine deutsche Ganzzahl hat kein Komma.** `zahlAus()` behandelte den Punkt
+als Tausendertrenner nur, wenn auch ein Komma dabeistand — „1.234.567" wurde
+damit `Number('1.234.567')`, also `NaN`, und `parseChartData` warf die ganze
+Zeile weg: die Reihe hatte einen Balken weniger, ohne ein Wort. Der Kopf jener
+Datei verspricht im selben Atemzug deutsche Schreibweise. Der Fall wird jetzt
+an der *Zahl* der Punkte erkannt; beim einzelnen bleibt es beim Bisherigen,
+denn „3.5" ist drei Komma fünf und nicht fünfunddreißig — raten wäre hier
+schlimmer als lesen.
+
+**Und der Innenabstand wirkte doch, an zwei Arten mehr.** `nutztInnenabstand()`
+verneinte ihn für Form und Zeichen; gemessen schiebt er die Beschriftung einer
+Form (sie bricht innerhalb der Breite minus Abstand um) und den Rahmen „Kasten"
+eines Zeichens. Der Test sah es nicht, weil sein Formlabel „Text" hieß — kurz
+genug, um bei jedem Abstand auf eine Zeile zu passen. Ein Wächter, der seinen
+eigenen Fall wegfiltert, zum zweiten Mal in diesem Repo; die Vorlage im Test
+trägt jetzt ein Label, das über die Breite hinausgeht, und einen Kasten.
+
+**Die Beschriftung war das einzige, was sich in der `.pptx` nicht drehte.**
+`scenenTextShape()` gab weder `opacity` noch `rotate` weiter, obwohl das
+Textprimitiv beides trägt: die Beschriftung einer um 30° gedrehten Form lag
+waagerecht neben ihr, während die Form gedreht war, und eine zu 35 %
+eingeblendete stand voll deckend da. Und die beiden Drehpunkte sind nicht
+derselbe — PowerPoint dreht um die **Mitte** des Rahmens, das SVG um (x, y).
+Der Rahmen wird deshalb dorthin gelegt, wo PowerPoints eigene Drehung ihn
+hinbringt: dieselbe Rechnung wie `jsPdfEcke()`, aus demselben Grund. Gemessen
+an einem 400 × 100-Kasten bei 30°: Rahmenmitte (406,8 / 254,2), also 2,1
+Einheiten links und genau auf der Grundlinie — geprüft wird deshalb die Mitte
+und nicht die Ecke.
+
+**Und die Rundung stand auf der falschen Seite der Multiplikation.** `rot` ist
+in 60000steln eines Grades angegeben, gerundet wurde die *Gradzahl*: aus 30,5°
+wurde 30. Die Einheit gibt es genau dafür.
+
+**Die Deckkraft hörte an der Tabelle ganz auf.** `tableShape()` bekam nie eine
+— eine zu 35 % eingeblendete Tabelle stand in PowerPoint voll deckend da,
+Zellen wie Linien, während vier andere Wege sie blass zeigten. Das ist derselbe
+Befund wie „Die Deckkraft hörte in der `.pptx` an drei Stellen auf", eine
+Elementart weiter; wer eine Farbe schreibt, schreibt ihre Deckkraft mit.
+
+**Eine geratene Zeile für eine Überschrift, die umbrechen kann.** Der PPTX-Weg
+rechnete die Höhe der Tabellenüberschrift als `label.size * lineHeight * 1.6`,
+`tableScene()` misst sie mit `typesetText()`. Bei einer einzeiligen Überschrift
+stimmten beide ungefähr, bei einer zweizeiligen lag die Tabelle 10 Einheiten zu
+hoch und schnitt in den Text. `tabellenLabelHoehe()` ist jetzt die eine
+Rechnung — zum dritten Mal dieselbe Antwort: zwei Rechnungen für dieselbe Frage
+laufen auseinander, und man sieht es erst in der fremden Datei.
+
+**Das Handout verlor jede Notiz, die länger war als eine Seite.** Unter der
+Folie bleiben knapp tausend Einheiten; `buildHandoutScene()` setzte die ganze
+Notiz an einem Stück dorthin und gab *eine* Szene zurück. Gemessen an sechzig
+Absätzen: 1188 Einheiten standen unterhalb der Blattkante — im PDF also
+nirgends, ohne ein Wort. Die Notiz läuft jetzt auf Folgeseiten weiter, und
+`buildHandoutScenes()` gibt deshalb ein Array zurück; der Aufrufer sammelt mit
+`flatMap`.
+
+Neu gesetzt wird dabei **nicht**: dasselbe Satzergebnis wird nach seinen
+eigenen Zeilen auf Seiten verteilt. Ein zweiter Satzlauf je Seite hätte andere
+Umbrüche als der erste und wäre der zweite Weg, den die erste Regel dieses
+Projekts verbietet.
+
+Zwei Fallen daran. Ein gesetztes Textprimitiv trägt seine **Grundlinie** als
+`y`, eine Fläche und ein Bild ihre Oberkante — wer das gleichsetzt, legt die
+erste Zeile jeder Folgeseite genau auf den Rand und lässt ihre Versalhöhe
+darüber hinausragen. Und die Prüfung dazu maß zuerst gegen `canvas.margin.top`,
+während der Satzspiegel `margin.left` nimmt: 72 gegen 88, und die Sabotage kam
+durch. Ein Wächter, der den falschen Token liest, ist grün und bewacht nichts.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,

@@ -1367,6 +1367,20 @@ async function main() {
     const warnung = () => inspektor.getByText('genau die Farbe des Untergrunds').count();
     gleich(await warnung(), 0, 'die gerahmte Karte wird schon beklagt');
 
+    /*
+       Geprüft wird an einem **Rechteck** und nicht an der Karte.
+
+       Die erste Fassung dieser Prüfung nahm die Karte — und schrieb damit
+       einen Fehlalarm fest: eine Karte trägt Titel und Fließtext, die auf
+       weißer Fläche in Tinte stehen. Zu sehen ist sie also sehr wohl, nur ihre
+       *Fläche* nicht, und die Meldung sagt „von diesem Element ist auf der
+       Folie nichts zu sehen". Ein leeres Rechteck ist der Fall, für den der
+       Satz stimmt.
+    */
+    await seite.locator('aside button').filter({ hasText: 'Rechteck' }).first().click();
+    await seite.waitForTimeout(600);
+    gleich(await warnung(), 0, 'das gerahmte Rechteck wird schon beklagt');
+
     await inspektor.getByRole('button', { name: 'Weiß', exact: true }).click();
     await seite.waitForTimeout(300);
     await inspektor.locator('select').first().selectOption('flat');
@@ -1374,15 +1388,23 @@ async function main() {
     gleich(await warnung(), 1, 'Weiß auf Weiß wird nicht gemeldet');
 
     /*
-       Die Gegenrichtung, an der der erste Anlauf dieser Regel gescheitert
-       ist: dieselbe Farbe mit einem Rahmen ist sichtbar — der Strich kommt
-       aus dem Ton des Elements und nicht aus dem Untergrund. Eine Warnung
-       über einem Element, das gut aussieht, ist die Sorte Wächter, die man
-       abschaltet.
+       Zwei Gegenrichtungen. Dieselbe Farbe mit einem Rahmen ist sichtbar — der
+       Strich kommt aus dem Ton des Elements und nicht aus dem Untergrund. Und
+       dieselbe Farbe unter einer Karte ist auch sichtbar, denn dort steht Text
+       darauf: eine Warnung über einem Element, das gut aussieht, ist die Sorte
+       Wächter, die man abschaltet.
     */
     await inspektor.locator('select').first().selectOption('framed');
     await seite.waitForTimeout(400);
     gleich(await warnung(), 0, 'die gerahmte Fläche wird zu Unrecht beklagt');
+
+    await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
+    await seite.waitForTimeout(600);
+    await inspektor.getByRole('button', { name: 'Weiß', exact: true }).click();
+    await seite.waitForTimeout(300);
+    await inspektor.locator('select').first().selectOption('flat');
+    await seite.waitForTimeout(400);
+    gleich(await warnung(), 0, 'die weiße Karte mit ihrem Text wird zu Unrecht beklagt');
 
     /* ------------------------------------------ und das Feld, das nichts tut */
     await seite.locator('aside button').filter({ hasText: 'Badge' }).first().click();
@@ -1417,26 +1439,55 @@ async function main() {
     );
 
     /*
-       Und der Verbinder ist ein Strich: Ton und Strichstärke wirken, Füllung
-       und Schatten nicht. Die Gegenrichtung steht ausdrücklich daneben — eine
-       Leiste, die zu wenig zeigt, ist so schlimm wie eine, die zu viel zeigt.
+       Und der Verbinder ist ein Strich: seine Stärke wirkt, Füllung und
+       Schatten nicht. Der **Ton** hängt an der Füllung — ohne eigene Fläche
+       erbt ein Element Tinte und Linie vom Untergrund, und der Verbinder hat
+       „Ohne" als Vorgabe. Genau in dieser Lücke saßen dreiundvierzig tote
+       Bedienelemente: gefragt wurde nur die Art, nicht die Füllung.
+
+       Die Gegenrichtung steht ausdrücklich daneben — eine Leiste, die zu wenig
+       zeigt, ist so schlimm wie eine, die zu viel zeigt.
     */
     await seite.locator('aside button').filter({ hasText: 'Pfeil' }).first().click();
     await seite.waitForTimeout(600);
-    for (const feld of ['Ton', 'Strichstärke']) {
-      gleich(
-        await inspektor.getByText(feld, { exact: true }).count(),
-        1,
-        `dem Verbinder fehlt „${feld}", obwohl es bei ihm wirkt`,
-      );
-    }
-    for (const feld of ['Füllung', 'Schatten']) {
+    gleich(
+      await inspektor.getByText('Strichstärke', { exact: true }).count(),
+      1,
+      'dem Verbinder fehlt „Strichstärke", obwohl es bei ihm wirkt',
+    );
+    for (const feld of ['Füllung', 'Schatten', 'Ton']) {
       gleich(
         await inspektor.getByText(feld, { exact: true }).count(),
         0,
-        `der Verbinder zeigt „${feld}" — ein Strich hat keine Fläche`,
+        `der Verbinder zeigt „${feld}" — ein Strich ohne eigene Fläche`,
       );
     }
+
+    /*
+       Dasselbe am Text, und zwar in beide Richtungen: frisch eingesetzt hat er
+       keine Fläche, und dann tun Ton, Strichstärke und Schatten nichts. Wer
+       ihm eine Füllung gibt, bekommt alle drei.
+    */
+    await seite.locator('aside button').filter({ hasText: 'Fließtext' }).first().click();
+    await seite.waitForTimeout(600);
+    for (const feld of ['Ton', 'Strichstärke', 'Schatten']) {
+      gleich(
+        await inspektor.getByText(feld, { exact: true }).count(),
+        0,
+        `der frische Text zeigt „${feld}", obwohl er keine Fläche hat`,
+      );
+    }
+    await inspektor.locator('select').first().selectOption('framed');
+    await seite.waitForTimeout(400);
+    for (const feld of ['Ton', 'Strichstärke', 'Schatten']) {
+      gleich(
+        await inspektor.getByText(feld, { exact: true }).count(),
+        1,
+        `dem gerahmten Text fehlt „${feld}", obwohl es bei ihm wirkt`,
+      );
+    }
+    await seite.locator('aside button').filter({ hasText: 'Pfeil' }).first().click();
+    await seite.waitForTimeout(600);
     gleich(
       await seite.locator('[data-handle="rotate"]').count(),
       1,

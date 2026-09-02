@@ -65,9 +65,27 @@ function zahlAus(text: string): number | null {
   const sauber = text.replace(/[^\d,.-]/g, '');
   if (!sauber) return null;
 
-  // Punkt als Tausendertrenner nur, wenn auch ein Komma da ist — sonst wäre
-  // „3.5" plötzlich fünfunddreißig.
-  const normalisiert = sauber.includes(',') ? sauber.replace(/\./g, '').replace(',', '.') : sauber;
+  /*
+     Punkte sind Tausendertrenner, wenn ein Komma dabeisteht — oder wenn es
+     mehr als einen gibt.
+
+     Der zweite Fall fehlte, und er ist der häufigere: eine deutsche Ganzzahl
+     hat kein Komma. Aus „1.234.567" wurde `Number('1.234.567')` und damit
+     `NaN`, und `parseChartData` warf die ganze Zeile weg — die Reihe hatte
+     danach einen Balken weniger, ohne ein Wort. Der Kopf dieser Datei
+     verspricht im selben Atemzug deutsche Schreibweise.
+
+     Beim *einzelnen* Punkt bleibt es beim Bisherigen: „3.5" ist drei Komma
+     fünf und nicht fünfunddreißig. Wer „1.240" meint, schreibt es entweder
+     mit einem zweiten Punkt oder ohne Trenner — raten wäre hier schlimmer als
+     lesen.
+  */
+  const punkte = (sauber.match(/\./g) ?? []).length;
+  const normalisiert = sauber.includes(',')
+    ? sauber.replace(/\./g, '').replace(',', '.')
+    : punkte > 1
+      ? sauber.replace(/\./g, '')
+      : sauber;
 
   const zahl = Number(normalisiert);
   return Number.isFinite(zahl) ? zahl : null;
