@@ -15,7 +15,8 @@ import { describe, expect, it } from 'vitest';
 import { parseDeck } from '@/lib/markdown/deck';
 import { brand, nozillaTheme, palette, registerTheme, setActiveTheme, typeScale } from '@/theme';
 import { deckToPptx, EMU, SLIDE_CX, SLIDE_CY } from './pptx';
-import { footerMark } from './scene';
+import { buildSlideScene, footerMark } from './scene';
+import { sceneToSvg } from './svg';
 import { footerFrame } from '@/lib/layout/slideLayout';
 import { createZip, crc32, utf8 } from './zip';
 
@@ -523,10 +524,115 @@ describe('was die .pptx zeigt und die Fläche nicht', () => {
       '    y: 300',
       '    label: abgelehnt',
     ]);
-    // Beide Beschriftungen laufen über die Label-Stufe, also in Versalien.
+    /*
+       Verglichen wird mit der **Fläche** und nicht mit einer abgeschriebenen
+       Zeichenkette. Die erste Fassung dieser Prüfung erwartete Versalien —
+       genau das, was der Fehler erzeugte: der PPTX-Weg setzte jedes
+       Textprimitiv der Szene über `inlineToParagraph(text, 'label')` neu, also
+       in Space Mono Bold 12 in Großbuchstaben, während die Szene die
+       Beschriftung einer Form in `labelStyle ?? 'body'` setzt. Der Test hat
+       den Fehler bestätigt statt ihn zu finden.
+    */
+    const svg = sceneToSvg(
+      buildSlideScene(
+        parseDeck(
+          [
+            '<!-- nzl',
+            'elements:',
+            '  - kind: shape',
+            '    label: Antrag pruefen',
+            '  - kind: connector',
+            '    x: 400',
+            '    y: 300',
+            '    label: abgelehnt',
+            '-->',
+            '',
+            '# Probe',
+          ].join('\n'),
+        ).slides[0],
+        parseDeck('# Probe'),
+        {},
+      ),
+    );
+    const ausSvg = [...svg.matchAll(/<tspan[^>]*>([^<]*)<\/tspan>/g)].map(([, wert]) => wert);
     const texte = [...xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(([, wert]) => wert);
-    expect(texte).toContain('ANTRAG PRUEFEN');
-    expect(texte).toContain('ABGELEHNT');
+    /*
+       Die beiden Beschriftungen laufen über *verschiedene* Stufen, und genau
+       darum geht es: die einer Form über `labelStyle ?? 'body'` — Inter 16,
+       gemischt —, die eines Verbinders über `label` — Space Mono Bold 12,
+       Versalien. Der PPTX-Weg machte aus beiden das Zweite.
+    */
+    for (const wort of ['Antrag', 'pruefen', 'ABGELEHNT']) {
+      expect(ausSvg.join(' '), `Fläche: ${wort}`).toContain(wort);
+      expect(texte.join(' '), `PPTX: ${wort}`).toContain(wort);
+    }
+    // Und die Gegenrichtung: was die Fläche nicht groß schreibt, schreibt die
+    // Datei auch nicht groß.
+    expect(texte.join(' ')).not.toContain('ANTRAG');
+  });
+
+  it('gibt der Kontur dieselbe Deckkraft wie der Fläche', async () => {
+    /*
+       Im SVG steht `opacity` an der Form und gilt für Füllung und Strich, im
+       PDF setzt `setOpacity()` beides. Hier ging die Deckkraft nur an
+       `solidFill` der Füllung: eine gerahmte Form verblasste, ihr Rahmen
+       blieb schwarz, und eine Form mit „Füllung: Kontur" — also jeder
+       Verbinder und jede Diagrammachse — blieb ganz undurchsichtig.
+    */
+    const xml = await folieMit([
+      '  - kind: shape',
+      '    fill: outline',
+      '    opacity: 0.4',
+      '    w: 300',
+      '    h: 150',
+    ]);
+    // `<a:ln ` mit dem Leerzeichen: ohne es trifft das Muster auch `<a:lnTo>`,
+    // und ein Pfadsegment trägt keine Farbe.
+    const linien = [...xml.matchAll(/<a:ln[ >]([\s\S]*?)<\/a:ln>/g)].map(([, inhalt]) => inhalt);
+    const mitFarbe = linien.filter((inhalt) => inhalt.includes('<a:srgbClr'));
+    expect(mitFarbe.length).toBeGreaterThan(0);
+    // 0,4 · 100000 — dieselbe Zahl, die `solidFill` für eine Füllung schreibt.
+    for (const inhalt of mitFarbe) expect(inhalt).toContain('<a:alpha val="40000"/>');
+  });
+
+  it('setzt die Kennzahl einer Karte auf dieselbe Größe wie die Fläche', async () => {
+    /*
+       `cardScene()` deckelt die Ziffer auf 42 % der Kartenhöhe — sonst ragt
+       eine 88 Einheiten hohe Zahl aus einer 190 Einheiten hohen Karte heraus,
+       und genau so hoch ist die Kennzahl-Karte im mitgelieferten Deck. Der
+       PPTX-Weg schrieb die volle Stufe.
+    */
+    const xml = await folieMit([
+      '  - kind: card',
+      '    variant: stat',
+      '    title: 38 %',
+      '    w: 492',
+      '    h: 190',
+    ]);
+    // 190 · 0,42 = 79,8 Einheiten → ¾ Punkt je Einheit → 5985 Hundertstel.
+    expect(xml).toContain('sz="5985"');
+    expect(xml).not.toContain('sz="6600"');
+  });
+
+  it('setzt die Quellenangabe eines Zitats wie die Fläche', async () => {
+    /*
+       Die Zitat-Karte ist die eine Variante, die aus der Reihe fällt: Titel in
+       `lead` (Inter Regular, ohne Sperrung), Quellenangabe in `label` (Space
+       Mono Bold, Versalien). Der PPTX-Weg führte dafür seine eigene Tabelle
+       und schrieb `h4` und `small` — dieselbe Karte, in PowerPoint in einer
+       anderen Schrift, in einem anderen Gewicht und in gemischter Schreibweise.
+    */
+    const xml = await folieMit([
+      '  - kind: card',
+      '    variant: quote',
+      '    title: Wir bauen Dinge, die halten.',
+      '    body: Anna Beispiel',
+      '    w: 500',
+      '    h: 260',
+    ]);
+    const texte = [...xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(([, wert]) => wert);
+    expect(texte.join(' ')).toContain('ANNA BEISPIEL');
+    expect(texte.join(' ')).not.toContain('Anna Beispiel');
   });
 });
 
@@ -557,6 +663,38 @@ describe('Bilder', () => {
     expect(built.has('ppt/media/image1.png')).toBe(true);
     expect(built.get('ppt/slides/slide1.xml')).toContain('<p:pic>');
     expect(built.get('ppt/slides/_rels/slide1.xml.rels')).toContain('../media/image1.png');
+  });
+
+  it('trägt die Deckkraft eines Bildes mit', async () => {
+    /*
+       Die Szene trägt sie am `image`-Primitiv, das SVG schreibt `opacity` ans
+       `<image>`, der PDF-Weg setzt eine GState. Nur die `.pptx` ließ den Wert
+       fallen: ein zu 35 % eingeblendetes Hintergrundbild stand dort voll
+       deckend über der Folie und verdeckte, was auf ihr steht. `a:alphaModFix`
+       ist der dafür vorgesehene Weg — er fehlte schlicht.
+    */
+    const built = await build(
+      [
+        '<!-- nzl',
+        'elements:',
+        '  - kind: image',
+        '    x: 0',
+        '    y: 0',
+        '    src: p.png',
+        '    opacity: 0.35',
+        '-->',
+      ].join('\n'),
+      [['p.png', PIXEL]],
+    );
+    expect(built.get('ppt/slides/slide1.xml')).toContain('<a:alphaModFix amt="35000"/>');
+
+    // Die Gegenrichtung: ein volldeckendes Bild bekommt keinen Eintrag — ein
+    // `amt="100000"` wäre dasselbe und stünde nur im Weg.
+    const voll = await build(
+      ['<!-- nzl', 'elements:', '  - kind: image', '    src: p.png', '-->'].join('\n'),
+      [['p.png', PIXEL]],
+    );
+    expect(voll.get('ppt/slides/slide1.xml')).not.toContain('alphaModFix');
   });
 
   it('schreibt den Alternativtext dorthin, wo er vorgelesen wird', async () => {

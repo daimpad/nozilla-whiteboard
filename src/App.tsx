@@ -83,6 +83,11 @@ export default function App() {
     if (session) {
       loadDeck(session.deck, { fileName: session.fileName });
       if (session.slideIndex) useDeckStore.getState().goTo(session.slideIndex);
+      // Der Sitzungsstart lädt ungesicherte Arbeit: sie steht in keiner
+      // Datei. `loadDeck()` setzt `dirty: false`, und `darfErsetzen()` fragt
+      // genau daran — ohne diese Zeile liefen alle sechs Ersetzungswege
+      // wortlos über die wiederhergestellte Arbeit hinweg.
+      useDeckStore.setState({ dirty: true });
     } else {
       loadMarkdown(starterDeck.source, { fileName: starterDeck.file });
     }

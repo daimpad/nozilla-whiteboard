@@ -37,6 +37,7 @@ import {
   footerMark,
   elementPaint,
   kartenFelder,
+  kartenTitelGroesse,
   type BackgroundStyle,
   type ScenePrim,
 } from './scene';
@@ -637,9 +638,21 @@ function elementParagraphs(element: CanvasElement, bg: BackgroundStyle): Paragra
         out.push(inlineToParagraph(element.label, 'label', { color: paint.muted }));
       }
       if (element.title) {
-        const style = element.variant === 'stat' ? 'headline' : 'h4';
+        /*
+           Stufe und Größe kommen aus derselben Rechnung wie in `cardScene()`.
+           Hier stand eine eigene Tabelle — `'headline'` bei „Zahl", sonst
+           `'h4'` —, und sie war an zwei Stellen falsch. Bei „Zitat" setzt die
+           Szene `lead`, also Inter Regular ohne Sperrung; die `.pptx` schrieb
+           `h4`. Und die Kennzahl deckelt die Szene auf 42 % der Kartenhöhe,
+           damit sie nicht aus einer flachen Karte herausragt — die volle
+           `headline`-Stufe stand in PowerPoint um ein Zehntel zu groß über
+           ihrem Kasten.
+        */
         out.push({
-          ...inlineToParagraph(element.title, style, { color: paint.text }),
+          ...inlineToParagraph(element.title, kartenFelder(element.variant).titel, {
+            color: paint.text,
+            size: kartenTitelGroesse(element),
+          }),
           spaceBefore: out.length > 0 ? 6 : 0,
         });
       }
@@ -647,7 +660,7 @@ function elementParagraphs(element: CanvasElement, bg: BackgroundStyle): Paragra
         out.push(
           ...markdownToParagraphs(element.body, {
             palette: { ...palette, text: paint.muted },
-            baseStyle: 'small',
+            baseStyle: kartenFelder(element.variant).rumpf,
           }).map((para, index) => ({
             ...para,
             spaceBefore: index === 0 ? (out.length > 0 ? 8 : 0) : para.spaceBefore,
@@ -785,7 +798,7 @@ function segsShape(
     rotation: 0,
     geometry: geom,
     fill: closed ? paint.fill : undefined,
-    line: lineXml(paint),
+    line: lineXml(paint, paint.opacity),
     opacity: paint.opacity,
   });
 }
@@ -799,12 +812,23 @@ function ellipseShape(id: number, prim: Extract<ScenePrim, { t: 'ellipse' }>): s
     rotation: 0,
     geometry: '<a:prstGeom prst="ellipse"><a:avLst/></a:prstGeom>',
     fill: prim.fill,
-    line: lineXml(prim),
+    line: lineXml(prim, prim.opacity),
     opacity: prim.opacity,
   });
 }
 
-function lineXml(paint: PaintLike): string {
+/**
+ * Die Kontur einer Form.
+ *
+ * Die Deckkraft gehört dazu: im SVG steht `opacity` an der Form und gilt für
+ * Füllung *und* Strich, im PDF setzt `setOpacity()` eine GState mit `opacity`
+ * und `stroke-opacity`. Hier stand `solidFill(paint.stroke!)` einstellig — und
+ * damit war in der `.pptx` jede Form mit „Füllung: Kontur", jeder Verbinder
+ * und jede Diagrammachse voll deckend, während dieselbe Folie auf der Fläche
+ * durchscheinend war. Am schlimmsten bei einer gerahmten Form: die Fläche
+ * verblasste, der Rahmen blieb schwarz.
+ */
+function lineXml(paint: PaintLike, opacity?: number): string {
   const color = paint.stroke ? parseColor(paint.stroke) : null;
   if (!color || color.a === 0 || !(paint.strokeWidth && paint.strokeWidth > 0)) {
     return '<a:ln><a:noFill/></a:ln>';
@@ -814,7 +838,7 @@ function lineXml(paint: PaintLike): string {
   const dash = paint.dash?.length ? '<a:prstDash val="dash"/>' : '<a:prstDash val="solid"/>';
   return (
     `<a:ln w="${emu(paint.strokeWidth)}" cap="${cap}">` +
-    solidFill(paint.stroke!) +
+    solidFill(paint.stroke!, opacity) +
     dash +
     join +
     '</a:ln>'
@@ -918,6 +942,16 @@ interface TextShapeOptions {
  * keine Grundlinie, sondern nur Kästen. Ein Kasten von der anderthalbfachen
  * Schriftgröße, oben angeschlagen, trifft sie nah genug — und weil er weder
  * Rand noch Füllung hat, sieht man den Unterschied nicht.
+ *
+ * Die Läufe kommen **aus der Szene** und werden nicht neu gesetzt. Vorher
+ * stand hier `inlineToParagraph(text, 'label')`, also eine feste Rolle für
+ * jedes Textprimitiv, das diesen Weg nimmt: Space Mono Bold, 12 Einheiten,
+ * Versalien. Für die Beschriftung eines Diagramms stimmte das zufällig — für
+ * die einer Form nicht. Eine Form mit `labelStyle: 'h3'` stand auf der Fläche
+ * in Zilla Slab 34 in gemischter Schreibweise und in der `.pptx` in Space Mono
+ * 12 in Versalien; `labelStyle` erreichte die Datei überhaupt nicht. Ein
+ * `SceneRun` trägt Familie, Größe, Gewicht, Laufweite und Farbe schon — er ist
+ * genau das, was ein `StyledRun` braucht.
  */
 function scenenTextShape(prim: Extract<ScenePrim, { t: 'text' }>, nextId: IdFn): string[] {
   const text = prim.runs.map((run) => run.text).join('');
@@ -925,19 +959,65 @@ function scenenTextShape(prim: Extract<ScenePrim, { t: 'text' }>, nextId: IdFn):
 
   const groesse = prim.runs.reduce((max, run) => Math.max(max, run.font.size), 0);
   const breite = prim.runs.reduce((summe, run) => summe + run.width, 0);
-  const farbe = prim.runs[0]?.color;
+
+  const absatz: Paragraph = {
+    runs: verschmelze(
+      prim.runs.map(({ text: lauf, font: schnitt, color, underline, strike }) => ({
+        text: lauf,
+        font: schnitt,
+        color,
+        underline,
+        strike,
+      })),
+    ),
+    level: 0,
+    bullet: 'none',
+    align: 'l',
+    spaceBefore: 0,
+    // Ein Primitiv ist eine Zeile; die Szene hat den Abstand zur nächsten schon
+    // in der Grundlinie verrechnet.
+    lineHeight: 1.2,
+  };
 
   return [
     textShape(
       nextId(),
-      'Diagrammbeschriftung',
+      'Beschriftung',
       prim.x,
       prim.y - groesse,
       Math.max(8, breite + groesse),
       groesse * 1.5,
-      [inlineToParagraph(text, 'label', { color: farbe })],
+      [absatz],
     ),
   ];
+}
+
+/**
+ * Benachbarte Läufe mit derselben Auszeichnung zu einem zusammenziehen.
+ *
+ * Der Setzer schneidet an jedem Leerzeichen, weil er Wörter einzeln setzt und
+ * misst — für PowerPoint ist das ein `<a:r>` je Wort. Es sähe gleich aus,
+ * ließe sich aber nicht bearbeiten, ohne bei jedem Anschlag über eine
+ * Lauf-Grenze zu stolpern.
+ */
+function verschmelze(runs: StyledRun[]): StyledRun[] {
+  const out: StyledRun[] = [];
+  for (const lauf of runs) {
+    const letzter = out[out.length - 1];
+    const gleich =
+      letzter &&
+      letzter.color === lauf.color &&
+      letzter.underline === lauf.underline &&
+      letzter.strike === lauf.strike &&
+      letzter.font.family === lauf.font.family &&
+      letzter.font.size === lauf.font.size &&
+      letzter.font.weight === lauf.font.weight &&
+      letzter.font.italic === lauf.font.italic &&
+      letzter.font.tracking === lauf.font.tracking;
+    if (gleich) out[out.length - 1] = { ...letzter, text: letzter.text + lauf.text };
+    else out.push(lauf);
+  }
+  return out;
 }
 
 function textShape(
@@ -1310,7 +1390,18 @@ function pictureShape(
       (element.alt ? ` descr="${escapeXml(element.alt)}"` : '') +
       '/>',
     '<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>',
-    `<p:blipFill><a:blip r:embed="rId${relIndex + 10}"/>${kasten.srcRect}` +
+    /*
+       `<a:alphaModFix>` ist der vorgesehene Weg für die Deckkraft eines
+       Bildes. Ohne ihn stand ein zu 35 % eingeblendetes Hintergrundbild in der
+       `.pptx` voll deckend über der Folie und verdeckte, was auf ihr steht —
+       im SVG trägt das `<image>` ein `opacity`, im PDF setzt `drawImage` eine
+       GState. Nur dieser Weg ließ den Wert fallen.
+    */
+    `<p:blipFill><a:blip r:embed="rId${relIndex + 10}">` +
+      (element.opacity < 1
+        ? `<a:alphaModFix amt="${Math.round(element.opacity * 100000)}"/>`
+        : '') +
+      `</a:blip>${kasten.srcRect}` +
       '<a:stretch><a:fillRect/></a:stretch></p:blipFill>',
     '<p:spPr>',
     xfrm(kasten.x, kasten.y, kasten.w, kasten.h, element.rotation),

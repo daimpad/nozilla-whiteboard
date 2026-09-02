@@ -226,3 +226,83 @@ describe('die Spaltenbreiten einer Tabelle', () => {
     expect(spalten[1]).toBeGreaterThan(20);
   });
 });
+
+describe('was der Setzer aus einem Text macht', () => {
+  const zeilen = (quelle: string, width = 400) =>
+    textPrims(typesetMarkdown(quelle, { width }).prims).map(lineText);
+
+  it('bricht ein überlanges Wort auch dann, wenn ein Wort davorsteht', () => {
+    /*
+       Der Kopf von `wrapRuns` verspricht `overflow-wrap: anywhere`. Der
+       Zeichenbruch stand aber *innerhalb* des Zweigs „passt noch" und
+       zusätzlich hinter `current.length === 0`: er griff nur, wenn das lange
+       Wort allein auf der Zeile stand. Sonst lief es über die Kante des
+       Elements hinaus — im SVG, im PDF und in der `.pptx`.
+    */
+    const lang = 'Donaudampfschifffahrtsgesellschaftskapitaenswitwe';
+    const breite = (quelle: string) =>
+      Math.max(
+        ...textPrims(typesetMarkdown(quelle, { width: 200 }).prims).map((prim) =>
+          prim.runs.reduce((summe, run) => summe + run.width, 0),
+        ),
+      );
+    expect(breite(lang)).toBeLessThanOrEqual(200);
+    expect(breite(`Wort ${lang}`)).toBeLessThanOrEqual(200);
+  });
+
+  it('bricht nicht am geschützten Leerzeichen', () => {
+    // `\s` schließt U+00A0 ein, und `trim()` zählt es als Weißraum: `10&nbsp;km`
+    // wurde an genau der Stelle umgebrochen, an der es nicht umgebrochen
+    // werden soll. `decodeEntities()` übersetzt richtig — der Umbruch machte
+    // die Übersetzung sofort wieder zunichte.
+    expect(zeilen('10&nbsp;km', 44)).not.toEqual(['10', 'km']);
+    expect(zeilen('10&nbsp;km', 60)).toEqual(['10 km']);
+    // Die Gegenrichtung: ein gewöhnliches Leerzeichen ist sehr wohl eine
+    // Umbruchstelle.
+    expect(zeilen('10 km', 44)).toEqual(['10', 'km']);
+  });
+
+  it('hält zwei Absätze in einem Listenpunkt auseinander', () => {
+    // Ein lockerer Listenpunkt bekommt von marked kein `paragraph`, sondern
+    // zwei `text`-Kinder mit einem `space` dazwischen — verschmolzen stand
+    // danach „Erster Absatz.Zweiter Absatz." ohne Leerzeichen und ohne
+    // Umbruch, in jeder Ausgabe.
+    expect(zeilen('- Erster Absatz.\n\n  Zweiter Absatz.\n\n- Punkt zwei.')).toEqual([
+      'Erster Absatz.',
+      'Zweiter Absatz.',
+      'Punkt zwei.',
+    ]);
+    // Und eine gewöhnliche Liste bleibt, wie sie war.
+    expect(zeilen('- Eins\n- Zwei')).toEqual(['Eins', 'Zwei']);
+  });
+
+  it('führt ein <br> aus, statt es abzudrucken', () => {
+    /*
+       Auf Blockebene ist die Haltung ausgeschrieben: rohes HTML wird nicht
+       gesetzt. Inline galt sie nicht — `<br>` fiel in den `default`-Zweig und
+       stand als Text auf der Folie, samt spitzer Klammern. Wer in einem
+       Markdown-Feld einen Umbruch erzwingen wollte, bekam ihn ausgedruckt.
+    */
+    expect(zeilen('Zeile eins<br>Zeile zwei')).toEqual(['Zeile eins', 'Zeile zwei']);
+    expect(zeilen('Zeile eins<br/>Zeile zwei')).toEqual(['Zeile eins', 'Zeile zwei']);
+    // Alles andere fällt weg, wie auf Blockebene — der Text bleibt, die
+    // Klammern nicht.
+    expect(zeilen('Text <span class="x">rot</span> hier').join(' ')).not.toContain('<');
+    expect(zeilen('Text <span class="x">rot</span> hier').join(' ')).toContain('rot');
+  });
+
+  it('zeichnet ein Bild auch dann, wenn Text danebensteht', () => {
+    /*
+       Erkannt wurde eine Abbildung nur, wenn der Absatz aus genau einem Token
+       bestand. Sonst machte `flattenInline` aus dem `image`-Token einen
+       kursiven Textlauf mit dem Alternativtext: das Bild fiel aus jeder
+       Ausgabe, und auf der Folie stand „Logo" in Kursiv.
+    */
+    const bilder = (quelle: string) =>
+      typesetMarkdown(quelle, { width: 400 }).prims.filter((prim) => prim.t === 'image').length;
+    expect(bilder('![Logo](logo.png)')).toBe(1);
+    expect(bilder('Siehe ![Logo](logo.png) hier.')).toBe(1);
+    // Und der Text daneben geht nicht verloren.
+    expect(zeilen('Siehe ![Logo](logo.png) hier.')).toEqual(['Siehe', 'hier.']);
+  });
+});

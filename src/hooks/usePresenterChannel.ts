@@ -28,6 +28,7 @@ export function usePresenterChannel(): { offen: boolean; oeffnen: () => void } {
   const slideIndex = useDeckStore((state) => state.slideIndex);
   const revealStep = useDeckStore((state) => state.revealStep);
   const total = useDeckStore((state) => state.deck.slides.length);
+  const deck = useDeckStore((state) => state.deck);
 
   useEffect(() => {
     const c = openPresenterChannel();
@@ -80,6 +81,28 @@ export function usePresenterChannel(): { offen: boolean; oeffnen: () => void } {
       stand: { slideIndex, revealStep: endlicherSchritt(revealStep), totalSlides: total },
     } satisfies Vortragsnachricht);
   }, [slideIndex, revealStep, total]);
+
+  /*
+     Und jede Änderung am Deck ebenso.
+     
+     Das Markdown ging bisher genau zweimal hinüber: beim Einhängen und auf
+     `hallo`. Die Übersicht ist im Vortrag aber voll bedienbar — ⌘K öffnet sie,
+     und an jeder Kachel stehen „nach vorn/hinten schieben", „duplizieren" und
+     „löschen". Wer dort eine Folie löschte, sah in der Referentenansicht
+     danach eine andere Folie als das Publikum: die Notizen gehörten zur
+     alten Nummerierung, und der Zähler zeigte eine Folie zu viel.
+
+     Der Effekt hängt an der *Identität* des Decks, und die wechselt nur, wenn
+     wirklich etwas geändert wurde — die Aktionen des Stores bauen ihr Ergebnis
+     aus neuen Objekten, und was gleich blieb, bleibt dasselbe Objekt. Und er
+     läuft nur, solange dieser Haken hängt, also nur im Vortrag.
+  */
+  useEffect(() => {
+    kanal.current?.postMessage({
+      art: 'deck',
+      markdown: serializeDeck(deck),
+    } satisfies Vortragsnachricht);
+  }, [deck]);
 
   const oeffnen = useCallback(() => {
     // Ein schon offenes Fenster wird nach vorn geholt, statt ein zweites

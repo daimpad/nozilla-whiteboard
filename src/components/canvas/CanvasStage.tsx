@@ -12,7 +12,7 @@
  */
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { canvas as canvasTokens, motion, ui } from '@/theme';
-import { connectorLabels, labelOf, shapeLabels } from '@/lib/labels';
+import { connectorLabels, handleLabels, labelOf, shapeLabels } from '@/lib/labels';
 import {
   computeSnap,
   normalizeRect,
@@ -25,6 +25,7 @@ import {
   type Rect,
   type ResizeHandle,
 } from '@/lib/geometry/snap';
+import { elementFelder } from '@/lib/export/scene';
 import { overflowOf } from '@/lib/overflow';
 import { useDeckStore } from '@/state/deckStore';
 import type { CanvasElement, Deck, Slide } from '@/model/types';
@@ -490,50 +491,62 @@ function SelectionOverlay({
         />
       ) : null}
 
-      {elements.map((element) => (
-        <div
-          key={element.id}
-          className="absolute"
-          style={{
-            left: element.x * scale,
-            top: element.y * scale,
-            width: element.w * scale,
-            height: element.h * scale,
-            transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
-            transformOrigin: 'center center',
-            outline: `1.5px solid ${ui.select}`,
-            outlineOffset: 0,
-          }}
-        >
-          {single && !element.locked ? (
-            <>
-              {resizeHandles.map((handle) => (
-                <button
-                  key={handle}
-                  type="button"
-                  data-handle={handle}
-                  aria-label={`Resize ${handle}`}
-                  className="nz-handle pointer-events-auto"
-                  style={handleStyle(handle, element, scale)}
-                  onPointerDown={(event) => onResizeStart(event, element, handle)}
-                />
-              ))}
-              <button
-                type="button"
-                data-handle="rotate"
-                aria-label="Drehen"
-                className="nz-handle nz-handle--round pointer-events-auto"
-                style={{
-                  left: (element.w * scale) / 2 - 5,
-                  top: -26,
-                  cursor: 'grab',
-                }}
-                onPointerDown={(event) => onRotateStart(event, element)}
-              />
-            </>
-          ) : null}
-        </div>
-      ))}
+      {elements.map((element) => {
+        const dreht = elementFelder(element).drehung;
+        return (
+          <div
+            key={element.id}
+            className="absolute"
+            style={{
+              left: element.x * scale,
+              top: element.y * scale,
+              width: element.w * scale,
+              height: element.h * scale,
+              /*
+               Gedreht wird der Rahmen nur, wenn sich das Element wirklich
+               dreht. Die Wortmarke tut es nicht — „Was wir nie tun — drehen" —,
+               und ein schräger Kasten um ein gerades Zeichen behauptet das
+               Gegenteil. Ein Deck kann den Winkel aus einer älteren Fassung
+               noch mitbringen.
+            */
+              transform: dreht && element.rotation ? `rotate(${element.rotation}deg)` : undefined,
+              transformOrigin: 'center center',
+              outline: `1.5px solid ${ui.select}`,
+              outlineOffset: 0,
+            }}
+          >
+            {single && !element.locked ? (
+              <>
+                {resizeHandles.map((handle) => (
+                  <button
+                    key={handle}
+                    type="button"
+                    data-handle={handle}
+                    aria-label={`Größe ändern: ${labelOf(handleLabels, handle)}`}
+                    className="nz-handle pointer-events-auto"
+                    style={handleStyle(handle, element, scale)}
+                    onPointerDown={(event) => onResizeStart(event, element, handle)}
+                  />
+                ))}
+                {dreht ? (
+                  <button
+                    type="button"
+                    data-handle="rotate"
+                    aria-label="Drehen"
+                    className="nz-handle nz-handle--round pointer-events-auto"
+                    style={{
+                      left: (element.w * scale) / 2 - 5,
+                      top: -26,
+                      cursor: 'grab',
+                    }}
+                    onPointerDown={(event) => onRotateStart(event, element)}
+                  />
+                ) : null}
+              </>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -584,7 +597,12 @@ function hitStyle(element: CanvasElement, scale: number, selected: boolean): Rea
     top: element.y * scale,
     width: element.w * scale,
     height: Math.max(element.h, canvasTokens.minElementSize / 2) * scale,
-    transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
+    // Derselbe Grund wie beim Auswahlrahmen: ein gedrehter Klickbereich um ein
+    // ungedrehtes Zeichen liegt dort, wo das Zeichen nicht ist.
+    transform:
+      elementFelder(element).drehung && element.rotation
+        ? `rotate(${element.rotation}deg)`
+        : undefined,
     cursor: element.locked ? 'not-allowed' : selected ? 'move' : 'pointer',
   };
 }

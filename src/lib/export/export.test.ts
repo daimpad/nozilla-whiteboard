@@ -16,6 +16,7 @@ import { createElement } from '@/model/factory';
 import type { Deck } from '@/model/types';
 import { buildElementPrims, buildSlideScene, elementPaint, withAlpha } from './scene';
 import { primsToSvgMarkup, sceneToSvg, scenesToContactSheet, escapeXml } from './svg';
+import { inlineImageHrefs } from './images';
 import { splitSubpaths } from './pdf';
 import { parseColor } from './color';
 import { collectImageSources } from './images';
@@ -378,6 +379,83 @@ describe('asset collection', () => {
       ].join('\n'),
     );
     expect(collectImageSources(deck).sort()).toEqual(['diagram.png', 'inner.svg', 'photo.png']);
+  });
+
+  it('findet auch ein Bild in den Notizen — das Handout setzt sie', () => {
+    /*
+       `buildHandoutScene()` setzt die Notizen mit `typesetMarkdown()` und macht
+       aus einem `![…](…)` ein Bild-Primitiv. Eingesammelt wurden sie nicht, und
+       daran hingen drei stumme Folgen: der Setzer kannte die Maße nicht und
+       blies ein 300 × 300-Bild auf 1104 × 621 auf, der PDF-Weg stieg ohne
+       Eintrag aus, und gemeldet wurde es auch nicht.
+    */
+    const deck = deckOf(
+      [
+        '<!-- nzl',
+        'notes: |',
+        '  Zum Vortrag:',
+        '',
+        '  ![Diagramm](notiz.png)',
+        '-->',
+        '',
+        '# T',
+      ].join('\n'),
+    );
+    expect(deck.slides[0].meta.notes).toContain('notiz.png');
+    expect(collectImageSources(deck)).toContain('notiz.png');
+  });
+
+  it('ersetzt einen Verweis auch dann, wenn ein Apostroph darin steht', () => {
+    /*
+       Zwei Maskierfunktionen für dieselbe Frage, uneinig über ein Zeichen:
+       `escapeXml()` macht aus `'` ein `&apos;`, die zweite in `images.ts`
+       nicht. Gesucht wurde damit eine Zeichenkette, die im Markup nicht steht
+       — der Verweis blieb relativ stehen, und im PNG fehlte das Bild
+       ersatzlos.
+    */
+    const svg = `<image href="${escapeXml("bilder/claude's-logo.png")}"/>`;
+    const map = new Map([
+      [
+        "bilder/claude's-logo.png",
+        {
+          src: "bilder/claude's-logo.png",
+          dataUrl: 'data:image/png;base64,AAA',
+          format: 'png',
+          width: 1,
+          height: 1,
+        },
+      ],
+    ]);
+    const out = inlineImageHrefs(svg, map as never);
+    expect(out).toContain('data:image/png;base64,AAA');
+    expect(out).not.toContain('claude');
+  });
+});
+
+describe('Steuerzeichen im Text', () => {
+  it('macht die erzeugte Datei nicht ungültig', () => {
+    /*
+       Ein aus Word eingefügter Absatz trägt an jedem manuellen Zeilenumbruch
+       U+000B, aus einem PDF kopierter Text U+000C. Beide überleben Öffnen und
+       Sichern, auf der Fläche fällt nichts auf — der HTML-Parser ist
+       nachsichtig —, und die exportierte `.svg` war kein wohlgeformtes XML
+       mehr: sie öffnete in keinem Browser, und der PNG-Weg scheiterte mit
+       „Das SVG ließ sich nicht als Bild laden", einem Satz, der auf die
+       Ursache nicht zeigt.
+
+       Geprüft wird deshalb mit einem **XML-Parser** an der fertigen Datei und
+       nicht an der Zeichenkette: nur er sagt „disallowed character".
+    */
+    const deck = deckOf('# Titel\n\nHallo\u000bWelt und\u000cSeite');
+    const svg = sceneToSvg(buildSlideScene(deck.slides[0], deck, {}));
+    const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+    expect(doc.querySelector('parsererror')).toBeNull();
+    expect(svg).not.toContain('\u000b');
+
+    // Die Gegenrichtung: der Text bleibt lesbar, nur das Steuerzeichen wird
+    // zum Leerzeichen.
+    expect(svg).toContain('Hallo');
+    expect(svg).toContain('Welt');
   });
 });
 

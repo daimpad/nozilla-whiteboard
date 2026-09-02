@@ -96,15 +96,25 @@ export function splitFrontmatter(text: string): { frontmatter: string | null; bo
  * blank — which is exactly what keeps a Setext `Heading\n---` from silently
  * cutting a deck in half.
  */
-export function splitSlides(body: string): string[] {
-  const lines = body.split('\n');
-  const chunks: string[][] = [[]];
-
+/**
+ * Den Text Zeile für Zeile durchgehen und sagen, was wo gilt.
+ *
+ * Eine Rechnung mit drei Kunden: `splitSlides()` teilt danach, `parseSlide()`
+ * sucht den Metadatenblock danach, und `serializeSlide()` weiß danach, welche
+ * Zeile beim nächsten Öffnen als Trenner gelesen würde. Vorher wusste es jeder
+ * für sich — und `parseSlide()` wusste es gar nicht: es suchte den `nzl`-Block
+ * über den ganzen Brocken und schnitt den Treffer heraus, also auch aus einem
+ * Codeblock, der das Dateiformat *zeigt*. Genau das tut das Willkommens-Deck.
+ */
+function* zeilenlage(
+  lines: readonly string[],
+): Generator<{ index: number; line: string; imCode: boolean; imKommentar: boolean }> {
   let fence: string | null = null;
   let inComment = false;
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
+    const zaunVorher = fence;
 
     if (!inComment) {
       const fenceMatch = line.match(/^\s{0,3}(`{3,}|~{3,})/);
@@ -115,8 +125,9 @@ export function splitSlides(body: string): string[] {
       }
     }
 
+    const kommentarVorher = inComment;
     if (fence === null) {
-      // Track HTML comments so metadata blocks can contain `---` safely.
+      // Kommentare mitzählen, damit ein `---` im Metadatenblock nichts teilt.
       let scan = 0;
       while (scan < line.length) {
         if (!inComment) {
@@ -136,15 +147,40 @@ export function splitSlides(body: string): string[] {
       }
     }
 
-    const isDelimiter = fence === null && !inComment && /^[ \t]{0,3}-{3,}[ \t]*$/.test(line);
-    const prevBlank = i === 0 || lines[i - 1].trim() === '';
+    // Die Zaunzeile selbst gehört zum Code, die öffnende Kommentarzeile zum
+    // Kommentar: beide sind keine gewöhnlichen Textzeilen.
+    yield {
+      index: i,
+      line,
+      imCode: fence !== null || zaunVorher !== null,
+      imKommentar: inComment || kommentarVorher,
+    };
+  }
+}
 
-    if (isDelimiter && prevBlank) {
+/** Die Zeilen, die beim Einlesen als Folientrenner gelten. */
+export function trennerZeilen(body: string): Set<number> {
+  const lines = body.split('\n');
+  const out = new Set<number>();
+  for (const { index, line, imCode, imKommentar } of zeilenlage(lines)) {
+    const trenner = !imCode && !imKommentar && /^[ \t]{0,3}-{3,}[ \t]*$/.test(line);
+    const davorLeer = index === 0 || lines[index - 1].trim() === '';
+    if (trenner && davorLeer) out.add(index);
+  }
+  return out;
+}
+
+export function splitSlides(body: string): string[] {
+  const lines = body.split('\n');
+  const trenner = trennerZeilen(body);
+  const chunks: string[][] = [[]];
+
+  for (let i = 0; i < lines.length; i += 1) {
+    if (trenner.has(i)) {
       chunks.push([]);
       continue;
     }
-
-    chunks[chunks.length - 1].push(line);
+    chunks[chunks.length - 1].push(lines[i]);
   }
 
   return chunks
@@ -154,8 +190,46 @@ export function splitSlides(body: string): string[] {
 
 const META_COMMENT_RE = new RegExp(`<!--\\s*${META_TAG}\\b([\\s\\S]*?)-->`, 'i');
 
+/**
+ * Den Metadatenblock einer Folie finden — aber nicht in einem Codeblock.
+ *
+ * `splitSlides()` zählt Codezäune sorgfältig mit, damit ein `---` darin nichts
+ * teilt; hier wurde über den ganzen Brocken gesucht. Eine Folie, die das
+ * Dateiformat *zeigt* — ein ```markdown-Block mit einem `nzl`-Beispiel darin,
+ * also genau das Willkommens-Deck — verlor damit beim Öffnen den halben
+ * Codeblock aus ihrem Text, und die Beispielwerte wurden zu den echten
+ * Metadaten der Folie. Öffnen und Sichern genügte.
+ */
+function findeMetaBlock(chunk: string): RegExpExecArray | null {
+  const zeilen = chunk.split('\n');
+  const codeZeilen = new Set<number>();
+  for (const { index, imCode } of zeilenlage(zeilen)) {
+    if (imCode) codeZeilen.add(index);
+  }
+  // Der Zeilenanfang jeder Zeile, um von einem Fundort auf seine Zeile zu
+  // schließen.
+  const anfaenge: number[] = [];
+  let pos = 0;
+  for (const zeile of zeilen) {
+    anfaenge.push(pos);
+    pos += zeile.length + 1;
+  }
+  const zeileVon = (at: number) => {
+    let letzte = 0;
+    for (let i = 0; i < anfaenge.length; i += 1) if (anfaenge[i] <= at) letzte = i;
+    return letzte;
+  };
+
+  const global = new RegExp(META_COMMENT_RE.source, 'gi');
+  let treffer: RegExpExecArray | null;
+  while ((treffer = global.exec(chunk)) !== null) {
+    if (!codeZeilen.has(zeileVon(treffer.index))) return treffer;
+  }
+  return null;
+}
+
 export function parseSlide(chunk: string): Slide {
-  const match = chunk.match(META_COMMENT_RE);
+  const match = findeMetaBlock(chunk);
   let meta: SlideMeta = { ...DEFAULT_SLIDE_META };
   let elements: CanvasElement[] = [];
 
@@ -228,7 +302,14 @@ export function parseSlide(chunk: string): Slide {
     }
   }
 
-  const markdown = chunk.replace(META_COMMENT_RE, '').replace(/^\n+/, '').replace(/\s+$/, '');
+  // Herausgeschnitten wird genau der gefundene Block — `replace()` mit dem
+  // Muster träfe wieder den ersten Treffer, und der kann in einem Codeblock
+  // stehen.
+  const markdown = (
+    match ? chunk.slice(0, match.index) + chunk.slice(match.index + match[0].length) : chunk
+  )
+    .replace(/^\n+/, '')
+    .replace(/\s+$/, '');
 
   return {
     id: createId('slide'),
@@ -318,12 +399,49 @@ export function serializeDeck(deck: Deck): string {
 
 export function serializeSlide(slide: Slide): string {
   const block = buildSlideMetaBlock(slide);
-  const markdown = slide.markdown.trim();
+  /*
+     Vorn nur Zeilenumbrüche wegnehmen, hinten den Weißraum.
+
+     `trim()` schnitt auch die *Einrückung* der ersten Zeile ab, und beim
+     Einlesen wird sie gebraucht: `parseSlide()` nimmt vorn nur `\n+` weg.
+     Beginnt eine Folie mit einem eingerückten Codeblock — vier Leerzeichen,
+     die Schreibweise aus CommonMark —, verlor genau seine erste Zeile die
+     Einrückung, und aus einem Codeblock wurde ein Absatz mit einer
+     eingerückten Zeile darunter.
+  */
+  const markdown = geschuetzterFliesstext(slide.markdown.replace(/^\n+/, '').replace(/\s+$/, ''));
   // A slide with neither content nor metadata still needs *something* on the
   // page, otherwise the delimiters would collapse and the slide would vanish
   // on the next load.
   if (!block) return markdown || `<!-- ${META_TAG} -->`;
   return markdown ? `${block}\n\n${markdown}` : block;
+}
+
+/**
+ * Einen Querstrich im Fließtext so schreiben, dass er keine Folie teilt.
+ *
+ * `---` nach einer Leerzeile ist in Markdown ein Trennstrich — und in diesem
+ * Dateiformat der Folientrenner. Geschrieben wurde der Fließtext wortgleich
+ * hinaus: **eine Folie wurde beim Sichern zu zweien.** Der Weg dorthin ist
+ * kein Sonderfall, sondern der Regelfall, denn `serializeDeck → parseDeck`
+ * läuft bei jeder Selbstsicherung und bei jedem Wort, das der Vortragskanal
+ * hinüberschickt. Im Vortrag sah der Referent danach eine andere Folie als das
+ * Publikum, und ein Deck ohne Frontmatter verlor seine erste Folie ganz, weil
+ * `splitFrontmatter()` den führenden Strich für den Beginn eines Frontmatters
+ * hielt.
+ *
+ * Geschrieben wird `- - -`. Das ist derselbe Trennstrich nach CommonMark —
+ * gezeichnet wird also dasselbe —, und der Trenner-Ausdruck sieht ihn nicht.
+ * Der Text ändert sich damit, und das ist die kleinere Zumutung: die
+ * Alternative ist eine Folie, die sich beim Sichern teilt.
+ */
+function geschuetzterFliesstext(markdown: string): string {
+  const trenner = trennerZeilen(markdown);
+  if (trenner.size === 0) return markdown;
+  return markdown
+    .split('\n')
+    .map((zeile, index) => (trenner.has(index) ? zeile.replace(/-{3,}/, '- - -') : zeile))
+    .join('\n');
 }
 
 function buildDeckFrontmatter(meta: DeckMeta): string | null {

@@ -139,6 +139,38 @@ export const connectorLabels: Record<string, string> = {
   elbow: 'Winkel',
 };
 
+/**
+ * „3 Folien" — eine Zahl mit ihrem Wort, im Singular wie im Plural.
+ *
+ * Stand zweimal im Code: einmal deutsch in der Suchleiste, einmal englisch in
+ * der Übersicht (`{n} slide{n === 1 ? '' : 's'}`). Ein Wort, das nur in einem
+ * Ausdruck vorkommt, sieht ein Sieb schwer — und dieses sah es gar nicht, weil
+ * sein Textknoten-Muster verlangt, dass der Text hinter einem `>` beginnt.
+ * Hier begann er hinter einem `}`.
+ */
+export function zaehle(anzahl: number, eins: string, viele: string): string {
+  return `${anzahl} ${anzahl === 1 ? eins : viele}`;
+}
+
+/**
+ * Die acht Griffe am Auswahlrahmen.
+ *
+ * Sie hießen für eine Hilfstechnik „Resize nw" — englisch, und dazu ein
+ * Schlüssel des Codes als Ansage. Gesehen hat es niemand, denn diese
+ * Beschriftung steht nur im Barrierebaum; das Sprachsieb ließ sie durch, weil
+ * „resize" ein Verb ist und seine beiden Listen Substantive führen.
+ */
+export const handleLabels: Record<string, string> = {
+  nw: 'oben links',
+  n: 'oben',
+  ne: 'oben rechts',
+  e: 'rechts',
+  se: 'unten rechts',
+  s: 'unten',
+  sw: 'unten links',
+  w: 'links',
+};
+
 /** Balken oder Linie. */
 export const chartLabels: Record<string, string> = {
   bar: 'Balken',

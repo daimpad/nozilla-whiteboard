@@ -248,10 +248,42 @@ function decorationRect(run: SceneRun, originX: number, originY: number): string
 /* -------------------------------------------------------------------------- */
 
 export function escapeXml(value: string): string {
-  return value
+  return ohneSteuerzeichen(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+/**
+ * Die in XML 1.0 verbotenen Steuerzeichen durch ein Leerzeichen ersetzen.
+ *
+ * Kein erfundener Fall: ein aus Word eingefügter Absatz trägt an jedem
+ * manuellen Zeilenumbruch U+000B, aus einem PDF kopierter Text U+000C. Der
+ * Setzer schneidet an `\s+`, behält den Zwischenraum als eigenen Lauf, und
+ * `serializeDeck` schreibt ihn in die `.md` zurück — das Zeichen überlebt also
+ * Öffnen und Sichern.
+ *
+ * Auf der Fläche fällt nichts auf: dort wird dasselbe Markup über `innerHTML`
+ * in ein lebendes `<svg>` gesetzt, und der HTML-Parser ist nachsichtig. Die
+ * *exportierte* Datei ist dagegen kein wohlgeformtes XML mehr — sie öffnet in
+ * keinem Browser und in keinem Vektorprogramm —, und der PNG-Weg legt genau
+ * dieses SVG über eine Blob-URL in ein `<img>`, wo streng geparst wird: der
+ * Export scheitert mit „Das SVG ließ sich nicht als Bild laden", einem Satz,
+ * der auf die Ursache nicht zeigt.
+ *
+ * Erlaubt bleiben Tabulator, Zeilenvorschub und Wagenrücklauf — die drei, die
+ * XML ausdrücklich zulässt. Geschrieben ohne regulären Ausdruck, weil ESLints
+ * `no-control-regex` Steuerzeichen in Mustern verbietet.
+ */
+function ohneSteuerzeichen(value: string): string {
+  let out = '';
+  for (const zeichen of value) {
+    const code = zeichen.codePointAt(0) ?? 0;
+    const verboten =
+      (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d) || code === 0x7f;
+    out += verboten ? ' ' : zeichen;
+  }
+  return out;
 }

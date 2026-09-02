@@ -420,3 +420,82 @@ describe('was eine Datei mitbringen kann', () => {
     expect(serializeDeck(geaendert)).not.toContain('kind: heading');
   });
 });
+
+describe('was ein Rundlauf durch die Datei überstehen muss', () => {
+  it('teilt eine Folie nicht, weil ein Querstrich im Fließtext steht', () => {
+    /*
+       `---` nach einer Leerzeile ist in Markdown ein Trennstrich — und in
+       diesem Dateiformat der Folientrenner. Geschrieben wurde der Fließtext
+       wortgleich hinaus, und aus einer Folie wurden beim Sichern zwei. Der Weg
+       dorthin ist der Regelfall: `serializeDeck → parseDeck` läuft bei jeder
+       Selbstsicherung und bei jedem Wort, das der Vortragskanal hinüberschickt
+       — im Vortrag sah der Referent danach eine andere Folie als das Publikum.
+    */
+    const basis = parseDeck('# A\n\nPlatzhalter\n\n---\n\n# B\n');
+    const deck = {
+      ...basis,
+      slides: basis.slides.map((slide, index) =>
+        index === 0 ? { ...slide, markdown: '# A\n\nOben.\n\n---\n\nUnten.' } : slide,
+      ),
+    };
+    const wieder = parseDeck(serializeDeck(deck));
+    expect(wieder.slides).toHaveLength(2);
+    expect(wieder.slides[0].markdown).toContain('Oben.');
+    expect(wieder.slides[0].markdown).toContain('Unten.');
+    // Geschrieben wird derselbe Trennstrich in der Schreibweise, die der
+    // Trenner-Ausdruck nicht sieht.
+    expect(serializeDeck(deck)).toContain('- - -');
+  });
+
+  it('verliert die erste Folie nicht, wenn ihr Text mit einem Querstrich beginnt', () => {
+    // `splitFrontmatter()` nimmt jede Datei, die mit `---` beginnt, als
+    // Frontmatter — ein Deck ohne Frontmatter verlor damit seine erste Folie
+    // ganz. Dasselbe Schreiben deckt beides ab.
+    const basis = parseDeck('# Eins\n\nInhalt.\n\n---\n\n# Zwei\n');
+    const deck = {
+      ...basis,
+      slides: basis.slides.map((slide, index) =>
+        index === 0 ? { ...slide, markdown: '---\n\n# Eins' } : slide,
+      ),
+    };
+    const wieder = parseDeck(serializeDeck(deck));
+    expect(wieder.slides).toHaveLength(2);
+    expect(wieder.slides[0].markdown).toContain('# Eins');
+  });
+
+  it('lässt einen nzl-Block im Codeblock im Text stehen', () => {
+    /*
+       `splitSlides()` zählt Codezäune mit, `parseSlide()` tat es nicht: es
+       suchte den Block über den ganzen Brocken und schnitt den Treffer heraus.
+       Eine Folie, die das Dateiformat *zeigt* — also das Willkommens-Deck —
+       verlor beim Öffnen den halben Codeblock, und die Beispielwerte wurden zu
+       den echten Metadaten der Folie.
+    */
+    const quelle = [
+      '# So sieht das Dateiformat aus',
+      '',
+      '```markdown',
+      '<!-- nzl',
+      'layout: title',
+      'background: ink',
+      '-->',
+      '```',
+      '',
+      'Ende.',
+    ].join('\n');
+    const slide = parseDeck(quelle).slides[0];
+    expect(slide.markdown).toContain('<!-- nzl');
+    expect(slide.markdown).toContain('Ende.');
+    expect(slide.meta.layout).toBe('default');
+    expect(slide.meta.background).toBe('paper');
+  });
+
+  it('behält die Einrückung eines Codeblocks in der ersten Zeile', () => {
+    // `parseSlide()` nimmt vorn nur `\n+` weg, `serializeSlide()` nahm mit
+    // `trim()` auch die Leerzeichen: aus einem eingerückten Codeblock wurde
+    // ein Absatz mit einer eingerückten Zeile darunter.
+    const deck = parseDeck('    npm run build\n    npm run test\n\nDanach.\n');
+    const wieder = parseDeck(serializeDeck(deck));
+    expect(wieder.slides[0].markdown.startsWith('    npm run build')).toBe(true);
+  });
+});

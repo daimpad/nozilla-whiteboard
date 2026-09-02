@@ -323,11 +323,25 @@ function tableAsParagraphs(table: TableModel): Paragraph[] {
 export function inlineToParagraph(
   text: string,
   style: TypeStyleName,
-  options: { palette?: TextPalette; align?: 'l' | 'ctr' | 'r'; color?: string } = {},
+  options: {
+    palette?: TextPalette;
+    align?: 'l' | 'ctr' | 'r';
+    color?: string;
+    /**
+     * Eine Größe, die von der Stufe abweicht.
+     *
+     * Nur für einen Fall, und der ist gerechnet und nicht gewählt: die
+     * Kennzahl einer Karte wird auf 42 % der Kartenhöhe gedeckelt, damit sie
+     * nicht aus einer flachen Karte herausragt. Ohne diesen Weg hätte der
+     * PPTX-Weg die Rechnung nachbauen müssen — und genau daran ist er schon
+     * einmal auseinandergelaufen.
+     */
+    size?: number;
+  } = {},
 ): Paragraph {
   const scaleStyle = typeScale[style];
   const base = font({
-    size: scaleStyle.size,
+    size: options.size ?? scaleStyle.size,
     family: scaleStyle.family as FontSpec['family'],
     weight: scaleStyle.weight,
     tracking: scaleStyle.tracking,
