@@ -22,6 +22,7 @@
 import {
   brand,
   canvas as canvasTokens,
+  color,
   palette,
   strokeWidth as strokeWidthOf,
   typeScale,
@@ -37,6 +38,7 @@ import {
   footerMark,
   elementPaint,
   kartenFelder,
+  kartenZiffer,
   kartenTitelGroesse,
   type BackgroundStyle,
   type ScenePrim,
@@ -400,7 +402,30 @@ function elementShapes(
     const item = context.media.find((entry) => entry.src === element.src);
     if (!item) return [];
     if (!used.includes(item)) used.push(item);
-    return [pictureShape(nextId(), element, used.indexOf(item) + 1, item)];
+    /*
+       Erst das Beiwerk, dann das Bild.
+
+       Ein Bild ist nicht nur ein `p:pic`: die Szene malt dazu den
+       Versatzschatten und — bei jeder Füllung außer „Ohne" — einen Rahmen aus
+       `paint.line` in der gewählten Strichstärke. Hier wurde mit dem Bild
+       sofort zurückgekehrt, und beides fiel heraus: Fläche, SVG, PNG und PDF
+       zeigten Rahmen und Schatten, die `.pptx` als einziger Weg nicht. Wer ein
+       Bild mit Rahmen setzte und die Datei weitergab, bekam sie ohne zurück.
+
+       Das transparente Trägerrechteck bleibt draußen — es hält im SVG nur die
+       Hülle zusammen und wäre in PowerPoint eine unsichtbare Form, die man
+       versehentlich anfasst.
+    */
+    const beiwerk = buildElementPrims(element, bg).filter(
+      (prim) => prim.t !== 'image' && !(prim.t === 'path' && prim.fill === 'transparent'),
+    );
+    const out: string[] = [];
+    for (const prim of beiwerk) {
+      const shape = primToShape(prim, nextId);
+      if (shape) out.push(shape);
+    }
+    out.push(pictureShape(nextId(), element, used.indexOf(item) + 1, item));
+    return out;
   }
 
   /*
@@ -526,15 +551,37 @@ function elementShapes(
     // Die Ziffer einer Schritt-Karte sitzt im grünen Quadrat und ist dort
     // Gestaltung, nicht Fließtext — sie bekommt ihren eigenen Rahmen.
     if (element.kind === 'card' && element.variant === 'step') {
+      /*
+         Kante und Schrift kommen aus `kartenZiffer()`, also aus derselben
+         Rechnung, nach der die Szene zeichnet. Hier standen ein eigenes
+         `STEP_SIZE = 44` mit dem Kommentar „siehe scene.ts" und für die Ziffer
+         die Stufe `h3` — 34 statt 24, also 42 % zu groß im selben Quadrat.
+      */
+      const ziffer = kartenZiffer();
       out.push(
         textShape(
           nextId(),
           'Schritt',
           element.x + element.padding,
           element.y + element.padding + 10,
-          STEP_SIZE,
-          STEP_SIZE,
-          [inlineToParagraph(element.label?.trim() || '1', 'h3', { align: 'ctr' })],
+          ziffer.kante,
+          ziffer.kante,
+          [
+            {
+              runs: [
+                {
+                  text: element.label?.trim() || '1',
+                  font: ziffer.schrift,
+                  color: color.inkOnSignal,
+                },
+              ],
+              level: 0,
+              bullet: 'none',
+              align: 'ctr',
+              spaceBefore: 0,
+              lineHeight: 1.2,
+            },
+          ],
           { anchor: 't', rotation: element.rotation, opacity: element.opacity },
         ),
       );
@@ -543,9 +590,6 @@ function elementShapes(
 
   return out;
 }
-
-/** Die Kantenlänge des Ziffernquadrats einer Schritt-Karte (siehe `scene.ts`). */
-const STEP_SIZE = 44;
 
 /**
  * Wo der Textrahmen eines Elements sitzt.
@@ -573,7 +617,7 @@ function textBox(element: CanvasElement): { x: number; y: number; w: number; h: 
       case 'stat':
         break;
       case 'step':
-        top = pad + STEP_SIZE + 12;
+        top = pad + kartenZiffer().kante + 12;
         break;
       default:
         break;

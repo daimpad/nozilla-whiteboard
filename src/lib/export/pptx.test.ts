@@ -614,6 +614,27 @@ describe('was die .pptx zeigt und die Fläche nicht', () => {
     expect(xml).not.toContain('sz="6600"');
   });
 
+  it('setzt die Ziffer einer Schritt-Karte so groß wie die Fläche', async () => {
+    /*
+       Das Quadrat ist 44 Einheiten breit, und die 24 der Ziffer ist daneben
+       gewählt und nicht aus der Typo-Leiter genommen. Der PPTX-Weg schrieb
+       dafür die Stufe `h3` — 34 statt 24, also 42 % zu groß im selben Quadrat
+       —, dazu ein eigenes `STEP_SIZE = 44` mit dem Kommentar „siehe scene.ts".
+       Zwei Zahlen für dieselbe Zeichnung.
+    */
+    const xml = await folieMit([
+      '  - kind: card',
+      '    variant: step',
+      '    label: "7"',
+      '    title: Titel',
+      '    w: 320',
+      '    h: 220',
+    ]);
+    // 24 Einheiten → ¾ Punkt je Einheit → 1800 Hundertstel Punkt.
+    expect(xml).toContain('sz="1800"');
+    expect(xml).not.toContain('sz="2550"');
+  });
+
   it('setzt die Quellenangabe eines Zitats wie die Fläche', async () => {
     /*
        Die Zitat-Karte ist die eine Variante, die aus der Reihe fällt: Titel in
@@ -695,6 +716,62 @@ describe('Bilder', () => {
       [['p.png', PIXEL]],
     );
     expect(voll.get('ppt/slides/slide1.xml')).not.toContain('alphaModFix');
+  });
+
+  it('nimmt Rahmen und Schatten eines Bildes mit', async () => {
+    /*
+       Ein Bild ist nicht nur ein `p:pic`: die Szene malt dazu den
+       Versatzschatten und — bei jeder Füllung außer „Ohne" — einen Rahmen aus
+       `paint.line` in der gewählten Strichstärke. `elementShapes()` kehrte mit
+       dem Bild sofort zurück, und beides fiel heraus: Fläche, SVG, PNG und PDF
+       zeigten sie, die `.pptx` als einziger Weg nicht.
+    */
+    const mit = await build(
+      [
+        '<!-- nzl',
+        'elements:',
+        '  - kind: image',
+        '    x: 0',
+        '    y: 0',
+        '    w: 400',
+        '    h: 300',
+        '    src: p.png',
+        '    fill: framed',
+        '    strokeWeight: heavy',
+        '    shadow: lg',
+        '-->',
+      ].join('\n'),
+      [['p.png', PIXEL]],
+    );
+    /*
+       Die Gegenrichtung steht daneben und ist hier die eigentliche Messung:
+       gezählt wird der *Unterschied* zwischen einem Bild mit Rahmen und
+       Schatten und einem ohne beides. Die Folie trägt ohnehin Geometrie — die
+       kleine Wortmarke in der Fußzeile —, und eine nackte Zählung bewiese
+       deshalb nichts.
+    */
+    const ohne = await build(
+      [
+        '<!-- nzl',
+        'elements:',
+        '  - kind: image',
+        '    x: 0',
+        '    y: 0',
+        '    w: 400',
+        '    h: 300',
+        '    src: p.png',
+        '    fill: none',
+        '    shadow: none',
+        '-->',
+      ].join('\n'),
+      [['p.png', PIXEL]],
+    );
+    const zaehle = (teile: Map<string, string>) =>
+      [...(teile.get('ppt/slides/slide1.xml') ?? '').matchAll(/<a:custGeom>/g)].length;
+
+    expect(mit.get('ppt/slides/slide1.xml')).toContain('<p:pic>');
+    expect(ohne.get('ppt/slides/slide1.xml')).toContain('<p:pic>');
+    expect(zaehle(mit) - zaehle(ohne)).toBe(2);
   });
 
   it('schreibt den Alternativtext dorthin, wo er vorgelesen wird', async () => {
