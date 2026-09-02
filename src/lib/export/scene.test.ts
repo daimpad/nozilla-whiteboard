@@ -17,7 +17,7 @@
  * Was bleibt, ist diese Prüfung. Sie hält fest, was die Erzeuger lesen — und
  * wer ihnen ein Feld hinzufügt, sieht hier, dass er es getan hat.
  */
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   backgroundStyle,
   buildElementPrims,
@@ -40,7 +40,8 @@ import {
   type ElementKind,
   type Slide,
 } from '@/model/types';
-import { shadowNames, strokeNames, toneNames } from '@/theme';
+import { availableThemes, setActiveTheme, shadowNames, strokeNames, toneNames } from '@/theme';
+import { registerThemes } from '@/themes';
 
 const folie = (patch: Partial<Slide> = {}): Slide =>
   createEmptySlide({
@@ -257,21 +258,23 @@ describe('was ein Element zeichnet', () => {
 
 /* -------------------------------------------------------------------------- */
 
+/** Für jede Elementart der Inhalt, ohne den sie nichts zeichnet. */
+const inhalt: Record<string, Record<string, unknown>> = {
+  text: { text: 'Hallo Welt' },
+  markdown: { markdown: '# Titel\n\nEin Absatz.' },
+  card: { title: 'Titel', body: 'Text' },
+  badge: { text: 'Neu' },
+  icon: { icon: 'rocket' },
+  shape: { label: 'Text' },
+  connector: { label: 'ab' },
+  image: { src: 'a.png' },
+  table: { data: 'a  b\n1  2' },
+  chart: { data: 'a  1\nb  2' },
+  wordmark: {},
+};
+
 describe('was die Oberfläche über das Gezeichnete behauptet', () => {
   /** Ein Element jeder Art, mit genug Inhalt, dass ein Abstand messbar wäre. */
-  const inhalt: Record<string, Record<string, unknown>> = {
-    text: { text: 'Hallo Welt' },
-    markdown: { markdown: '# Titel\n\nEin Absatz.' },
-    card: { title: 'Titel', body: 'Text' },
-    badge: { text: 'Neu' },
-    icon: { icon: 'rocket' },
-    shape: { label: 'Text' },
-    connector: { label: 'ab' },
-    image: { src: 'a.png' },
-    table: { data: 'a  b\n1  2' },
-    chart: { data: 'a  1\nb  2' },
-    wordmark: {},
-  };
 
   it('nennt Drehung und Körper genau dort, wo sie etwas tun', () => {
     /*
@@ -437,5 +440,88 @@ describe('was die Oberfläche über das Gezeichnete behauptet', () => {
     const gemalt = primsToSvgMarkup(buildElementPrims(marke, aufWeiss));
     expect(gemalt.length).toBeGreaterThan(1000);
     expect(gemalt).not.toContain(`fill="${aufWeiss.fill}"`);
+  });
+});
+
+describe('was die Oberfläche behauptet, gilt auch unter fremder Marke', () => {
+  /*
+     Beide Rechnungen lesen Marken-Werte: `elementFelder()` über das erzeugte
+     Markup, `unsichtbareFlaeche()` über `elementPaint` und `backgroundStyle`.
+     Eine Prüfung, die nur nozilla durchgeht, sagt über die zweite Marke nichts
+     — und die zweite Marke ist der Zweck dieses Werkzeugs. Dieselbe Linie wie
+     bei „geht jedes angemeldete Erscheinungsbild durch" in `brandTheme.test.ts`.
+  */
+  const vorher = availableThemes().map((theme) => theme.id);
+  beforeAll(() => registerThemes());
+  afterAll(() => setActiveTheme('nozilla'));
+
+  it('nennt für jedes Erscheinungsbild dieselben Felder wie das Markup', () => {
+    registerThemes();
+    for (const theme of availableThemes()) {
+      setActiveTheme(theme.id);
+      for (const [kind, felder] of Object.entries(inhalt)) {
+        const bau = (patch: Record<string, unknown>) =>
+          primsToSvgMarkup(
+            buildElementPrims(
+              createElement(
+                kind as ElementKind,
+                {
+                  ...felder,
+                  w: 300,
+                  h: 200,
+                  ...patch,
+                } as Partial<CanvasElement>,
+              ),
+            ),
+          );
+        const gesagt = elementFelder(createElement(kind as ElementKind));
+        expect(gesagt.drehung, `${theme.id}/${kind}/Drehung`).toBe(
+          bau({ rotation: 0 }) !== bau({ rotation: 30 }),
+        );
+        const paare: Array<[keyof ElementFelder, string, readonly string[]]> = [
+          ['ton', 'tone', toneNames],
+          ['fuellung', 'fill', fillStyles],
+          ['strichstaerke', 'strokeWeight', strokeNames],
+          ['schatten', 'shadow', shadowNames],
+        ];
+        for (const [name, feld, werte] of paare) {
+          const markup = werte.map((wert) => bau({ fill: 'framed', [feld]: wert }));
+          expect(gesagt[name], `${theme.id}/${kind}/${name}`).toBe(new Set(markup).size > 1);
+        }
+      }
+    }
+    // Der Stand des Verzeichnisses vor dem Test — `registerTheme()` nimmt
+    // nichts wieder heraus, und eine spätere Prüfung soll dieselbe Liste sehen.
+    expect(availableThemes().map((theme) => theme.id)).toContain(vorher[0]);
+  });
+
+  it('meldet für jedes Erscheinungsbild nur, was wirklich unsichtbar ist', () => {
+    registerThemes();
+    for (const theme of availableThemes()) {
+      setActiveTheme(theme.id);
+      const treffer: string[] = [];
+      for (const hintergrund of slideBackgrounds) {
+        const bg = backgroundStyle(hintergrund);
+        for (const tone of toneNames) {
+          for (const fill of fillStyles) {
+            const element = createElement('shape', { tone, fill, w: 200, h: 100 });
+            if (unsichtbareFlaeche(element, bg)) treffer.push(`${hintergrund}/${tone}/${fill}`);
+          }
+        }
+      }
+      /*
+         Dieselben fünf wie bei nozilla, und das ist kein Zufall: sie entstehen
+         daraus, dass ein Ton und ein Untergrund *denselben* Palettenwert
+         nennen. Eine Marke, die das anders anlegt, wird hier rot — und dann
+         gehört nachgesehen, welche Wahl im Inspektor neuerdings nichts tut.
+      */
+      expect(treffer, theme.id).toEqual([
+        'paper/white/flat',
+        'cream/paper/flat',
+        'ink/ink/flat',
+        'signal/signal/flat',
+        'grid/white/flat',
+      ]);
+    }
   });
 });
