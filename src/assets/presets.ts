@@ -45,7 +45,12 @@ export const assetPresets: AssetPreset[] = [
     'Kampagnensatz',
     'type',
     'text',
-    { text: 'Gute digitale Dienste.', typeStyle: 'display', w: 1104, h: 260 },
+    // Die Höhe trägt **zwei** Zeilen: der Satz misst in Zilla Slab Bold 140
+    // rund 1281 Einheiten und die Folie ist 1280 breit — er kann gar nicht auf
+    // eine Zeile. Mit 260 lief der Baustein um elf Einheiten aus seinem
+    // eigenen Kasten, und das Werkzeug malte den Überlaufbalken an sein eigenes
+    // Angebot.
+    { text: 'Gute digitale Dienste.', typeStyle: 'display', w: 1104, h: 272 },
     'Die größte Stufe der Auszeichnungsschrift — für den einen Satz',
   ),
   preset('text-headline', 'Headline', 'type', 'text', {

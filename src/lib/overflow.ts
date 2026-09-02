@@ -73,10 +73,26 @@ function rechne(element: CanvasElement): number {
   // Frage sinnlos.
   if (element.kind === 'image' || element.kind === 'connector') return 0;
 
-  const unten = untersteKante(buildElementPrims(element));
+  /*
+     Gemessen wird im **Kasten des Elements**, also ohne seine Drehung.
+
+     `elementMatrix()` dreht um die Elementmitte, verglichen wurde aber gegen
+     die Unterkante des *ungedrehten* Kastens. Beides zusammen ging in beide
+     Richtungen schief: ein Satz, der bequem in seinen Kasten passt, meldete
+     bei 270° einen Überlauf von 144 Einheiten, und schon bei 15° wanderte ein
+     wirklicher Überlauf von 46 Einheiten aus der Rechnung heraus und blieb
+     unsichtbar. Ein Wächter, der auf gut Aussehendem anschlägt und beim
+     Fehler schweigt, ist beides zugleich falsch.
+
+     Die Frage ändert sich durch eine Drehung ja nicht: Kasten und Inhalt
+     drehen sich gemeinsam, und ob der Text unten hinausragt, entscheidet sich
+     im Kasten.
+  */
+  const gerade = element.rotation ? ({ ...element, rotation: 0 } as CanvasElement) : element;
+  const unten = untersteKante(buildElementPrims(gerade));
   if (unten === null) return 0;
 
-  const ueber = unten - (element.y + element.h);
+  const ueber = unten - (gerade.y + gerade.h);
   return ueber > NACHSICHT ? Math.round(ueber) : 0;
 }
 

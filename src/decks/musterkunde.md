@@ -113,7 +113,7 @@ elements:
     x: 88
     y: 72
     w: 900
-    h: 64
+    h: 72
     text: Was in der Werkstatt steht
     typeStyle: h1
   - id: sub-werkstatt

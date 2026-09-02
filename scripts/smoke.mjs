@@ -324,6 +324,38 @@ async function main() {
     wahr(anzahl >= 6, `nur ${anzahl} Folien im Streifen`);
   });
 
+  await pruefe('das mitgelieferte Deck malt sich keinen Überlaufbalken', async () => {
+    /*
+       Der Balken ist die Ansage „hier steht Text unter der Unterkante", und
+       genau die stand beim ersten Öffnen auf Folie 3: die Überschrift brach in
+       Zilla Slab Bold 68 auf zwei Zeilen und lag 73 Einheiten unter ihrem
+       Kasten. Ein Wächter, der auf dem eigenen Material anschlägt, wird als
+       Rauschen abgetan — und schweigt dann auch dort, wo es zählt.
+
+       Hier und nicht in vitest, weil es dort kein Canvas gibt: der Setzer misst
+       gegen die Ersatzschrift, und wo eine Zeile umbricht, entscheidet die
+       echte. Die Prüfung läuft deshalb vor dem ersten Handgriff, solange das
+       Willkommens-Deck unberührt dasteht.
+
+       Geklickt werden die Kacheln über ihr `title` — der Knopf daneben legt
+       eine Folie an, und der Reihe nach über alle Knöpfe der Leiste zu gehen
+       hieße, dem Deck sechs leere Folien anzuhängen.
+    */
+    const kacheln = seite.getByRole('navigation', { name: 'Folien' }).locator('button[title]');
+    const anzahl = await kacheln.count();
+    wahr(anzahl >= 6, `nur ${anzahl} Kacheln`);
+    const treffer = [];
+    for (let i = 0; i < anzahl; i += 1) {
+      await kacheln.nth(i).click();
+      await seite.waitForTimeout(200);
+      const balken = await seite.locator('[title^="Der Text steht"]').count();
+      if (balken > 0) treffer.push(`Folie ${i + 1}`);
+    }
+    await kacheln.nth(0).click();
+    await seite.waitForTimeout(200);
+    gleich(treffer.join(', '), '', 'Überlauf im mitgelieferten Deck');
+  });
+
   await pruefe('die Zeichenbibliothek zeigt gezeichnete Kacheln', async () => {
     // Die Kacheln waren einmal leer, weil das letzte Primitiv gestrichen wurde.
     await seite.getByRole('button', { name: 'Zeichen', exact: true }).click();
