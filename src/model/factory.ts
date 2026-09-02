@@ -325,10 +325,19 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
      zurückgeschrieben; die Fläche zeigt derweil das Rechteck, damit die Folie
      nicht auseinanderfällt.
   */
-  const unknownRaw =
-    typeof raw.kind === 'string' && !(elementKinds as readonly string[]).includes(raw.kind)
-      ? { ...raw }
-      : undefined;
+  /*
+     Die Bedingung fragt, worum es geht — „ist das eine der elf Arten" —, und
+     nicht, ob überhaupt eine Zeichenkette dasteht. `kind: heading` wurde
+     richtig behalten; ein Block *ohne* `kind`, mit `kind:` ohne Wert (in YAML
+     ein `null`) oder mit `kind: 42` fiel durch: `oneOf` machte daraus ein
+     Rechteck, der `switch` ließ alles Übrige fallen, und beim nächsten Sichern
+     stand nur noch `kind: shape` in der Datei. Ein halb bearbeiteter,
+     kopierter Element-Block ist genau der Fall, für den der Rohblock gebaut
+     wurde.
+  */
+  const bekannt =
+    typeof raw.kind === 'string' && (elementKinds as readonly string[]).includes(raw.kind);
+  const unknownRaw = bekannt ? undefined : { ...raw };
   const size = defaultSize[kind];
   const base: ElementBase = {
     id: str(raw.id) || createId(kind),
@@ -353,8 +362,15 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
     locked: bool(raw.locked, false),
   };
 
-  if (typeof raw.name === 'string' && raw.name.trim()) base.name = raw.name;
-  if (typeof raw.group === 'string' && raw.group.trim()) base.group = raw.group.trim();
+  /*
+     Über `str()` wie `title`, `body`, `text` und `data` daneben: zwei Leser
+     für dieselbe Frage liefen auseinander, und die Schritt-Karte trug den
+     Schaden. `label: 2` ist in YAML eine Zahl, `typeof … === 'string'` also
+     falsch — jede so geschriebene Schritt-Karte wurde zur „1", und beim
+     Sichern war die Ziffer ganz weg.
+  */
+  if (str(raw.name).trim()) base.name = str(raw.name);
+  if (str(raw.group).trim()) base.group = str(raw.group).trim();
 
   const reveal = normalizeReveal(raw.reveal);
   if (reveal) base.reveal = reveal;
@@ -381,7 +397,7 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
         ...base,
         kind: 'card',
         variant: oneOf(raw.variant, cardVariants, 'feature'),
-        label: typeof raw.label === 'string' ? raw.label : undefined,
+        label: str(raw.label) || undefined,
         title: str(raw.title),
         body: str(raw.body),
         icon: optionalIcon(raw.icon),
@@ -400,7 +416,7 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
         ...base,
         kind: 'shape',
         shape: oneOf(raw.shape, shapeNames, 'rectangle'),
-        label: typeof raw.label === 'string' ? raw.label : undefined,
+        label: str(raw.label) || undefined,
         labelStyle:
           typeof raw.labelStyle === 'string'
             ? oneOf(raw.labelStyle, Object.keys(typeScale) as TypeStyleName[], 'body')
@@ -412,7 +428,7 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
         kind: 'connector',
         connector: oneOf(raw.connector, connectorKinds, 'arrow'),
         dashed: bool(raw.dashed, false),
-        label: typeof raw.label === 'string' ? raw.label : undefined,
+        label: str(raw.label) || undefined,
       };
     case 'image':
       return {

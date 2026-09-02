@@ -12,7 +12,7 @@
  */
 import { serializeDeck } from '@/lib/markdown/deck';
 import type { Deck } from '@/model/types';
-import { buildHandoutScene, buildSlideScene, type Scene, type SceneOptions } from './scene';
+import { buildHandoutScenes, buildSlideScene, type Scene, type SceneOptions } from './scene';
 import { resolveDeckImages, sizeResolver, inlineImageHrefs, type ImageMap } from './images';
 import { downloadBlob, saveText, slugify, type SaveResult } from './download';
 import { scenesToPdf, type PdfOptions } from './pdf';
@@ -250,8 +250,9 @@ export async function renderHandoutPdf(
   options: PdfExportOptions = {},
 ): Promise<{ blob: Blob; filename: string }> {
   const images = await resolveDeckImages(deck);
-  const scenes = deck.slides.map((slide, index) =>
-    buildHandoutScene(slide, deck, {
+  // `flatMap`, weil eine Folie mit langen Notizen mehr als eine Seite füllt.
+  const scenes = deck.slides.flatMap((slide, index) =>
+    buildHandoutScenes(slide, deck, {
       resolveImageSize: sizeResolver(images),
       chrome: !options.bare,
       slideNumber: index + 1,

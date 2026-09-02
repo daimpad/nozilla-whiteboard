@@ -499,3 +499,47 @@ describe('was ein Rundlauf durch die Datei überstehen muss', () => {
     expect(wieder.slides[0].markdown.startsWith('    npm run build')).toBe(true);
   });
 });
+
+describe('was das Modell aus einem halben Block macht', () => {
+  const mit = (zeilen: string[]) =>
+    parseDeck(['<!-- nzl', 'elements:', ...zeilen, '-->', '', '# Probe'].join('\n'));
+
+  it('behält einen Block, dem `kind` ganz fehlt', () => {
+    /*
+       Der Rohblock-Schutz hing an `typeof raw.kind === 'string'`. `kind:
+       heading` wurde damit richtig behalten — ein Block *ohne* `kind`, mit
+       `kind:` ohne Wert (in YAML ein `null`) oder mit `kind: 42` fiel durch:
+       `oneOf` machte ein Rechteck daraus, alles Übrige fiel weg, und beim
+       nächsten Sichern stand nur noch `kind: shape` in der Datei. Ein halb
+       bearbeiteter, kopierter Element-Block ist genau der Fall, für den der
+       Rohblock gebaut wurde.
+    */
+    for (const kopf of ['  - id: t-1', '  - kind:', '  - kind: 42']) {
+      const deck = mit([kopf, '    text: Ein wichtiger Satz', '    typeStyle: h1']);
+      const zurueck = serializeDeck(deck);
+      expect(zurueck, kopf).toContain('Ein wichtiger Satz');
+      expect(zurueck, kopf).toContain('typeStyle: h1');
+    }
+
+    // Die Gegenrichtung: eine bekannte Art bekommt keinen Rohblock, sonst
+    // stünde jede Änderung daran in keiner Datei.
+    const gut = mit(['  - kind: text', '    text: Ein Satz']);
+    expect(gut.slides[0].elements[0].unknownRaw).toBeUndefined();
+  });
+
+  it('liest ein Label, das in YAML eine Zahl ist', () => {
+    // `label: 2` ist in YAML eine Zahl, und `typeof … === 'string'` damit
+    // falsch: jede so geschriebene Schritt-Karte wurde zur „1", und beim
+    // Sichern war die Ziffer ganz weg. `title`, `body` und `data` daneben
+    // gehen längst über den nachsichtigen Leser.
+    const deck = mit([
+      '  - kind: card',
+      '    variant: step',
+      '    label: 2',
+      '    title: Zweitens',
+    ]);
+    const karte = deck.slides[0].elements[0];
+    expect(karte.kind === 'card' && karte.label).toBe('2');
+    expect(serializeDeck(deck)).toContain('label: "2"');
+  });
+});

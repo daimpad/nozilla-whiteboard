@@ -51,7 +51,12 @@ import { chartScale, parseChartData } from '@/lib/chart';
 import { parseTable, toMarkdownTable } from '@/lib/table';
 import { flowFrame, flowOffsetY, footerFrame } from '@/lib/layout/slideLayout';
 import { font, measureText, type FontSpec } from '@/lib/text/measure';
-import { typesetMarkdown, typesetText, type TypesetResult } from '@/lib/text/typeset';
+import {
+  typesetMarkdown,
+  typesetText,
+  type TypesetPrim,
+  type TypesetResult,
+} from '@/lib/text/typeset';
 import type { CanvasElement, CardElement, Deck, Slide, SlideBackground } from '@/model/types';
 
 /* -------------------------------------------------------------------------- */
@@ -299,8 +304,18 @@ const NOTIZ_ABSTAND = canvasTokens.margin.top;
  * Folie malt ihren eigenen über sich, und eine dunkle Folie soll nicht die
  * ganze Seite schwärzen. Der Haarstrich um sie herum ist der Grund, warum man
  * auf weißem Papier noch sieht, wo die Folie aufhört.
+ *
+ * **Und es können mehrere Seiten sein.** Unter der Folie bleiben knapp
+ * tausend Einheiten für die Notizen; wer mehr aufschreibt, verlor den Rest
+ * wortlos — gemessen an sechzig Absätzen: 1188 Einheiten standen unterhalb
+ * der Blattkante, also außerhalb jeder Seite des PDF. Die Notiz läuft deshalb
+ * auf Folgeseiten weiter. Umbrochen wird dabei **nicht neu**: dasselbe
+ * Satzergebnis wird nach seinen eigenen Zeilen auf Seiten verteilt, und jede
+ * Zeile behält ihre gemessene Breite. Ein zweiter Satzlauf je Seite hätte
+ * andere Umbrüche als der erste — und wäre der zweite Weg, den die erste Regel
+ * dieses Projekts verbietet.
  */
-export function buildHandoutScene(slide: Slide, deck: Deck, options: SceneOptions = {}): Scene {
+export function buildHandoutScenes(slide: Slide, deck: Deck, options: SceneOptions = {}): Scene[] {
   const folie = buildSlideScene(slide, deck, options);
   const papier = backgroundStyle('paper');
 
@@ -308,7 +323,7 @@ export function buildHandoutScene(slide: Slide, deck: Deck, options: SceneOption
   const hoehe = Math.round(breite * DIN_HOCH);
   const rand = canvasTokens.margin.left;
 
-  const prims: ScenePrim[] = [
+  const erste: ScenePrim[] = [
     { t: 'rect', x: 0, y: 0, w: breite, h: hoehe, fill: papier.fill },
     ...folie.prims,
     {
@@ -321,6 +336,7 @@ export function buildHandoutScene(slide: Slide, deck: Deck, options: SceneOption
       strokeWidth: strokeWidthOf('hair'),
     },
   ];
+  const seiten: ScenePrim[][] = [erste];
 
   const notiz = (slide.meta.notes ?? '').trim();
   if (notiz) {
@@ -330,16 +346,60 @@ export function buildHandoutScene(slide: Slide, deck: Deck, options: SceneOption
       resolveImageSize: options.resolveImageSize,
       palette: flowPalette(papier),
     });
-    prims.push(...typesetToScene(gesetzt, rand, canvasTokens.height + NOTIZ_ABSTAND));
+
+    // Die untere Satzkante ist derselbe Rand wie links und oben — ein Blatt
+    // mit Text bis an die Schnittkante lässt sich nicht lochen.
+    const unten = hoehe - rand;
+    let versatz = canvasTokens.height + NOTIZ_ABSTAND;
+    let laufend: TypesetPrim[] = [];
+
+    const ablegen = () => {
+      if (laufend.length === 0) return;
+      const seite = seiten[seiten.length - 1];
+      seite?.push(...typesetToScene({ ...gesetzt, prims: laufend }, rand, versatz));
+      laufend = [];
+    };
+
+    for (const prim of gesetzt.prims) {
+      const kasten = satzkasten(prim);
+      // Die erste Zeile einer Seite wird nie umgebrochen: sie passt entweder
+      // oder es gibt keinen Ort, an dem sie passte, und dann ist eine leere
+      // Folgeseite die schlechtere Antwort.
+      if (laufend.length > 0 && versatz + kasten.unten > unten) {
+        ablegen();
+        seiten.push([{ t: 'rect', x: 0, y: 0, w: breite, h: hoehe, fill: papier.fill }]);
+        // Die Zeile, die den Umbruch ausgelöst hat, steht oben am Rand — der
+        // Versatz wird deshalb aus *ihrer* Oberkante gerechnet und nicht aus
+        // dem Nullpunkt des Satzes.
+        versatz = rand - kasten.oben;
+      }
+      laufend.push(prim);
+    }
+    ablegen();
   }
 
-  return {
+  return seiten.map((prims) => ({
     width: breite,
     height: hoehe,
     background: papier.fill,
     title: deck.meta.title,
     prims,
-  };
+  }));
+}
+
+/**
+ * Die senkrechte Ausdehnung eines gesetzten Primitivs.
+ *
+ * Ein Textprimitiv trägt seine **Grundlinie** als `y`, eine Fläche und ein
+ * Bild ihre Oberkante — wer das gleichsetzt, schiebt jede Zeile um ihre
+ * Versalhöhe. Die Oberkante einer Zeile wird deshalb aus der größten
+ * Schriftgröße ihrer Läufe gerechnet, die Unterkante mit einem Viertel davon
+ * als Unterlänge.
+ */
+function satzkasten(prim: TypesetPrim): { oben: number; unten: number } {
+  if (prim.t !== 'text') return { oben: prim.y, unten: prim.y + prim.h };
+  const groesse = prim.runs.reduce((max, run) => Math.max(max, run.font.size), 0);
+  return { oben: prim.y - groesse, unten: prim.y + groesse * 0.25 };
 }
 
 /** Die Fläche, das optionale Punktraster und der gesetzte Fließtext. */
@@ -714,6 +774,20 @@ function innenabstandWirkt(element: CanvasElement): boolean {
     case 'text':
     case 'markdown':
       return element.fill !== 'none';
+    /*
+       Die Form rechnet ihr Label auf `element.w - padding * 2` und rückt es um
+       `padding` ein — ohne Label gibt es nichts einzurücken. Und das Zeichen
+       zieht sich um den Abstand ein, aber nur im Rahmen „Kasten"; ohne Rahmen
+       steht es frei und der Abstand hat keine Kante, an der er messbar wäre.
+
+       Beide standen im `default`-Zweig, und der Test sah es nicht: sein
+       Formlabel war „Text", also kurz genug, um bei jedem Abstand auf eine
+       Zeile zu passen. Ein Wächter, der seinen eigenen Fall wegfiltert.
+    */
+    case 'shape':
+      return Boolean(element.label?.trim());
+    case 'icon':
+      return element.frame === 'box';
     default:
       return false;
   }
@@ -1609,8 +1683,8 @@ function tableScene(
 
   let oben = pad;
   if (element.label) {
-    oben += pushLabel(out, element.label, pad, oben, breite, paint, matrix, opacity);
-    oben += strokeWidthOf('rule') * 4;
+    pushLabel(out, element.label, pad, oben, breite, paint, matrix, opacity);
+    oben += tabellenLabelHoehe(element.label, breite);
   }
 
   const gesetzt = typesetMarkdown(quelle, {
@@ -1619,6 +1693,19 @@ function tableScene(
   });
   out.push(...typesetToScene(gesetzt, pad, oben, matrix, opacity));
   return out;
+}
+
+/**
+ * Wie hoch die Überschrift einer Tabelle baut — samt des Abstands darunter.
+ *
+ * Sie steht hier und nicht im PPTX-Weg, weil beide dieselbe Zahl brauchen und
+ * zwei Rechnungen für dieselbe Frage hier schon zweimal auseinandergelaufen
+ * sind. Der PPTX-Weg rechnete eine feste Zeile (`label.size * lineHeight *
+ * 1.6`); eine Überschrift, die über die Breite hinausgeht, bricht auf der
+ * Fläche um und lag in PowerPoint über der Tabelle.
+ */
+export function tabellenLabelHoehe(text: string, breite: number): number {
+  return typesetText(text, 'label', { width: breite }).height + strokeWidthOf('rule') * 4;
 }
 
 /** Eine Zeile, um `mitte` zentriert, auf der Grundlinie `y`. */

@@ -274,8 +274,11 @@ const inhalt: Record<string, Record<string, unknown>> = {
   markdown: { markdown: '# Titel\n\nEin Absatz.' },
   card: { title: 'Titel', body: 'Text' },
   badge: { text: 'Neu' },
-  icon: { icon: 'rocket' },
-  shape: { label: 'Text' },
+  // Der Rahmen „Kasten" und ein Label, das über die Breite hinausgeht: ohne
+  // beides misst der Innenabstand an Zeichen und Form nichts — das war die
+  // Lücke, durch die er dort jahrelang als „wirkt nicht" durchging.
+  icon: { icon: 'rocket', frame: 'box' },
+  shape: { label: 'Ein Label, das über die Breite dieser Form hinausgeht' },
   connector: { label: 'ab' },
   image: { src: 'a.png' },
   table: { data: 'a  b\n1  2' },
