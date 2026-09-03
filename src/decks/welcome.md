@@ -94,8 +94,8 @@ elements:
     kind: text
     x: 88
     y: 72
-    w: 900
-    h: 64
+    w: 1104
+    h: 72
     text: Die CI-Bibliothek, unverändert
     typeStyle: h1
   - id: sub-lib

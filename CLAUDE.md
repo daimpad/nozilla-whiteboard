@@ -1851,6 +1851,36 @@ darüber hinausragen. Und die Prüfung dazu maß zuerst gegen `canvas.margin.top
 während der Satzspiegel `margin.left` nimmt: 72 gegen 88, und die Sabotage kam
 durch. Ein Wächter, der den falschen Token liest, ist grün und bewacht nichts.
 
+**Das Werkzeug malte seinem eigenen Deck den Überlaufbalken an.** Die
+Überschrift auf Folie 3 der Willkommensmappe brach in Zilla Slab Bold 68 auf
+zwei Zeilen — 886 Einheiten Text in 868 verfügbaren — und stand damit 73
+Einheiten unter ihrem 64 hohen Kasten. Der Baustein „Kampagnensatz" lief um
+elf hinaus, und im Probenhaus fehlten einer einzeiligen h1 fünf Einheiten für
+ihre Unterlänge. Wer den Balken beim ersten Öffnen als Rauschen abtut, tut es
+bei der eigenen Arbeit wieder — dieselbe Bauart wie der Kontrastwächter, der
+auf der eigenen CI anschlug.
+
+Geprüft wird jetzt zweimal, und die zweite Prüfung ist die, auf die es
+ankommt. `overflow.test.ts` geht jedes mitgelieferte Deck und jeden Baustein
+durch — aber **mit den Ersatzmaßen**, denn im Test gibt es kein Canvas, und wo
+eine Zeile umbricht, entscheidet die echte Schrift. Gegengerechnet wurde
+deshalb an den Schnitten in `public/fonts/` über den eigenen TrueType-Leser;
+dauerhaft bewacht wird es im Rauchtest, der im Browser jede Kachel anklickt und
+nach dem Balken sieht. Die Kacheln werden dabei über ihr `title` angesprochen —
+der Knopf daneben legt eine Folie an.
+
+**Und der Balken log an jedem gedrehten Element.** `elementMatrix()` dreht um
+die Elementmitte, verglichen wurde aber gegen die Unterkante des *ungedrehten*
+Kastens. Gemessen an einem 400 × 120-Textkasten mit einem Satz, der bequem
+hineinpasst: bei 270° meldete die Anzeige 144 Einheiten Überlauf. Und die
+andere Richtung ist die schlimmere — schon bei 15° wanderte ein wirklicher
+Überlauf von 46 Einheiten aus der Rechnung und blieb unsichtbar. Ein Wächter,
+der auf gut Aussehendem anschlägt und beim Fehler schweigt, ist beides zugleich
+falsch. Gemessen wird jetzt im Kasten des Elements, also ohne seine Drehung:
+Kasten und Inhalt drehen sich gemeinsam, die Frage ändert sich dadurch nicht.
+Der Strich selbst dreht sich dafür mit — um die Elementmitte, wie Auswahlrahmen
+und Klickbereich.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,

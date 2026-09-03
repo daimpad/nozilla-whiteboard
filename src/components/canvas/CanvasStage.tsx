@@ -377,6 +377,20 @@ export function CanvasStage({ slide, deck, slideNumber, totalSlides }: CanvasSta
                 width: element.w * scale,
                 height: Math.max(2, 2 * scale),
                 background: ui.warn,
+                /*
+                   Derselbe Grund wie beim Auswahlrahmen und beim Klickbereich:
+                   ein Strich an der ungedrehten Unterkante eines gedrehten
+                   Elements liegt dort, wo das Element nicht ist — und ein
+                   Wegweiser auf die falsche Stelle ist schlechter als keiner.
+                   Gedreht wird um die **Elementmitte**, und die liegt im
+                   Koordinatensystem dieses Strichs auf halber Breite, eine
+                   halbe Elementhöhe darüber.
+                */
+                transform:
+                  elementFelder(element).drehung && element.rotation
+                    ? `rotate(${element.rotation}deg)`
+                    : undefined,
+                transformOrigin: `${(element.w / 2) * scale}px ${(-element.h / 2) * scale}px`,
               }}
             />
           ))}
