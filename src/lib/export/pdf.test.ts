@@ -7,7 +7,10 @@
  * selbst, was aus einem Aufruf wird.
  */
 import { describe, expect, it } from 'vitest';
-import { scenesToPdf } from './pdf';
+import { PDF_SCALE, scenesToPdf } from './pdf';
+import { buildSlideScene } from './scene';
+import { parseDeck } from '@/lib/markdown/deck';
+import { bundledDecks } from '@/decks';
 import type { Scene, ScenePrim } from './scene';
 
 const PIXEL =
@@ -136,4 +139,141 @@ describe('Bilder im PDF', () => {
     expect(ops).not.toContain(OPS.stroke);
     expect(ops).not.toContain(OPS.fillStroke);
   });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('ein Bild, das jsPDF nicht verdaut', () => {
+  it('nimmt nicht den Rest der Folie mit', async () => {
+    /*
+       „Füllend" klemmt den Überstand ab: `saveGraphicsState()`, ein Pfad,
+       `clip()`. Das `restoreGraphicsState()` stand hinter dem `addImage` im
+       `try` — warf das, und genau darauf ist der `catch` daneben gebaut,
+       blieb die Klemme stehen. Alles, was danach auf der Seite gezeichnet
+       wird, liegt dann im Rechteck des kaputten Bildes und ist nicht zu
+       sehen.
+
+       Geprüft wird am **Operatorenlauf** und nicht am Text: `getTextContent()`
+       liest den Inhaltsstrom und meldet die Zeile auch dann, wenn eine Klemme
+       sie unsichtbar macht. Nur die Reihenfolge sagt es — `restore` muss vor
+       dem Text kommen.
+
+       Der Satz über dem `catch` stimmt weiterhin: ein kaputtes Bild darf den
+       Export nicht abbrechen. Nur hat es dabei den Rest der Folie
+       mitgenommen, und das ist schlimmer als ein Abbruch — der sagt es.
+    */
+    const kaputt: ScenePrim = {
+      t: 'image',
+      x: 50,
+      y: 50,
+      w: 200,
+      h: 100,
+      href: 'kaputt.png',
+      fit: 'cover',
+    };
+    const text: ScenePrim = {
+      t: 'text',
+      x: 100,
+      y: 400,
+      runs: [
+        {
+          dx: 0,
+          text: 'DANACH',
+          font: { family: 'body', size: 40, weight: 400, italic: false, tracking: 0 },
+          color: '#101010',
+          width: 200,
+        },
+      ],
+    };
+
+    const doc = await scenesToPdf([szene([kaputt, text])], {
+      embedFonts: false,
+      // Maße bekannt, Daten unlesbar: „Füllend" greift, `addImage` wirft.
+      images: new Map([
+        ['kaputt.png', { dataUrl: 'data:image/png;base64,ZZZZ', format: 'PNG', w: 400, h: 100 }],
+      ]),
+    } as never);
+
+    const bytes = new Uint8Array(doc.output('arraybuffer'));
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const pdf = await pdfjs.getDocument({ data: bytes, disableFontFace: true }).promise;
+    const { fnArray } = await (await pdf.getPage(1)).getOperatorList();
+
+    const klemme = fnArray.indexOf(pdfjs.OPS.clip);
+    const zurueck = fnArray.indexOf(pdfjs.OPS.restore);
+    const zeile = fnArray.indexOf(pdfjs.OPS.showText);
+
+    // Die Klemme wurde wirklich gesetzt — sonst prüft das hier nichts.
+    expect(klemme, 'kein Beschnitt im Lauf').toBeGreaterThanOrEqual(0);
+    expect(zeile, 'kein Text im Lauf').toBeGreaterThanOrEqual(0);
+    expect(zurueck, 'die Klemme wird nie aufgehoben').toBeGreaterThanOrEqual(0);
+    expect(zurueck, 'der Text steht innerhalb der Klemme').toBeLessThan(zeile);
+  }, 30000);
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('wo das PDF seinen Text ansetzt', () => {
+  it('beginnt jede Zeile dort, wo die Szene sie beginnt', async () => {
+    /*
+       Drei Fehler dieses Repos waren „zwei Ausgaben, zwei Stellen": ein Bild
+       drehte sich um die andere Ecke, jsPDF klemmte am falschen Ort, die
+       Beschriftung stand in der `.pptx` neben ihrer Form. Für den **Text** im
+       PDF gab es dazu keine Zusicherung — dabei rechnet dieser Weg die
+       Position selbst (`prim.x + dx · cos`), teilt Läufe an Schriftgrenzen und
+       misst den Vorlauf mit `measureText()`.
+
+       Verglichen wird der **Zeilenanfang**: pdfjs fasst aufeinanderfolgende
+       Läufe zu einem Eintrag zusammen und zerlegt eine gesperrte Zeile in
+       einzelne Zeichen — der erste Eintrag einer Zeile beginnt aber in beiden
+       Fällen dort, wo die Szene die Zeile ansetzt. Ein systematischer Versatz
+       fällt damit auf, ohne dass die Prüfung die Eigenheiten von pdfjs
+       nachbauen müsste.
+
+       Gedrehte Läufe bleiben draußen: für sie steht die Zusicherung über den
+       Drehpunkt eine Prüfung weiter oben.
+    */
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    let geprueft = 0;
+
+    for (const eintrag of bundledDecks) {
+      const deck = parseDeck(eintrag.source);
+      for (const [index, slide] of deck.slides.entries()) {
+        const scene = buildSlideScene(slide, deck, {
+          chrome: true,
+          slideNumber: index + 1,
+          totalSlides: deck.slides.length,
+        });
+        const doc = await scenesToPdf([scene], { embedFonts: false });
+        const pdf = await pdfjs.getDocument({
+          data: new Uint8Array(doc.output('arraybuffer')),
+          disableFontFace: true,
+        }).promise;
+        const seite = await pdf.getPage(1);
+        const hoehe = seite.view[3];
+        const inhalt = await seite.getTextContent();
+
+        const imPdf = inhalt.items
+          .filter((eintragImPdf) => 'str' in eintragImPdf && eintragImPdf.str.trim())
+          .map((eintragImPdf) => {
+            const tr = (eintragImPdf as { transform: number[] }).transform;
+            // Eine Folien-Einheit ist ¾ Punkt, und die Seite zählt von unten.
+            return { x: tr[4] / PDF_SCALE, y: (hoehe - tr[5]) / PDF_SCALE };
+          });
+
+        for (const prim of scene.prims) {
+          if (prim.t !== 'text' || prim.rotate) continue;
+          const anfang = { x: prim.x + (prim.runs[0]?.dx ?? 0), y: prim.y };
+          geprueft += 1;
+          expect(
+            imPdf.some((b) => Math.abs(b.x - anfang.x) < 1.5 && Math.abs(b.y - anfang.y) < 1.5),
+            `${eintrag.file} #${index + 1}: kein Text bei ${anfang.x.toFixed(1)}/${anfang.y.toFixed(1)}`,
+          ).toBe(true);
+        }
+      }
+    }
+
+    // Und die Prüfung hatte wirklich etwas zu vergleichen.
+    expect(geprueft).toBeGreaterThan(50);
+  }, 120000);
 });

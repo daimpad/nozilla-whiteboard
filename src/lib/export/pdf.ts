@@ -524,9 +524,9 @@ function drawImage(
   const kasten = einpassen(prim, entry?.w, entry?.h);
   const beschnitten = kasten.w > prim.w + 0.01 || kasten.h > prim.h + 0.01;
   const ecke = jsPdfEcke(prim, kasten);
-  try {
-    if (beschnitten) {
-      /*
+
+  if (beschnitten) {
+    /*
          „Füllend" heißt: den Kasten voll machen und den Überstand
          abschneiden. Ohne den Beschnitt liefe das Bild über seinen eigenen
          Rahmen hinaus.
@@ -541,19 +541,21 @@ function drawImage(
          ist die *gedrehte* Hülle des Elements, nicht sein achsenparalleler
          Kasten — sonst schnitte er bei einer Drehung am falschen Ort.
       */
-      doc.saveGraphicsState();
-      const [start, ...legs] = huelle(prim);
-      doc.lines(
-        legs.map(([x, y]) => [x - start[0], y - start[1]]),
-        start[0] * scale,
-        start[1] * scale,
-        [scale, scale],
-        null,
-        true,
-      );
-      doc.clip();
-      doc.discardPath();
-    }
+    doc.saveGraphicsState();
+    const [start, ...legs] = huelle(prim);
+    doc.lines(
+      legs.map(([x, y]) => [x - start[0], y - start[1]]),
+      start[0] * scale,
+      start[1] * scale,
+      [scale, scale],
+      null,
+      true,
+    );
+    doc.clip();
+    doc.discardPath();
+  }
+
+  try {
     doc.addImage(
       source,
       format,
@@ -565,7 +567,6 @@ function drawImage(
       'FAST',
       prim.rotate ? -prim.rotate : 0,
     );
-    if (beschnitten) doc.restoreGraphicsState();
   } catch {
     /*
        Ein kaputtes Bild darf den ganzen Export nicht abbrechen — aber es
@@ -575,6 +576,23 @@ function drawImage(
        es im PDF und in keiner Meldung.
     */
     meldeFehlendeBilder([prim.href]);
+  } finally {
+    /*
+       **Und der Beschnitt wird auf jeden Fall wieder aufgehoben.**
+
+       Das `restoreGraphicsState()` stand im `try`, hinter dem `addImage`. Warf
+       das — und genau darauf ist der `catch` daneben gebaut —, blieb die
+       Klemme stehen: alles, was danach auf dieser Seite gezeichnet wird, liegt
+       im Rechteck des kaputten Bildes und ist damit nicht zu sehen. Gemessen
+       an einem beschnittenen Bild mit unlesbaren Daten und einer Textzeile
+       darunter: der Operatorenlauf war `save · clip · showText · restore`, die
+       Zeile also innerhalb der Klemme.
+
+       Der Satz über dem `catch` stimmt weiterhin — ein kaputtes Bild darf den
+       Export nicht abbrechen. Nur hat es dabei den Rest der Folie mitgenommen,
+       und das ist schlimmer als ein Abbruch: der Abbruch sagt es.
+    */
+    if (beschnitten) doc.restoreGraphicsState();
   }
 }
 
