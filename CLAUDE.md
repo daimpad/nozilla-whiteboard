@@ -1881,6 +1881,24 @@ Kasten und Inhalt drehen sich gemeinsam, die Frage ändert sich dadurch nicht.
 Der Strich selbst dreht sich dafür mit — um die Elementmitte, wie Auswahlrahmen
 und Klickbereich.
 
+**Zwei Bibliotheken im Bauwerk, die niemand anfordert.** jsPDF führt `canvg`
+und `html2canvas` als optionale Abhängigkeiten und lädt sie im Rumpf über einen
+dynamischen Import nach — für `doc.svg()` und `doc.html()`, also für die beiden
+Wege, ein PDF aus einem *Dokument* zu machen. Dieses Werkzeug macht seines aus
+der `Scene`; die erste Regel des Projekts verbietet den zweiten Zeichner
+ausdrücklich. Rollup sah die Ausdrücke trotzdem und legte zwei Lazy-Chunks an:
+202 kB und 160 kB, mit ihren Quellkarten zusammen 1,5 MB, die ausgeliefert
+werden und die kein Browser je anfordert. Beide Kennungen zeigen jetzt auf ein
+leeres Modul.
+
+`dompurify` steht ausdrücklich **nicht** dabei: jsPDF lädt es aus demselben
+Rumpf nach, dieses Werkzeug benutzt es aber selbst. Wer die drei über einen
+Kamm schert, nimmt der Markdown-Reinigung ihre Bibliothek.
+
+Geprüft wird am **Verzeichnis** und nicht an der Konfiguration — dass ein Alias
+dasteht, sagt nichts darüber, ob er greift. `pruefeBauwerk()` im Rauchtest sieht
+in `dist/assets` nach, und die Gegenprobe ohne Alias nennt die Datei beim Namen.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,
