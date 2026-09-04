@@ -2041,6 +2041,23 @@ und ohne leeres Feld gibt es keinen Befund zum Anklicken. Auf einem schnellen
 Rechner passiert das nie, in der CI schon. Gewartet wird deshalb darauf, dass
 der Wert wirklich leer *ist*.
 
+**Ein Commit-Status ist nicht die CI.** Der Rauchtest läuft in GitHub Actions
+als Job `verify` des Workflows `CI` — und der meldet sich als **Check-Run**,
+nicht als Commit-Status. Wer `commits/<sha>/status` fragt, bekommt eine leere
+Liste und hält sie für „keine Prüfungen". Gefragt wird `commits/<sha>/check-runs`
+(oder `pull_request_read` mit `get_check_runs`).
+
+Es ist keine Kleinigkeit. `main` stand zweieinhalb Stunden rot, während dreimal
+gemeldet wurde, es gebe nichts zu tun: die leere Antwort sah aus wie eine
+Entwarnung, und eine Entwarnung ist genau das, was niemand nachprüft. Dieselbe
+Bauart wie überall in dieser Liste — nicht ein Fehler, der schreit, sondern
+einer, der schweigt.
+
+Und was dort rot war, ist hier grün gewesen: die CI holt sich ihren Chromium
+selbst (`playwright install`), dieses Abbild bringt einen anderen mit. Wer eine
+Zeitüberschreitung nicht nachstellen kann, hat deshalb nicht unbedingt keinen
+Fehler — er hat einen anderen Rechner.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,
