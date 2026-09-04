@@ -235,6 +235,28 @@ function DateiMenu({ onSave }: { onSave: () => void }) {
               />
             ))}
           </div>
+
+          {/*
+            Der Generator ist eine eigene Seite und kein Panel: er meldet ein
+            Erscheinungsbild an und aktiviert es, um damit ein Probedeck zu
+            zeichnen. Täte er das im laufenden Werkzeug, führe die offene Folie
+            bei jedem Tastendruck mit.
+
+            Er stand bis hierher im Zahnrad. Dort war er richtig einsortiert,
+            solange „Einstellungen" der einzige Ort für alles Nicht-Folienhafte
+            war — er *erstellt* aber etwas, und alles Erstellende steht jetzt
+            hier. `target="_blank"`, damit die offene Arbeit stehen bleibt.
+          */}
+          <div className="border-t border-ui pt-1">
+            <SectionTitle>Erscheinungsbild</SectionTitle>
+            <MenuItem
+              icon="palette"
+              label="Eigenes Design erstellen"
+              hint="Eigene Seite, eigener Tab"
+              href="./ci.html"
+              onClick={() => setOpen(false)}
+            />
+          </div>
         </div>
       ) : null}
     </div>
@@ -405,24 +427,30 @@ function ExportMenu({
   );
 }
 
+/**
+ * Ein Eintrag in einem der Menüs der Kopfleiste.
+ *
+ * Mit `href` wird daraus ein **Verweis** und kein Knopf. Das ist kein
+ * Schönheitsfehler, den man mit einem `onClick` auf einem `<button>` auch
+ * erschlagen könnte: der CI-Generator ist eine eigene Seite, und ein Verweis
+ * lässt sich mit der mittleren Maustaste, mit ⌘-Klick und aus dem Kontextmenü
+ * öffnen. Ein Knopf, der `window.open()` ruft, kann das alles nicht.
+ */
 function MenuItem({
   icon,
   label,
   hint,
   onClick,
+  href,
 }: {
   icon: ToolIconName;
   label: string;
   hint?: string;
-  onClick: () => void;
+  onClick?: () => void;
+  href?: string;
 }) {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      onClick={onClick}
-      className="flex w-full items-start gap-2 px-2 py-1.5 text-left transition-colors duration-fast hover:bg-ui-subtle"
-    >
+  const inhalt = (
+    <>
       <span className="mt-0.5 text-ui-faint">
         <Icon name={icon} size={15} />
       </span>
@@ -430,6 +458,29 @@ function MenuItem({
         <span className="block truncate text-ui-body font-medium">{label}</span>
         {hint ? <span className="block truncate text-[11px] text-ui-faint">{hint}</span> : null}
       </span>
+    </>
+  );
+  const klasse =
+    'flex w-full items-start gap-2 px-2 py-1.5 text-left text-ui-ink ' +
+    'transition-colors duration-fast hover:bg-ui-subtle';
+
+  if (href) {
+    return (
+      <a
+        role="menuitem"
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        onClick={onClick}
+        className={klasse}
+      >
+        {inhalt}
+      </a>
+    );
+  }
+  return (
+    <button type="button" role="menuitem" onClick={onClick} className={klasse}>
+      {inhalt}
     </button>
   );
 }

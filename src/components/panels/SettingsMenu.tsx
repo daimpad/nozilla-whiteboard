@@ -104,33 +104,6 @@ export function SettingsMenu() {
           </p>
 
           <div className="border-t border-ui">
-            <SectionTitle>Erscheinungsbild</SectionTitle>
-            {/*
-              Der Generator ist eine eigene Seite und kein Panel: er meldet ein
-              Erscheinungsbild an und aktiviert es, um damit ein Probedeck zu
-              zeichnen. Täte er das im laufenden Werkzeug, führe die offene
-              Folie bei jedem Tastendruck mit.
-
-              `target="_blank"` mit `rel`, damit die offene Arbeit stehen
-              bleibt — wer eine CI anlegt, will danach zurück und nicht neu
-              laden.
-            */}
-            <a
-              href="./ci.html"
-              target="_blank"
-              rel="noreferrer"
-              className={cx(
-                'mx-1 flex items-center gap-2 rounded-sm px-2 py-1.5',
-                'text-ui-body text-ui-ink transition-colors duration-fast ease-standard',
-                'hover:bg-ui-subtle',
-              )}
-            >
-              <Icon name="palette" size={15} />
-              Eigenes Design erstellen
-            </a>
-          </div>
-
-          <div className="border-t border-ui">
             <SectionTitle>Stand</SectionTitle>
             <dl className="px-2 pb-2 text-[11px] text-ui-muted">
               <Row term="Version" value={build.version} />

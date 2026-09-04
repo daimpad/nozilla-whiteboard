@@ -1965,6 +1965,36 @@ liest die Quellen und findet den Ruf, ohne zu wissen, dass er nichts mehr tut.
 Der Rauchtest wurde rot. Das Sieb bewacht, dass die Frage *dasteht*; der
 Rauchtest, dass sie *wirkt*, und beide werden gebraucht.
 
+**Und der Rest der Pausen: 167 · 135 s wurden 16 · 9,9 s.** Ein Lauf dauert
+jetzt 47 Sekunden statt 3 min 06 s. Drei Muster tragen fast alles:
+
+*Die Zusicherung ist die Bedingung.* `bisGleich()` und `bisWahr()` klagen
+wortgleich wie `gleich()` und `wahr()` — nur wird vorher gewartet. Aus „warte
+600 ms, dann muss die Warnung dastehen" wird „warte, bis die Warnung dasteht":
+schneller, wenn es stimmt, genauso laut, wenn nicht, und die Meldung nennt
+weiterhin den zuletzt gelesenen Wert.
+
+*Die Oberfläche sagt es selbst.* Ein Reiter trägt `aria-selected`, ein
+Leistengriff `aria-expanded`, eine Kachel des Filmstreifens `aria-current` —
+das sind Bedingungen, keine Vermutungen. `zumSchritt()` wird
+vierunddreißigmal gerufen und wartete jedes Mal 250 ms auf nichts.
+
+*Ein Dialog wird an einem Merker erkannt, nicht an einer Uhr.* Wer nach ⌘⇧N
+900 ms wartet und dann den Horcher abhängt, prüft, dass er lange genug
+gewartet hat. Der Horcher setzt jetzt `gefragt = true`, und darauf wird
+gewartet — damit prüft dieselbe Zeile, dass wirklich gefragt wurde.
+
+**Was bleiben durfte, hat einen Grund.** Die 2200 ms in `nachDemWechsel()`
+warten die Notbremse von `loadFaces()` ab (siehe oben). Die 150 ms in
+`setzeFarbe()` geben React die Runde nach einem synthetischen `input`. Und ein
+paar Pausen am Ende eines Blocks lassen die Seite zur Ruhe kommen, bevor die
+nächste Prüfung beginnt — dort gäbe es keine Bedingung, sondern nur eine
+Behauptung darüber, was gleich passiert.
+
+Belegt ist beides: **vier Läufe hintereinander grün**, und eine Sabotage an
+`overflowOf()` — `ueber > NACHSICHT && false` — macht die umgestellte Prüfung
+rot, mit ihrer alten Meldung und ohne hängen zu bleiben.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,
