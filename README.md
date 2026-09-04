@@ -584,6 +584,10 @@ Ein unbekannter Wert bleibt stehen, statt beim ersten Speichern durch die
 Vorgabe ersetzt zu werden: das Deck kann aus einer neueren Fassung dieses
 Werkzeugs kommen. Gezeichnet wird dann 16:9, und der Inspektor sagt es.
 
+Beim Handout kommt bei `a4-hoch` eine Kleinigkeit dazu, die sich nicht umgehen
+lässt: die Folie füllt dort das ganze Blatt, unter ihr ist kein Platz, und die
+Notizen fangen deshalb auf der nächsten Seite an.
+
 Was der Schreiber dabei einhält:
 
 - **Nur Geändertes wird geschrieben.** Alles, was noch dem CI-Standard

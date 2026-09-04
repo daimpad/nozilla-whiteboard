@@ -2284,6 +2284,24 @@ async function main() {
     // die der Export liest.
     const box = await seite.locator('.nz-stage svg').first().getAttribute('viewBox');
     gleich(box, '0 0 1280 1810', 'viewBox der Folie');
+
+    /*
+       Und die Kacheln des Filmstreifens passen noch hinein. Sie rechneten ihre
+       Höhe aus einer festen Breite; bei einem hochkanten Blatt sind das 187
+       Pixel in einem 104 Pixel hohen Streifen — unten abgeschnitten, und man
+       sah der Kachel nicht mehr an, welche Folie man anklickt. Gesehen hat es
+       kein Test, sondern ein Bildschirmfoto.
+    */
+    const streifen = await seite.getByRole('navigation', { name: 'Folien' }).boundingBox();
+    const kachel = await seite
+      .getByRole('navigation', { name: 'Folien' })
+      .locator('button[aria-current]')
+      .first()
+      .boundingBox();
+    wahr(
+      Boolean(streifen && kachel) && kachel.height <= streifen.height,
+      `die Kachel ist höher als der Streifen: ${kachel?.height} in ${streifen?.height}`,
+    );
     /*
        Und die gemalte Fläche darin, denn das ist eine andere Frage: der
        `viewBox` steht im Rumpf der Komponente und folgt jedem Neuzeichnen, die

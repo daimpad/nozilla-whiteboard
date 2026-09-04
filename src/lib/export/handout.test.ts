@@ -6,8 +6,8 @@
  * über eine Szene sagt nichts darüber, ob die Notizen auf dem Blatt unter der
  * Folie stehen oder darüber.
  */
-import { describe, expect, it } from 'vitest';
-import { canvas } from '@/theme';
+import { afterEach, describe, expect, it } from 'vitest';
+import { canvas, folienhoehe, setzeFolienformat } from '@/theme';
 import { parseDeck } from '@/lib/markdown/deck';
 import { buildHandoutScenes } from './scene';
 import { scenesToPdf } from './pdf';
@@ -27,6 +27,8 @@ const DECK = [
 
 const deck = parseDeck(DECK);
 
+afterEach(() => setzeFolienformat('16-9'));
+
 describe('die Handout-Szene', () => {
   it('ist so breit wie die Folie und hoch wie ein DIN-Blatt', () => {
     // Nicht die Folienmaße: sonst stünden die Notizen außerhalb der Seite.
@@ -43,6 +45,42 @@ describe('die Handout-Szene', () => {
     // Und die Folie selbst bleibt, wo sie ist — keine Koordinate wurde
     // umgerechnet. Genau deshalb gibt es keinen zweiten Zeichner.
     expect(texte.some((prim) => prim.y < canvas.height)).toBe(true);
+  });
+
+  it('setzt die Notizen auf die nächste Seite, wenn die Folie das Blatt füllt', () => {
+    /*
+       Ein Deck im Format `a4-hoch` ist genau so hoch wie das Blatt — unter der
+       Folie ist dann kein Platz. Gemessen, bevor das hier stand: die erste
+       Notizzeile stand bei y = 1899 auf einem 1810 hohen Blatt, also auf
+       keiner Seite des PDF, und zwar wortlos.
+
+       Die Regel „die erste Zeile einer Seite wird nie umgebrochen" gilt für
+       eine *Notizseite*, auf der es keinen besseren Ort gäbe. Die Folienseite
+       hat einen: die nächste.
+    */
+    setzeFolienformat('a4-hoch');
+    const seiten = buildHandoutScenes(deck.slides[0], deck);
+    expect(seiten.length).toBeGreaterThan(1);
+    for (const [nummer, szene] of seiten.entries()) {
+      const drueber = szene.prims.filter((prim) => prim.t === 'text' && prim.y > szene.height);
+      expect(drueber, `Seite ${nummer + 1} setzt Text unter die Blattkante`).toEqual([]);
+    }
+    // Und die erste Seite trägt nur die Folie: keine Notiz zwischen ihrer
+    // Unterkante und dem Blattrand, weil dort nichts hinpasst.
+    const ersteNotiz = seiten[0].prims.filter(
+      (prim) => prim.t === 'text' && prim.y > folienhoehe('a4-hoch'),
+    );
+    expect(ersteNotiz).toEqual([]);
+  });
+
+  it('lässt die Notizen auf der Folienseite, wo Platz ist', () => {
+    // Die Gegenrichtung: eine 16:9-Folie füllt das Blatt nicht, und dann
+    // gehört die Notiz darunter und nicht auf ein zweites Blatt. Ohne diese
+    // Hälfte bestünde die Prüfung auch für ein Handout, das die Notiz *immer*
+    // auf die nächste Seite schiebt.
+    const seiten = buildHandoutScenes(deck.slides[0], deck);
+    expect(seiten).toHaveLength(1);
+    expect(seiten[0].prims.some((prim) => prim.t === 'text' && prim.y > canvas.height)).toBe(true);
   });
 
   it('lässt den Platz leer, wenn es nichts zu sagen gibt', () => {

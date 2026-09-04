@@ -10,7 +10,19 @@ import { SlideView } from '@/components/canvas/SlideView';
 import { IconButton, cx } from '@/components/ui/controls';
 import { useFolienformatVersion } from '@/hooks/useFolienformat';
 
-const THUMB_WIDTH = 132;
+/**
+ * Die Höhe einer Kachel — und die Breite folgt daraus, nicht umgekehrt.
+ *
+ * Andersherum stand es hier, und mit einem Folienformat war es falsch: bei
+ * fester Breite ist eine hochkante Kachel 187 Pixel hoch, der Streifen aber
+ * 104 — die Kacheln wurden unten abgeschnitten, und man sah der Übersicht
+ * nicht an, welche Folie man anklickt. Der Streifen gibt seine Höhe vor, also
+ * ist sie die feste Größe.
+ *
+ * 74 ist die Höhe, die eine 16:9-Kachel bisher hatte (132 · 9/16); an einem
+ * bestehenden Deck ändert sich damit nichts.
+ */
+const THUMB_HEIGHT = 74;
 
 export function SlideRail() {
   /*
@@ -65,7 +77,7 @@ export function SlideRail() {
                 ? 'border-ui-accent shadow-ui-sm ring-1 ring-ui-accent'
                 : 'border-ui',
             )}
-            style={{ width: THUMB_WIDTH, height: (THUMB_WIDTH * canvas.height) / canvas.width }}
+            style={{ width: (THUMB_HEIGHT * canvas.width) / canvas.height, height: THUMB_HEIGHT }}
           >
             <SlideView
               slide={slide}
