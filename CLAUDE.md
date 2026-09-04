@@ -1899,6 +1899,38 @@ Geprüft wird am **Verzeichnis** und nicht an der Konfiguration — dass ein Ali
 dasteht, sagt nichts darüber, ob er greift. `pruefeBauwerk()` im Rauchtest sieht
 in `dist/assets` nach, und die Gegenprobe ohne Alias nennt die Datei beim Namen.
 
+**Drei Viertel des Rauchtests waren Warten.** Ein Lauf dauerte 3 min 06 s, und
+darin standen 167 feste `waitForTimeout` mit zusammen 135 Sekunden. Eine feste
+Pause ist immer zugleich zu lang und zu kurz: auf einem ausgelasteten Rechner
+reicht sie nicht und der Test wird wackelig, auf einem leeren ist sie
+verschenkte Zeit. Gefragt wird jetzt, wo es etwas zu fragen gibt — `bis()`
+wartet auf eine Bedingung, `warteAufSchriften()` auf `document.fonts.check()`,
+`oeffneGenerator()` auf die Schrittleiste. Und wo eine Zusicherung ohnehin
+dastand, *ist* sie die Bedingung: aus „warte 900 ms, dann muss die Folie anders
+aussehen" wird „warte, bis die Folie anders aussieht" — dieselbe Meldung, wenn
+sie es nicht tut, nur schneller, wenn sie es tut. 1 min 53 s.
+
+**Und die eine Pause, die bleiben muss, hat eine Zahl aus dem Code.**
+`loadFaces()` zählt seinen Zähler ein **zweites** Mal hoch, wenn die Notbremse
+nach 2000 ms greift, und an diesem Zähler hängt ein Neuzeichnen. Ein Wechsel
+des Erscheinungsbilds fordert die Schnitte der neuen Marke an, also läuft diese
+Uhr danach wieder. Die Prüfung gleich dahinter nahm ihr „vorher" vor der
+Notbremse und ihr „nachher" danach und meldete eine Änderung, die nicht die
+dunkle Erscheinung gemacht hatte — einmal in fünf Läufen. Die alte Fassung kam
+mit 1200 + 800 ms zufällig gerade darüber, und niemand wusste, dass sie das tat.
+
+Eine Bedingung gibt es dafür nicht: „die Fläche zeichnet gleich noch einmal"
+ist von außen nicht zu sehen, und ein Ruhefenster, das kürzer ist als die
+Notbremse, erklärt die Fläche für ruhig, während die Uhr noch läuft.
+`nachDemWechsel()` wartet sie deshalb ab, und der Kommentar nennt die Stelle,
+aus der die 2000 stammen. Sieben Läufe hintereinander grün.
+
+**Ein Sieb, das nur schneller wird, hat nichts bewiesen.** Eine der
+umgestellten Bedingungen wurde deshalb unerfüllbar gemacht: der Rauchtest
+meldete die Prüfung nach fünfzehn Sekunden als rot, mit ihrer eigenen alten
+Meldung, statt hängen zu bleiben. Das ist die Frage, die bei `bis()` zählt —
+nicht ob es wartet, sondern ob es aufhört.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,

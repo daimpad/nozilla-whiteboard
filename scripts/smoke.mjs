@@ -67,6 +67,122 @@ function wahr(bedingung, was) {
   if (!bedingung) throw new Error(was);
 }
 
+/* -------------------------------------------------------------------------- */
+/* Warten — auf eine Bedingung und nicht auf die Uhr                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Warten, bis etwas eintritt.
+ *
+ * Eine feste Pause ist immer zugleich zu lang und zu kurz: auf einem
+ * ausgelasteten Rechner reicht sie nicht und der Test wird wackelig, auf einem
+ * leeren ist sie verschenkte Zeit. Gemessen wurden 167 solcher Pausen mit
+ * zusammen 135 Sekunden — drei Viertel der Laufzeit dieses Rauchtests, in dem
+ * gar nichts geschah.
+ *
+ * Der Rückgabewert ist der erste *wahrhaftige* Wert, damit sich das Ergebnis
+ * gleich weiterverwenden lässt. Der letzte Fehler wird mitgenannt: „nach 15 s
+ * nicht eingetreten" allein sagt nichts darüber, woran es lag.
+ */
+async function bis(fn, was, frist = 15000) {
+  const ende = Date.now() + frist;
+  let letzter;
+  for (;;) {
+    try {
+      const wert = await fn();
+      if (wert) return wert;
+      letzter = undefined;
+    } catch (fehler) {
+      letzter = fehler;
+    }
+    if (Date.now() > ende) {
+      throw new Error(
+        `${was} — nach ${frist} ms nicht eingetreten${letzter ? `: ${String(letzter).split('\n')[0]}` : ''}`,
+      );
+    }
+    await new Promise((weiter) => setTimeout(weiter, 40));
+  }
+}
+
+/**
+ * Warten, bis die Marken-Schriften da sind und die Fläche mit ihnen gezeichnet
+ * hat.
+ *
+ * Beides ist nötig, und das steht auch im Kopf von `src/theme/fonts.ts`: ein
+ * `@font-face` allein lädt nichts, und ohne Zustandsänderung zeichnet React
+ * nicht neu. Gefragt wird deshalb `document.fonts.check()` — das ist wahr,
+ * sobald ein Schnitt wirklich benutzbar ist — und danach werden zwei
+ * Bildrahmen abgewartet, denn `announce()` zählt seinen Zähler erst nach
+ * `document.fonts.ready` hoch.
+ *
+ * Hier stand eine Pause von 2500 ms mit demselben Kommentar. Sie war auf einem
+ * warmen Zwischenspeicher um zwei Sekunden zu lang und auf einem kalten
+ * Rechner womöglich zu kurz — die Pause weiß es nicht, die Bedingung schon.
+ */
+async function warteAufSchriften(seite) {
+  await seite.waitForFunction(
+    () =>
+      ['700 68px "Zilla Slab"', '400 16px "Inter"', '700 12px "Space Mono"'].every((schnitt) =>
+        document.fonts.check(schnitt),
+      ),
+    null,
+    { timeout: 20000 },
+  );
+  await seite.evaluate(
+    () =>
+      new Promise((weiter) => requestAnimationFrame(() => requestAnimationFrame(() => weiter()))),
+  );
+}
+
+/**
+ * Nach einem Wechsel des Erscheinungsbilds zur Ruhe kommen lassen.
+ *
+ * Das ist die eine Stelle, an der eine feste Wartezeit richtig ist — und sie
+ * hat eine Zahl aus dem Code, keine geratene: `loadFaces()` in
+ * `src/theme/fonts.ts` zählt seinen Zähler ein **zweites** Mal hoch, wenn die
+ * Notbremse nach 2000 ms greift, und an diesem Zähler hängt ein Neuzeichnen.
+ * Ein Wechsel des Erscheinungsbilds fordert die Schnitte der neuen Marke an,
+ * also läuft diese Uhr danach wieder.
+ *
+ * Wer das nicht abwartet, misst zwei Stände. Aufgefallen ist es an der Prüfung
+ * gleich danach — „die dunkle Erscheinung lässt die Folie in Ruhe" nahm ihr
+ * „vorher" vor der Notbremse und ihr „nachher" danach und meldete eine
+ * Änderung, die nicht die dunkle Erscheinung gemacht hatte. Einmal in fünf
+ * Läufen; die alte Fassung kam mit 1200 + 800 ms zufällig gerade darüber.
+ *
+ * Eine Bedingung gäbe es dafür nicht: „die Fläche zeichnet gleich noch einmal"
+ * ist von außen nicht zu sehen, und ein Ruhefenster, das kürzer ist als die
+ * Notbremse, erklärt die Fläche für ruhig, während die Uhr noch läuft.
+ */
+async function nachDemWechsel(seite) {
+  await seite.waitForTimeout(2200);
+}
+
+/**
+ * Den CI-Generator öffnen und warten, bis er wirklich dasteht.
+ *
+ * Sechzehnmal stand hier dieselbe Folge: eine neue Seite, `goto`, und danach
+ * eine feste Pause von 2200 ms — zusammen 35 der 186 Sekunden dieses
+ * Rauchtests. Gewartet wurde dabei auf zweierlei: dass die Seite gezeichnet
+ * ist, und dass die Marken-Schriften da sind, denn die Vorschau zeichnet eine
+ * echte Folie und misst gegen die echte Schrift.
+ *
+ * Beides lässt sich fragen. Die Seite steht, wenn die Schrittleiste da ist —
+ * sie ist das erste, was der Generator zeichnet, und ohne sie ginge ohnehin
+ * kein Handgriff. Die Schriften erledigt `warteAufSchriften()`.
+ *
+ * `vorhanden` gibt es für die zwei Stellen, die ihre Seite selbst anlegen
+ * müssen: eine hängt vorher einen Fehlerhorcher ein, die andere setzt die
+ * Fenstergröße — beides muss vor dem `goto` geschehen.
+ */
+async function oeffneGenerator(kontext, vorhanden) {
+  const generator = vorhanden ?? (await kontext.newPage());
+  await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+  await generator.getByRole('tablist').waitFor({ timeout: 20000 });
+  await warteAufSchriften(generator);
+  return generator;
+}
+
 /**
  * Einen Schritt des CI-Generators öffnen.
  *
@@ -330,7 +446,7 @@ async function main() {
   await seite.goto(URL, { waitUntil: 'networkidle' });
   // Die Schriften werden ausdrücklich angefordert und danach neu gemessen;
   // vorher steht die Ersatzschrift und die Wortpositionen stimmen nicht.
-  await seite.waitForTimeout(2500);
+  await warteAufSchriften(seite);
 
   console.log('\nOberfläche:');
 
@@ -396,7 +512,6 @@ async function main() {
 
   await pruefe('ein Baustein landet an der Einsetzlinie', async () => {
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
-    await seite.waitForTimeout(500);
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
     await seite.waitForTimeout(500);
 
@@ -448,9 +563,7 @@ async function main() {
        Ein Test am Store liefe an dieser Stelle vorbei.
     */
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
-    await seite.waitForTimeout(500);
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
-    await seite.waitForTimeout(600);
 
     await seite.getByRole('button', { name: 'Element', exact: true }).click();
     await seite.waitForTimeout(300);
@@ -495,11 +608,9 @@ async function main() {
        ein, den er gerade erreicht hat.
     */
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
-    await seite.waitForTimeout(500);
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
     await seite.waitForTimeout(600);
     await seite.keyboard.press('Escape');
-    await seite.waitForTimeout(300);
 
     // Die Griffe liegen im Kasten der Fläche, also *hinter* der Folie: ein
     // Schritt zurück landet auf dem letzten Element.
@@ -553,7 +664,6 @@ async function main() {
     // zeichnet die Fläche dagegen nur, wenn genau *eines* ausgewählt ist —
     // keine Griffe heißt also: die Gruppe hängt mit dran.
     await seite.keyboard.press('Escape');
-    await seite.waitForTimeout(300);
     await seite.locator('[data-hit-element]').first().click();
     await seite.waitForTimeout(400);
     gleich(
@@ -577,7 +687,6 @@ async function main() {
     // Lücke: eine Datei *fallen zu lassen* ging, sie *einzufügen* nicht.
     const [x, y] = await masse(seite);
     await seite.keyboard.press('Control+c');
-    await seite.waitForTimeout(400);
 
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
     await seite.waitForTimeout(600);
@@ -708,9 +817,14 @@ async function main() {
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
     await seite.waitForTimeout(500);
     const fotoBytes = await einfuegen(4032, 3024, 'foto');
-    await seite.waitForTimeout(4000);
-
-    const foto = await eingebettet();
+    /*
+       Gewartet wird, bis das Bild wirklich auf der Folie liegt — hier standen
+       4000 ms, dreimal. Das Kappen und Umkodieren läuft über ein Canvas und
+       `toBlob()`, und wie lange das dauert, hängt am Bild und am Rechner: eine
+       feste Pause ist dafür entweder zu lang oder zu kurz. `eingebettet()`
+       gibt `null` zurück, solange nichts da ist — das ist die Bedingung.
+    */
+    const foto = await bis(eingebettet, 'das eingefügte Foto kam nicht auf der Folie an', 30000);
     wahr(foto !== null, 'kein Foto auf der Folie');
     // 2560 ist die Rasterbreite einer Folie; mehr nützt in keiner Ausgabe.
     gleich(foto.breite, 2560, 'Breite des eingebetteten Fotos');
@@ -726,9 +840,11 @@ async function main() {
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
     await seite.waitForTimeout(500);
     await einfuegen(3000, 2000, 'schirm');
-    await seite.waitForTimeout(4000);
-
-    const schirm = await eingebettet();
+    const schirm = await bis(
+      eingebettet,
+      'das eingefügte Bildschirmfoto kam nicht auf der Folie an',
+      30000,
+    );
     wahr(schirm !== null, 'kein Bildschirmfoto auf der Folie');
     gleich(schirm.breite, 2560, 'Breite des eingebetteten Bildschirmfotos');
     // Die Gegenrichtung: hier wäre JPEG ein Verlust ohne Gewinn.
@@ -745,9 +861,11 @@ async function main() {
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
     await seite.waitForTimeout(500);
     await einfuegen(2560, 1440, 'foto');
-    await seite.waitForTimeout(4000);
-
-    const kante = await eingebettet();
+    const kante = await bis(
+      eingebettet,
+      'das Bild auf der Kappungsgrenze kam nicht auf der Folie an',
+      30000,
+    );
     wahr(kante !== null, 'kein Foto auf der Folie');
     gleich(kante.breite, 2560, 'Breite des Fotos auf der Kante');
     gleich(kante.art, 'image/jpeg', 'Format des Fotos auf der Kante');
@@ -763,7 +881,6 @@ async function main() {
     );
 
     await seite.keyboard.press('Control+f');
-    await seite.waitForTimeout(400);
     await seite.getByLabel('Im Deck suchen').fill('Vektor');
     await seite.waitForTimeout(600);
 
@@ -792,7 +909,6 @@ async function main() {
        gar nichts geschrieben hätte.
     */
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
-    await seite.waitForTimeout(500);
     // Ausdrücklich der Reiter „Folie": stand vorher ein Element in der
     // Auswahl, zeigte der Inspektor dessen Felder, und „das erste Textfeld"
     // war ein ganz anderes. Der erste Anlauf tippte deshalb ins Leere und
@@ -811,7 +927,6 @@ async function main() {
     await seite.waitForTimeout(300);
 
     await seite.keyboard.press('Control+f');
-    await seite.waitForTimeout(400);
     await seite.getByRole('textbox', { name: 'Im Deck suchen' }).fill('zwiebel');
     await seite.getByRole('textbox', { name: 'Ersetzen durch' }).fill('Kürbis');
     await seite.waitForTimeout(400);
@@ -841,7 +956,6 @@ async function main() {
     // Ein Diagramm ist ein Kunde der Szene wie jedes andere Element — deshalb
     // wird hier geprüft, was auf der Folie *steht*, nicht was das Modell hält.
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
-    await seite.waitForTimeout(500);
     await seite.locator('aside button').filter({ hasText: 'Balken' }).first().click();
     await seite.waitForTimeout(700);
 
@@ -887,9 +1001,7 @@ async function main() {
        und die verrät `getBBox()`.
     */
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
-    await seite.waitForTimeout(500);
     await seite.locator('aside button').filter({ hasText: 'Tabelle' }).first().click();
-    await seite.waitForTimeout(900);
 
     await seite.getByRole('button', { name: 'Element', exact: true }).click();
     await seite.waitForTimeout(300);
@@ -1030,15 +1142,22 @@ async function main() {
 
     const vorher = (await seite.evaluate(FOLIE)).markup;
     await auswahl.selectOption('musterkunde');
-    await seite.waitForTimeout(1200);
-    const nachher = (await seite.evaluate(FOLIE)).markup;
+    // Die Zusicherung *ist* die Bedingung: gewartet wird, bis die Folie anders
+    // aussieht, und wenn sie es nicht tut, steht dieselbe Meldung da wie vorher.
+    const nachher = await bis(async () => {
+      const markup = (await seite.evaluate(FOLIE)).markup;
+      return markup !== vorher ? markup : null;
+    }, 'die Folie sieht nach dem Wechsel gleich aus');
 
-    wahr(nachher !== vorher, 'die Folie sieht nach dem Wechsel gleich aus');
     wahr(nachher.includes('#FF5A1F'), 'die Signalfarbe der fremden Marke fehlt');
     wahr(!nachher.includes('#00FF9C'), 'das Grün von nozilla steht noch auf der Folie');
 
     await auswahl.selectOption('nozilla');
-    await seite.waitForTimeout(1200);
+    await bis(
+      async () => (await seite.evaluate(FOLIE)).markup.includes('#00FF9C'),
+      'die Folie kam nicht zu nozilla zurück',
+    );
+    await nachDemWechsel(seite);
   });
 
   await pruefe('die dunkle Erscheinung lässt die Folie in Ruhe', async () => {
@@ -1047,7 +1166,6 @@ async function main() {
     const vorher = (await seite.evaluate(FOLIE)).markup;
 
     await seite.getByRole('button', { name: 'Einstellungen', exact: true }).click();
-    await seite.waitForTimeout(300);
     await seite.getByRole('button', { name: 'Dunkel', exact: true }).click();
     await seite.waitForTimeout(800);
     await seite.keyboard.press('Escape');
@@ -1076,7 +1194,6 @@ async function main() {
     // lief aus ihrem Kasten, eine Karte saß auf ihrer Unterkante. Beide Male
     // war alles grün, und gesehen habe ich es im Bild.
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
-    await seite.waitForTimeout(500);
     await seite.locator('aside button').filter({ hasText: 'Fließtext' }).first().click();
     await seite.waitForTimeout(600);
 
@@ -1126,8 +1243,10 @@ async function main() {
   await pruefe('weiterblättern bringt die nächste Folie', async () => {
     const vorher = (await seite.evaluate(FOLIE)).markup;
     await seite.keyboard.press('ArrowRight');
-    await seite.waitForTimeout(900);
-    wahr((await seite.evaluate(FOLIE)).markup !== vorher, 'die Folie blieb stehen');
+    await bis(
+      async () => (await seite.evaluate(FOLIE)).markup !== vorher,
+      'die Folie blieb stehen',
+    );
   });
 
   await pruefe('die Notizen kommen auf Deutsch', async () => {
@@ -1164,7 +1283,7 @@ async function main() {
       seite.getByRole('button', { name: 'Referentenansicht öffnen' }).click(),
     ]);
     await referent.waitForLoadState('networkidle');
-    await referent.waitForTimeout(2500);
+    await warteAufSchriften(referent);
 
     const text = await referent.evaluate(() => document.body.innerText);
     wahr(!/Warte auf den Vortrag/.test(text), 'das zweite Fenster bekam kein Deck');
@@ -1194,9 +1313,8 @@ async function main() {
     // Und zurück: was im zweiten Fenster gedrückt wird, blättert im ersten.
     const vorher = (await seite.evaluate(FOLIE)).markup;
     await referent.keyboard.press('ArrowRight');
-    await seite.waitForTimeout(900);
-    wahr(
-      (await seite.evaluate(FOLIE)).markup !== vorher,
+    await bis(
+      async () => (await seite.evaluate(FOLIE)).markup !== vorher,
       'das Blättern in der Referentenansicht kam im Vortrag nicht an',
     );
 
@@ -1206,11 +1324,12 @@ async function main() {
 
   await pruefe('Esc führt zurück an die Arbeit', async () => {
     await seite.keyboard.press('Escape');
-    await seite.waitForTimeout(900);
-    wahr(
-      await seite.getByRole('button', { name: 'Export', exact: true }).count(),
-      'die Kopfleiste kam nicht zurück',
-    );
+    await seite
+      .getByRole('button', { name: 'Export', exact: true })
+      .waitFor({ timeout: 15000 })
+      .catch(() => {
+        throw new Error('die Kopfleiste kam nicht zurück');
+      });
   });
 
   console.log('\nExport:');
@@ -1409,7 +1528,6 @@ async function main() {
        jeder Zusicherung gleich aus.
     */
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
-    await seite.waitForTimeout(500);
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
     await seite.waitForTimeout(600);
 
@@ -1439,7 +1557,6 @@ async function main() {
     gleich(await warnung(), 0, 'das gerahmte Rechteck wird schon beklagt');
 
     await inspektor.getByRole('button', { name: 'Weiß', exact: true }).click();
-    await seite.waitForTimeout(300);
     await inspektor.locator('select').first().selectOption('flat');
     await seite.waitForTimeout(400);
     gleich(await warnung(), 1, 'Weiß auf Weiß wird nicht gemeldet');
@@ -1456,9 +1573,7 @@ async function main() {
     gleich(await warnung(), 0, 'die gerahmte Fläche wird zu Unrecht beklagt');
 
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
-    await seite.waitForTimeout(600);
     await inspektor.getByRole('button', { name: 'Weiß', exact: true }).click();
-    await seite.waitForTimeout(300);
     await inspektor.locator('select').first().selectOption('flat');
     await seite.waitForTimeout(400);
     gleich(await warnung(), 0, 'die weiße Karte mit ihrem Text wird zu Unrecht beklagt');
@@ -1630,8 +1745,10 @@ async function main() {
       );
     });
     await seite.reload({ waitUntil: 'networkidle' });
-    await seite.waitForTimeout(1200);
-    wahr(await stehtAufFolie(seite, 'Aus der Sitzung'), 'die Sitzung kam beim Start nicht zurück');
+    await bis(
+      () => stehtAufFolie(seite, 'Aus der Sitzung'),
+      'die Sitzung kam beim Start nicht zurück',
+    );
 
     // Und jetzt die Frage: ohne sie wäre die Arbeit weg.
     let gefragt = false;
@@ -1699,12 +1816,11 @@ async function main() {
       );
     }, KAPUTT);
     await seite.reload({ waitUntil: 'networkidle' });
-    await seite.waitForTimeout(1500);
 
     // Sichtbar sein muss es auch: eine Folie, der die Elemente fehlen, ohne
     // dass irgendwo steht warum, ist der halbe Fehler.
-    wahr(
-      (await seite.getByText('ließ sich nicht lesen').count()) === 1,
+    await bis(
+      async () => (await seite.getByText('ließ sich nicht lesen').count()) === 1,
       'der Inspektor sagt nichts über den unlesbaren Block',
     );
 
@@ -1776,8 +1892,7 @@ async function main() {
     const generator = await kontext.newPage();
     const laut = [];
     generator.on('pageerror', (fehler) => laut.push(String(fehler)));
-    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
-    await generator.waitForTimeout(2500);
+    await oeffneGenerator(kontext, generator);
     wahr(!laut.length, `die Generator-Seite warf: ${laut.join(' | ')}`);
 
     await zumSchritt(generator, 'Marke');
@@ -1841,9 +1956,7 @@ async function main() {
        Ersatz: der Fehler muss in der Prüfliste stehen bleiben und danebenstehen
        muss, dass es einer ist.
     */
-    const generator = await kontext.newPage();
-    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
-    await generator.waitForTimeout(2200);
+    const generator = await oeffneGenerator(kontext);
 
     const markup = await generator.evaluate(() => {
       const svg = document.querySelector('svg[role="img"]');
@@ -1871,9 +1984,7 @@ async function main() {
        letzte Stand ist. Ein alter Stand, der sich für den aktuellen ausgibt,
        wäre schlimmer als eine leere Fläche.
     */
-    const generator = await kontext.newPage();
-    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
-    await generator.waitForTimeout(2200);
+    const generator = await oeffneGenerator(kontext);
 
     await zumSchritt(generator, 'Marke');
     await generator.getByLabel('Schlüssel').fill('rauchhalt');
@@ -1928,9 +2039,7 @@ async function main() {
        Fokuswechsel — ein `fill()` setzt den ganzen Wert in einem Ereignis und
        wäre auch über dem alten Stand grün geblieben.
     */
-    const generator = await kontext.newPage();
-    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
-    await generator.waitForTimeout(2200);
+    const generator = await oeffneGenerator(kontext);
     await zumSchritt(generator, 'Farbe');
 
     const feld = generator.locator(`[id="${await farbfeldId(generator, 'signal')}"]`);
@@ -1965,9 +2074,7 @@ async function main() {
        dass der Bericht sagt, was er dafür tun musste. Eine stille Reparatur
        wäre eine Behauptung darüber, was gemeint war.
     */
-    const generator = await kontext.newPage();
-    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
-    await generator.waitForTimeout(2200);
+    const generator = await oeffneGenerator(kontext);
 
     const antwort = [
       'Klar, hier ist das Erscheinungsbild:',
@@ -2041,9 +2148,7 @@ async function main() {
        setzt den ganzen Wert in einem Ereignis und wäre auch über dem kaputten
        Stand grün geblieben.
     */
-    const generator = await kontext.newPage();
-    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
-    await generator.waitForTimeout(2200);
+    const generator = await oeffneGenerator(kontext);
 
     await zumSchritt(generator, 'Schrift');
     const familie = generator.locator('input[aria-label="Familie des 1. Schnitts"]');
@@ -2099,9 +2204,7 @@ async function main() {
        abfängt, sperrt den Benutzer in dem Bereich ein, den er gerade erreicht
        hat.
     */
-    const generator = await kontext.newPage();
-    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
-    await generator.waitForTimeout(2200);
+    const generator = await oeffneGenerator(kontext);
 
     await reiter(generator, 'Anfang').focus();
     await generator.keyboard.press('ArrowRight');
@@ -2143,13 +2246,10 @@ async function main() {
        Rückzahlung für das, was ein Wizard gegenüber einer langen Seite
        verliert — dort fand man eine Rolle mit ⌘F.
     */
-    const generator = await kontext.newPage();
-    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
-    await generator.waitForTimeout(2200);
+    const generator = await oeffneGenerator(kontext);
 
     await zumSchritt(generator, 'Farbe');
     await setzeFarbe(generator, 'signalSoft', 'knallrot');
-    await generator.waitForTimeout(400);
 
     // Der Befund steht in der Prüfliste und trägt einen Weg zum Feld.
     await generator.getByRole('button', { name: 'Zum Feld' }).first().click();
@@ -2197,9 +2297,7 @@ async function main() {
        Handarbeit wegwarf. Geprüft wird deshalb die ganze Kette: lesen ändert
        nichts, übernehmen ändert, rückgängig stellt zurück.
     */
-    const generator = await kontext.newPage();
-    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
-    await generator.waitForTimeout(2200);
+    const generator = await oeffneGenerator(kontext);
 
     await generator
       .getByLabel('Die Antwort des Modells')
@@ -2252,15 +2350,12 @@ async function main() {
        Dieselbe Regel gilt schon für den Vorschlag selbst; ein Angebot, das
        gegen einen Stand rechnet, den es nicht mehr gibt, ist keines.
     */
-    const generator = await kontext.newPage();
-    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
-    await generator.waitForTimeout(2200);
+    const generator = await oeffneGenerator(kontext);
 
     await generator
       .getByLabel('Die Antwort des Modells')
       .fill('{"id": "rauchverfall", "label": "Rauchverfall"}');
     await generator.getByRole('button', { name: 'Antwort lesen' }).click();
-    await generator.waitForTimeout(400);
     await generator.getByRole('button', { name: /Werte übernehmen/ }).click();
     await generator.waitForTimeout(400);
 
@@ -2299,9 +2394,7 @@ async function main() {
        statt eines Fünf-Prozent-Grau — und danach sieht es keine Prüfung mehr,
        denn `#111111` ist ein gültiger Wert.
     */
-    const generator = await kontext.newPage();
-    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
-    await generator.waitForTimeout(2200);
+    const generator = await oeffneGenerator(kontext);
 
     await zumSchritt(generator, 'Farbe');
     await setzeFarbe(generator, 'paperAlt', 'rgba(17, 17, 17, 0.05)');
@@ -2329,9 +2422,7 @@ async function main() {
        gelungener Ladevorgang — obwohl fünfzig Felder ersetzt wurden. Der Satz
        „… ist kein gesicherter Entwurf" stand daneben und wurde nie erreicht.
     */
-    const generator = await kontext.newPage();
-    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
-    await generator.waitForTimeout(2200);
+    const generator = await oeffneGenerator(kontext);
 
     await zumSchritt(generator, 'Marke');
     await generator.getByLabel('Schlüssel').fill('bleibtstehen');
@@ -2368,9 +2459,7 @@ async function main() {
        stehen bleiben, angenommen muss die Datei ankommen. Eine Frage, die man
        nur wegklicken kann, wäre so schlimm wie keine.
     */
-    const generator = await kontext.newPage();
-    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
-    await generator.waitForTimeout(2200);
+    const generator = await oeffneGenerator(kontext);
 
     await zumSchritt(generator, 'Marke');
     await generator.getByLabel('Schlüssel').fill('vonhand');
@@ -2415,9 +2504,7 @@ async function main() {
        Beide Richtungen: bejaht steht der Entwurf wieder da, verneint ist er
        leer. Eine Frage, deren Nein nichts tut, ist keine.
     */
-    const generator = await kontext.newPage();
-    await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
-    await generator.waitForTimeout(2200);
+    const generator = await oeffneGenerator(kontext);
 
     await zumSchritt(generator, 'Marke');
     await generator.getByLabel('Schlüssel').fill('rauchsitzung');
@@ -2440,7 +2527,7 @@ async function main() {
     const fortsetzen = antworte(true);
     generator.on('dialog', fortsetzen);
     await generator.reload({ waitUntil: 'networkidle' });
-    await generator.waitForTimeout(2200);
+    await warteAufSchriften(generator);
     generator.off('dialog', fortsetzen);
     await zumSchritt(generator, 'Marke');
     gleich(
@@ -2453,7 +2540,7 @@ async function main() {
     const verwerfen = antworte(false);
     generator.on('dialog', verwerfen);
     await generator.reload({ waitUntil: 'networkidle' });
-    await generator.waitForTimeout(2200);
+    await warteAufSchriften(generator);
     generator.off('dialog', verwerfen);
     await zumSchritt(generator, 'Marke');
     gleich(
@@ -2482,8 +2569,7 @@ async function main() {
     ]) {
       const generator = await kontext.newPage();
       await generator.setViewportSize(groesse);
-      await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
-      await generator.waitForTimeout(2200);
+      await oeffneGenerator(kontext, generator);
 
       const sichtbar = await generator.evaluate(() => {
         const kopf = [...document.querySelectorAll('h2')].find(
