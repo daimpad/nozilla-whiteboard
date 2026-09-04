@@ -392,6 +392,18 @@ können muss:
 Ein sechsseitiges Deck kostet als PDF mit eingebetteten Schriften rund 140 kB,
 als Umriss-PDF rund 950 kB. Der Umriss-Weg ist der teurere und der sicherere.
 
+Und beim PDF steht daneben, wie groß die **Seite** ist:
+
+|                       | Was herauskommt                                                       | Wofür                             |
+| --------------------- | --------------------------------------------------------------------- | --------------------------------- |
+| **Folie** (Vorgabe)   | Die Seite _ist_ die Folie: 1280 × 720 Einheiten, kein Rand ringsum.   | Vorführen, verschicken, anhängen. |
+| **A4 hoch / A4 quer** | Ein echter A4-Bogen (210 × 297 mm), die Folie mittig darauf, mit Rand. | Ausdrucken.                       |
+
+Die Folie wird dabei **nicht kleiner gerechnet** — das Blatt wächst um sie
+herum. Skalieren hieße, durch jeden Primitivtyp hindurchzurechnen, samt der
+vorgemessenen Wortbreiten, und wäre der zweite Weg, eine Folie zu zeichnen.
+Den gibt es hier nicht.
+
 ### PDF und PPTX wollen Gegensätzliches
 
 Das ist keine Doppelung, sondern eine Arbeitsteilung:

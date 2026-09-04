@@ -402,6 +402,134 @@ function satzkasten(prim: TypesetPrim): { oben: number; unten: number } {
   return { oben: prim.y - groesse, unten: prim.y + groesse * 0.25 };
 }
 
+/* -------------------------------------------------------------------------- */
+/* Das Blatt                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/** Wie herum das Blatt liegt. */
+export type Blattlage = 'hoch' | 'quer';
+
+/**
+ * Eine fertige Szene mittig auf ein Blatt in DIN-Proportionen legen.
+ *
+ * **Das Blatt wächst um die Folie herum, die Folie schrumpft nicht auf das
+ * Blatt.** Das ist derselbe Kniff wie beim Handout einen Absatz weiter oben
+ * und aus demselben Grund: eine Szene zu skalieren hieße, durch jeden
+ * Primitivtyp hindurchzurechnen — samt der vorgemessenen Breiten in den
+ * Textläufen, die dann nicht mehr zu den Glyphen passen, die sie beschreiben.
+ * Zwei Wege, eine Folie zu zeichnen, sind genau das, was die erste Regel
+ * dieses Projekts verbietet.
+ *
+ * Verschoben wird trotzdem, und das ist kein Widerspruch: eine Verschiebung
+ * fasst keine einzige Messung an. Sie addiert auf Koordinaten, und
+ * Schriftgröße, Laufweite, Strichstärke und die Breite jedes Textlaufs bleiben
+ * Zeichen für Zeichen dieselben. Nötig ist sie, weil ein Blatt ohne Rand um
+ * die Folie herum sich nicht drucken lässt — kein Bürodrucker geht bis an die
+ * Schnittkante.
+ *
+ * Der Rand ist der **Satzspiegel der CI** und keine erfundene Zahl: derselbe
+ * Wert, mit dem jede Folie ihren Text einrückt.
+ *
+ * Der Untergrund des Blattes ist Papier und nicht der der Folie — die malt
+ * ihren eigenen über sich, und eine dunkle Folie soll nicht das ganze Blatt
+ * schwärzen. Der Haarstrich ringsum ist der Grund, warum auf weißem Papier
+ * noch zu sehen ist, wo die Folie aufhört.
+ */
+export function aufBlatt(szene: Scene, lage: Blattlage): Scene {
+  const papier = backgroundStyle('paper');
+  const rand = canvasTokens.margin.left;
+
+  /*
+     Die kleinste DIN-Seite, auf die Folie plus Rand passt. Gerechnet wird über
+     *beide* Kanten und nicht nur über die breite: eine hochkant stehende Szene
+     auf einem Querformat bräuchte sonst ein Blatt, das zu niedrig ist, und die
+     Folie stünde oben und unten heraus. Zurzeit ist die Folie 16:9 und die
+     Breite gibt immer den Ausschlag — aber das ist eine Eigenschaft des
+     heutigen Folienmaßes und keine der Rechnung.
+  */
+  const noetigB = szene.width + rand * 2;
+  const noetigH = szene.height + rand * 2;
+  const breite = hundertstel(
+    lage === 'hoch' ? Math.max(noetigB, noetigH / DIN_HOCH) : Math.max(noetigB, noetigH * DIN_HOCH),
+  );
+  const hoehe = hundertstel(lage === 'hoch' ? breite * DIN_HOCH : breite / DIN_HOCH);
+
+  const dx = (breite - szene.width) / 2;
+  const dy = (hoehe - szene.height) / 2;
+
+  return {
+    width: breite,
+    height: hoehe,
+    background: papier.fill,
+    title: szene.title,
+    prims: [
+      { t: 'rect', x: 0, y: 0, w: breite, h: hoehe, fill: papier.fill },
+      ...verschiebePrims(szene.prims, dx, dy),
+      {
+        t: 'rect',
+        x: dx,
+        y: dy,
+        w: szene.width,
+        h: szene.height,
+        stroke: papier.line,
+        strokeWidth: strokeWidthOf('hair'),
+      },
+    ],
+  };
+}
+
+/**
+ * Jedes Primitiv um denselben Betrag verschieben.
+ *
+ * Fünf Arten, und jede muss einzeln bedacht sein — eine vergessene liegt
+ * hinterher an der Stelle, an der sie ohne Blatt läge, also am Rand oder
+ * daneben, und kein Test, der nur die Seitenmaße prüft, sagt ein Wort dazu.
+ *
+ * Die Pfade gehen dabei über `transformSegs()` und nicht über eine eigene
+ * Schleife: der Bogen-Segmenttyp trägt neben seinen Punkten noch Radien und
+ * einen Winkel, und wer das nachbaut, baut die zweite Rechnung für dieselbe
+ * Frage.
+ *
+ * `text` und `image` drehen um ihren eigenen Ankerpunkt (x, y). Ihn zu
+ * verschieben verschiebt die Drehung mit — was gedreht dastand, steht gedreht
+ * an der neuen Stelle.
+ */
+/**
+ * Auf Hundertstel gerundet — nicht auf ganze Einheiten.
+ *
+ * Beides ist eine Rundung, und die zweite kostet spürbar mehr, als sie
+ * aussieht. Ein Blatt von 1030 statt 1029,55 Einheiten hat ein Verhältnis von
+ * 1,4136 statt 1,4142; auf 210 Millimeter kurzer Kante gerechnet wird die
+ * lange dadurch 296,85 statt 297,0 — anderthalb Zehntel daneben, und das an
+ * einem Format, dessen ganzer Zweck es ist, ein genaues Maß zu haben.
+ * Gemessen wurde das an der Datei, nicht überlegt.
+ *
+ * Ganz ungerundet bleibt es trotzdem nicht: das Seitenmaß geht als Zahl in den
+ * Kopf eines SVG, und `2059.0192996254475` dort ist kein Maß, sondern ein
+ * Ausrutscher. Zwei Nachkommastellen sind fünf Tausendstel Millimeter — genauer,
+ * als ein Drucker steht.
+ */
+function hundertstel(wert: number): number {
+  return Math.round(wert * 100) / 100;
+}
+
+export function verschiebePrims(prims: readonly ScenePrim[], dx: number, dy: number): ScenePrim[] {
+  const m = matTranslate(dx, dy);
+  return prims.map((prim) => {
+    switch (prim.t) {
+      case 'rect':
+        return { ...prim, x: prim.x + dx, y: prim.y + dy };
+      case 'ellipse':
+        return { ...prim, cx: prim.cx + dx, cy: prim.cy + dy };
+      case 'path':
+        return { ...prim, segs: transformSegs(prim.segs, m) };
+      case 'text':
+      case 'image':
+        return { ...prim, x: prim.x + dx, y: prim.y + dy };
+    }
+  });
+}
+
 /** Die Fläche, das optionale Punktraster und der gesetzte Fließtext. */
 export function buildSlideBackdrop(slide: Slide, options: SceneOptions = {}): ScenePrim[] {
   const bg = backgroundStyle(slide.meta.background);

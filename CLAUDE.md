@@ -2087,6 +2087,34 @@ ausgesuchte Dateiname steht nur als Quittung im Formular. Ein Kommentar, der
 einem Feld eine Wirkung zuschreibt, die es nicht hat, ist die Vorstufe zu einem
 Feld, dessen Inhalt verworfen wird.
 
+**Ein Format, das A4 heißt, muss A4 sein.** Die Folie liegt jetzt auf Wunsch
+mittig auf einem Blatt — hoch oder quer —, und der Weg dorthin ist der des
+Handouts: das Blatt wächst um die Folie herum, die Folie behält jede
+Koordinate. Skaliert wird nicht, denn das hieße, durch jeden Primitivtyp
+hindurchzurechnen, samt der vorgemessenen Wortbreiten, die dann nicht mehr zu
+den Glyphen passen, die sie beschreiben. *Verschoben* wird dagegen sehr wohl,
+und das ist kein Widerspruch: eine Verschiebung fasst keine einzige Messung an.
+
+Die Falle steckte im letzten Schritt. Die Proportion allein macht kein A4:
+1456 × 2059 Folieneinheiten mal dem üblichen Massstab 0,75 sind 1092 × 1544
+Punkt, also ein Bogen von 385 × 545 Millimetern — im Verhältnis genau richtig
+und im Maß ein Drittel zu groß. Jeder Betrachter druckt das klaglos auf A4,
+nachdem er es verkleinert hat, mit einem Rand, den niemand gewählt hat. Der
+Massstab des Dokuments bringt es deshalb auf die kurze Kante von 210 mm.
+
+Und eine zweite, die erst die Datei gezeigt hat: das Seitenmaß auf **ganze**
+Einheiten zu runden kostet mehr, als es aussieht. Ein Querblatt von 1030 statt
+1029,55 hat ein Verhältnis von 1,4136 statt 1,4142 — auf 210 mm kurzer Kante
+wird die lange dadurch 296,85 statt 297,0. Gerundet wird jetzt auf Hundertstel:
+fünf Tausendstel Millimeter, genauer als ein Drucker steht.
+
+Geprüft wird deshalb an der **MediaBox der Datei** und nicht an der Proportion
+der Szene — im Rauchtest durch das Menü hindurch, in `blatt.test.ts` mit
+`pdfjs-dist`. Dazu eine Prüfung, die alle fünf Primitivarten von Hand aufbaut
+statt sie aus einem Deck zu holen: ein Deck, das gerade zufällig keine Ellipse
+enthält, machte daraus eine Prüfung über drei Arten, die behauptet, es seien
+fünf.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,
