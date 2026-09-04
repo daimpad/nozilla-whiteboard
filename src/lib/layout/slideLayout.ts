@@ -8,6 +8,7 @@
 import { canvas } from '@/theme';
 import { typesetMarkdown } from '@/lib/text/typeset';
 import type { SlideLayout, TypeStyleName } from '@/theme';
+import type { CanvasElement, Deck } from '@/model/types';
 
 export interface FlowFrame {
   x: number;
@@ -264,6 +265,34 @@ export function insertFrame(
   return (
     versuch([...existing, ...weich]) ??
     versuch(existing) ?? { x: spalten[0], y: Math.max(margin.top, bottom - size.h) }
+  );
+}
+
+/**
+ * Welche Elemente bei dieser Folienhöhe unter der Kante lägen.
+ *
+ * Gebraucht wird das an genau einer Stelle: bevor jemand das Folienformat
+ * verkleinert. Beide A4-Formate sind höher als 16:9, ein bestehendes Deck kann
+ * beim Umstellen also nichts verlieren — der **Rückweg** kann es sehr wohl,
+ * und dann liegen Elemente außerhalb der Folie, ohne dass eine Ausgabe sie
+ * zeigt und ohne dass man sie auf der Fläche noch anklicken kann.
+ *
+ * Umgerechnet wird deshalb nichts. Die Koordinaten hat jemand gelegt, und sie
+ * automatisch zu stauchen wäre ein zweiter Weg, eine Folie zu setzen. Gesagt
+ * gehört es trotzdem — dieselbe Linie wie bei einer Fläche in der Farbe ihres
+ * Untergrunds.
+ *
+ * Die Schwelle ist `minElementSize`: bleibt weniger als die kleinste zulässige
+ * Elementgröße über der Kante, ist das Element praktisch weg. Denselben Wert
+ * benutzt `clampToSlide()`, wenn es ein gezogenes Element auf der Folie hält.
+ */
+export function unterDerKante(
+  deck: Deck,
+  hoehe: number,
+): Array<{ folie: number; element: CanvasElement }> {
+  const rand = hoehe - canvas.minElementSize;
+  return deck.slides.flatMap((slide, folie) =>
+    slide.elements.filter((element) => element.y > rand).map((element) => ({ folie, element })),
   );
 }
 

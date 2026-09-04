@@ -2346,6 +2346,99 @@ async function main() {
     );
   });
 
+  await pruefe('das Folienformat steht im Inspektor — und fragt nur beim Verkleinern', async () => {
+    /*
+       Die eine Richtung, die etwas verlieren kann. Beide A4-Formate sind höher
+       als 16:9; auf ein größeres Blatt umzustellen kann nichts wegschieben,
+       und eine Frage, die man nur wegklicken kann, liest beim dritten Mal
+       niemand mehr. Der Rückweg dagegen legt Elemente unter die Kante, wo
+       keine Ausgabe sie zeigt und kein Klick sie trifft.
+
+       Geprüft werden **beide** Richtungen: dass beim Verkleinern gefragt wird
+       *und* dass beim Vergrößern nicht gefragt wird. Eine Prüfung, die nur die
+       erste kennt, bestünde auch für einen Dialog, der immer kommt.
+    */
+    const A4 = [
+      '---',
+      'title: Tiefliegend',
+      'format: a4-hoch',
+      '---',
+      '',
+      '<!-- nzl',
+      'layout: blank',
+      'elements:',
+      '  - id: tief',
+      '    kind: text',
+      '    x: 88',
+      '    y: 1200',
+      '    w: 400',
+      '    h: 96',
+      '    text: Weit unten',
+      '-->',
+      '',
+      '# Tiefliegend',
+      '',
+    ].join('\n');
+    await seite.addInitScript((md) => {
+      localStorage.setItem(
+        'nozilla-whiteboard:session:v1',
+        JSON.stringify({ markdown: md, fileName: 'tief.md', slideIndex: 0, savedAt: 3 }),
+      );
+    }, A4);
+    await seite.reload({ waitUntil: 'networkidle' });
+
+    await seite.getByRole('button', { name: 'Deck', exact: true }).click();
+    const auswahl = seite
+      .locator('select')
+      .filter({ has: seite.locator('option[value="a4-hoch"]') })
+      .first();
+    wahr(await auswahl.count(), 'kein Folienformat in der Auswahl');
+    gleich(await auswahl.inputValue(), 'a4-hoch', 'das Format aus dem Frontmatter');
+
+    const hoehe = async () => (await seite.locator('.nz-stage').boundingBox())?.height ?? 0;
+    const vorher = await hoehe();
+
+    // Verkleinern: es wird gefragt — und ein Nein ändert nichts.
+    let gefragt = false;
+    const ablehnen = (dialog) => {
+      gefragt = true;
+      wahr(
+        /1 Element auf 1 Folie/.test(dialog.message()),
+        `die Frage nennt nicht, was betroffen ist: ${dialog.message()}`,
+      );
+      void dialog.dismiss();
+    };
+    seite.on('dialog', ablehnen);
+    await auswahl.selectOption('16-9');
+    await bisWahr(() => gefragt, 'das Verkleinern fragte gar nicht');
+    seite.off('dialog', ablehnen);
+    gleich(await hoehe(), vorher, 'die Folie änderte sich trotz Ablehnung');
+    gleich(await auswahl.inputValue(), 'a4-hoch', 'die Auswahl sprang trotz Ablehnung um');
+
+    // Angenommen: jetzt darf es kleiner werden.
+    const annehmen = (dialog) => void dialog.accept();
+    seite.on('dialog', annehmen);
+    await auswahl.selectOption('16-9');
+    await bisWahr(async () => (await hoehe()) < vorher, 'die Folie wurde nicht kleiner');
+    seite.off('dialog', annehmen);
+
+    /*
+       Und die Gegenrichtung: zurück auf A4 wird **nicht** gefragt. Der Horcher
+       bleibt hängen und würde einen Dialog beantworten; dass keiner kommt,
+       zeigt der Merker.
+    */
+    let nochmal = false;
+    const merken = (dialog) => {
+      nochmal = true;
+      void dialog.accept();
+    };
+    seite.on('dialog', merken);
+    await auswahl.selectOption('a4-hoch');
+    await bisWahr(async () => (await hoehe()) > vorher * 0.9, 'die Folie wurde nicht wieder hoch');
+    seite.off('dialog', merken);
+    wahr(!nochmal, 'das Vergrößern fragte, obwohl nichts verlorengeht');
+  });
+
   console.log('\nErscheinungsbild anlegen:');
 
   await pruefe('das Zahnrad bleibt erreichbar, wenn die Bibliothek zu ist', async () => {

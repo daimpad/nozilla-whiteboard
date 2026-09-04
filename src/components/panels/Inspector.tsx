@@ -24,8 +24,12 @@ import {
   type StrokeName,
   type ToneName,
   type TypeStyleName,
+  canvas,
+  folienformate,
+  folienhoehe,
+  istFolienformat,
 } from '@/theme';
-import { layoutDescriptions } from '@/lib/layout/slideLayout';
+import { layoutDescriptions, unterDerKante } from '@/lib/layout/slideLayout';
 import {
   alignLabels,
   backgroundLabels,
@@ -44,6 +48,8 @@ import {
   typeStyleLabels,
   valignLabels,
   wordmarkLabels,
+  folienformatLabels,
+  zaehle,
 } from '@/lib/labels';
 import { iconNames, isIconName, type IconName } from '@/assets/icons';
 import {
@@ -285,6 +291,69 @@ function ThemeField() {
   );
 }
 
+/**
+ * Auf welchem Blatt dieses Deck liegt.
+ *
+ * Dieselbe Richtung wie beim Erscheinungsbild darüber: die Wahl schreibt ins
+ * Frontmatter, und erst dadurch ändert sich das Bild (`useDeckFolienformat`).
+ * Ein unbekanntes Format bleibt als Eintrag stehen — es stillschweigend auf
+ * die Vorgabe zu setzen, hieße es beim ersten Speichern zu löschen.
+ *
+ * ## Warum nur in einer Richtung gefragt wird
+ *
+ * Beide A4-Formate sind höher als 16:9. Auf ein größeres Blatt umzustellen
+ * kann deshalb nichts wegschieben, und eine Frage, die man nur wegklicken
+ * kann, ist eine, die beim dritten Mal niemand mehr liest. Der Rückweg kann
+ * sehr wohl etwas verlieren: was unter der neuen Kante liegt, steht in keiner
+ * Ausgabe mehr und ist auf der Fläche nicht mehr anzuklicken.
+ *
+ * Gefragt wird deshalb **nur dann und nur mit der Zahl, die wirklich zutrifft**
+ * — gezählt an den Elementen und nicht an den Folien, denn eine Frage, die
+ * eine Zahl nennt und eine andere meint, ist schlimmer als keine.
+ */
+function FormatField() {
+  const deck = useDeckStore((state) => state.deck);
+  const setDeckMeta = useDeckStore((state) => state.setDeckMeta);
+  const aktuell = deck.meta.format ?? '16-9';
+  const unbekannt = !istFolienformat(aktuell);
+
+  const optionen = [
+    ...folienformate.map((wert) => ({ value: wert, label: labelOf(folienformatLabels, wert) })),
+    ...(unbekannt ? [{ value: aktuell, label: `${aktuell} — unbekannt` }] : []),
+  ];
+
+  const waehle = (wert: string) => {
+    if (wert === aktuell) return;
+    if (istFolienformat(wert)) {
+      const verlust = unterDerKante(deck, folienhoehe(wert));
+      if (verlust.length > 0) {
+        const folien = new Set(verlust.map((eintrag) => eintrag.folie)).size;
+        const frage =
+          `${zaehle(verlust.length, 'Element', 'Elemente')} auf ` +
+          `${zaehle(folien, 'Folie', 'Folien')} ` +
+          `${verlust.length === 1 ? 'liegt' : 'liegen'} bei einer Folienhöhe von ` +
+          `${folienhoehe(wert)} unter der Kante und ${verlust.length === 1 ? 'ist' : 'sind'} ` +
+          'dann in keiner Ausgabe mehr zu sehen. Trotzdem umstellen? ⌘Z nimmt es zurück.';
+        if (!window.confirm(frage)) return;
+      }
+    }
+    setDeckMeta({ format: wert });
+  };
+
+  return (
+    <Field
+      label="Folienformat"
+      hint={
+        unbekannt
+          ? `„${aktuell}" kennt dieses Werkzeug nicht. Gezeichnet wird 16:9; der Eintrag bleibt in der Datei stehen.`
+          : `${canvas.width} × ${folienhoehe(aktuell)} Einheiten. Steht im Frontmatter — die Datei trägt ihr Blatt mit.`
+      }
+    >
+      <Select value={aktuell} onChange={(event) => waehle(event.target.value)} options={optionen} />
+    </Field>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /* Deck                                                                        */
 /* -------------------------------------------------------------------------- */
@@ -332,6 +401,7 @@ function DeckPanel() {
       </Field>
 
       <ThemeField />
+      <FormatField />
 
       <dl className="rounded-md border border-ui bg-ui-subtle p-2 text-[11px] text-ui-muted">
         <div className="flex justify-between">
