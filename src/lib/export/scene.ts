@@ -352,6 +352,19 @@ export function buildHandoutScenes(slide: Slide, deck: Deck, options: SceneOptio
     const unten = hoehe - rand;
     let versatz = canvasTokens.height + NOTIZ_ABSTAND;
     let laufend: TypesetPrim[] = [];
+    /*
+       Auf der ersten Seite steht die Folie, und die kann die ganze Seite
+       füllen: ein Deck im Format `a4-hoch` ist genau so hoch wie das Blatt.
+       Unter ihr ist dann kein Platz, und die Notiz fängt auf der nächsten
+       Seite an.
+
+       Gemessen an einem solchen Deck: die erste Notizzeile stand bei y = 1899
+       auf einem 1810 hohen Blatt — also auf keiner Seite des PDF. Die Regel
+       „die erste Zeile einer Seite wird nie umgebrochen" gilt für eine
+       *Notizseite*, auf der es keinen besseren Ort gäbe; die Folienseite hat
+       einen, nämlich die nächste.
+    */
+    let aufDerFolienseite = true;
 
     const ablegen = () => {
       if (laufend.length === 0) return;
@@ -365,8 +378,9 @@ export function buildHandoutScenes(slide: Slide, deck: Deck, options: SceneOptio
       // Die erste Zeile einer Seite wird nie umgebrochen: sie passt entweder
       // oder es gibt keinen Ort, an dem sie passte, und dann ist eine leere
       // Folgeseite die schlechtere Antwort.
-      if (laufend.length > 0 && versatz + kasten.unten > unten) {
+      if ((laufend.length > 0 || aufDerFolienseite) && versatz + kasten.unten > unten) {
         ablegen();
+        aufDerFolienseite = false;
         seiten.push([{ t: 'rect', x: 0, y: 0, w: breite, h: hoehe, fill: papier.fill }]);
         // Die Zeile, die den Umbruch ausgelöst hat, steht oben am Rand — der
         // Versatz wird deshalb aus *ihrer* Oberkante gerechnet und nicht aus

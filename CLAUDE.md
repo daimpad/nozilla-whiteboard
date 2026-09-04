@@ -2210,6 +2210,33 @@ die Schreibweise, die der Serialisierer benutzt, *damit* sie kein Folientrenner
 ist. Herauskam ein einziges Folienobjekt, und die Prüfung meldete, es liege
 nichts unter der Kante.
 
+**Zwei Fehler des Folienformats fand kein Test, sondern ein Bildschirmfoto.**
+Nach drei Schritten war alles grün: Naht, Dateiformat, Wahl im Inspektor,
+vierzig Prüfdateien, neunundfünfzig Handgriffe im Browser. Dann einmal ein
+A4-Deck aufgemacht und angesehen — und zwei Dinge standen falsch da.
+
+*Das Handout verlor seine erste Notizzeile.* Die Seite ist so breit wie die
+Folie und mal Wurzel zwei hoch; ein Deck im Format `a4-hoch` ist damit genau so
+hoch wie das Blatt, und unter der Folie ist kein Platz. Gemessen: die erste
+Zeile stand bei y = 1899 auf einem 1810 hohen Blatt, also auf keiner Seite des
+PDF. Die Regel „die erste Zeile einer Seite wird nie umgebrochen" gilt für eine
+*Notizseite*, auf der es keinen besseren Ort gäbe — die Folienseite hat einen,
+nämlich die nächste.
+
+*Die Kacheln des Filmstreifens wurden abgeschnitten.* Sie rechneten ihre Höhe
+aus einer festen Breite; hochkant sind das 187 Pixel in einem 104 Pixel hohen
+Streifen. Der Streifen gibt seine Höhe vor, also ist sie die feste Größe und
+die Breite folgt. Die Zahl ist so gewählt, dass sich für ein 16:9-Deck nichts
+ändert.
+
+**Und was ich für den Fehler hielt, war keiner.** Erwartet hatte ich, dass die
+mittig gesetzten Layouts auf einem hohen Blatt verloren aussehen; nachgesehen
+stimmt es: eine Titelfolie hat unten viel Luft. Nur ist das die ehrliche Folge
+davon, dass frei gelegte Elemente ihre Koordinaten behalten und der Fließtext
+in einem höheren Rahmen mittig steht — dagegen eine Regel zu erfinden, hieße
+das Layout für ein Format umzudeuten. Die Übersicht, die Fußzeile, der
+Satzspiegel und das Zoomen auf „Passend" waren durchweg richtig.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,
