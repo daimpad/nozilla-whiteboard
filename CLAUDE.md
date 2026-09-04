@@ -2186,6 +2186,30 @@ Zahlen davor. Er wird jetzt gerechnet. Wer zu viel verspricht, bekommt vom
 Modell Koordinaten für eine Folie, die es nicht gibt, und der Fehler steht dann
 bei dem, der den Prompt befolgt hat.
 
+**Eine Frage, die immer kommt, ist keine.** Die Wahl des Folienformats steht
+jetzt im Inspektor, und mit ihr die eine Richtung, die etwas verlieren kann:
+beide A4-Formate sind höher als 16:9, umzustellen kann also nichts wegschieben
+— der Rückweg legt Elemente unter die Kante, wo keine Ausgabe sie zeigt und
+kein Klick sie trifft. Gefragt wird deshalb **nur beim Verkleinern und nur,
+wenn wirklich etwas betroffen ist**, mit der Zahl, die zutrifft. Dieselbe Linie
+wie bei `darfErsetzen()`: eine Frage, die man nur wegklicken kann, liest beim
+dritten Mal niemand mehr.
+
+Umgerechnet wird dabei nichts — die Koordinaten hat jemand gelegt, und sie
+automatisch zu stauchen wäre der zweite Weg, eine Folie zu setzen. Die Schwelle
+ist `minElementSize`, derselbe Wert, mit dem `clampToSlide()` ein gezogenes
+Element auf der Folie hält.
+
+Der Rauchtest prüft **beide** Richtungen: dass beim Verkleinern gefragt wird
+*und* dass beim Vergrößern nicht gefragt wird. Ohne die zweite Hälfte bestünde
+er auch für einen Dialog, der immer kommt — und der wäre schlimmer als keiner.
+
+Und die Prüfung dazu ist beim ersten Anlauf an etwas gescheitert, das hier
+schon dokumentiert ist: sie trennte ihre Probefolien mit `- - -`. Das ist genau
+die Schreibweise, die der Serialisierer benutzt, *damit* sie kein Folientrenner
+ist. Herauskam ein einziges Folienobjekt, und die Prüfung meldete, es liege
+nichts unter der Kante.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,

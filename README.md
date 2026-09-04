@@ -565,6 +565,25 @@ Untergrund unter diesem Namen widerspräche der Flächenrolle zwei Zeilen tiefer
 Der Wert bleibt trotzdem `paper`: er steht in jeder bestehenden `.md`. `grid`
 ist dasselbe Weiß mit Punkten, `ink` und `signal` sind unverändert.
 
+Und ein Wort zu `format:`, das im Frontmatter neben `theme:` stehen darf:
+
+| Wert | Folie | Wofür |
+| --- | --- | --- |
+| `16-9` (Vorgabe) | 1280 × 720 | Bildschirm, Beamer, Vortrag |
+| `a4-hoch` | 1280 × 1810 | Ein Blatt zum Ausdrucken und Lochen |
+| `a4-quer` | 1280 × 905 | Dasselbe quer |
+
+Gewählt wird es im Inspektor unter *Deck → Folienformat*. Die **Breite bleibt
+1280**, und das ist die ganze Entscheidung: kein Satzspiegel, keine
+Spaltenbreite und kein Zeilenumbruch ändert sich, ein bestehendes Deck kommt
+also nicht mit anderen Umbrüchen zurück. Weil beide A4-Formate *höher* sind als
+16:9, kann das Umstellen nichts wegschieben — nur der Rückweg kann es, und dort
+wird gefragt, mit der Zahl der Elemente, die es wirklich trifft.
+
+Ein unbekannter Wert bleibt stehen, statt beim ersten Speichern durch die
+Vorgabe ersetzt zu werden: das Deck kann aus einer neueren Fassung dieses
+Werkzeugs kommen. Gezeichnet wird dann 16:9, und der Inspektor sagt es.
+
 Was der Schreiber dabei einhält:
 
 - **Nur Geändertes wird geschrieben.** Alles, was noch dem CI-Standard

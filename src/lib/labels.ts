@@ -153,6 +153,20 @@ export function zaehle(anzahl: number, eins: string, viele: string): string {
 }
 
 /**
+ * Die drei Folienformate.
+ *
+ * Der Wert bleibt englisch-technisch, denn er steht als `format:` im
+ * Frontmatter — dieselbe Trennung wie überall in dieser Datei. `16-9` bekommt
+ * das Maß dazu, weil der Name allein nicht sagt, wie groß die Folie ist; bei
+ * A4 sagt es der Name.
+ */
+export const folienformatLabels: Record<string, string> = {
+  '16-9': '16:9 — Bildschirm',
+  'a4-hoch': 'A4 hoch',
+  'a4-quer': 'A4 quer',
+};
+
+/**
  * Die acht Griffe am Auswahlrahmen.
  *
  * Sie hießen für eine Hilfstechnik „Resize nw" — englisch, und dazu ein
