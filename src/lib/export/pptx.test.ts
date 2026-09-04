@@ -14,10 +14,11 @@ import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
 import { parseDeck } from '@/lib/markdown/deck';
 import { brand, nozillaTheme, palette, registerTheme, setActiveTheme, typeScale } from '@/theme';
-import { deckToPptx, EMU, SLIDE_CX, SLIDE_CY } from './pptx';
+import { deckToPptx, EMU, slideCx, slideCy } from './pptx';
 import { buildSlideScene, footerMark, tabellenLabelHoehe } from './scene';
 import { sceneToSvg } from './svg';
 import { footerFrame } from '@/lib/layout/slideLayout';
+import { folienhoehe, setzeFolienformat } from '@/theme';
 import { createZip, crc32, utf8 } from './zip';
 
 /* -------------------------------------------------------------------------- */
@@ -198,10 +199,29 @@ describe('PPTX-Paket', () => {
 
   it('setzt die Folienfläche auf 16:9 in ganzen EMU', () => {
     const xml = parts.get('ppt/presentation.xml')!;
-    expect(xml).toContain(`<p:sldSz cx="${SLIDE_CX}" cy="${SLIDE_CY}"/>`);
-    expect(SLIDE_CX / EMU).toBe(1280);
-    expect(SLIDE_CY / EMU).toBe(720);
-    expect(SLIDE_CX / SLIDE_CY).toBeCloseTo(16 / 9, 6);
+    expect(xml).toContain(`<p:sldSz cx="${slideCx()}" cy="${slideCy()}"/>`);
+    expect(slideCx() / EMU).toBe(1280);
+    expect(slideCy() / EMU).toBe(720);
+    expect(slideCx() / slideCy()).toBeCloseTo(16 / 9, 6);
+  });
+
+  it('nimmt das Seitenmaß aus dem Folienformat und nicht aus dem Startwert', async () => {
+    /*
+       `p:sldSz` stand als Modulkonstante da und trug damit die Höhe des
+       Formats, das beim Laden des Moduls zufällig galt. Eine `.pptx` eines
+       A4-Decks käme so mit einer 16:9-Seite heraus — die Formen an der
+       richtigen Stelle, das Blatt zu niedrig, und alles unterhalb 720
+       außerhalb der Seite. Geprüft wird deshalb an der Datei.
+    */
+    setzeFolienformat('a4-hoch');
+    try {
+      const dateien = await readZip(await deckToPptx(parseDeck(DECK)));
+      const xml = dateien.get('ppt/presentation.xml') ?? '';
+      expect(xml).toContain(`cy="${folienhoehe('a4-hoch') * EMU}"`);
+      expect(xml).not.toContain(`cy="${folienhoehe('16-9') * EMU}"`);
+    } finally {
+      setzeFolienformat('16-9');
+    }
   });
 
   it('ist wohlgeformtes XML — in jedem Teil', () => {
@@ -257,8 +277,8 @@ describe('Folieninhalt', () => {
     // stand, trugen Fläche, SVG und PDF die Marke und die `.pptx` nicht.
     // Gefunden hat es niemand hier, sondern LibreOffice.
     const mark = footerMark(palette.ink);
-    const links = (footerFrame.right - mark.w) * EMU;
-    const oben = (footerFrame.y - mark.h) * EMU;
+    const links = (footerFrame().right - mark.w) * EMU;
+    const oben = (footerFrame().y - mark.h) * EMU;
     const nahe = (xml: string) =>
       [...xml.matchAll(/<a:off x="(-?\d+)" y="(-?\d+)"\/>/g)].filter(
         ([, x, y]) => Math.abs(Number(x) - links) < 6 * EMU && Math.abs(Number(y) - oben) < 6 * EMU,

@@ -213,7 +213,7 @@ describe('elements', () => {
     const linie = canvas.margin.left;
     for (const element of elementsNow()) {
       expect(element.x, element.id).toBe(linie);
-      expect(element.w, element.id).toBe(insertColumnWidth);
+      expect(element.w, element.id).toBe(insertColumnWidth());
     }
   });
 

@@ -596,6 +596,9 @@ export function buildSlideChrome(
 
   const bg = backgroundStyle(slide.meta.background);
   const out: ScenePrim[] = [];
+  // Einmal geholt und nicht je Zeile: `footerFrame()` ist seit dem
+  // Folienformat eine Funktion, weil ihre Höhe vom Format abhängt.
+  const fuss = footerFrame();
   const style = typeScale.labelSmall;
   const spec = font({
     family: style.family,
@@ -608,8 +611,8 @@ export function buildSlideChrome(
     const text = deck.meta.footer.toLocaleUpperCase('de-DE');
     out.push({
       t: 'text',
-      x: footerFrame.left,
-      y: footerFrame.y,
+      x: fuss.left,
+      y: fuss.y,
       runs: [{ dx: 0, text, font: spec, color: bg.muted, width: measureText(text, spec) }],
     });
   }
@@ -625,7 +628,7 @@ export function buildSlideChrome(
     out.push({
       t: 'text',
       x: mark.numberRight - width,
-      y: footerFrame.y,
+      y: fuss.y,
       runs: [{ dx: 0, text: label, font: spec, color: bg.muted, width }],
     });
   }
@@ -659,14 +662,15 @@ export function footerMark(letterColor: string): {
 } {
   const style = typeScale.labelSmall;
   const size = wordmarkSize(style.size * FOOTER_MARK);
+  const fuss = footerFrame();
   return {
     ...size,
     prims: wordmarkPrims(
-      { x: footerFrame.right - size.w, y: footerFrame.y - size.h, w: size.w, h: size.h },
+      { x: fuss.right - size.w, y: fuss.y - size.h, w: size.w, h: size.h },
       letterColor,
       palette.signal,
     ),
-    numberRight: footerFrame.right - size.w - style.size * 2,
+    numberRight: fuss.right - size.w - style.size * 2,
   };
 }
 

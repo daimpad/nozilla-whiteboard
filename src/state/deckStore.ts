@@ -233,17 +233,17 @@ function mitGruppe(state: EditorState, ids: readonly string[]): string[] {
 function spalteFuer(element: CanvasElement): { w: number; h: number } {
   if (element.kind === 'text' || element.kind === 'markdown') {
     const innen = element.fill === 'none' ? 0 : element.padding;
-    const breite = Math.max(8, insertColumnWidth - innen * 2);
+    const breite = Math.max(8, insertColumnWidth() - innen * 2);
     const gesetzt =
       element.kind === 'text'
         ? typesetText(element.text, element.typeStyle, { width: breite })
         : typesetMarkdown(element.markdown, { width: breite });
     return {
-      w: insertColumnWidth,
+      w: insertColumnWidth(),
       h: Math.max(16, Math.round(gesetzt.height + innen * 2)),
     };
   }
-  return { w: Math.min(element.w, insertColumnWidth), h: element.h };
+  return { w: Math.min(element.w, insertColumnWidth()), h: element.h };
 }
 
 /**

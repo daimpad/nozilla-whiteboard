@@ -21,15 +21,23 @@ export interface FlowFrame {
   baseStyle: TypeStyleName;
 }
 
-const { width, height, margin } = canvas;
-const innerW = width - margin.left - margin.right;
-const innerH = height - margin.top - margin.bottom;
-
 /**
  * The frame for a layout, or `null` when the layout has no flow content at all
  * (`blank` and `canvas` hand the whole slide to the freeform elements).
  */
 export function flowFrame(layout: SlideLayout): FlowFrame | null {
+  /*
+     Gelesen wird **bei jedem Aufruf**. Hier stand die Zeile
+     `const { width, height, margin } = canvas` auf Modulebene, und das war
+     genau die Falle, die der Kopf von `folienformat.ts` beschreibt: sie friert
+     die Folienhöhe ein, die beim Laden des Moduls zufällig galt. Ein Deck im
+     A4-Format bekäme den Satzspiegel von 16:9 — auf jeder Folie, in jeder
+     Ausgabe, ohne ein Wort.
+  */
+  const { width, height, margin } = canvas;
+  const innerW = width - margin.left - margin.right;
+  const innerH = height - margin.top - margin.bottom;
+
   switch (layout) {
     case 'title':
       // Titel stehen links, nicht mittig: die CI setzt Kampagnensätze am
@@ -113,12 +121,21 @@ export function flowFrame(layout: SlideLayout): FlowFrame | null {
   }
 }
 
-/** Where the deck footer and slide number sit. */
-export const footerFrame = {
-  y: height - margin.bottom + 34,
-  left: margin.left,
-  right: width - margin.right,
-};
+/**
+ * Where the deck footer and slide number sit.
+ *
+ * Eine Funktion und kein Objekt: als Konstante trüge sie die Höhe des Formats,
+ * das beim Laden galt, und die Fußzeile eines A4-Decks stünde auf halber
+ * Seite. Dieselbe Falle wie beim Satzspiegel eine Funktion weiter oben.
+ */
+export function footerFrame(): { y: number; left: number; right: number } {
+  const { width, height, margin } = canvas;
+  return {
+    y: height - margin.bottom + 34,
+    left: margin.left,
+    right: width - margin.right,
+  };
+}
 
 /**
  * Die Spalten, in denen Eingesetztes landet — und ihre Breite.
@@ -140,16 +157,20 @@ export const footerFrame = {
  * besetzte Fläche (`flowBounds()`), und dann kann die erste Spalte dort
  * stehen, wo man zu lesen anfängt.
  */
-export const insertColumnWidth = Math.round(innerW * 0.48);
+export function insertColumnWidth(): number {
+  const { width, margin } = canvas;
+  return Math.round((width - margin.left - margin.right) * 0.48);
+}
 
 export function insertColumns(): number[] {
+  const { width, margin } = canvas;
+  const innerW = width - margin.left - margin.right;
+  const spalte = insertColumnWidth();
   const right = width - margin.right;
-  const anzahl = Math.max(1, Math.floor(innerW / insertColumnWidth));
+  const anzahl = Math.max(1, Math.floor(innerW / spalte));
   if (anzahl === 1) return [margin.left];
-  const luecke = (right - margin.left - anzahl * insertColumnWidth) / (anzahl - 1);
-  return Array.from({ length: anzahl }, (_, i) =>
-    Math.round(margin.left + i * (insertColumnWidth + luecke)),
-  );
+  const luecke = (right - margin.left - anzahl * spalte) / (anzahl - 1);
+  return Array.from({ length: anzahl }, (_, i) => Math.round(margin.left + i * (spalte + luecke)));
 }
 
 /**
@@ -213,15 +234,17 @@ export function insertFrame(
   size: { w: number; h: number },
   weich: readonly { x: number; y: number; w: number; h: number }[] = [],
 ): { x: number; y: number } {
+  const { height, margin } = canvas;
   const bottom = height - margin.bottom;
   const gap = canvas.gridSize * 3;
   const spalten = insertColumns();
+  const spaltenbreite = insertColumnWidth();
 
   const untenIn =
     (hindernisse: readonly { x: number; y: number; w: number; h: number }[]) =>
     (spaltenX: number) =>
       hindernisse
-        .filter((rect) => rect.x < spaltenX + insertColumnWidth && rect.x + rect.w > spaltenX)
+        .filter((rect) => rect.x < spaltenX + spaltenbreite && rect.x + rect.w > spaltenX)
         .reduce<number>((tiefstes, rect) => Math.max(tiefstes, rect.y + rect.h + gap), margin.top);
 
   const versuch = (hindernisse: readonly { x: number; y: number; w: number; h: number }[]) => {
