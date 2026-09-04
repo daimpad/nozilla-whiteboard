@@ -17,8 +17,17 @@ import { SlideView } from '@/components/canvas/SlideView';
 import { IconButton, cx } from '@/components/ui/controls';
 import { useElementSize } from '@/hooks/useElementSize';
 import { usePresenterChannel } from '@/hooks/usePresenterChannel';
+import { useFolienformatVersion } from '@/hooks/useFolienformat';
 
 export function PresentView() {
+  /*
+     Das Folienmaß wird im Rumpf gelesen, das Format aber in einem Effekt
+     gesetzt — und Effekte laufen *nach* dem Zeichnen. Ohne diesen Zähler
+     bliebe nach dem Laden eines A4-Decks das 16:9-Blatt stehen, bis
+     irgendetwas anderes ein Neuzeichnen auslöste. Derselbe Griff wie bei
+     `useThemeVersion()`, und aus genau demselben Grund.
+  */
+  useFolienformatVersion();
   const deck = useDeckStore((state) => state.deck);
   const slide = useDeckStore(selectCurrentSlide);
   const slideIndex = useDeckStore((state) => state.slideIndex);

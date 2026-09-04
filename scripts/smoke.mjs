@@ -2238,6 +2238,114 @@ async function main() {
     wahr(gesichert.includes(ZEILE), 'der unlesbare Block fehlt in der gesicherten Datei');
   });
 
+  await pruefe('ein Deck im A4-Format liegt auf einem A4-Blatt', async () => {
+    /*
+       Der ganze Weg an einem Stück: `format:` im Frontmatter → die lebendige
+       Bindung → das, was auf der Fläche steht → und zurück in die gesicherte
+       Datei.
+
+       Gemessen wird an der **Fläche** und nicht an einer Zusicherung über die
+       Szene. Der Grund steht im Kopf von `useFolienformat.ts`: die Merker in
+       `SlideView` hängen an der Folie, das Format am Deck. Rechnung und Datei
+       können also längst stimmen, während der Bildschirm das alte Blatt
+       zeigt — und das ist genau der Unterschied, den nur ein Browser sieht.
+
+       Und in beide Richtungen: erst 16:9, dann A4. Eine Prüfung, die nur den
+       Endzustand kennt, bestünde auch dann, wenn die Fläche immer hochkant
+       stünde.
+    */
+    const verhaeltnis = async () => {
+      const kasten = await seite.locator('.nz-stage').boundingBox();
+      return kasten ? kasten.height / kasten.width : 0;
+    };
+
+    await bisWahr(
+      async () => Math.abs((await verhaeltnis()) - 9 / 16) < 0.02,
+      async () => `die Fläche steht vorher nicht in 16:9: ${await verhaeltnis()}`,
+    );
+
+    const A4 = ['---', 'title: Handzettel', 'format: a4-hoch', '---', '', '# Hochkant', ''].join(
+      '\n',
+    );
+    await seite.addInitScript((md) => {
+      localStorage.setItem(
+        'nozilla-whiteboard:session:v1',
+        JSON.stringify({ markdown: md, fileName: 'a4.md', slideIndex: 0, savedAt: 2 }),
+      );
+    }, A4);
+    await seite.reload({ waitUntil: 'networkidle' });
+
+    // 1810 / 1280 ist Wurzel zwei — die Folie steht jetzt hochkant.
+    await bisWahr(
+      async () => Math.abs((await verhaeltnis()) - Math.SQRT2) < 0.02,
+      async () => `die Fläche liegt nicht auf A4 hoch: ${await verhaeltnis()}`,
+    );
+    // Und das Markup sagt es auch: der `viewBox` kommt aus derselben Bindung,
+    // die der Export liest.
+    const box = await seite.locator('.nz-stage svg').first().getAttribute('viewBox');
+    gleich(box, '0 0 1280 1810', 'viewBox der Folie');
+    /*
+       Und die gemalte Fläche darin, denn das ist eine andere Frage: der
+       `viewBox` steht im Rumpf der Komponente und folgt jedem Neuzeichnen, die
+       Untergrundfläche kommt aus einem `useMemo`, der an der **Folie** hängt.
+       Ein Deck-Wechsel legt keine neue Folie an — ohne den Formatzähler in den
+       Abhängigkeiten bliebe hier das alte Blatt stehen, in einem Rahmen, der
+       schon das neue nennt.
+    */
+    const flaeche = await seite.locator('.nz-stage svg rect').first().getAttribute('height');
+    gleich(flaeche, '1810', 'Höhe der Untergrundfläche');
+
+    /*
+       Und jetzt der Wechsel **im laufenden Fenster**, ohne Neuladen. Das ist
+       der Fall, auf den es ankommt: nach einem Neuladen werden ohnehin die
+       Schriften geholt, und deren Zähler lässt jeden Merker in `SlideView`
+       nebenbei verfallen — eine Prüfung, die nur den Ladeweg kennt, bestünde
+       auch ohne den Formatzähler in den Abhängigkeiten. Gemessen wurde das:
+       die Gegenprobe blieb grün, bis diese Hälfte hier dazukam.
+
+       ⌘⇧N legt ein neues Deck an, und das ist 16:9. Die Schriften stehen zu
+       diesem Zeitpunkt längst.
+    */
+    const annehmen = (dialog) => void dialog.accept();
+    seite.on('dialog', annehmen);
+    await seite.keyboard.press('Control+Shift+KeyN');
+    await bisWahr(
+      async () => Math.abs((await verhaeltnis()) - 9 / 16) < 0.02,
+      async () => `die Fläche kam nicht auf 16:9 zurück: ${await verhaeltnis()}`,
+    );
+    seite.off('dialog', annehmen);
+    gleich(
+      await seite.locator('.nz-stage svg rect').first().getAttribute('height'),
+      '720',
+      'Höhe der Untergrundfläche nach dem Wechsel im laufenden Fenster',
+    );
+
+    /*
+       Zuletzt die Datei. Das Modell wusste vom Format, noch bevor es jemand
+       zeichnete; was zählt, ist, dass der Schlüssel beim Sichern wieder
+       dasteht. Dafür noch einmal das A4-Deck, dann eine Änderung, die das
+       Frontmatter nicht anfasst.
+    */
+    await seite.reload({ waitUntil: 'networkidle' });
+    await bisWahr(
+      async () => Math.abs((await verhaeltnis()) - Math.SQRT2) < 0.02,
+      'das A4-Deck kam nach dem Neuladen nicht zurück',
+    );
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    const gesichert = await bisWahr(
+      async () =>
+        (await seite.evaluate(() => {
+          const roh = localStorage.getItem('nozilla-whiteboard:session:v1');
+          return roh ? String(JSON.parse(roh).markdown) : '';
+        })) || null,
+      'nichts gesichert',
+    );
+    wahr(
+      gesichert.includes('format: a4-hoch'),
+      `das Format fehlt in der gesicherten Datei: ${gesichert.slice(0, 120)}`,
+    );
+  });
+
   console.log('\nErscheinungsbild anlegen:');
 
   await pruefe('das Zahnrad bleibt erreichbar, wenn die Bibliothek zu ist', async () => {

@@ -282,6 +282,42 @@ describe('das Erscheinungsbild im Frontmatter', () => {
   });
 });
 
+describe('das Folienformat im Frontmatter', () => {
+  it('überlebt einen Lade- und Speicherzyklus', () => {
+    const source = ['---', 'title: Handzettel', 'format: a4-hoch', '---', '', '# Eins', ''].join(
+      '\n',
+    );
+    const deck = parseDeck(source);
+    expect(deck.meta.format).toBe('a4-hoch');
+    expect(serializeDeck(deck)).toContain('format: a4-hoch');
+  });
+
+  it('bleibt leer, wenn keins genannt ist', () => {
+    // Jedes bestehende Deck ist 16:9 und soll nach dem Speichern keinen
+    // Schlüssel tragen, den niemand geschrieben hat.
+    const deck = parseDeck('# Ohne Frontmatter\n');
+    expect(deck.meta.format).toBeUndefined();
+    expect(serializeDeck(deck)).not.toContain('format:');
+  });
+
+  it('nimmt einen unbekannten Wert mit, statt ihn zu verwerfen', () => {
+    /*
+       Dieselbe Linie wie beim Erscheinungsbild darüber, und aus demselben
+       Grund: das Deck kann aus einer neueren Fassung dieses Werkzeugs kommen.
+       Ihn beim ersten Speichern durch die Vorgabe zu ersetzen wäre
+       Datenverlust — und einer, den niemand bemerkt, weil `16-9` gültig
+       aussieht.
+    */
+    const deck = parseDeck(['---', 'format: a3-quer', '---', '', '# Eins', ''].join('\n'));
+    expect(deck.meta.format).toBe('a3-quer');
+    expect(serializeDeck(deck)).toContain('format: a3-quer');
+    // Und er landet nicht zusätzlich unter den unbekannten Schlüsseln — sonst
+    // stünde er nach dem Speichern zweimal in der Datei.
+    expect(deck.meta.extra?.format).toBeUndefined();
+    expect(serializeDeck(deck).match(/format:/g)).toHaveLength(1);
+  });
+});
+
 describe('ein `nzl`-Block, der sich nicht lesen lässt', () => {
   /*
      Ein Doppelpunkt zu viel — hier im Text einer Karte, und das ist die

@@ -249,6 +249,24 @@ export function promptIcons(): string[] {
 
 const list = (values: readonly string[]) => values.join(' · ');
 
+/**
+ * Das Seitenverhältnis der Folie, in Worten.
+ *
+ * Hier stand „(16:9)" fest im Text, und mit einem Folienformat je Deck wäre
+ * das ein Prompt, der dem Modell etwas anderes sagt als die Zahlen zwei Wörter
+ * davor. Wer zu viel verspricht, bekommt vom Modell Koordinaten für eine
+ * Folie, die es nicht gibt — und der Fehler stünde bei dem, der den Prompt
+ * befolgt hat.
+ */
+function seitenverhaeltnis(): string {
+  const lang = Math.max(canvas.width, canvas.height);
+  const kurz = Math.min(canvas.width, canvas.height);
+  if (Math.abs(lang / kurz - Math.SQRT2) < 0.01) {
+    return canvas.height > canvas.width ? 'DIN A hoch' : 'DIN A quer';
+  }
+  return `${Math.round((canvas.width / canvas.height) * 9)}:9`;
+}
+
 /** Der Regel- und Formatteil. Ohne Auftrag — der kommt aus dem Brief. */
 export function buildSchemaSection(): string {
   const layouts = slideLayouts
@@ -309,7 +327,7 @@ Regeln zum Format:
 FLÄCHE UND KOORDINATEN
 ════════════════════════════════════════════════════════════════
 
-Die Folie ist ${canvas.width} × ${canvas.height} Einheiten (16:9).
+Die Folie ist ${canvas.width} × ${canvas.height} Einheiten (${seitenverhaeltnis()}).
 Satzspiegel: links ${canvas.margin.left}, rechts ${canvas.width - canvas.margin.right}, oben ${canvas.margin.top}, unten ${canvas.height - canvas.margin.bottom}.
 Alle Werte auf ein Vielfaches von ${canvas.gridSize} runden.
 

@@ -340,6 +340,16 @@ export interface DeckMeta {
    * falschen Gewand zu zeichnen wäre schlimmer als ein Hinweis.
    */
   theme?: string;
+  /**
+   * Auf welchem Blatt dieses Deck liegt — `16-9`, `a4-hoch` oder `a4-quer`.
+   *
+   * Eine freie Zeichenkette und keine Aufzählung, aus demselben Grund wie bei
+   * `theme` eine Zeile darüber: ein unbekannter Wert bleibt erhalten und wird
+   * genannt, statt beim ersten Speichern still durch die Vorgabe ersetzt zu
+   * werden. Fehlt der Schlüssel, gilt `16-9` — also das, was jedes bestehende
+   * Deck ohnehin ist.
+   */
+  format?: string;
   /** Unbekannte Frontmatter-Schlüssel überleben einen Lade-/Speicherzyklus. */
   extra?: Record<string, unknown>;
 }
