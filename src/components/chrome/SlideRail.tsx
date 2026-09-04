@@ -8,10 +8,19 @@ import { slideTitle } from '@/model/types';
 import { useDeckStore } from '@/state/deckStore';
 import { SlideView } from '@/components/canvas/SlideView';
 import { IconButton, cx } from '@/components/ui/controls';
+import { useFolienformatVersion } from '@/hooks/useFolienformat';
 
 const THUMB_WIDTH = 132;
 
 export function SlideRail() {
+  /*
+     Das Folienmaß wird im Rumpf gelesen, das Format aber in einem Effekt
+     gesetzt — und Effekte laufen *nach* dem Zeichnen. Ohne diesen Zähler
+     bliebe nach dem Laden eines A4-Decks das 16:9-Blatt stehen, bis
+     irgendetwas anderes ein Neuzeichnen auslöste. Derselbe Griff wie bei
+     `useThemeVersion()`, und aus genau demselben Grund.
+  */
+  useFolienformatVersion();
   const deck = useDeckStore((state) => state.deck);
   const slideIndex = useDeckStore((state) => state.slideIndex);
   const goTo = useDeckStore((state) => state.goTo);

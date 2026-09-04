@@ -11,6 +11,7 @@ import { beiFehlendenBildern } from '@/lib/export/images';
 import { imageElementFromFile } from '@/lib/imageElement';
 import { insertFrame } from '@/lib/layout/slideLayout';
 import { useDeckTheme } from '@/hooks/useDeckTheme';
+import { useDeckFolienformat } from '@/hooks/useFolienformat';
 import { selectCurrentSlide, useDeckStore } from '@/state/deckStore';
 import { guardUnsavedChanges, loadSession, startAutosave, darfErsetzen } from '@/state/persistence';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
@@ -47,6 +48,8 @@ export function fehlendeBilderText(fehlend: readonly string[]): string {
 export default function App() {
   // Das Deck bestimmt das Erscheinungsbild, nicht umgekehrt.
   useDeckTheme();
+  // Und ebenso das Blatt, auf dem es liegt.
+  useDeckFolienformat();
 
   const mode = useDeckStore((state) => state.mode);
   const overviewOpen = useDeckStore((state) => state.overviewOpen);

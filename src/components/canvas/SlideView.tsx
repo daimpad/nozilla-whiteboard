@@ -11,6 +11,7 @@ import { canvas, motion } from '@/theme';
 import { kindLabels, labelOf } from '@/lib/labels';
 import { useFontsVersion } from '@/hooks/useFonts';
 import { useThemeVersion } from '@/hooks/useTheme';
+import { useFolienformatVersion } from '@/hooks/useFolienformat';
 import { useImageSizes } from '@/hooks/useImageSizes';
 import { bildmass } from '@/lib/export/images';
 import {
@@ -83,6 +84,14 @@ function SlideViewImpl({
   // Ein Wechsel des Erscheinungsbilds ändert jede Farbe und jedes Maß der
   // Szene. Ohne diesen Zähler bliebe das gemerkte Markup stehen.
   const skin = useThemeVersion();
+  /*
+     Und das Folienformat. Es hängt am **Deck**, die Merker hier hängen an der
+     **Folie**: ein Wechsel legt ein neues Deck-Objekt an und lässt jede Folie,
+     wie sie war. Ohne diesen Zähler zeichnete die Fläche das alte Blatt
+     weiter, während Filmstreifen, Übersicht und jeder Export schon das neue
+     zeigen — und der Unterschied fiele erst in der Datei auf.
+  */
+  const blatt = useFolienformatVersion();
 
   // `skin` gehört in die Abhängigkeiten: der Untergrund trägt Tinte, Linie und
   // Signal der Fläche. Ohne ihn behielt die Wortmarke ihre alte Farbe, während
@@ -90,7 +99,7 @@ function SlideViewImpl({
   const background = useMemo(
     () => backgroundStyle(slide.meta.background),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [slide.meta.background, skin],
+    [slide.meta.background, skin, blatt],
   );
 
   // `fonts` und `bilder` stehen bewusst in der Liste, obwohl der Rumpf sie
@@ -99,14 +108,14 @@ function SlideViewImpl({
   const backdrop = useMemo(
     () => primsToSvgMarkup(buildSlideBackdrop(slide, { resolveImageSize: bildmass })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [slide, fonts, skin, bilder],
+    [slide, fonts, skin, bilder, blatt],
   );
 
   const footer = useMemo(
     () =>
       chrome ? primsToSvgMarkup(buildSlideChrome(slide, deck, { slideNumber, totalSlides })) : '',
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chrome, slide, deck, slideNumber, totalSlides, fonts, skin],
+    [chrome, slide, deck, slideNumber, totalSlides, fonts, skin, blatt],
   );
 
   const ordered = useMemo(() => slide.elements.slice().sort((a, b) => a.z - b.z), [slide.elements]);

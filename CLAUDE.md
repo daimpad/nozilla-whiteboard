@@ -2145,6 +2145,47 @@ eine Zusicherung hält fest, dass die CI wirklich 16:9 ist. Sonst wäre der Name
 eines Tages eine Lüge, und zwar eine im Dateiformat: dieselbe Sorte wie der
 Untergrund `paper`, der das Weiß malt.
 
+**Ein Effekt läuft nach dem Zeichnen — und damit auch nach dem Messen.**
+`useDeckFolienformat()` setzt die Bindung in einem `useEffect`, wie
+`useDeckTheme()` es beim Erscheinungsbild tut. Die Vermutung war, dass die
+Ansichten von selbst folgen: das Format hängt am Deck, ein Deck-Wechsel legt ein
+neues Objekt an, also zeichnet alles neu. Stimmt — nur eben *vor* dem Effekt.
+Danach ändert sich für React nichts mehr, und `CanvasStage` blieb mit einem
+A4-Deck bei 16:9 stehen. Deshalb ruft **jede Komponente, die das Folienmaß im
+Rumpf liest**, `useFolienformatVersion()`: Fläche, Filmstreifen, Übersicht,
+Vortrag und das Exportmenü. Genau die Bauart, die es bei den Schriften und beim
+Erscheinungsbild schon gibt, und aus genau demselben Grund.
+
+Gefunden hat es kein Nachdenken, sondern die erste Fassung der Rauchtest-
+Prüfung, die schlicht rot war.
+
+**Und die zweite Hälfte war grün, ohne etwas zu beweisen.** Der Merker in
+`SlideView` hängt an der *Folie*, das Format am *Deck* — ohne den Zähler in
+seinen Abhängigkeiten bliebe die gemalte Untergrundfläche auf dem alten Blatt.
+Die Prüfung dazu lud das A4-Deck über ein Neuladen, und die Gegenprobe blieb
+**grün**: nach einem Neuladen werden ohnehin die Schriften geholt, und deren
+Zähler steht in derselben Abhängigkeitsliste. Der Merker verfiel also
+nebenbei — aus einem Grund, der mit dem Format nichts zu tun hat.
+
+Geprüft wird deshalb der Wechsel **im laufenden Fenster**: ⌘⇧N legt ein neues
+Deck an, das 16:9 ist, und die Schriften stehen zu diesem Zeitpunkt längst.
+Erst damit wird die Gegenprobe rot. Eine Prüfung, die nur den Ladeweg kennt,
+prüft den Ladeweg.
+
+**Der Wert bleibt eine freie Zeichenkette.** `format:` wird beim Lesen *nicht*
+gegen die bekannten Formate gehalten — dieselbe Linie wie `theme:`, und aus
+demselben Grund: ein Deck kann aus einer neueren Fassung dieses Werkzeugs
+kommen, und den Wert beim ersten Speichern durch die Vorgabe zu ersetzen wäre
+ein Datenverlust, den niemand bemerkt, weil `16-9` gültig aussieht. Wer zeichnen
+muss, fragt `istFolienformat()`.
+
+**Und der Prompt behauptete „(16:9)".** Er nennt die Folienmaße aus der Bindung
+und daneben stand das Verhältnis als fester Text — mit einem Format je Deck wäre
+das ein Prompt, der dem Modell zwei Wörter weiter etwas anderes sagt als die
+Zahlen davor. Er wird jetzt gerechnet. Wer zu viel verspricht, bekommt vom
+Modell Koordinaten für eine Folie, die es nicht gibt, und der Fehler steht dann
+bei dem, der den Prompt befolgt hat.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,

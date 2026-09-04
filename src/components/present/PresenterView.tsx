@@ -20,7 +20,13 @@ import {
   type Vortragsnachricht,
   type Vortragsstand,
 } from '@/lib/presenterChannel';
-import { activeTheme, isThemeId, setActiveTheme } from '@/theme';
+import {
+  activeTheme,
+  isThemeId,
+  istFolienformat,
+  setActiveTheme,
+  setzeFolienformat,
+} from '@/theme';
 import { slideTitle, type Deck } from '@/model/types';
 import { SlideView } from '@/components/canvas/SlideView';
 import { Button, IconButton } from '@/components/ui/controls';
@@ -76,6 +82,14 @@ export function PresenterView() {
     const gewuenscht = deck?.meta.theme;
     const id = gewuenscht && isThemeId(gewuenscht) ? gewuenscht : 'nozilla';
     if (id !== activeTheme().id) setActiveTheme(id);
+    /*
+       Und das Blatt ebenso. Dieses Fenster hat keinen Store und damit auch
+       nicht `useDeckFolienformat()`; es liest sein Deck selbst aus dem
+       Vortragskanal und muss die Bindung deshalb selbst setzen. Ohne das säße
+       der Referent vor einer 16:9-Folie, während das Publikum ein A4-Blatt
+       sieht — und die Notizen daneben gehörten zu einer anderen Höhe.
+    */
+    setzeFolienformat(istFolienformat(deck?.meta.format) ? deck.meta.format : '16-9');
   }, [deck]);
 
   const sende = (nachricht: Vortragsnachricht) => kanal.current?.postMessage(nachricht);

@@ -52,7 +52,7 @@ export const DEFAULT_SLIDE_META: SlideMeta = {
   background: 'paper',
 };
 
-const DECK_META_KEYS = ['title', 'author', 'date', 'footer', 'theme'] as const;
+const DECK_META_KEYS = ['title', 'author', 'date', 'footer', 'theme', 'format'] as const;
 
 /* -------------------------------------------------------------------------- */
 /* Parsing                                                                     */
@@ -340,6 +340,16 @@ function parseDeckMeta(frontmatter: string | null): DeckMeta {
   else if (typeof record.date === 'string') meta.date = record.date;
   if (typeof record.footer === 'string') meta.footer = record.footer;
   if (typeof record.theme === 'string' && record.theme.trim()) meta.theme = record.theme.trim();
+  /*
+     Der Wert wird **nicht** gegen die bekannten Formate geprüft. Genauso wie
+     beim Erscheinungsbild eine Zeile darüber: was hier steht, gehört der
+     Datei, und ein unbekanntes Format stillschweigend zu `16-9` zu machen
+     hieße, es beim ersten Speichern zu löschen. Wer es zeichnen muss, fragt
+     `istFolienformat()`.
+  */
+  if (typeof record.format === 'string' && record.format.trim()) {
+    meta.format = record.format.trim();
+  }
   if (Object.keys(extra).length > 0) meta.extra = extra;
 
   return meta;
@@ -451,6 +461,7 @@ function buildDeckFrontmatter(meta: DeckMeta): string | null {
   if (meta.date) data.date = meta.date;
   if (meta.footer) data.footer = meta.footer;
   if (meta.theme) data.theme = meta.theme;
+  if (meta.format) data.format = meta.format;
   if (meta.extra) Object.assign(data, meta.extra);
   if (Object.keys(data).length === 0) return null;
   return dumpYaml(data);
