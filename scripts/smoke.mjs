@@ -295,7 +295,13 @@ async function setzeFarbe(seite, rolle, wert) {
 
 /** Die vier Zahlenfelder des Inspektors: x, y, Breite, Höhe. */
 async function masse(seite) {
-  await seite.getByRole('button', { name: 'Element', exact: true }).click();
+  /*
+     Nicht `exact`: bei mehreren Ausgewählten trägt der Reiter ihre Zahl —
+     „Element (2)". Mit `exact: true` fand dieser Helfer ihn dann nicht und
+     lief in eine Zeitüberschreitung, deren Meldung nur „locator.click:
+     Timeout" lautete. Eine Stunde Suche für ein Wort in Klammern.
+  */
+  await seite.getByRole('button', { name: /^Element( \(\d+\))?$/ }).click();
   // Gewartet wird, bis vier Zahlen dastehen — und zwar Zahlen: ein Feld, das
   // noch leer ist, ergäbe `NaN` und eine Meldung über eine falsche Kante,
   // während in Wirklichkeit nur der Inspektor noch nicht so weit war.
@@ -1333,7 +1339,7 @@ async function main() {
     // Nicht `exact`: bei mehreren Ausgewählten trägt der Reiter ihre Zahl —
     // „Element (2)". Genau daran ist diese Prüfung im ersten Anlauf hängen
     // geblieben, mit einer Zeitüberschreitung und ohne einen Hinweis darauf.
-    await seite.getByRole('button', { name: /^Element/ }).click();
+    await seite.getByRole('button', { name: /^Element( \(\d+\))?$/ }).click();
     // Die Leiste sagt selbst, dass die Auswahl gemischt ist.
     await bisWahr(
       () => seite.getByText('umfasst mehrere Arten', { exact: false }).count(),
@@ -1348,6 +1354,30 @@ async function main() {
       await stehtAufFolie(seite, ausTabelle),
       `„${ausTabelle}" aus der Tabelle wurde vom Diagrammfeld überschrieben`,
     );
+
+    /*
+       Und die Gegenrichtung, ohne die der Befund halb wäre: die **gemeinsamen**
+       Felder treffen weiter alle. Dafür wählt man mehrere aus, und eine
+       Reparatur, die auch sie einengt, hätte die Mehrfachauswahl entwertet.
+
+       Nebenbei ist das die einzige Stelle, an der `masse()` mit mehr als einem
+       Ausgewählten läuft — der Reiter heißt dann „Element (2)", und genau
+       daran hing der Helfer vorher fest.
+    */
+    const breite = seite.locator('aside[aria-label="Inspektor"] input').nth(2);
+    await breite.fill('321');
+    await breite.press('Enter');
+    await bisGleich(async () => (await masse(seite))[2], 321, 'die Breite kam nicht an');
+
+    await seite.keyboard.press('Escape');
+    for (const nummer of [0, 1]) {
+      await seite.locator('[data-hit-element]').nth(nummer).click();
+      await bisGleich(
+        async () => (await masse(seite))[2],
+        321,
+        `das ${nummer + 1}. Element bekam die gemeinsame Breite nicht`,
+      );
+    }
     await seite.keyboard.press('Escape');
   });
 
