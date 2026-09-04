@@ -457,6 +457,45 @@ describe('Steuerzeichen im Text', () => {
     expect(svg).toContain('Hallo');
     expect(svg).toContain('Welt');
   });
+
+  it('und eine einsame Ersatzstelle ebenso wenig', () => {
+    /*
+       Die Steuerzeichen waren nicht alles. Die Zeichenproduktion von XML 1.0
+       verbietet auch **einsame Ersatzstellen** (U+D800…U+DFFF) und die
+       Nichtzeichen U+FFFE und U+FFFF; die Maskierung ließ beide durch,
+       während ihr Kopf zusagte, die Datei sei danach wohlgeformt. Die Folge
+       ist dieselbe wie oben und die Meldung auch — nur die Ursache ist eine
+       andere, und danach sucht niemand ein zweites Mal.
+
+       **Freistehend und nicht mitten im Wort**, und das ist keine Feinheit:
+       die erste Fassung schrieb `Hallo\ud800Welt`, und der Parser von jsdom
+       nahm das klaglos an — die Gegenprobe blieb grün, obwohl das Zeichen
+       nachweislich im Markup stand. Als eigener Lauf wird es abgelehnt. Eine
+       Prüfung, die sich die tolerierte Anordnung aussucht, prüft nichts.
+    */
+    const deck = deckOf('# Titel\n\nHallo \ud800 Welt und \ufffe Seite');
+    const svg = sceneToSvg(buildSlideScene(deck.slides[0], deck, {}));
+    expect(
+      new DOMParser().parseFromString(svg, 'image/svg+xml').querySelector('parsererror'),
+    ).toBeNull();
+    expect(svg).toContain('Hallo');
+    expect(svg).toContain('Welt');
+  });
+
+  it('lässt ein Emoji dagegen heil durch', () => {
+    /*
+       Die Gegenrichtung, und sie ist der eigentliche Grund für die Bauart:
+       ein Emoji *besteht* aus zwei Ersatzstellen. Wer hier über Codeeinheiten
+       liefe statt über Codepunkte, verböte jedes zweite Zeichen daran und
+       zerschlüge damit genau das, was er schützen soll.
+    */
+    const deck = deckOf('# Ein Zeichen \u{1f680} im Titel');
+    const svg = sceneToSvg(buildSlideScene(deck.slides[0], deck, {}));
+    expect(
+      new DOMParser().parseFromString(svg, 'image/svg+xml').querySelector('parsererror'),
+    ).toBeNull();
+    expect(svg).toContain('\u{1f680}');
+  });
 });
 
 describe('slugify', () => {

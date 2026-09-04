@@ -248,7 +248,7 @@ function decorationRect(run: SceneRun, originX: number, originY: number): string
 /* -------------------------------------------------------------------------- */
 
 export function escapeXml(value: string): string {
-  return ohneSteuerzeichen(value)
+  return ohneVerboteneZeichen(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -257,7 +257,7 @@ export function escapeXml(value: string): string {
 }
 
 /**
- * Die in XML 1.0 verbotenen Steuerzeichen durch ein Leerzeichen ersetzen.
+ * Die in XML 1.0 verbotenen Zeichen durch ein Leerzeichen ersetzen.
  *
  * Kein erfundener Fall: ein aus Word eingefügter Absatz trägt an jedem
  * manuellen Zeilenumbruch U+000B, aus einem PDF kopierter Text U+000C. Der
@@ -276,13 +276,33 @@ export function escapeXml(value: string): string {
  * Erlaubt bleiben Tabulator, Zeilenvorschub und Wagenrücklauf — die drei, die
  * XML ausdrücklich zulässt. Geschrieben ohne regulären Ausdruck, weil ESLints
  * `no-control-regex` Steuerzeichen in Mustern verbietet.
+ *
+ * ## Und die Steuerzeichen waren nicht alles
+ *
+ * Die Zeichenproduktion von XML 1.0 verbietet zwei weitere Gruppen, und die
+ * Funktion ließ beide durch, während ihr Kopf zusagte, die Datei sei danach
+ * wohlgeformt: **einsame Ersatzstellen** (U+D800…U+DFFF) und die beiden
+ * Nichtzeichen U+FFFE und U+FFFF. Gemessen an einem Deck mit einer halben
+ * Ersatzstelle im Titel: das SVG parste nicht, und der PNG-Weg scheiterte
+ * wieder mit „Das SVG ließ sich nicht als Bild laden" — derselbe Satz, der
+ * auf die Ursache nicht zeigt, aus einer anderen Ursache.
+ *
+ * Ein *Paar* von Ersatzstellen ist davon nicht betroffen, und das ist der
+ * Grund, warum hier über Codepunkte und nicht über Codeeinheiten gelaufen
+ * wird: `for…of` gibt ein Emoji als einen Codepunkt ≥ U+10000 zurück, und nur
+ * eine übrig gebliebene Hälfte landet im verbotenen Bereich. Wer hier
+ * zeichenweise über `charCodeAt` liefe, zerschlüge jedes Emoji.
  */
-function ohneSteuerzeichen(value: string): string {
+function ohneVerboteneZeichen(value: string): string {
   let out = '';
   for (const zeichen of value) {
     const code = zeichen.codePointAt(0) ?? 0;
     const verboten =
-      (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d) || code === 0x7f;
+      (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d) ||
+      code === 0x7f ||
+      (code >= 0xd800 && code <= 0xdfff) ||
+      code === 0xfffe ||
+      code === 0xffff;
     out += verboten ? ' ' : zeichen;
   }
   return out;
