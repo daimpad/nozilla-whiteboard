@@ -14,6 +14,7 @@
  */
 import {
   canvas as canvasTokens,
+  DIN_HOCH,
   color as ci,
   elementTones,
   palette,
@@ -277,15 +278,6 @@ export function buildSlideScene(slide: Slide, deck: Deck, options: SceneOptions 
 /* Das Handout                                                                 */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Das Seitenverhältnis der DIN-A-Reihe.
- *
- * Keine erfundene Zahl, sondern die Eigenschaft, die A4 zu A4 macht: die
- * lange Kante ist die kurze mal Wurzel zwei. Eine Handout-Seite, die anders
- * proportioniert ist, druckt mit Rändern, die niemand wollte.
- */
-const DIN_HOCH = Math.SQRT2;
-
 /** Wie weit die Notizen unter der Folie beginnen. */
 const NOTIZ_ABSTAND = canvasTokens.margin.top;
 
@@ -493,22 +485,6 @@ export function aufBlatt(szene: Scene, lage: Blattlage): Scene {
 }
 
 /**
- * Jedes Primitiv um denselben Betrag verschieben.
- *
- * Fünf Arten, und jede muss einzeln bedacht sein — eine vergessene liegt
- * hinterher an der Stelle, an der sie ohne Blatt läge, also am Rand oder
- * daneben, und kein Test, der nur die Seitenmaße prüft, sagt ein Wort dazu.
- *
- * Die Pfade gehen dabei über `transformSegs()` und nicht über eine eigene
- * Schleife: der Bogen-Segmenttyp trägt neben seinen Punkten noch Radien und
- * einen Winkel, und wer das nachbaut, baut die zweite Rechnung für dieselbe
- * Frage.
- *
- * `text` und `image` drehen um ihren eigenen Ankerpunkt (x, y). Ihn zu
- * verschieben verschiebt die Drehung mit — was gedreht dastand, steht gedreht
- * an der neuen Stelle.
- */
-/**
  * Auf Hundertstel gerundet — nicht auf ganze Einheiten.
  *
  * Beides ist eine Rundung, und die zweite kostet spürbar mehr, als sie
@@ -527,6 +503,22 @@ function hundertstel(wert: number): number {
   return Math.round(wert * 100) / 100;
 }
 
+/**
+ * Jedes Primitiv um denselben Betrag verschieben.
+ *
+ * Fünf Arten, und jede muss einzeln bedacht sein — eine vergessene liegt
+ * hinterher an der Stelle, an der sie ohne Blatt läge, also am Rand oder
+ * daneben, und kein Test, der nur die Seitenmaße prüft, sagt ein Wort dazu.
+ *
+ * Die Pfade gehen dabei über `transformSegs()` und nicht über eine eigene
+ * Schleife: der Bogen-Segmenttyp trägt neben seinen Punkten noch Radien und
+ * einen Winkel, und wer das nachbaut, baut die zweite Rechnung für dieselbe
+ * Frage.
+ *
+ * `text` und `image` drehen um ihren eigenen Ankerpunkt (x, y). Ihn zu
+ * verschieben verschiebt die Drehung mit — was gedreht dastand, steht gedreht
+ * an der neuen Stelle.
+ */
 export function verschiebePrims(prims: readonly ScenePrim[], dx: number, dy: number): ScenePrim[] {
   const m = matTranslate(dx, dy);
   return prims.map((prim) => {

@@ -23,6 +23,7 @@ import {
   buildElementPrims,
   buildSlideBackdrop,
   buildSlideChrome,
+  buildSlideScene,
   kartenFelder,
   elementFelder,
   unsichtbareFlaeche,
@@ -31,7 +32,8 @@ import {
 } from './scene';
 import { primsToSvgMarkup } from './svg';
 import { segsBounds } from '@/lib/geometry/path';
-import { createEmptySlide } from '@/lib/markdown/deck';
+import { createEmptySlide, parseDeck } from '@/lib/markdown/deck';
+import { bundledDecks } from '@/decks';
 import { createElement } from '@/model/factory';
 import {
   fillStyles,
@@ -684,6 +686,48 @@ describe('was die Oberfläche behauptet, gilt auch unter fremder Marke', () => {
         'signal/signal/flat',
         'grid/white/flat',
       ]);
+    }
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('die eine Zeichenstrecke', () => {
+  it('setzt auf der Fläche dasselbe Markup wie im Export', () => {
+    /*
+       Die erste Regel dieses Projekts, als Zusicherung: die Fläche zeichnet,
+       indem sie *genau das Markup* einsetzt, das der SVG-Export erzeugt. Sie
+       ruft dafür `buildSlideBackdrop`, `buildElementPrims` und
+       `buildSlideChrome` einzeln — der Export ruft `buildSlideScene`, das
+       dieselben drei zusammensetzt.
+
+       Zwei Aufrufwege für dieselbe Folie, und nichts hielt sie bisher
+       zusammen. Liefen sie auseinander, sähe man es nicht auf dem Bildschirm
+       und nicht in der Datei, sondern nur im Vergleich der beiden — also
+       nirgends.
+
+       Geprüft an jedem mitgelieferten Deck, weil dort jede Elementart und
+       jedes Layout wirklich vorkommt.
+    */
+    for (const eintrag of bundledDecks) {
+      const deck = parseDeck(eintrag.source);
+      deck.slides.forEach((slide, index) => {
+        const optionen = { chrome: true, slideNumber: index + 1, totalSlides: deck.slides.length };
+        const bg = backgroundStyle(slide.meta.background);
+        const ausDerFlaeche =
+          primsToSvgMarkup(buildSlideBackdrop(slide, optionen)) +
+          slide.elements
+            .slice()
+            .sort((a, b) => a.z - b.z)
+            .map((element) => primsToSvgMarkup(buildElementPrims(element, bg, optionen)))
+            .join('') +
+          primsToSvgMarkup(buildSlideChrome(slide, deck, optionen));
+
+        expect(
+          primsToSvgMarkup(buildSlideScene(slide, deck, optionen).prims),
+          `${eintrag.file} #${index + 1}`,
+        ).toBe(ausDerFlaeche);
+      });
     }
   });
 });

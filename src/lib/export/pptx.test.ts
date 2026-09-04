@@ -18,6 +18,7 @@ import { deckToPptx, EMU, slideCx, slideCy } from './pptx';
 import { buildSlideScene, footerMark, tabellenLabelHoehe } from './scene';
 import { sceneToSvg } from './svg';
 import { footerFrame } from '@/lib/layout/slideLayout';
+import { bundledDecks } from '@/decks';
 import { folienhoehe, setzeFolienformat } from '@/theme';
 import { createZip, crc32, utf8 } from './zip';
 
@@ -1021,3 +1022,71 @@ describe('Grenzfälle', () => {
     expect(new Set(ids).size).toBe(60);
   });
 });
+
+/* -------------------------------------------------------------------------- */
+
+describe('der Text der .pptx gegen den des SVG', () => {
+  it('lässt kein Wort der Folie zurück', async () => {
+    /*
+       Drei Fehler dieses Repos hatten dieselbe Bauart: die `.pptx` setzte
+       etwas anders oder gar nicht, was das SVG richtig zeigte — die
+       Beschriftung einer Form fiel ganz heraus, die Zellen einer Tabelle
+       standen 23 % zu groß, das Label einer Zitatkarte stand doppelt. Alle
+       drei hätte diese Prüfung gefunden, und keine der vorhandenen tat es:
+       sie greifen einzelne XML-Knoten heraus, und was gar nicht da ist, hat
+       keinen Knoten.
+
+       Verglichen werden **Wörter** und keine Positionen. Wo etwas steht, ist
+       eine andere Frage und hat ihre eigenen Zusicherungen; hier geht es nur
+       darum, dass nichts verlorengeht. Kurze Wörter bleiben draußen, weil
+       „und" in jedem Dokument vorkommt und nichts beweist.
+
+       Ausgenommen ist der Beschreibungstext des SVG (`<title>`, `<desc>`):
+       er ist Metadaten der Datei und steht auf keiner Folie.
+    */
+    for (const eintrag of bundledDecks) {
+      const deck = parseDeck(eintrag.source);
+      const dateien = await readZip(await deckToPptx(deck));
+      const ausPptx = worte(
+        [...dateien.entries()]
+          .filter(([name]) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+          .map(([, xml]) => xml)
+          .join(' '),
+      );
+      const ausSvg = worte(
+        deck.slides
+          .map((slide, index) =>
+            sceneToSvg(
+              buildSlideScene(slide, deck, {
+                chrome: true,
+                slideNumber: index + 1,
+                totalSlides: deck.slides.length,
+              }),
+            ).replace(/<(title|desc)>[\s\S]*?<\/\1>/g, ' '),
+          )
+          .join(' '),
+      );
+
+      const fehlt = [...ausSvg].filter((wort) => !ausPptx.has(wort));
+      expect(fehlt, `${eintrag.file}: Wörter nur im SVG`).toEqual([]);
+      // Und die Prüfung hat wirklich etwas zu vergleichen.
+      expect(ausSvg.size, eintrag.file).toBeGreaterThan(40);
+    }
+  }, 60000);
+});
+
+/**
+ * Die Wörter eines Markups — ohne Auszeichnung, ohne Kurzes.
+ *
+ * Vier Zeichen als Untergrenze: darunter liegen die Füllwörter, die in jedem
+ * deutschen Satz stehen und deren Vorkommen nichts belegt.
+ */
+function worte(markup: string): Set<string> {
+  return new Set(
+    markup
+      .replace(/<[^>]+>/g, ' ')
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter((wort) => wort.length > 3)
+      .map((wort) => wort.toLocaleLowerCase('de-DE')),
+  );
+}

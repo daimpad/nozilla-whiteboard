@@ -2237,6 +2237,48 @@ in einem höheren Rahmen mittig steht — dagegen eine Regel zu erfinden, hieße
 das Layout für ein Format umzudeuten. Die Übersicht, die Fußzeile, der
 Satzspiegel und das Zoomen auf „Passend" waren durchweg richtig.
 
+**Die Maskierung versprach wohlgeformtes XML und hielt es nur halb.**
+`ohneSteuerzeichen()` fing die C0-Steuerzeichen — die Zeichenproduktion von
+XML 1.0 verbietet aber zwei weitere Gruppen: **einsame Ersatzstellen**
+(U+D800…U+DFFF) und die Nichtzeichen U+FFFE und U+FFFF. Beide kamen durch, und
+die Folge ist dieselbe wie beim ersten Fall: die exportierte `.svg` öffnet
+nicht, und der PNG-Weg scheitert mit „Das SVG ließ sich nicht als Bild laden" —
+derselbe Satz, aus einer anderen Ursache, und danach sucht niemand ein zweites
+Mal. Sie heißt jetzt `ohneVerboteneZeichen()`.
+
+Ein *Paar* von Ersatzstellen bleibt heil, und das ist der Grund für die Bauart:
+`for…of` läuft über Codepunkte, ein Emoji ist damit ein Zeichen ≥ U+10000, und
+nur eine übrig gebliebene Hälfte landet im verbotenen Bereich. Wer hier über
+`charCodeAt` liefe, zerschlüge jedes Emoji — die Gegenrichtung steht deshalb
+als eigene Zusicherung daneben.
+
+**Und die Prüfung dazu hat sich zuerst die tolerierte Anordnung ausgesucht.**
+Geschrieben stand `Hallo\ud800Welt`, mitten im Wort — und der Parser von jsdom
+nahm das klaglos an. Die Gegenprobe blieb grün, obwohl das Zeichen
+nachweislich im Markup stand; erst freistehend, als eigener Textlauf, wird es
+abgelehnt. Gefunden hat das nicht der Test, sondern die Frage, warum die
+Sabotage nichts tat.
+
+**Zwei Konstanten für dieselbe Tatsache — und ein Kommentar, der das Gegenteil
+behauptete.** `DIN_HOCH` stand in `scene.ts` und in `theme/folienformat.ts`,
+und der Kopf der zweiten schrieb aus, sie stehe dort, „weil zwei Konstanten für
+dieselbe Tatsache früher oder später auseinanderlaufen". Der Satz war richtig,
+die Tat fehlte: `scene.ts` behielt seine eigene. Jetzt importiert es.
+
+**Zwei Wege zeichnen dieselbe Folie, und nichts hielt sie zusammen.** Die
+Fläche ruft `buildSlideBackdrop`, `buildElementPrims` und `buildSlideChrome`
+einzeln; der Export ruft `buildSlideScene`, das dieselben drei zusammensetzt.
+Liefen sie auseinander, sähe man es nicht auf dem Bildschirm und nicht in der
+Datei, sondern nur im Vergleich — also nirgends. Eine Zusicherung hält beide
+jetzt an jedem mitgelieferten Deck gegeneinander.
+
+Dieselbe Sorte Wächter für den PPTX-Weg, aber über **Wörter** statt über
+Positionen: was im SVG steht, muss auch in der `.pptx` stehen. Drei Fehler
+dieses Repos hatten genau diese Bauart — die Beschriftung einer Form fiel
+heraus, Tabellenzellen standen zu groß, ein Kartenlabel doppelt —, und keine
+der vorhandenen Prüfungen sah sie: sie greifen einzelne XML-Knoten heraus, und
+was gar nicht da ist, hat keinen Knoten.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,
