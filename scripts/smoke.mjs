@@ -55,7 +55,17 @@ async function pruefe(name, fn) {
     console.log(`  ✓ ${name}`);
   } catch (error) {
     ergebnisse.push({ name, ok: false, error });
-    console.log(`  ✗ ${name}\n      ${String(error).split('\n')[0]}`);
+    /*
+       Mehr als die erste Zeile — und das ist keine Bequemlichkeit.
+
+       Bei einer Zeitüberschreitung steht in der ersten Zeile nur
+       „locator.click: Timeout 30000ms exceeded", und *welcher* Griff ins Leere
+       ging, steht im Aufrufprotokoll darunter. Zweimal in dieser Runde war das
+       die entscheidende Auskunft: einmal wartete ein Klick auf einen Reiter,
+       der bei mehreren Ausgewählten „Element (2)" heißt, einmal auf einen
+       Befund, der nie erschien.
+    */
+    console.log(`  ✗ ${name}\n      ${String(error).split('\n').slice(0, 6).join('\n      ')}`);
   }
 }
 
@@ -131,7 +141,7 @@ async function bisWahr(fn, was, frist = 15000) {
     if (ist) return ist;
     // Die Meldung darf eine Funktion sein: dann kann sie nennen, was zuletzt
     // dastand — „nicht eingetreten" allein sagt nichts darüber, woran es lag.
-    if (Date.now() > ende) wahr(ist, typeof was === 'function' ? was() : was);
+    if (Date.now() > ende) wahr(ist, typeof was === 'function' ? await was() : was);
     await new Promise((weiter) => setTimeout(weiter, 40));
   }
 }
@@ -555,14 +565,18 @@ async function main() {
   await pruefe('die Zeichenbibliothek zeigt gezeichnete Kacheln', async () => {
     // Die Kacheln waren einmal leer, weil das letzte Primitiv gestrichen wurde.
     await seite.getByRole('button', { name: 'Zeichen', exact: true }).click();
-    await seite.waitForTimeout(500);
+    // Erst wenn Kacheln dastehen, ist die Frage „sind welche leer" zu stellen.
+    // Ohne das misst man eine leere Leiste und nennt sie in Ordnung.
+    await bisWahr(
+      () => seite.locator('aside button svg').count(),
+      'die Zeichenbibliothek blieb leer',
+    );
     const leer = await seite.evaluate(() => {
       const kacheln = [...document.querySelectorAll('aside button svg')].slice(0, 60);
       return kacheln.filter((svg) => svg.children.length === 0).length;
     });
     gleich(leer, 0, 'leere Icon-Kacheln');
     await seite.getByRole('button', { name: 'Bausteine', exact: true }).click();
-    await seite.waitForTimeout(300);
   });
 
   await pruefe('ein Baustein landet an der Einsetzlinie', async () => {
@@ -582,7 +596,6 @@ async function main() {
     // eigene Breite mitbrachte, bekam jeder auch seine eigene Kante — und
     // untereinander ergab das keine Linie, sondern eine Treppe.
     await seite.locator('aside button').filter({ hasText: 'Label' }).first().click();
-    await seite.waitForTimeout(600);
 
     const kante = await seite.evaluate(() => {
       let folie = null;
@@ -668,14 +681,20 @@ async function main() {
     */
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
-    await seite.waitForTimeout(600);
+    await bisWahr(
+      () => seite.locator('[data-hit-element]').count(),
+      'die Karte kam nicht auf die Folie',
+    );
     await seite.keyboard.press('Escape');
 
     // Die Griffe liegen im Kasten der Fläche, also *hinter* der Folie: ein
     // Schritt zurück landet auf dem letzten Element.
     await seite.locator('[data-panel-handle="library"]').focus();
     await seite.keyboard.press('Shift+Tab');
-    await seite.waitForTimeout(400);
+    await bisWahr(
+      () => seite.evaluate(() => Boolean(document.activeElement?.closest('.nz-stage svg'))),
+      'Shift+Tab landete nicht auf einem Element der Folie',
+    );
 
     const daran = await seite.evaluate(() => {
       const el = document.activeElement;
@@ -695,25 +714,27 @@ async function main() {
     /* ------------------------------------------------- und wieder hinaus */
     await seite.locator('[data-panel-handle="library"]').focus();
     for (let schritt = 0; schritt < 6; schritt += 1) await seite.keyboard.press('Tab');
-    await seite.waitForTimeout(300);
-    const draussen = await seite.evaluate(() =>
-      Boolean(document.activeElement?.closest('.nz-stage svg')),
+    await bisWahr(
+      async () =>
+        !(await seite.evaluate(() => Boolean(document.activeElement?.closest('.nz-stage svg')))),
+      'Tab kam aus der Folie nicht wieder heraus',
     );
-    wahr(!draussen, 'Tab kam aus der Folie nicht wieder heraus');
   });
 
   await pruefe('zwei Bausteine lassen sich zu einer Gruppe zusammenfassen', async () => {
     // Mehrfachauswahl gab es, Gruppieren nicht — wer eine Karte samt Zeichen
     // verschieben wollte, musste jedes Mal neu einrahmen.
     await seite.locator('aside button').filter({ hasText: 'Zahl' }).first().click();
-    await seite.waitForTimeout(500);
+    // Zwei Elemente müssen liegen, bevor ⌘A beide nehmen kann.
+    await bisWahr(
+      async () => (await seite.locator('[data-hit-element]').count()) >= 2,
+      'es lagen keine zwei Bausteine zum Gruppieren',
+    );
     await seite.keyboard.press('Control+a');
-    await seite.waitForTimeout(300);
     await seite.keyboard.press('Control+g');
-    await seite.waitForTimeout(500);
 
     const knopf = seite.getByRole('button', { name: /Gruppe auflösen/ });
-    wahr(await knopf.count(), 'kein Knopf zum Auflösen — es wurde nicht gruppiert');
+    await bisWahr(() => knopf.count(), 'kein Knopf zum Auflösen — es wurde nicht gruppiert');
     gleich(await knopf.first().getAttribute('aria-pressed'), 'true', 'Zustand des Gruppenknopfs');
 
     // Und der Klick auf ein einzelnes Mitglied nimmt die ganze Gruppe.
@@ -724,21 +745,18 @@ async function main() {
     // keine Griffe heißt also: die Gruppe hängt mit dran.
     await seite.keyboard.press('Escape');
     await seite.locator('[data-hit-element]').first().click();
-    await seite.waitForTimeout(400);
-    gleich(
-      await seite.locator('[data-handle]').count(),
+    await bisGleich(
+      () => seite.locator('[data-handle]').count(),
       0,
       'Griffe nach dem Klick auf ein Gruppenmitglied',
     );
 
     await seite.keyboard.press('Control+Shift+g');
-    await seite.waitForTimeout(400);
-    wahr(
-      await seite.getByRole('button', { name: /^Gruppieren/ }).count(),
+    await bisWahr(
+      () => seite.getByRole('button', { name: /^Gruppieren/ }).count(),
       'die Gruppe ließ sich nicht auflösen',
     );
     await seite.keyboard.press('Escape');
-    await seite.waitForTimeout(300);
   });
 
   await pruefe('eine Karte reist über die Zwischenablage auf die nächste Folie', async () => {
@@ -774,7 +792,6 @@ async function main() {
     // Datei gelesen wird, dass das Seitenverhältnis stimmt und dass das Bild
     // am Satzspiegel landet.
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
-    await seite.waitForTimeout(500);
 
     await seite.evaluate(async () => {
       const flaeche = document.createElement('canvas');
@@ -788,7 +805,12 @@ async function main() {
         new ClipboardEvent('paste', { clipboardData: daten, bubbles: true, cancelable: true }),
       );
     });
-    await seite.waitForTimeout(1200);
+    // Das Bild geht über ein Canvas und `toBlob()` — wie lange das dauert,
+    // hängt am Rechner. Gewartet wird, bis es auf der Folie liegt.
+    await bisWahr(
+      () => seite.locator('.nz-stage svg image').count(),
+      'das eingefügte Bild kam nicht auf die Folie',
+    );
 
     const [x, y, breite, hoehe] = await masse(seite);
     // 200 × 100 sind 2 : 1, und 420 ist die Breite eines eingesetzten Bildes.
@@ -882,7 +904,13 @@ async function main() {
 
     /* ------------------------------------------------------- das Foto */
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
-    await seite.waitForTimeout(500);
+    // Erst auf der neuen, leeren Folie einsetzen: `eingebettet()` sähe sonst
+    // noch das Bild der vorigen und meldete es als das neue.
+    await bisGleich(
+      () => seite.locator('.nz-stage svg image').count(),
+      0,
+      'die neue Folie war nicht leer',
+    );
     const fotoBytes = await einfuegen(4032, 3024, 'foto');
     /*
        Gewartet wird, bis das Bild wirklich auf der Folie liegt — hier standen
@@ -905,7 +933,11 @@ async function main() {
 
     /* ----------------------------------------------- das Bildschirmfoto */
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
-    await seite.waitForTimeout(500);
+    await bisGleich(
+      () => seite.locator('.nz-stage svg image').count(),
+      0,
+      'die neue Folie war nicht leer',
+    );
     await einfuegen(3000, 2000, 'schirm');
     const schirm = await bis(
       eingebettet,
@@ -926,7 +958,11 @@ async function main() {
        davon, und die Sitzungsablage ist wieder tot.
     */
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
-    await seite.waitForTimeout(500);
+    await bisGleich(
+      () => seite.locator('.nz-stage svg image').count(),
+      0,
+      'die neue Folie war nicht leer',
+    );
     await einfuegen(2560, 1440, 'foto');
     const kante = await bis(
       eingebettet,
@@ -942,28 +978,31 @@ async function main() {
     // Die Suche des Browsers fände nur, was gerade auf dem Bildschirm steht —
     // also die eine Folie, die man ohnehin sieht.
     await seite.getByRole('navigation', { name: 'Folien' }).locator('button').first().click();
-    await seite.waitForTimeout(500);
     const vorher = Number(
       (await seite.locator('header span.tabular-nums').first().innerText()).split('/')[0],
     );
 
     await seite.keyboard.press('Control+f');
     await seite.getByLabel('Im Deck suchen').fill('Vektor');
-    await seite.waitForTimeout(600);
 
     const treffer = seite.locator('[aria-label="Im Deck suchen"]').locator('..').locator('..');
     const knoepfe = treffer.locator('ul button');
-    wahr(await knoepfe.count(), 'kein Treffer für ein Wort, das im Deck steht');
+    await bisWahr(() => knoepfe.count(), 'kein Treffer für ein Wort, das im Deck steht');
 
     await knoepfe.first().click();
-    await seite.waitForTimeout(700);
+    await bisWahr(
+      async () =>
+        Number(
+          (await seite.locator('header span.tabular-nums').first().innerText()).split('/')[0],
+        ) !== vorher,
+      'der Treffer führte nicht auf eine andere Folie',
+    );
     const nachher = Number(
       (await seite.locator('header span.tabular-nums').first().innerText()).split('/')[0],
     );
     wahr(nachher !== vorher, `der Treffer führte nicht auf eine andere Folie (${nachher})`);
 
     await seite.keyboard.press('Escape');
-    await seite.waitForTimeout(300);
   });
 
   await pruefe('⌘F ersetzt, und ⌘Z nimmt es in einem Zug zurück', async () => {
@@ -981,22 +1020,21 @@ async function main() {
     // war ein ganz anderes. Der erste Anlauf tippte deshalb ins Leere und
     // fand danach nichts zu ersetzen.
     await seite.getByRole('button', { name: 'Folie', exact: true }).click();
-    await seite.waitForTimeout(300);
     const feld = seite.locator('aside[aria-label="Inspektor"] textarea').first();
     await feld.click();
     await seite.keyboard.press('Control+a');
     await seite.keyboard.type('# Zwiebelsuppe und Zwiebelbrot');
-    await seite.waitForTimeout(800);
-    wahr(await stehtAufFolie(seite, 'Zwiebelsuppe'), 'der Ausgangstext steht nicht auf der Folie');
+    await bisWahr(
+      () => stehtAufFolie(seite, 'Zwiebelsuppe'),
+      'der Ausgangstext steht nicht auf der Folie',
+    );
 
     // Aus dem Feld heraus, sonst gehört ⌘F dem Browser nicht und ⌘Z nicht uns.
     await klickeLeereFolie(seite);
-    await seite.waitForTimeout(300);
 
     await seite.keyboard.press('Control+f');
     await seite.getByRole('textbox', { name: 'Im Deck suchen' }).fill('zwiebel');
     await seite.getByRole('textbox', { name: 'Ersetzen durch' }).fill('Kürbis');
-    await seite.waitForTimeout(400);
     // Der Knopf trägt die Zahl: ohne Treffer ist er aus, und ein Klick darauf
     // liefe in eine Zeitüberschreitung statt in eine Aussage.
     const knopf = seite.getByRole('button', { name: /^Alle/ });
@@ -1005,17 +1043,20 @@ async function main() {
       `Trefferzahl am Knopf: ${await knopf.innerText()}`,
     );
     await knopf.click();
-    await seite.waitForTimeout(600);
     await seite.keyboard.press('Escape');
-    await seite.waitForTimeout(400);
 
-    wahr(await stehtAufFolie(seite, 'Kürbissuppe'), 'das Ersetzte steht nicht auf der Folie');
+    await bisWahr(
+      () => stehtAufFolie(seite, 'Kürbissuppe'),
+      'das Ersetzte steht nicht auf der Folie',
+    );
     wahr(!(await stehtAufFolie(seite, 'Zwiebel')), 'das Alte steht noch auf der Folie');
 
     // Und der ganze Handgriff hängt an *einem* ⌘Z.
     await seite.keyboard.press('Control+z');
-    await seite.waitForTimeout(600);
-    wahr(await stehtAufFolie(seite, 'Zwiebelsuppe'), 'ein ⌘Z brachte den Text nicht zurück');
+    await bisWahr(
+      () => stehtAufFolie(seite, 'Zwiebelsuppe'),
+      'ein ⌘Z brachte den Text nicht zurück',
+    );
     wahr(!(await stehtAufFolie(seite, 'Kürbis')), 'nach dem ⌘Z steht noch Ersetztes da');
   });
 
@@ -1024,10 +1065,12 @@ async function main() {
     // wird hier geprüft, was auf der Folie *steht*, nicht was das Modell hält.
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
     await seite.locator('aside button').filter({ hasText: 'Balken' }).first().click();
-    await seite.waitForTimeout(700);
 
     const folie = () => seite.evaluate(FOLIE);
-    const vorher = (await folie()).markup;
+    const vorher = await bisWahr(async () => {
+      const markup = (await folie()).markup;
+      return markup.includes('2023') ? markup : null;
+    }, 'das Diagramm kam nicht auf die Folie');
     for (const wort of ['2023', '2025', '61']) {
       wahr(vorher.includes(`>${wort}<`), `„${wort}" fehlt im Diagramm`);
     }
@@ -1037,10 +1080,9 @@ async function main() {
 
     // Andere Zahlen, anderes Bild.
     await seite.getByRole('button', { name: 'Element', exact: true }).click();
-    await seite.waitForTimeout(300);
     const feld = seite.locator('aside[aria-label="Inspektor"] textarea').first();
     await feld.fill('Eins  10\nZwei  90');
-    await seite.waitForTimeout(800);
+    await bisWahr(() => stehtAufFolie(seite, '90'), 'die neue Zahl kam nicht auf die Folie');
 
     /*
        In Versalien, und das ist der Punkt: die Kategorien laufen über
@@ -1071,7 +1113,6 @@ async function main() {
     await seite.locator('aside button').filter({ hasText: 'Tabelle' }).first().click();
 
     await seite.getByRole('button', { name: 'Element', exact: true }).click();
-    await seite.waitForTimeout(300);
     const feld = seite.locator('aside[aria-label="Inspektor"] textarea').first();
     await feld.fill(
       [
@@ -1081,7 +1122,10 @@ async function main() {
         'Kurz | 12 | nein',
       ].join('\n'),
     );
-    await seite.waitForTimeout(900);
+    await bisWahr(
+      () => stehtAufFolie(seite, 'Ein deutlich längerer Zelleninhalt'),
+      'die Tabelle kam nicht auf die Folie',
+    );
 
     const kaesten = await seite.evaluate(() => {
       let groesstes = null;
@@ -1157,13 +1201,13 @@ async function main() {
     };
 
     await seite.getByRole('navigation', { name: 'Folien' }).locator('button').first().click();
-    await seite.waitForTimeout(500);
-    const vorher = await folie();
-    wahr(vorher > 0, 'keine Folie zu messen');
+    const vorher = await bisWahr(async () => (await folie()) || null, 'keine Folie zu messen');
 
     for (const bereich of ['library', 'inspector', 'rail']) {
-      await seite.locator(`[data-panel-handle="${bereich}"]`).click();
-      await seite.waitForTimeout(500);
+      const griff = seite.locator(`[data-panel-handle="${bereich}"]`);
+      await griff.click();
+      // Der Griff trägt `aria-expanded` — er sagt selbst, wann er zu ist.
+      await bisGleich(() => griff.getAttribute('aria-expanded'), 'false', `${bereich} blieb offen`);
     }
 
     const zu = await folie();
@@ -1179,13 +1223,13 @@ async function main() {
     );
 
     // Zurück über die Tastatur — ⌘1 bis ⌘3.
-    for (const taste of ['1', '2', '3']) {
-      await seite.keyboard.press('Control+' + taste);
-      await seite.waitForTimeout(400);
-    }
-    await seite.waitForTimeout(500);
-
-    const wieder = await folie();
+    for (const taste of ['1', '2', '3']) await seite.keyboard.press('Control+' + taste);
+    // Zurück ist die Folie wieder so groß wie vorher — das ist die Bedingung
+    // und zugleich das, was die Zusicherung darunter fragt.
+    const wieder = await bisWahr(async () => {
+      const jetzt = await folie();
+      return Math.abs(jetzt - vorher) < vorher * 0.05 ? jetzt : null;
+    }, 'die Leisten kamen nicht zurück');
     wahr(
       Math.abs(wieder - vorher) < vorher * 0.02,
       `die Folie kam nicht auf ihr Maß zurück: ${Math.round(vorher)} → ${Math.round(wieder)} px²`,
@@ -1200,7 +1244,6 @@ async function main() {
 
   await pruefe('ein anderes Erscheinungsbild färbt die Folie um', async () => {
     await seite.getByRole('button', { name: 'Deck', exact: true }).click();
-    await seite.waitForTimeout(300);
     const auswahl = seite
       .locator('select')
       .filter({ has: seite.locator('option[value="musterkunde"]') })
@@ -1234,12 +1277,13 @@ async function main() {
 
     await seite.getByRole('button', { name: 'Einstellungen', exact: true }).click();
     await seite.getByRole('button', { name: 'Dunkel', exact: true }).click();
-    await seite.waitForTimeout(800);
+    const leiste = await bisWahr(async () => {
+      const wert = await seite.evaluate(() =>
+        getComputedStyle(document.documentElement).getPropertyValue('--nz-ui-surface').trim(),
+      );
+      return wert && wert !== '#FFFFFF' ? wert : null;
+    }, 'die Leiste blieb hell');
     await seite.keyboard.press('Escape');
-
-    const leiste = await seite.evaluate(() =>
-      getComputedStyle(document.documentElement).getPropertyValue('--nz-ui-surface').trim(),
-    );
     wahr(leiste !== '#FFFFFF', `die Leiste blieb hell: ${leiste}`);
     gleich((await seite.evaluate(FOLIE)).markup, vorher, 'die Folie hat sich mitgeändert');
   });
@@ -1256,26 +1300,142 @@ async function main() {
     wahr(r + g + b > 600, `Vorschau-Untergrund zu dunkel: ${hell}`);
   });
 
+  await pruefe('ein Feld einer Art trifft nur seine Art', async () => {
+    /*
+       Der Inspektor zeigt die Felder des **ersten** Ausgewählten und schrieb
+       sie an **alle**. Diagramm und Tabelle teilen sich `data` und `label`:
+       wer beide auswählte und im Feld „Zahlen" tippte, überschrieb die Zellen
+       der Tabelle. Gemessen: aus „Was⇥Wert / Eins⇥1" wurde „West⇥99", und der
+       Verlust überlebte das Sichern.
+
+       Geprüft wird an der **Folie** und nicht am Modell: dass eine Rechnung
+       die richtigen Kennungen wählt, sähe man einer Zusicherung über den Store
+       auch dann an, wenn der Inspektor sie nicht ruft.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    // Ausdrücklich in der **Bibliothek** gesucht: `aside button` trifft auch
+    // die Leiste rechts, und dort steht die Art des ausgewählten Elements —
+    // nach dem Einsetzen des Diagramms also ein zweites „Tabelle" im Weg.
+    const bibliothek = seite.locator('aside[aria-label="Bausteinbibliothek"] button');
+    await bibliothek.filter({ hasText: 'Balken' }).first().click();
+    await bibliothek.filter({ hasText: 'Tabelle' }).first().click();
+    await bisWahr(
+      async () => (await seite.locator('[data-hit-element]').count()) >= 2,
+      'es lagen kein Diagramm und keine Tabelle auf der Folie',
+    );
+
+    // Ein Wort, das nur in der Tabelle steht — es muss die Bearbeitung des
+    // Diagramms überleben. „Übersicht" steht in der Vorbelegung des Bausteins.
+    const ausTabelle = 'Übersicht';
+    await bisWahr(() => stehtAufFolie(seite, ausTabelle), 'die Tabelle kam nicht auf die Folie');
+
+    await seite.keyboard.press('Control+a');
+    // Nicht `exact`: bei mehreren Ausgewählten trägt der Reiter ihre Zahl —
+    // „Element (2)". Genau daran ist diese Prüfung im ersten Anlauf hängen
+    // geblieben, mit einer Zeitüberschreitung und ohne einen Hinweis darauf.
+    await seite.getByRole('button', { name: /^Element/ }).click();
+    // Die Leiste sagt selbst, dass die Auswahl gemischt ist.
+    await bisWahr(
+      () => seite.getByText('umfasst mehrere Arten', { exact: false }).count(),
+      'der Inspektor sagt nichts über die gemischte Auswahl',
+    );
+
+    const zahlen = seite.locator('aside[aria-label="Inspektor"] textarea').first();
+    await zahlen.fill('West\t99');
+    await bisWahr(() => stehtAufFolie(seite, '99'), 'die neue Zahl kam nicht ins Diagramm');
+
+    wahr(
+      await stehtAufFolie(seite, ausTabelle),
+      `„${ausTabelle}" aus der Tabelle wurde vom Diagrammfeld überschrieben`,
+    );
+    await seite.keyboard.press('Escape');
+  });
+
+  await pruefe('Wortmarke und Form haben ihre eigenen Felder', async () => {
+    /*
+       Beide Felder wirken auf der Folie, und beide waren im Inspektor nicht
+       zu erreichen: die Wortmarke fiel in den `default`-Zweig und hatte gar
+       keins, und die Typo-Stufe eines Form-Labels stand nur im `nzl`-Block.
+       Wer sie wollte, musste die Datei von Hand schreiben.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.locator('aside button').filter({ hasText: 'Wortmarke' }).first().click();
+    await seite.getByRole('button', { name: 'Element', exact: true }).click();
+    const inspektor = seite.locator('aside[aria-label="Inspektor"]');
+    await bisGleich(
+      () => inspektor.getByText('Farbe', { exact: true }).count(),
+      1,
+      'die Wortmarke zeigt kein Feld für ihre Farbe',
+    );
+
+    // Und sie wirkt: „Einfarbig" malt anders als „Automatisch". Angesprochen
+    // über das *erste* Auswahlfeld der Leiste — das letzte ist die Animation
+    // des Einblendschritts, und die steht ohne Schritt auf `disabled`.
+    const vorher = (await seite.evaluate(FOLIE)).markup;
+    await inspektor.locator('select').first().selectOption('mono');
+    await bisWahr(
+      async () => (await seite.evaluate(FOLIE)).markup !== vorher,
+      'die Farbe der Wortmarke ändert nichts an der Folie',
+    );
+
+    /* --------------------------------------------------- die Typo-Stufe */
+    await seite.locator('aside button').filter({ hasText: 'Rechteck' }).first().click();
+    await bisGleich(
+      () => inspektor.getByText('Typo-Stufe des Labels', { exact: true }).count(),
+      0,
+      'die Form ohne Label zeigt schon eine Typo-Stufe',
+    );
+    const label = inspektor.locator('input[type="text"], input:not([type])').last();
+    await label.fill('Antrag');
+    await bisGleich(
+      () => inspektor.getByText('Typo-Stufe des Labels', { exact: true }).count(),
+      1,
+      'die beschriftete Form zeigt keine Typo-Stufe',
+    );
+  });
+
+  await pruefe('ein Zahlenfeld hält seine eigene Grenze ein', async () => {
+    /*
+       `min` und `max` standen nur als Attribute da — der Browser hält davon
+       nur die Pfeiltasten ab, getippt wird alles. Eine −50 in „Breite" ergab
+       eine Karte, deren Text Zeichen für Zeichen umbrach, und beim nächsten
+       Öffnen stand stillschweigend eine 1 da: der Leser kappt. Der getippte
+       Wert war damit weder behalten noch abgelehnt, sondern still ersetzt.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
+    const breite = seite.locator('aside[aria-label="Inspektor"] input').nth(2);
+    await seite.getByRole('button', { name: 'Element', exact: true }).click();
+    await breite.fill('-50');
+    await breite.press('Enter');
+
+    const [, , gemessen] = await masse(seite);
+    wahr(gemessen >= 1, `die Breite steht auf ${gemessen} statt auf mindestens 1`);
+  });
+
   await pruefe('ein überlaufender Text meldet sich, ein passender nicht', async () => {
     // Zweimal ist genau das schon passiert — die Überschrift des Musterkunden
     // lief aus ihrem Kasten, eine Karte saß auf ihrer Unterkante. Beide Male
     // war alles grün, und gesehen habe ich es im Bild.
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
     await seite.locator('aside button').filter({ hasText: 'Fließtext' }).first().click();
-    await seite.waitForTimeout(600);
+    // Erst wenn der Baustein liegt, ist die Frage „warnt es zu Unrecht" zu
+    // stellen — auf einer leeren Folie warnt selbstverständlich nichts.
+    await bisWahr(
+      () => seite.locator('[data-hit-element]').count(),
+      'der Fließtext kam nicht auf die Folie',
+    );
 
     const warnung = seite.getByText('unter der Unterkante', { exact: false });
     gleich(await warnung.count(), 0, 'Warnung bei einem Text, der passt');
 
     // Auf ein Zehntel der Höhe zusammenschieben — dann steht er heraus.
     await seite.getByRole('button', { name: 'Element', exact: true }).click();
-    await seite.waitForTimeout(300);
     const hoehe = seite.locator('aside[aria-label="Inspektor"] input').nth(3);
     await hoehe.fill('12');
     await hoehe.press('Enter');
-    await seite.waitForTimeout(700);
 
-    wahr(await warnung.count(), 'keine Warnung, obwohl der Text heraussteht');
+    await bisWahr(() => warnung.count(), 'keine Warnung, obwohl der Text heraussteht');
     // Und der Strich liegt auch auf der Fläche, ohne dass man klicken muss.
     wahr(
       await seite.locator('[title*="unter der Unterkante"]').count(),
@@ -1283,8 +1443,7 @@ async function main() {
     );
 
     await seite.getByRole('button', { name: /Kasten anpassen/ }).click();
-    await seite.waitForTimeout(700);
-    gleich(await warnung.count(), 0, 'Warnung nach dem Anpassen des Kastens');
+    await bisGleich(() => warnung.count(), 0, 'Warnung nach dem Anpassen des Kastens');
   });
 
   console.log('\nVortrag:');
@@ -1294,7 +1453,13 @@ async function main() {
   // englisch, während neun Prüfungen grün waren.
   await pruefe('die Vortragsansicht nimmt die ganze Fläche ein', async () => {
     await seite.getByRole('button', { name: 'Vortragen', exact: true }).click();
-    await seite.waitForTimeout(900);
+    // Im Vortrag verschwindet die Kopfleiste — daran ist der Umschaltvorgang
+    // zu erkennen, und nicht an einer Pause.
+    await bisGleich(
+      () => seite.getByRole('button', { name: 'Export', exact: true }).count(),
+      0,
+      'die Kopfleiste blieb beim Vortragen stehen',
+    );
 
     const folie = await seite.evaluate(FOLIE);
     wahr(folie, 'keine Folie im Vortrag');
@@ -1324,7 +1489,15 @@ async function main() {
       'nicht mehr im Vortrag — diese Prüfung sagt sonst nichts über die Notizkarte',
     );
     await seite.keyboard.press('n');
-    await seite.waitForTimeout(600);
+    await bisWahr(
+      () =>
+        seite.evaluate(() =>
+          [...document.querySelectorAll('aside')].some((node) =>
+            /Notiz|Notes/i.test(node.textContent ?? ''),
+          ),
+        ),
+      'die Notizkarte kam nicht',
+    );
     const karte = await seite.evaluate(() => {
       const el = [...document.querySelectorAll('aside')].find((node) =>
         /Notiz|Notes/i.test(node.textContent ?? ''),
@@ -1403,7 +1576,6 @@ async function main() {
 
   await pruefe('das SVG des Decks kommt heraus', async () => {
     await seite.getByRole('button', { name: 'Export', exact: true }).click();
-    await seite.waitForTimeout(300);
     const wartet = seite.waitForEvent('download', { timeout: 60000 });
     await seite
       .locator('[role="menu"] button')
@@ -1425,7 +1597,6 @@ async function main() {
        funktioniert und eine Datei herausfällt.
     */
     await seite.getByRole('button', { name: 'Export', exact: true }).click();
-    await seite.waitForTimeout(300);
     const wartet = seite.waitForEvent('download', { timeout: 90000 });
     await seite.locator('[role="menu"] button').filter({ hasText: 'Handout' }).first().click();
     const datei = await wartet;
@@ -1449,7 +1620,6 @@ async function main() {
     // *Signatur* der Datei geprüft und ihre Größe: ein leeres oder einfarbiges
     // Bild wäre klein.
     await seite.getByRole('button', { name: 'Export', exact: true }).click();
-    await seite.waitForTimeout(300);
     const wartet = seite.waitForEvent('download', { timeout: 60000 });
     await seite
       .locator('[role="menu"] button')
@@ -1486,16 +1656,14 @@ async function main() {
        gehört zusammen: die Datei kommt, und der Mangel wird genannt.
     */
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
-    await seite.waitForTimeout(500);
     const feld = seite.locator('aside[aria-label="Inspektor"] textarea').first();
     await feld.click();
     await seite.keyboard.press('Control+a');
     await seite.keyboard.type('# Mit Loch\n\n![Logo](bilder/gibt-es-nicht.png)');
-    await seite.waitForTimeout(800);
+    await bisWahr(() => stehtAufFolie(seite, 'Mit Loch'), 'der Text kam nicht auf die Folie');
 
     const wartet = seite.waitForEvent('download', { timeout: 60000 });
     await seite.getByRole('button', { name: 'Export', exact: true }).click();
-    await seite.waitForTimeout(300);
     await seite
       .locator('[role="menu"] button')
       .filter({ hasText: 'SVG — diese Folie' })
@@ -1506,9 +1674,10 @@ async function main() {
     const datei = await wartet;
     wahr(Boolean(await datei.path()), 'kein SVG trotz vorhandener Folie');
 
-    await seite.waitForTimeout(800);
-    const meldung = await seite.getByRole('alert').first().innerText();
-    wahr(/nicht laden/i.test(meldung), `keine Meldung über das fehlende Bild: ${meldung}`);
+    const meldung = await bisWahr(async () => {
+      const text = await seite.getByRole('alert').first().innerText();
+      return /nicht laden/i.test(text) ? text : null;
+    }, 'keine Meldung über das fehlende Bild');
     wahr(meldung.includes('bilder/gibt-es-nicht.png'), `der Pfad fehlt in der Meldung: ${meldung}`);
 
     await seite.getByRole('button', { name: 'Hinweis schließen' }).click();
@@ -1535,16 +1704,18 @@ async function main() {
     });
 
     await seite.getByRole('button', { name: 'Export', exact: true }).click();
-    await seite.waitForTimeout(300);
     await seite
       .locator('[role="menu"] button')
       .filter({ hasText: 'SVG — diese Folie' })
       .first()
       .click();
-    await seite.waitForTimeout(1500);
 
-    const meldung = await seite.getByRole('alert').first().innerText();
-    wahr(/gescheitert/i.test(meldung), `keine Klage über den Export: ${meldung}`);
+    // Die Meldung *ist* die Bedingung: sie bleibt stehen, bis jemand sie
+    // wegnimmt, also wird auf sie gewartet und nicht auf die Uhr.
+    const meldung = await bisWahr(async () => {
+      const text = await seite.getByRole('alert').first().innerText();
+      return /gescheitert/i.test(text) ? text : null;
+    }, 'keine Klage über den gescheiterten Export');
     // Und der Grund steht dabei — ohne ihn ist eine Meldung nur ein Schulterzucken.
     wahr(
       meldung.includes('Die Datei ließ sich nicht anlegen'),
@@ -1553,8 +1724,7 @@ async function main() {
 
     // Weggeräumt wird sie mit einem Klick.
     await seite.getByRole('button', { name: 'Hinweis schließen' }).click();
-    await seite.waitForTimeout(300);
-    gleich(await seite.getByRole('alert').count(), 0, 'die Meldung blieb stehen');
+    await bisGleich(() => seite.getByRole('alert').count(), 0, 'die Meldung blieb stehen');
 
     await seite.evaluate(() => {
       URL.createObjectURL = window.__objectUrl;
@@ -1596,11 +1766,10 @@ async function main() {
     */
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
-    await seite.waitForTimeout(600);
 
     const inspektor = seite.locator('aside[aria-label="Inspektor"]');
-    gleich(
-      await inspektor.getByText('Innenabstand', { exact: true }).count(),
+    await bisGleich(
+      () => inspektor.getByText('Innenabstand', { exact: true }).count(),
       1,
       'die Karte zeigt kein Feld für den Innenabstand',
     );
@@ -1620,13 +1789,11 @@ async function main() {
        Satz stimmt.
     */
     await seite.locator('aside button').filter({ hasText: 'Rechteck' }).first().click();
-    await seite.waitForTimeout(600);
-    gleich(await warnung(), 0, 'das gerahmte Rechteck wird schon beklagt');
+    await bisGleich(warnung, 0, 'das gerahmte Rechteck wird schon beklagt');
 
     await inspektor.getByRole('button', { name: 'Weiß', exact: true }).click();
     await inspektor.locator('select').first().selectOption('flat');
-    await seite.waitForTimeout(400);
-    gleich(await warnung(), 1, 'Weiß auf Weiß wird nicht gemeldet');
+    await bisGleich(warnung, 1, 'Weiß auf Weiß wird nicht gemeldet');
 
     /*
        Zwei Gegenrichtungen. Dieselbe Farbe mit einem Rahmen ist sichtbar — der
@@ -1636,20 +1803,17 @@ async function main() {
        Wächter, die man abschaltet.
     */
     await inspektor.locator('select').first().selectOption('framed');
-    await seite.waitForTimeout(400);
-    gleich(await warnung(), 0, 'die gerahmte Fläche wird zu Unrecht beklagt');
+    await bisGleich(warnung, 0, 'die gerahmte Fläche wird zu Unrecht beklagt');
 
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
     await inspektor.getByRole('button', { name: 'Weiß', exact: true }).click();
     await inspektor.locator('select').first().selectOption('flat');
-    await seite.waitForTimeout(400);
-    gleich(await warnung(), 0, 'die weiße Karte mit ihrem Text wird zu Unrecht beklagt');
+    await bisGleich(warnung, 0, 'die weiße Karte mit ihrem Text wird zu Unrecht beklagt');
 
     /* ------------------------------------------ und das Feld, das nichts tut */
     await seite.locator('aside button').filter({ hasText: 'Badge' }).first().click();
-    await seite.waitForTimeout(600);
-    gleich(
-      await inspektor.getByText('Innenabstand', { exact: true }).count(),
+    await bisGleich(
+      () => inspektor.getByText('Innenabstand', { exact: true }).count(),
       0,
       'das Badge zeigt ein Feld für einen Abstand, den es nicht zeichnet',
     );
@@ -1663,10 +1827,9 @@ async function main() {
        nicht.
     */
     await seite.locator('aside button').filter({ hasText: 'Wortmarke' }).first().click();
-    await seite.waitForTimeout(600);
     for (const feld of ['Ton', 'Füllung', 'Strichstärke', 'Schatten', 'Drehung']) {
-      gleich(
-        await inspektor.getByText(feld, { exact: true }).count(),
+      await bisGleich(
+        () => inspektor.getByText(feld, { exact: true }).count(),
         0,
         `die Wortmarke zeigt „${feld}" — ein Feld, das an ihr nichts tut`,
       );
@@ -1708,27 +1871,24 @@ async function main() {
        ihm eine Füllung gibt, bekommt alle drei.
     */
     await seite.locator('aside button').filter({ hasText: 'Fließtext' }).first().click();
-    await seite.waitForTimeout(600);
     for (const feld of ['Ton', 'Strichstärke', 'Schatten']) {
-      gleich(
-        await inspektor.getByText(feld, { exact: true }).count(),
+      await bisGleich(
+        () => inspektor.getByText(feld, { exact: true }).count(),
         0,
         `der frische Text zeigt „${feld}", obwohl er keine Fläche hat`,
       );
     }
     await inspektor.locator('select').first().selectOption('framed');
-    await seite.waitForTimeout(400);
     for (const feld of ['Ton', 'Strichstärke', 'Schatten']) {
-      gleich(
-        await inspektor.getByText(feld, { exact: true }).count(),
+      await bisGleich(
+        () => inspektor.getByText(feld, { exact: true }).count(),
         1,
         `dem gerahmten Text fehlt „${feld}", obwohl es bei ihm wirkt`,
       );
     }
     await seite.locator('aside button').filter({ hasText: 'Pfeil' }).first().click();
-    await seite.waitForTimeout(600);
-    gleich(
-      await seite.locator('[data-handle="rotate"]').count(),
+    await bisGleich(
+      () => seite.locator('[data-handle="rotate"]').count(),
       1,
       'dem Verbinder fehlt der Drehgriff',
     );
@@ -1765,15 +1925,21 @@ async function main() {
     // Etwas Ungesichertes anlegen — ohne `dirty` fragt niemand, und das ist
     // richtig so.
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
-    await seite.waitForTimeout(600);
-    const vorher = await folien();
-    wahr(vorher > 1, `zu wenige Folien zum Prüfen: ${vorher}`);
+    const vorher = await bisWahr(async () => {
+      const zahl = await folien();
+      return zahl > 1 ? zahl : null;
+    }, 'zu wenige Folien zum Prüfen');
 
-    // Abgelehnt: das Deck bleibt.
-    const ablehnen = (dialog) => void dialog.dismiss();
+    // Abgelehnt: das Deck bleibt. Gewartet wird darauf, dass wirklich gefragt
+    // wurde — ein Merker im Horcher sagt es, eine Pause hofft es.
+    let gefragt = false;
+    const ablehnen = (dialog) => {
+      gefragt = true;
+      void dialog.dismiss();
+    };
     seite.on('dialog', ablehnen);
     await seite.keyboard.press('Control+Shift+KeyN');
-    await seite.waitForTimeout(900);
+    await bisWahr(() => gefragt, 'ein neues Deck fragte gar nicht');
     seite.off('dialog', ablehnen);
     gleich(await folien(), vorher, 'das Deck überlebte die Ablehnung nicht');
 
@@ -1781,9 +1947,8 @@ async function main() {
     const annehmen = (dialog) => void dialog.accept();
     seite.on('dialog', annehmen);
     await seite.keyboard.press('Control+Shift+KeyN');
-    await seite.waitForTimeout(900);
+    await bisGleich(folien, 1, 'das neue Deck kam nicht');
     seite.off('dialog', annehmen);
-    gleich(await folien(), 1, 'das neue Deck kam nicht');
   });
 
   await pruefe('das Datei-Menü führt jeden Weg — und der Beispielweg fragt', async () => {
@@ -1815,6 +1980,7 @@ async function main() {
       'Markdown sichern',
       'nozilla-Design',
       'Alternatives Design',
+      'Eigenes Design erstellen',
     ]) {
       wahr(text.includes(soll), `„${soll}" fehlt im Datei-Menü — da steht: ${text}`);
     }
@@ -1966,13 +2132,17 @@ async function main() {
     // den Rohtext zu Recht auf. Eine neue Folie reicht und stößt die
     // Selbstsicherung an.
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
-    await seite.waitForTimeout(1400);
 
-    const gesichert = await seite.evaluate(() => {
-      const roh = localStorage.getItem('nozilla-whiteboard:session:v1');
-      return roh ? String(JSON.parse(roh).markdown) : '';
-    });
-    wahr(gesichert.length > 0, 'nichts gesichert');
+    // Die Selbstsicherung schreibt mit Verzögerung; gewartet wird auf das,
+    // was sie schreibt.
+    const gesichert = await bisWahr(
+      async () =>
+        (await seite.evaluate(() => {
+          const roh = localStorage.getItem('nozilla-whiteboard:session:v1');
+          return roh ? String(JSON.parse(roh).markdown) : '';
+        })) || null,
+      'nichts gesichert',
+    );
     wahr(gesichert.includes(ZEILE), 'der unlesbare Block fehlt in der gesicherten Datei');
   });
 
@@ -1992,19 +2162,22 @@ async function main() {
        da.
     */
     await seite.keyboard.press('Control+Digit1');
-    await seite.waitForTimeout(500);
-    const bibliothek = await seite.getByRole('button', { name: 'Bausteine', exact: true }).count();
-    wahr(!bibliothek, 'die Bausteinleiste ließ sich nicht zuklappen');
+    await bisGleich(
+      () => seite.getByRole('button', { name: 'Bausteine', exact: true }).count(),
+      0,
+      'die Bausteinleiste ließ sich nicht zuklappen',
+    );
 
     const zahnrad = seite.getByRole('button', { name: 'Einstellungen', exact: true });
     gleich(await zahnrad.count(), 1, 'das Zahnrad ist bei zugeklappter Bibliothek verschwunden');
 
     await zahnrad.click();
-    await seite.waitForTimeout(400);
     // Und das Feld geht nach *unten* auf. In der Kopfleiste ragte ein Feld
     // mit `bottom-9` aus dem Fenster hinaus — sichtbar nur im Bild.
-    const kasten = await seite.getByRole('dialog', { name: 'Einstellungen' }).boundingBox();
-    wahr(kasten, 'das Einstellungsfeld ging nicht auf');
+    const kasten = await bisWahr(
+      () => seite.getByRole('dialog', { name: 'Einstellungen' }).boundingBox(),
+      'das Einstellungsfeld ging nicht auf',
+    );
     wahr(kasten.y > 0, `das Einstellungsfeld ragt oben heraus (y = ${kasten.y})`);
 
     await seite.keyboard.press('Escape');
@@ -2053,13 +2226,15 @@ async function main() {
       mimeType: 'image/svg+xml',
       buffer: Buffer.from(WORTMARKE),
     });
-    await generator.waitForTimeout(1500);
-
-    const markup = await generator.evaluate(() => {
-      const svg = document.querySelector('svg[role="img"]');
-      return svg ? svg.innerHTML : '';
-    });
-    wahr(markup.length > 200, 'die Vorschau blieb leer');
+    // Die Datei wird gelesen, geprüft und in die Vorschau gerechnet — wie
+    // lange das dauert, hängt am Rechner. Die Zusicherung ist die Bedingung.
+    const markup = await bisWahr(async () => {
+      const inhalt = await generator.evaluate(() => {
+        const svg = document.querySelector('svg[role="img"]');
+        return svg ? svg.innerHTML : '';
+      });
+      return inhalt.length > 200 ? inhalt : null;
+    }, 'die Vorschau blieb leer');
     wahr(markup.includes('#E4003A'), 'die Signalfarbe der neuen Marke fehlt auf der Probefolie');
     wahr(!markup.includes('#00FF9C'), 'das Grün von nozilla steht noch auf der Probefolie');
 
@@ -2138,24 +2313,25 @@ async function main() {
           '<path fill="#000000" d="M4 8 L96 8 L96 40 L4 40 Z"/></svg>',
       ),
     });
-    await generator.waitForTimeout(1800);
-
-    const vorher = await generator.evaluate(() => {
-      const svg = document.querySelector('svg[role="img"]');
-      return svg ? svg.innerHTML : '';
-    });
-    wahr(vorher.includes('#E4003A'), 'die Vorschau stand vor der Sabotage schon nicht');
+    const vorher = await bisWahr(async () => {
+      const inhalt = await generator.evaluate(() => {
+        const svg = document.querySelector('svg[role="img"]');
+        return svg ? svg.innerHTML : '';
+      });
+      return inhalt.includes('#E4003A') ? inhalt : null;
+    }, 'die Vorschau stand vor der Sabotage schon nicht');
 
     // Jetzt eine einzelne Farbe unlesbar machen.
     await zumSchritt(generator, 'Farbe');
     await setzeFarbe(generator, 'signalSoft', 'knallrot');
-    await generator.waitForTimeout(600);
 
-    const nachher = await generator.evaluate(() => {
-      const svg = document.querySelector('svg[role="img"]');
-      return svg ? svg.innerHTML : '';
-    });
-    wahr(nachher.length > 200, 'die Vorschau wurde durch einen einzelnen Fehler geleert');
+    const nachher = await bisWahr(async () => {
+      const inhalt = await generator.evaluate(() => {
+        const svg = document.querySelector('svg[role="img"]');
+        return svg ? svg.innerHTML : '';
+      });
+      return inhalt.length > 200 ? inhalt : null;
+    }, 'die Vorschau wurde durch einen einzelnen Fehler geleert');
     wahr(nachher.includes('#E4003A'), 'der letzte tragfähige Stand steht nicht mehr da');
 
     const text = await generator.evaluate(() => document.body.innerText);
@@ -2195,8 +2371,11 @@ async function main() {
     );
 
     await generator.keyboard.press('Tab');
-    await generator.waitForTimeout(300);
-    gleich(await feld.inputValue(), '#E4003A', 'das Feld hat beim Verlassen nicht aufgeräumt');
+    await bisGleich(
+      () => feld.inputValue(),
+      '#E4003A',
+      'das Feld hat beim Verlassen nicht aufgeräumt',
+    );
 
     await generator.close();
   });
@@ -2252,7 +2431,6 @@ async function main() {
     wahr(/Kam nicht/.test(bericht), 'der Bericht verschweigt, was gar nicht kam');
 
     await generator.getByRole('button', { name: /Werte übernehmen/ }).click();
-    await generator.waitForTimeout(400);
 
     // Und die Werte stehen wirklich im Entwurf.
     await zumSchritt(generator, 'Marke');
@@ -2293,9 +2471,11 @@ async function main() {
     await familie.click();
     await generator.keyboard.press('End');
     for (const zeichen of ' Kunde') await generator.keyboard.type(zeichen, { delay: 40 });
-    await generator.waitForTimeout(200);
-
-    gleich(await familie.inputValue(), 'Zilla Slab Kunde', 'der getippte Name kam nicht an');
+    await bisGleich(
+      () => familie.inputValue(),
+      'Zilla Slab Kunde',
+      'der getippte Name kam nicht an',
+    );
     const fokus = await generator.evaluate(() =>
       document.activeElement?.getAttribute('aria-label'),
     );
@@ -2317,12 +2497,14 @@ async function main() {
           '<path fill="#000000" d="M4 8 L96 8 L96 40 L4 40 Z"/></svg>',
       ),
     });
-    await generator.waitForTimeout(2000);
-
-    const eigen = await generator.evaluate(() => {
-      const style = document.getElementById('nz-ci-entwurf-fonts');
-      return style ? style.textContent : '';
-    });
+    const eigen = await bisWahr(
+      () =>
+        generator.evaluate(() => {
+          const style = document.getElementById('nz-ci-entwurf-fonts');
+          return style ? style.textContent : null;
+        }),
+      'die Schnitte des Entwurfs stehen nicht im Dokument',
+    );
     wahr(
       /Zilla Slab Kunde/.test(eigen ?? ''),
       'die Schnitte des Entwurfs haben keine eigene Schriftregel',
@@ -2347,9 +2529,8 @@ async function main() {
     await reiter(generator, 'Anfang').focus();
     await generator.keyboard.press('ArrowRight');
     await generator.keyboard.press('ArrowRight');
-    await generator.waitForTimeout(300);
-    gleich(
-      await generator.evaluate(() => document.activeElement?.getAttribute('aria-label')),
+    await bisGleich(
+      () => generator.evaluate(() => document.activeElement?.getAttribute('aria-label')),
       'Schritt 3: Farbe',
       'die Pfeiltaste hat den Reiter nicht gewechselt',
     );
@@ -2361,18 +2542,19 @@ async function main() {
     wahr(/Schritt 3 von 8/.test(offen ?? ''), `der Bereich zeigt „${offen}"`);
 
     await generator.keyboard.press('End');
-    await generator.waitForTimeout(300);
-    gleich(
-      await generator.evaluate(() => document.activeElement?.getAttribute('aria-label')),
+    await bisGleich(
+      () => generator.evaluate(() => document.activeElement?.getAttribute('aria-label')),
       'Schritt 8: Fertig',
       'End sprang nicht ans Ende',
     );
 
     // Ein Tab führt aus der Leiste heraus und nicht zum nächsten Reiter.
     await generator.keyboard.press('Tab');
-    await generator.waitForTimeout(200);
-    const danach = await generator.evaluate(() => document.activeElement?.getAttribute('role'));
-    wahr(danach !== 'tab', 'Tab blieb in der Schrittleiste hängen');
+    await bisWahr(
+      async () =>
+        (await generator.evaluate(() => document.activeElement?.getAttribute('role'))) !== 'tab',
+      'Tab blieb in der Schrittleiste hängen',
+    );
 
     await generator.close();
   });
@@ -2391,10 +2573,11 @@ async function main() {
 
     // Der Befund steht in der Prüfliste und trägt einen Weg zum Feld.
     await generator.getByRole('button', { name: 'Zum Feld' }).first().click();
-    await generator.waitForTimeout(400);
-
-    const fokus = await generator.evaluate(() => document.activeElement?.id);
-    gleich(fokus, 'nz-ci-farbe-signalSoft', 'der Sprung landete nicht im Feld');
+    await bisGleich(
+      () => generator.evaluate(() => document.activeElement?.id),
+      'nz-ci-farbe-signalSoft',
+      'der Sprung landete nicht im Feld',
+    );
 
     /*
        Und derselbe Weg für den Schritt „Maße", denn dort führte er ins Leere —
@@ -2409,18 +2592,41 @@ async function main() {
        sieht in keiner Zusicherung anders aus als eindeutig — außer in dieser.
     */
     await zumSchritt(generator, 'Maße');
-    await generator.locator('#nz-ci-masse-schatten-sm').fill('');
-    await generator.locator('#nz-ci-masse-leiter-base').focus();
-    await generator.waitForTimeout(400);
 
-    await generator
-      .locator('p', { hasText: 'trägt keine Zahl' })
-      .getByRole('button', { name: 'Zum Feld' })
-      .first()
-      .click();
-    await generator.waitForTimeout(400);
-    gleich(
-      await generator.evaluate(() => document.activeElement?.id),
+    /*
+       Drei Bedingungen statt einer Pause — und die mittlere ist der Grund.
+
+       Hier stand `fill('')`, dann 400 ms, dann der Klick. In der CI schlug er
+       fehl: „waiting for locator(…)" nach dreißig Sekunden, der Befund war
+       also nie da. Ein `fill()` wartet zwar darauf, dass das Feld im Baum
+       hängt — nicht aber darauf, dass der Schritt fertig gezeichnet ist. Baut
+       React den Bereich unmittelbar danach neu auf, steht der alte Wert wieder
+       da, und ohne leeres Feld gibt es keinen Befund. Auf einem schnellen
+       Rechner passiert das nie, auf einem ausgelasteten schon.
+
+       Und die dritte nennt bei einem Fehlschlag, was wirklich in der Liste
+       steht: eine Zeitüberschreitung an einem Klick sagt nur, dass etwas
+       fehlte, nicht was stattdessen da war.
+    */
+    const schatten = generator.locator('#nz-ci-masse-schatten-sm');
+    await bisWahr(() => schatten.inputValue(), 'das Feld für den Schattenversatz kam nicht');
+    await schatten.fill('');
+    await generator.locator('#nz-ci-masse-leiter-base').focus();
+    await bisGleich(() => schatten.inputValue(), '', 'das Feld ließ sich nicht leeren');
+
+    const befund = generator.locator('p', { hasText: 'trägt keine Zahl' });
+    await bisWahr(
+      () => befund.count(),
+      async () => {
+        const liste = await generator.locator('p').allInnerTexts();
+        return `kein Befund über den fehlenden Schattenversatz. Die Liste sagt: ${JSON.stringify(
+          liste.filter((text) => /Fehler|Warnung|wissen/.test(text)).slice(0, 6),
+        )}`;
+      },
+    );
+    await befund.getByRole('button', { name: 'Zum Feld' }).first().click();
+    await bisGleich(
+      () => generator.evaluate(() => document.activeElement?.id),
       'nz-ci-masse-schatten-sm',
       'der Befund über den Schattenversatz sprang in die Größenleiter',
     );
@@ -2441,7 +2647,6 @@ async function main() {
       .getByLabel('Die Antwort des Modells')
       .fill('{"id": "rauchvorschlag", "label": "Rauchvorschlag"}');
     await generator.getByRole('button', { name: 'Antwort lesen' }).click();
-    await generator.waitForTimeout(400);
 
     // Gelesen — und noch nichts übernommen.
     await zumSchritt(generator, 'Marke');
@@ -2458,7 +2663,6 @@ async function main() {
     wahr(/rauchvorschlag/.test(bericht), 'der Vorschlag nennt den neuen Wert nicht');
 
     await generator.getByRole('button', { name: /Werte übernehmen/ }).click();
-    await generator.waitForTimeout(400);
     await zumSchritt(generator, 'Marke');
     gleich(
       await generator.getByLabel('Schlüssel').inputValue(),
@@ -2468,7 +2672,6 @@ async function main() {
 
     await zumSchritt(generator, 'Anfang');
     await generator.getByRole('button', { name: 'Rückgängig' }).click();
-    await generator.waitForTimeout(400);
     await zumSchritt(generator, 'Marke');
     gleich(
       await generator.getByLabel('Schlüssel').inputValue(),
@@ -2495,7 +2698,6 @@ async function main() {
       .fill('{"id": "rauchverfall", "label": "Rauchverfall"}');
     await generator.getByRole('button', { name: 'Antwort lesen' }).click();
     await generator.getByRole('button', { name: /Werte übernehmen/ }).click();
-    await generator.waitForTimeout(400);
 
     // Erst die Gegenprobe: unmittelbar danach steht der Weg zurück offen.
     await zumSchritt(generator, 'Anfang');
@@ -2507,7 +2709,6 @@ async function main() {
 
     await zumSchritt(generator, 'Marke');
     await generator.getByLabel('Markenname').fill('von Hand');
-    await generator.waitForTimeout(400);
 
     await zumSchritt(generator, 'Anfang');
     gleich(
@@ -2611,7 +2812,6 @@ async function main() {
 
     generator.once('dialog', (dialog) => void dialog.dismiss());
     await generator.setInputFiles('input[accept*="json"]', datei);
-    await generator.waitForTimeout(600);
     await zumSchritt(generator, 'Marke');
     gleich(
       await generator.getByLabel('Schlüssel').inputValue(),
@@ -2621,7 +2821,6 @@ async function main() {
 
     generator.once('dialog', (dialog) => void dialog.accept());
     await generator.setInputFiles('input[accept*="json"]', datei);
-    await generator.waitForTimeout(600);
     await zumSchritt(generator, 'Marke');
     gleich(
       await generator.getByLabel('Schlüssel').inputValue(),
