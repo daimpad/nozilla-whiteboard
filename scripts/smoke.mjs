@@ -1642,6 +1642,68 @@ async function main() {
     wahr(hoehe > breite, `Handout liegt quer: ${breite} × ${hoehe}`);
   });
 
+  await pruefe('die Folie kommt auf einem echten A4-Bogen heraus', async () => {
+    /*
+       Der ganze Weg durch das Menü, gemessen an der MediaBox der Datei — dem
+       einen Ort, der das Seitenmaß in Punkt nennt.
+
+       Geprüft wird das **Maß** und nicht die Proportion. Ohne den Massstab
+       käme das Blatt im Verhältnis genau richtig und trotzdem als Bogen von
+       385 × 545 Millimetern heraus; jeder Betrachter druckte das klaglos auf
+       A4, nachdem er es verkleinert hätte, mit einem Rand, den niemand
+       gewählt hat. Ein Format, das A4 heißt, ist A4.
+
+       A4 quer sind 297 × 210 mm, also 841,89 × 595,28 Punkt. Zwei Punkt
+       Nachsicht decken die Rundung des Seitenmaßes auf Hundertstel einer
+       Folieneinheit ab.
+    */
+    await seite.getByRole('button', { name: 'Export', exact: true }).click();
+    await seite.getByRole('radio', { name: 'A4 quer' }).click();
+    const wartet = seite.waitForEvent('download', { timeout: 90000 });
+    await seite
+      .locator('[role="menu"] button')
+      .filter({ hasText: 'PDF — diese Folie' })
+      .first()
+      .click();
+    const datei = await wartet;
+    const pfad = await datei.path();
+    const bytes = await import('node:fs').then((fs) => fs.promises.readFile(pfad));
+
+    wahr(bytes.subarray(0, 5).toString() === '%PDF-', 'kein PDF');
+    const box = /\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)/.exec(bytes.toString('latin1'));
+    wahr(Boolean(box), 'keine MediaBox im PDF gefunden');
+    const [breite, hoehe] = [Number(box[1]), Number(box[2])];
+    wahr(
+      Math.abs(breite - 841.89) < 2 && Math.abs(hoehe - 595.28) < 2,
+      `kein A4 quer: ${breite} × ${hoehe} pt`,
+    );
+    // Und der Dateiname sagt es auch — zwei Ausgaben desselben Decks
+    // unterscheiden sich sonst erst beim Öffnen.
+    wahr(
+      datei.suggestedFilename().includes('a4-quer'),
+      `Dateiname nennt das Format nicht: ${datei.suggestedFilename()}`,
+    );
+
+    /*
+       Zurück auf die Vorgabe, damit die Prüfungen danach die Folienseite
+       messen und nicht das Blatt.
+
+       Geschlossen wird über den Knopf und nicht über Escape: ein Klick auf ein
+       Segment schließt das Menü nicht (nur ein Menüeintrag tut das, über
+       `run()`), und Escape auch nicht. Ein offen gelassenes Menü macht aus dem
+       ersten Klick der nächsten Prüfung ein Zuklappen — genau daran ist der
+       erste Anlauf gescheitert, mit einer Zeitüberschreitung an einem
+       Menüeintrag, den es in dem Moment nicht gab.
+    */
+    await seite.getByRole('button', { name: 'Export', exact: true }).click();
+    await seite.getByRole('radio', { name: 'Folie', exact: true }).click();
+    await seite.getByRole('button', { name: 'Export', exact: true }).click();
+    await bis(
+      async () => (await seite.locator('[role="menu"]').count()) === 0,
+      'das Exportmenü schließt sich wieder',
+    );
+  });
+
   await pruefe('das PNG einer Folie kommt heraus und ist ein Bild', async () => {
     // Nicht nur „eine Datei kam an": ein SVG, das über ein <img> gerastert
     // wird, ist ein eigenes Dokument ohne Zugriff auf die Schriften der

@@ -13,9 +13,13 @@ import {
   exportPng,
   exportPptx,
   exportSvg,
+  seitenformatHints,
+  seitenformatLabels,
+  seitenformate,
   textModeLabels,
   textModeHints,
   textModes,
+  type Seitenformat,
   type TextMode,
 } from '@/lib/export';
 import { selectCanRedo, selectCanUndo, useDeckStore } from '@/state/deckStore';
@@ -277,7 +281,23 @@ function ExportMenu({
   // Wie die Schrift in die Datei kommt. Eine Entscheidung pro Export, kein
   // Deck-Zustand — sie hängt am Ziel (Bildschirm, Druckerei), nicht am Inhalt.
   const [textMode, setTextMode] = useState<TextMode>('embedded');
+  // Dasselbe für die Seite: ein Blatt A4 will, wer druckt, und das ist eine
+  // Eigenschaft dieses einen Exports und keine des Decks.
+  const [seite, setSeite] = useState<Seitenformat>('folie');
   const ref = useRef<HTMLDivElement | null>(null);
+
+  /*
+     Der Hinweis unter einem PDF-Eintrag nennt beide Entscheidungen, die ihn
+     betreffen. Ohne das stünden sie nur unten in den Segmenten, und wer den
+     Knopf drückt, sähe am Knopf nicht, was er bekommt — dieselbe Sorte
+     Bedienelement, das etwas anderes tut, als daneben steht.
+  */
+  const pdfHinweis = () => {
+    const schrift = textMode === 'embedded' ? 'Text bleibt markierbar' : 'Text als Konturen';
+    return seite === 'folie'
+      ? `Vektorseiten, ${schrift}`
+      : `${seitenformatLabels[seite]}, ${schrift}`;
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -370,12 +390,8 @@ function ExportMenu({
           <MenuItem
             icon="book"
             label="PDF — ganzes Deck"
-            hint={
-              textMode === 'embedded'
-                ? 'Vektorseiten, Text bleibt markierbar'
-                : 'Vektorseiten, Text als Konturen'
-            }
-            onClick={() => run('Zeichne PDF', () => exportPdf(deck, { text: textMode }))}
+            hint={pdfHinweis()}
+            onClick={() => run('Zeichne PDF', () => exportPdf(deck, { text: textMode, seite }))}
           />
           <MenuItem
             icon="file-lines"
@@ -386,9 +402,9 @@ function ExportMenu({
           <MenuItem
             icon="play"
             label="PDF — diese Folie"
-            hint="Eine Seite"
+            hint={`Eine Seite · ${pdfHinweis()}`}
             onClick={() =>
-              run('Zeichne PDF', () => exportPdf(deck, { slideIndex, text: textMode }))
+              run('Zeichne PDF', () => exportPdf(deck, { slideIndex, text: textMode, seite }))
             }
           />
           <MenuItem
@@ -414,6 +430,25 @@ function ExportMenu({
               {textMode === 'embedded'
                 ? 'Die Marken-Schnitte liegen in der Datei. Text bleibt markierbar und durchsuchbar.'
                 : 'Jede Glyphe wird zur Kontur — gleiches Bild auch dort, wo eingebettete Schriften ignoriert werden.'}
+            </p>
+          </div>
+
+          <div className="border-t border-ui px-2 pb-1.5 pt-2">
+            <span className="nz-label">Seitenformat im PDF</span>
+            <Segmented
+              value={seite}
+              onChange={setSeite}
+              className="w-full"
+              options={seitenformate.map((wert) => ({
+                value: wert,
+                label: seitenformatLabels[wert],
+                title: seitenformatHints[wert],
+              }))}
+            />
+            <p className="mt-1.5 text-[11px] leading-snug text-ui-faint">
+              {seite === 'folie'
+                ? `Die Seite ist die Folie — ${canvasTokens.width} × ${canvasTokens.height}, ohne Rand.`
+                : 'Die Folie liegt mittig auf einem echten A4-Bogen und wird dabei nicht kleiner gerechnet. Das Handout bringt seine eigene Seite mit.'}
             </p>
           </div>
 

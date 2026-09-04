@@ -12,7 +12,14 @@
  */
 import { serializeDeck } from '@/lib/markdown/deck';
 import type { Deck } from '@/model/types';
-import { buildHandoutScenes, buildSlideScene, type Scene, type SceneOptions } from './scene';
+import {
+  aufBlatt,
+  buildHandoutScenes,
+  buildSlideScene,
+  type Blattlage,
+  type Scene,
+  type SceneOptions,
+} from './scene';
 import { resolveDeckImages, sizeResolver, inlineImageHrefs, type ImageMap } from './images';
 import { downloadBlob, saveText, slugify, type SaveResult } from './download';
 import { scenesToPdf, type PdfOptions } from './pdf';
@@ -59,6 +66,69 @@ export const textModeHints: Record<TextMode, string> = {
   embedded: 'Text bleibt markierbar und durchsuchbar',
   outlines: 'Überall gleich, auch ohne Schrift-Unterstützung',
 };
+
+/**
+ * Wie groß die Seite eines PDF ist.
+ *
+ * `folie`     Die Seite *ist* die Folie: 1280 × 720 Einheiten, keine Ränder.
+ *             Das Richtige zum Vorführen und für einen Anhang, den niemand
+ *             ausdruckt. Die Vorgabe.
+ *
+ * `a4-hoch`   Ein Blatt A4 im Hochformat, die Folie mittig darauf.
+ * `a4-quer`   Dasselbe im Querformat — auf einer 16:9-Folie das Format, das
+ *             das Papier am besten ausnutzt.
+ *
+ * Die Folie wird dabei **nicht kleiner gerechnet**; das Blatt wächst um sie
+ * herum, und der Massstab des ganzen Dokuments bringt es danach auf die Maße
+ * eines echten A4-Bogens. Warum das der einzig gangbare Weg ist, steht im Kopf
+ * von `aufBlatt()`.
+ */
+export type Seitenformat = 'folie' | 'a4-hoch' | 'a4-quer';
+
+export const seitenformate: readonly Seitenformat[] = ['folie', 'a4-hoch', 'a4-quer'];
+
+export const seitenformatLabels: Record<Seitenformat, string> = {
+  folie: 'Folie',
+  'a4-hoch': 'A4 hoch',
+  'a4-quer': 'A4 quer',
+};
+
+export const seitenformatHints: Record<Seitenformat, string> = {
+  folie: 'Die Seite ist die Folie, ohne Rand',
+  'a4-hoch': 'Die Folie mittig auf A4, hochkant',
+  'a4-quer': 'Die Folie mittig auf A4, quer',
+};
+
+/**
+ * Die kurze Kante von A4 in Punkt — 210 mm bei 72 Punkt je Zoll.
+ *
+ * Ausgerechnet und nicht abgeschrieben, damit die Herkunft dasteht. Ohne
+ * diesen Schritt wäre „A4" nur eine Proportion: die Seite käme mit 1092 × 1544
+ * Punkt heraus, also im Verhältnis richtig und im Maß ein Bogen von 385 × 545
+ * Millimetern. Jeder Betrachter druckte das klaglos auf A4 — nachdem er es
+ * verkleinert hätte, mit einem Rand, den niemand gewählt hat. Ein Format, das
+ * A4 heißt, ist A4.
+ */
+const A4_KURZ_PT = (210 / 25.4) * 72;
+
+/** Wie das Blatt liegt — oder `null`, wenn die Seite die Folie ist. */
+function blattlage(format: Seitenformat): Blattlage | null {
+  if (format === 'a4-hoch') return 'hoch';
+  if (format === 'a4-quer') return 'quer';
+  return null;
+}
+
+/**
+ * Der Massstab, der aus einer Blatt-Szene einen A4-Bogen macht.
+ *
+ * Gemessen an der **kurzen** Kante, denn die ist bei hoch wie quer dieselbe
+ * — die lange folgt aus dem Wurzel-zwei-Verhältnis und muss nicht eigens
+ * getroffen werden.
+ */
+function a4Massstab(szene: Scene | undefined): number | undefined {
+  if (!szene) return undefined;
+  return A4_KURZ_PT / Math.min(szene.width, szene.height);
+}
 
 export const MARKDOWN_MIME = 'text/markdown';
 export const PPTX_MIME =
@@ -180,6 +250,14 @@ export interface PdfExportOptions extends Omit<PdfOptions, 'images' | 'embedFont
   bare?: boolean;
   /** Wie die Schrift in die Datei kommt. Vorgabe: einbetten. */
   text?: TextMode;
+  /**
+   * Wie groß die Seite ist. Vorgabe: so groß wie die Folie.
+   *
+   * Nur beim PDF und nicht beim SVG: ein Blatt ist Papier, und eine
+   * SVG-Datei kommt nie auf welches. Dort wäre der Rand ringsum nichts als
+   * Leerraum, den jemand wieder wegschneidet.
+   */
+  seite?: Seitenformat;
 }
 
 export async function exportPdf(deck: Deck, options: PdfExportOptions = {}): Promise<SaveResult> {
@@ -200,8 +278,20 @@ export async function renderPdf(
       : all;
   const scenes = mode === 'outlines' ? await outlineScenes(selected) : selected;
 
-  const doc = await scenesToPdf(scenes, {
+  /*
+     Das Blatt kommt **zuletzt**, nach dem Wandeln in Konturen. Andersherum
+     liefe der Umriss-Weg über das Beiwerk der Seite mit — über Papierfläche
+     und Haarstrich, die keinen Text tragen —, und die Verschiebung stünde
+     mitten in einer Kette, an deren Ende sie ohnehin gehört.
+  */
+  const lage = blattlage(options.seite ?? 'folie');
+  const seiten = lage ? scenes.map((scene) => aufBlatt(scene, lage)) : scenes;
+
+  const doc = await scenesToPdf(seiten, {
     ...options,
+    // Ein von außen gesetzter Massstab gewinnt: wer ihn mitgibt, weiß, was er
+    // will, und bekommt dann eben ein Blatt in DIN-Proportion und fremdem Maß.
+    scale: options.scale ?? (lage ? a4Massstab(seiten[0]) : undefined),
     embedFonts: mode === 'embedded',
     title: options.title ?? deck.meta.title,
     author: options.author ?? deck.meta.author,
@@ -214,9 +304,12 @@ export async function renderPdf(
   });
 
   const suffix = typeof options.slideIndex === 'number' ? `-slide-${options.slideIndex + 1}` : '';
+  // Das Format gehört in den Namen: zwei Ausgaben desselben Decks im selben
+  // Ordner unterscheiden sich sonst nur beim Öffnen.
+  const blatt = lage ? `-a4-${lage}` : '';
   return {
     blob: doc.output('blob'),
-    filename: options.filename ?? `${slugify(deck.meta.title)}${suffix}.pdf`,
+    filename: options.filename ?? `${slugify(deck.meta.title)}${suffix}${blatt}.pdf`,
   };
 }
 
