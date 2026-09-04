@@ -104,7 +104,7 @@ export function SettingsMenu() {
           </p>
 
           <div className="border-t border-ui">
-            <SectionTitle>Theme</SectionTitle>
+            <SectionTitle>Erscheinungsbild</SectionTitle>
             {/*
               Der Generator ist eine eigene Seite und kein Panel: er meldet ein
               Erscheinungsbild an und aktiviert es, um damit ein Probedeck zu

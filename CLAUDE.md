@@ -1931,6 +1931,40 @@ meldete die Prüfung nach fünfzehn Sekunden als rot, mit ihrer eigenen alten
 Meldung, statt hängen zu bleiben. Das ist die Frage, die bei `bis()` zählt —
 nicht ob es wartet, sondern ob es aufhört.
 
+**Links die Datei, rechts die Ansicht — und das Zahnrad stand falsch.** Die
+Kopfleiste trug links fünf Dateizeichen nebeneinander (neu, Beispiel, öffnen,
+sichern, Export) und rechts, zwischen Zoom und „Vortragen", die Einstellungen.
+Das ist die Sorte Reihe, die man nur noch über den Kurzhinweis liest — und das
+Zahnrad war dort der Fremdkörper: die Erscheinung des Arbeitsplatzes, das
+Anlegen eines Erscheinungsbilds und der Stand des Werkzeugs gehen den Vortrag
+nichts an. Links steht jetzt `[Datei ▾] [Export ▾] [⚙ ▾]`, rechts nur noch,
+was die Folie *zeigt*.
+
+Die mitgelieferten Decks stehen **flach** im Datei-Menü unter einer eigenen
+Überschrift und ohne Erklärzeile. Ein Menü im Menü ist mit der Maus fummelig
+und mit der Tastatur eine eigene Belegung; bei zwei Einträgen wäre das ein
+Bauwerk für nichts. Und die Erklärzeilen („nozilla — jedes Layout, jede
+Elementart") beantworteten an dieser Stelle eine Frage, die niemand stellt: was
+die beiden unterscheidet, ist das Erscheinungsbild, und genau das steht jetzt
+als Name da.
+
+**Der Umbau war billig, weil nichts daran hing — und das war selbst der
+Befund.** Keine vitest-Prüfung importiert `TopBar` oder `SettingsMenu`; der
+Rauchtest greift von der ganzen Leiste nur vier zugängliche Beschriftungen ab
+(`Export`, `Einstellungen`, `Folie hinzufügen`, `Vortragen`), und die bleiben
+oberste Knöpfe. Die vier Knöpfe, die ins Menü zogen, fasste **kein einziger
+Test** an — ausgerechnet ⌘⇧N, ⌘O, ⌘S und die Beispiele, also die Familie aus
+„Sechs Wege ersetzten das Deck, einer fragte". Sie hinter ein Menü zu räumen,
+ohne eine Prüfung dazuzulegen, hätte vier sichtbare ungeprüfte Wege gegen vier
+versteckte ungeprüfte getauscht.
+
+**Und die neue Prüfung fängt etwas, das der Quelltext-Wächter nicht sieht.**
+Die Gegenprobe entschärfte den Ruf im Beispielweg zu
+`if (!darfErsetzen() && false)`. `replaceGuard.test.ts` blieb **grün** — es
+liest die Quellen und findet den Ruf, ohne zu wissen, dass er nichts mehr tut.
+Der Rauchtest wurde rot. Das Sieb bewacht, dass die Frage *dasteht*; der
+Rauchtest, dass sie *wirkt*, und beide werden gebraucht.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,

@@ -1786,6 +1786,77 @@ async function main() {
     gleich(await folien(), 1, 'das neue Deck kam nicht');
   });
 
+  await pruefe('das Datei-Menü führt jeden Weg — und der Beispielweg fragt', async () => {
+    /*
+       Vier Knöpfe und ein Untermenü sind in dieses Menü gezogen: Neues Deck,
+       Öffnen, Sichern und die beiden mitgelieferten Decks. Keiner von ihnen
+       war je geprüft — sie standen in der Leiste und niemand fasste sie an.
+       Sie hinter ein Menü zu räumen, ohne diese Prüfung dazuzulegen, hätte
+       vier sichtbare ungeprüfte Wege gegen vier versteckte ungeprüfte
+       getauscht.
+
+       Und es sind nicht irgendwelche Wege: „Neues Deck" und die beiden
+       Beispiele ersetzen das offene Deck. Das ist die Familie aus „Sechs Wege
+       ersetzten das Deck, einer fragte".
+    */
+    const menue = seite.getByRole('button', { name: 'Datei', exact: true });
+    gleich(await menue.count(), 1, 'kein Datei-Menü in der Leiste');
+    await menue.click();
+
+    const eintraege = await seite
+      .getByRole('menu')
+      .first()
+      .locator('[role="menuitem"]')
+      .allInnerTexts();
+    const text = eintraege.join(' | ');
+    for (const soll of [
+      'Neues Deck',
+      'Markdown-Deck öffnen',
+      'Markdown sichern',
+      'nozilla-Design',
+      'Alternatives Design',
+    ]) {
+      wahr(text.includes(soll), `„${soll}" fehlt im Datei-Menü — da steht: ${text}`);
+    }
+
+    // Etwas Ungesichertes anlegen; ohne `dirty` fragt niemand, und das ist
+    // richtig so.
+    await seite.keyboard.press('Escape');
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+
+    // Gemessen wird das *Deck* und nicht der Dialog: eine Prüfung, die nur
+    // nachsieht, ob ein Fenster aufging, hielte auch dann, wenn danach
+    // trotzdem geladen würde.
+    // Der **Dateiname** und nicht der Decktitel: der zweite Span der
+    // Kopfzeile. Der erste trägt den Titel aus dem Frontmatter, und der ändert
+    // sich beim Laden zwar auch — aber er sagt nicht, welche Datei kam.
+    const titel = () => seite.locator('header span').nth(1).innerText();
+    const vorher = await titel();
+
+    let gefragt = false;
+    const ablehnen = (dialog) => {
+      gefragt = true;
+      void dialog.dismiss();
+    };
+    seite.on('dialog', ablehnen);
+    await menue.click();
+    await seite.getByRole('menuitem', { name: /Alternatives Design/ }).click();
+    await bisWahr(() => gefragt, 'das Beispiel lud, ohne zu fragen');
+    seite.off('dialog', ablehnen);
+    gleich(await titel(), vorher, 'das Deck überlebte die Ablehnung nicht');
+
+    // Und angenommen kommt es wirklich.
+    const annehmen = (dialog) => void dialog.accept();
+    seite.on('dialog', annehmen);
+    await menue.click();
+    await seite.getByRole('menuitem', { name: /Alternatives Design/ }).click();
+    await bisWahr(
+      async () => (await titel()).includes('musterkunde'),
+      () => `das Beispiel kam nicht an — in der Leiste steht „${vorher}"`,
+    );
+    seite.off('dialog', annehmen);
+  });
+
   await pruefe('eine wiederhergestellte Sitzung gilt als ungesichert', async () => {
     /*
        Die Sitzung ist ungesicherte Arbeit — sie steht in keiner Datei und hat
