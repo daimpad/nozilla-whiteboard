@@ -86,7 +86,17 @@ export type Zeichenwahl = (typeof zeichenwahl)[number];
 export interface Wortmarkenentwurf {
   /** Der Rohtext der SVG-Datei. */
   svg: string;
-  /** Der Dateiname — er landet als `import` in der erzeugten Datei. */
+  /**
+   * Der Name der Datei, die jemand ausgesucht hat — als Quittung, sonst nichts.
+   *
+   * In die erzeugte Datei geht er **nicht**. Dort steht
+   * `wortmarkeDateiname(id)`, also ein aus dem Schlüssel gerechneter Name, und
+   * der Knopf „Wortmarke" händigt sie unter genau demselben aus: die beiden
+   * müssen zusammenpassen, und Umbenennen ist der Handgriff, der beim Ablegen
+   * am ehesten schiefgeht. Hier stand einmal das Gegenteil — ein Kommentar,
+   * der einem Feld eine Wirkung zuschreibt, die es nicht hat, ist die
+   * Vorstufe zu einem Feld, dessen Inhalt verworfen wird.
+   */
   dateiname: string;
   /** Die Füllfarbe der Buchstaben, wie sie **in der Datei** steht. */
   letters: string;
