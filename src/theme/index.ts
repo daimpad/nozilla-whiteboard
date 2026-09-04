@@ -119,7 +119,6 @@ export {
   space,
   shadow,
   motion,
-  canvas,
   elementDefaults,
   slideTransitions,
   revealAnimations,
@@ -146,7 +145,6 @@ import {
   shadow,
   space,
   uiRadius,
-  canvas as canvasTokens,
   type ShadowName,
   type StrokeName,
   type ToneName,
@@ -155,6 +153,26 @@ import {
 // Wechselnde Werte: aus der Laufzeit, nicht aus der Konfiguration. Die
 // Helfer unten und `cssVariables()` lesen sie bei jedem Aufruf neu.
 import { color, elementTones, fontFamily, shadowOffset, stroke, typeScale } from './runtime';
+/*
+   Und das Folienmaß ebenso. Es steht zwar in der CI und ist strukturell — was
+   hier wechselt, ist nicht die Marke, sondern das Blatt, auf dem *dieses Deck*
+   liegt. Wer `canvas` weiterhin aus `@theme` zöge, bekäme die Höhe des
+   Formats, das beim Start galt.
+*/
+import { canvas as canvasTokens } from './folienformat';
+
+export {
+  canvas,
+  folienformate,
+  folienhoehe,
+  istFolienformat,
+  aktivesFolienformat,
+  setzeFolienformat,
+  subscribeFolienformat,
+  folienformatVersion,
+  DIN_HOCH,
+} from './folienformat';
+export type { Folienformat, Folienmasse } from './folienformat';
 // Die Erscheinung des Werkzeugs — hell oder dunkel. Sie wechselt unabhängig
 // vom Erscheinungsbild der Folie; warum, steht in `surface.ts`.
 import { activeUi, activeUiShadow, surface } from './surface';

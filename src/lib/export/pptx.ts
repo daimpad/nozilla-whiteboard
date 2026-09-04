@@ -62,8 +62,21 @@ import { PARTS, XML_DECL, NS, faceName, relationships } from './pptxParts';
 
 /** Eine Folien-Einheit in EMU. 1280 × 9525 = 12192000 = 13⅓ Zoll. */
 export const EMU = 9525;
-export const SLIDE_CX = canvasTokens.width * EMU;
-export const SLIDE_CY = canvasTokens.height * EMU;
+/*
+   Funktionen und keine Konstanten: das Seitenmaß hängt seit dem Folienformat
+   am Deck, und `export const SLIDE_CY = canvasTokens.height * EMU` trüge die
+   Höhe des Formats, das beim Laden des Moduls zufällig galt. Eine `.pptx`
+   eines A4-Decks käme dann mit einer 16:9-Seite heraus — die Formen an der
+   richtigen Stelle, die Seite zu niedrig, und alles unterhalb 720 außerhalb
+   des Blattes. Warum das die Bauart ist und nicht ein Versehen, steht im Kopf
+   von `theme/folienformat.ts`.
+*/
+export function slideCx(): number {
+  return canvasTokens.width * EMU;
+}
+export function slideCy(): number {
+  return canvasTokens.height * EMU;
+}
 
 const emu = (units: number) => Math.round(units * EMU);
 /** Schriftgrößen stehen in Hundertstel Punkt; eine Einheit ist ¾ Punkt. */
@@ -277,7 +290,7 @@ function buildSlide(slide: Slide, deck: Deck, context: SlideContext): BuiltSlide
 
   /* Fußzeile und Foliennummer. */
   if (chrome) {
-    const footer = footerFrame;
+    const footer = footerFrame();
     const text = deck.meta.footer;
     if (text) {
       shapes.push(
@@ -1599,7 +1612,7 @@ function presentation(slideCount: number): string {
     '<p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst>' +
     '<p:notesMasterIdLst><p:notesMasterId r:id="rId2"/></p:notesMasterIdLst>' +
     `<p:sldIdLst>${ids}</p:sldIdLst>` +
-    `<p:sldSz cx="${SLIDE_CX}" cy="${SLIDE_CY}"/>` +
+    `<p:sldSz cx="${slideCx()}" cy="${slideCy()}"/>` +
     '<p:notesSz cx="6858000" cy="9144000"/>' +
     defaultTextStyle() +
     '</p:presentation>'

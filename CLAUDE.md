@@ -120,6 +120,7 @@ src/
               *.generated.ts  ERZEUGT — nicht von Hand ändern
   theme/      brandTheme.ts   Was ein Erscheinungsbild ausmacht — und was nicht
               runtime.ts      Welches gerade gilt (lebendige Bindungen)
+              folienformat.ts Auf welchem Blatt dieses Deck liegt (ebenso)
               surface.ts      Hell oder dunkel — die Erscheinung des Werkzeugs
               index.ts        Die Fassade: Inhalt aus der Laufzeit, Werkzeug aus
                               der Konfiguration
@@ -2114,6 +2115,35 @@ der Szene — im Rauchtest durch das Menü hindurch, in `blatt.test.ts` mit
 statt sie aus einem Deck zu holen: ein Deck, das gerade zufällig keine Ellipse
 enthält, machte daraus eine Prüfung über drei Arten, die behauptet, es seien
 fünf.
+
+**Das Folienmaß war eine Konstante, und drei Stellen hatten es abgegriffen.**
+`canvas` ist jetzt eine lebendige Bindung wie die Marke — nicht weil die Marke
+das Blatt wählte, sondern weil das *Deck* es tut: dieselbe CI, ein anderes
+Format. Damit gilt hier dieselbe Regel wie in `runtime.ts`, und sie hatte schon
+drei Verstöße, bevor es das Merkmal gab: `const { width, height, margin } =
+canvas` im Kopf von `slideLayout.ts` (Satzspiegel *und* Fußzeile), und
+`SLIDE_CX`/`SLIDE_CY` als Modulkonstanten im PPTX-Weg. Alle drei sind jetzt
+Funktionen.
+
+Zwei Modulkonstanten durften bleiben — `HOECHSTKANTE` liest `canvas.width`,
+`NOTIZ_ABSTAND` den oberen Satzspiegel —, und zwar genau so lange, wie ein
+Format nichts als die **Höhe** anfasst. Das ist keine Hoffnung, sondern eine
+Zusicherung: `folienformat.test.ts` hält jedes Format gegen die CI und wird
+rot, sobald eines die Breite bewegt. Erst dann sind die beiden still falsch,
+und dann sagt es jemand.
+
+Dass nur die Höhe wechselt, ist überhaupt die Entscheidung, die das Ganze klein
+hält. Keine waagerechte Größe ändert sich — Satzspiegel, Spaltenbreiten,
+`tableColumnWidths()`, jeder Zeilenumbruch, jede vorgemessene Wortbreite. Ein
+Format, das auch die Breite änderte, setzte jedes Deck neu, und wer umstellt,
+bekäme andere Umbrüche zurück, ohne ein Wort angefasst zu haben. Und beide
+A4-Formate sind *höher* als 16:9: umzustellen kann nichts wegschieben, nur der
+Rückweg kann Elemente unter die Kante schicken.
+
+Der Schlüssel `16-9` nimmt seine Höhe aus der CI und nicht aus dem Namen — und
+eine Zusicherung hält fest, dass die CI wirklich 16:9 ist. Sonst wäre der Name
+eines Tages eine Lüge, und zwar eine im Dateiformat: dieselbe Sorte wie der
+Untergrund `paper`, der das Weiß malt.
 
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
