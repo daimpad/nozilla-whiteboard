@@ -197,6 +197,21 @@ export const iconFrameLabels: Record<string, string> = {
 };
 
 /**
+ * Die Farbe der Wortmarke.
+ *
+ * „Automatisch" ist der Regelfall und heißt: der Ton, der auf dem Untergrund
+ * der Folie lesbar ist. Die anderen drei sind die Ausnahme, die man
+ * ausdrücklich wählt — und deshalb heißen sie nach dem, was sie malen, und
+ * nicht nach ihrem Wert im Dateiformat.
+ */
+export const wordmarkLabels: Record<string, string> = {
+  auto: 'Automatisch',
+  ink: 'Tinte',
+  paper: 'Papier',
+  mono: 'Einfarbig',
+};
+
+/**
  * Die Typo-Stufen behalten ihre Namen: `h1`, `lead`, `body` sind die Sprache
  * der CI und stehen so in `theme.config.ts`, im Prompt und in jedem Deck.
  * Übersetzt wird nur, was ohne Erklärung sonst nichts sagt.

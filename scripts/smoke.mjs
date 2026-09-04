@@ -55,7 +55,17 @@ async function pruefe(name, fn) {
     console.log(`  ✓ ${name}`);
   } catch (error) {
     ergebnisse.push({ name, ok: false, error });
-    console.log(`  ✗ ${name}\n      ${String(error).split('\n')[0]}`);
+    /*
+       Mehr als die erste Zeile — und das ist keine Bequemlichkeit.
+
+       Bei einer Zeitüberschreitung steht in der ersten Zeile nur
+       „locator.click: Timeout 30000ms exceeded", und *welcher* Griff ins Leere
+       ging, steht im Aufrufprotokoll darunter. Zweimal in dieser Runde war das
+       die entscheidende Auskunft: einmal wartete ein Klick auf einen Reiter,
+       der bei mehreren Ausgewählten „Element (2)" heißt, einmal auf einen
+       Befund, der nie erschien.
+    */
+    console.log(`  ✗ ${name}\n      ${String(error).split('\n').slice(0, 6).join('\n      ')}`);
   }
 }
 
@@ -131,7 +141,7 @@ async function bisWahr(fn, was, frist = 15000) {
     if (ist) return ist;
     // Die Meldung darf eine Funktion sein: dann kann sie nennen, was zuletzt
     // dastand — „nicht eingetreten" allein sagt nichts darüber, woran es lag.
-    if (Date.now() > ende) wahr(ist, typeof was === 'function' ? was() : was);
+    if (Date.now() > ende) wahr(ist, typeof was === 'function' ? await was() : was);
     await new Promise((weiter) => setTimeout(weiter, 40));
   }
 }
@@ -1288,6 +1298,119 @@ async function main() {
     wahr(hell, 'keine Bausteinvorschau gefunden');
     const [r, g, b] = hell.match(/\d+/g).map(Number);
     wahr(r + g + b > 600, `Vorschau-Untergrund zu dunkel: ${hell}`);
+  });
+
+  await pruefe('ein Feld einer Art trifft nur seine Art', async () => {
+    /*
+       Der Inspektor zeigt die Felder des **ersten** Ausgewählten und schrieb
+       sie an **alle**. Diagramm und Tabelle teilen sich `data` und `label`:
+       wer beide auswählte und im Feld „Zahlen" tippte, überschrieb die Zellen
+       der Tabelle. Gemessen: aus „Was⇥Wert / Eins⇥1" wurde „West⇥99", und der
+       Verlust überlebte das Sichern.
+
+       Geprüft wird an der **Folie** und nicht am Modell: dass eine Rechnung
+       die richtigen Kennungen wählt, sähe man einer Zusicherung über den Store
+       auch dann an, wenn der Inspektor sie nicht ruft.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    // Ausdrücklich in der **Bibliothek** gesucht: `aside button` trifft auch
+    // die Leiste rechts, und dort steht die Art des ausgewählten Elements —
+    // nach dem Einsetzen des Diagramms also ein zweites „Tabelle" im Weg.
+    const bibliothek = seite.locator('aside[aria-label="Bausteinbibliothek"] button');
+    await bibliothek.filter({ hasText: 'Balken' }).first().click();
+    await bibliothek.filter({ hasText: 'Tabelle' }).first().click();
+    await bisWahr(
+      async () => (await seite.locator('[data-hit-element]').count()) >= 2,
+      'es lagen kein Diagramm und keine Tabelle auf der Folie',
+    );
+
+    // Ein Wort, das nur in der Tabelle steht — es muss die Bearbeitung des
+    // Diagramms überleben. „Übersicht" steht in der Vorbelegung des Bausteins.
+    const ausTabelle = 'Übersicht';
+    await bisWahr(() => stehtAufFolie(seite, ausTabelle), 'die Tabelle kam nicht auf die Folie');
+
+    await seite.keyboard.press('Control+a');
+    // Nicht `exact`: bei mehreren Ausgewählten trägt der Reiter ihre Zahl —
+    // „Element (2)". Genau daran ist diese Prüfung im ersten Anlauf hängen
+    // geblieben, mit einer Zeitüberschreitung und ohne einen Hinweis darauf.
+    await seite.getByRole('button', { name: /^Element/ }).click();
+    // Die Leiste sagt selbst, dass die Auswahl gemischt ist.
+    await bisWahr(
+      () => seite.getByText('umfasst mehrere Arten', { exact: false }).count(),
+      'der Inspektor sagt nichts über die gemischte Auswahl',
+    );
+
+    const zahlen = seite.locator('aside[aria-label="Inspektor"] textarea').first();
+    await zahlen.fill('West\t99');
+    await bisWahr(() => stehtAufFolie(seite, '99'), 'die neue Zahl kam nicht ins Diagramm');
+
+    wahr(
+      await stehtAufFolie(seite, ausTabelle),
+      `„${ausTabelle}" aus der Tabelle wurde vom Diagrammfeld überschrieben`,
+    );
+    await seite.keyboard.press('Escape');
+  });
+
+  await pruefe('Wortmarke und Form haben ihre eigenen Felder', async () => {
+    /*
+       Beide Felder wirken auf der Folie, und beide waren im Inspektor nicht
+       zu erreichen: die Wortmarke fiel in den `default`-Zweig und hatte gar
+       keins, und die Typo-Stufe eines Form-Labels stand nur im `nzl`-Block.
+       Wer sie wollte, musste die Datei von Hand schreiben.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.locator('aside button').filter({ hasText: 'Wortmarke' }).first().click();
+    await seite.getByRole('button', { name: 'Element', exact: true }).click();
+    const inspektor = seite.locator('aside[aria-label="Inspektor"]');
+    await bisGleich(
+      () => inspektor.getByText('Farbe', { exact: true }).count(),
+      1,
+      'die Wortmarke zeigt kein Feld für ihre Farbe',
+    );
+
+    // Und sie wirkt: „Einfarbig" malt anders als „Automatisch". Angesprochen
+    // über das *erste* Auswahlfeld der Leiste — das letzte ist die Animation
+    // des Einblendschritts, und die steht ohne Schritt auf `disabled`.
+    const vorher = (await seite.evaluate(FOLIE)).markup;
+    await inspektor.locator('select').first().selectOption('mono');
+    await bisWahr(
+      async () => (await seite.evaluate(FOLIE)).markup !== vorher,
+      'die Farbe der Wortmarke ändert nichts an der Folie',
+    );
+
+    /* --------------------------------------------------- die Typo-Stufe */
+    await seite.locator('aside button').filter({ hasText: 'Rechteck' }).first().click();
+    await bisGleich(
+      () => inspektor.getByText('Typo-Stufe des Labels', { exact: true }).count(),
+      0,
+      'die Form ohne Label zeigt schon eine Typo-Stufe',
+    );
+    const label = inspektor.locator('input[type="text"], input:not([type])').last();
+    await label.fill('Antrag');
+    await bisGleich(
+      () => inspektor.getByText('Typo-Stufe des Labels', { exact: true }).count(),
+      1,
+      'die beschriftete Form zeigt keine Typo-Stufe',
+    );
+  });
+
+  await pruefe('ein Zahlenfeld hält seine eigene Grenze ein', async () => {
+    /*
+       `min` und `max` standen nur als Attribute da — der Browser hält davon
+       nur die Pfeiltasten ab, getippt wird alles. Eine −50 in „Breite" ergab
+       eine Karte, deren Text Zeichen für Zeichen umbrach, und beim nächsten
+       Öffnen stand stillschweigend eine 1 da: der Leser kappt. Der getippte
+       Wert war damit weder behalten noch abgelehnt, sondern still ersetzt.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
+    const breite = seite.locator('aside[aria-label="Inspektor"] input').nth(2);
+    await seite.getByRole('button', { name: 'Element', exact: true }).click();
+    await breite.fill('-50');
+    await breite.press('Enter');
+
+    const [, , gemessen] = await masse(seite);
+    wahr(gemessen >= 1, `die Breite steht auf ${gemessen} statt auf mindestens 1`);
   });
 
   await pruefe('ein überlaufender Text meldet sich, ein passender nicht', async () => {
@@ -2469,15 +2592,39 @@ async function main() {
        sieht in keiner Zusicherung anders aus als eindeutig — außer in dieser.
     */
     await zumSchritt(generator, 'Maße');
-    await generator.locator('#nz-ci-masse-schatten-sm').fill('');
-    await generator.locator('#nz-ci-masse-leiter-base').focus();
-    await generator.waitForTimeout(400);
 
-    await generator
-      .locator('p', { hasText: 'trägt keine Zahl' })
-      .getByRole('button', { name: 'Zum Feld' })
-      .first()
-      .click();
+    /*
+       Drei Bedingungen statt einer Pause — und die mittlere ist der Grund.
+
+       Hier stand `fill('')`, dann 400 ms, dann der Klick. In der CI schlug er
+       fehl: „waiting for locator(…)" nach dreißig Sekunden, der Befund war
+       also nie da. Ein `fill()` wartet zwar darauf, dass das Feld im Baum
+       hängt — nicht aber darauf, dass der Schritt fertig gezeichnet ist. Baut
+       React den Bereich unmittelbar danach neu auf, steht der alte Wert wieder
+       da, und ohne leeres Feld gibt es keinen Befund. Auf einem schnellen
+       Rechner passiert das nie, auf einem ausgelasteten schon.
+
+       Und die dritte nennt bei einem Fehlschlag, was wirklich in der Liste
+       steht: eine Zeitüberschreitung an einem Klick sagt nur, dass etwas
+       fehlte, nicht was stattdessen da war.
+    */
+    const schatten = generator.locator('#nz-ci-masse-schatten-sm');
+    await bisWahr(() => schatten.inputValue(), 'das Feld für den Schattenversatz kam nicht');
+    await schatten.fill('');
+    await generator.locator('#nz-ci-masse-leiter-base').focus();
+    await bisGleich(() => schatten.inputValue(), '', 'das Feld ließ sich nicht leeren');
+
+    const befund = generator.locator('p', { hasText: 'trägt keine Zahl' });
+    await bisWahr(
+      () => befund.count(),
+      async () => {
+        const liste = await generator.locator('p').allInnerTexts();
+        return `kein Befund über den fehlenden Schattenversatz. Die Liste sagt: ${JSON.stringify(
+          liste.filter((text) => /Fehler|Warnung|wissen/.test(text)).slice(0, 6),
+        )}`;
+      },
+    );
+    await befund.getByRole('button', { name: 'Zum Feld' }).first().click();
     await bisGleich(
       () => generator.evaluate(() => document.activeElement?.id),
       'nz-ci-masse-schatten-sm',

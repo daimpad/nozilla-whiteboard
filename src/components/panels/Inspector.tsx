@@ -34,6 +34,7 @@ import {
   connectorLabels,
   fillLabels,
   iconFrameLabels,
+  kindLabels,
   labelOf,
   layoutLabels,
   revealLabels,
@@ -42,6 +43,7 @@ import {
   transitionLabels,
   typeStyleLabels,
   valignLabels,
+  wordmarkLabels,
 } from '@/lib/labels';
 import { iconNames, isIconName, type IconName } from '@/assets/icons';
 import {
@@ -54,6 +56,7 @@ import {
   shapeNames,
   slideBackgrounds,
   verticalAligns,
+  wordmarkVariants,
   type CanvasElement,
   type FillStyle,
 } from '@/model/types';
@@ -411,6 +414,30 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
     updateElements(ids, update);
   };
 
+  /*
+     Artgebundene Felder treffen nur, was dieselbe Art hat.
+
+     Der Inspektor zeigt die Felder des **ersten** Ausgewählten und schrieb sie
+     an **alle**. Bei zwei verschiedenen Arten war das nicht bloß folgenlos,
+     sondern zerstörend: Diagramm und Tabelle teilen sich `data` und `label`.
+     Wer beide auswählte und im Feld „Zahlen" tippte, überschrieb damit die
+     Zellen der Tabelle — gemessen: aus „Was⇥Wert / Eins⇥1" wurde „West⇥99",
+     und der Verlust überlebte das Sichern. Ein Badge bekam auf demselben Weg
+     ein `title`, das kein Zeichner liest und das in der Datei stand.
+
+     Die gemeinsamen Felder oben — Ort, Maße, Ton, Füllung — treffen weiter
+     alle: dafür wählt man mehrere aus.
+  */
+  const artIds = useMemo(
+    () => elements.filter((element) => element.kind === first?.kind).map((element) => element.id),
+    [elements, first],
+  );
+  const gemischt = artIds.length !== ids.length;
+  const patchArt = (update: Partial<CanvasElement>, historic = true) => {
+    if (historic) pushHistory(`${artIds.join()}:${Object.keys(update).join()}`);
+    updateElements(artIds, update);
+  };
+
   if (!first) {
     return (
       <div className="p-6 text-center text-ui-body text-ui-faint">
@@ -658,7 +685,14 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
       ) : null}
 
       {/* ------------------------------------------------------ kind-specific */}
-      <KindFields element={first} patch={patch} />
+      {gemischt ? (
+        <p className="px-1 text-[11px] leading-snug text-ui-faint">
+          Die Auswahl umfasst mehrere Arten. Was hier steht, gilt nur für{' '}
+          {artIds.length === 1 ? 'das ausgewählte' : `die ${artIds.length} ausgewählten`}{' '}
+          {labelOf(kindLabels, first.kind)}.
+        </p>
+      ) : null}
+      <KindFields element={first} patch={patchArt} />
 
       {/* ----------------------------------------------------------- reveal */}
       <div className="rounded-md border border-ui p-2">
@@ -669,7 +703,10 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
               min={0}
               className="nz-field w-16"
               value={first.reveal?.step ?? 0}
-              onChange={(event) => setRevealStep(Number(event.target.value) || 0)}
+              // Nicht unter null: ein negativer Schritt bleibt im Modell
+              // stehen, und beim nächsten Öffnen fällt die ganze Choreografie
+              // weg — samt der Animation, die jemand daneben gewählt hat.
+              onChange={(event) => setRevealStep(Math.max(0, Number(event.target.value) || 0))}
             />
             <Select
               className="flex-1"
@@ -948,6 +985,30 @@ function KindFields({ element, patch }: KindFieldsProps) {
         </>
       );
 
+    /*
+       Die Wortmarke fiel bis hierher in den `default`-Zweig und bekam gar
+       keine eigenen Felder. Ihre Variante ist aber das **einzige**, was sie an
+       sich selbst hat, und sie wirkt: von den vier Werten malen drei
+       verschiedene Bilder. Erreichbar war sie nur, indem man den `nzl`-Block
+       von Hand editiert — ein Feld des Dateiformats ohne einen Weg dorthin.
+    */
+    case 'wordmark':
+      return (
+        <Field
+          label="Farbe"
+          hint={'„Automatisch" nimmt den Ton, der auf dem Untergrund der Folie lesbar ist.'}
+        >
+          <Select
+            value={element.variant}
+            onChange={(event) => patch({ variant: event.target.value } as Partial<CanvasElement>)}
+            options={wordmarkVariants.map((value) => ({
+              value,
+              label: labelOf(wordmarkLabels, value),
+            }))}
+          />
+        </Field>
+      );
+
     case 'shape':
       return (
         <>
@@ -965,6 +1026,28 @@ function KindFields({ element, patch }: KindFieldsProps) {
               onChange={(event) => patch({ label: event.target.value } as Partial<CanvasElement>)}
             />
           </Field>
+          {/*
+            Die Stufe des Labels wirkt — `shapeScene()` setzt es in
+            `labelStyle ?? 'body'`, die `.pptx` trägt sie mit, und im
+            Dateiformat steht sie. Nur gab es kein Feld dafür: wer eine Form
+            als Überschrift wollte, musste den `nzl`-Block von Hand schreiben.
+          */}
+          {element.label?.trim() ? (
+            <Field label="Typo-Stufe des Labels">
+              <Select
+                value={element.labelStyle ?? 'body'}
+                onChange={(event) =>
+                  patch({
+                    labelStyle: event.target.value as TypeStyleName,
+                  } as Partial<CanvasElement>)
+                }
+                options={(Object.keys(typeScale) as TypeStyleName[]).map((value) => ({
+                  value,
+                  label: `${labelOf(typeStyleLabels, value)} · ${typeScale[value].size} px`,
+                }))}
+              />
+            </Field>
+          ) : null}
         </>
       );
 
@@ -1141,7 +1224,17 @@ function NumberField({
         step={step}
         onChange={(event) => {
           const next = Number(event.target.value);
-          if (Number.isFinite(next)) onChange(next);
+          if (!Number.isFinite(next)) return;
+          /*
+             `min` und `max` standen bisher nur als Attribute da — der Browser
+             hält davon nur die Pfeiltasten ab, getippt wird alles. Wer in
+             „Breite" (min 1) eine −50 schrieb, bekam eine Karte, deren Text
+             Zeichen für Zeichen umbrach, und beim nächsten Öffnen stand
+             stillschweigend eine 1 da: `normalizeElement` kappt beim Lesen.
+             Der getippte Wert war damit weder behalten noch abgelehnt,
+             sondern still ersetzt.
+          */
+          onChange(Math.min(max ?? Infinity, Math.max(min ?? -Infinity, next)));
         }}
       />
     </Field>

@@ -1995,6 +1995,52 @@ Belegt ist beides: **vier Läufe hintereinander grün**, und eine Sabotage an
 `overflowOf()` — `ueber > NACHSICHT && false` — macht die umgestellte Prüfung
 rot, mit ihrer alten Meldung und ohne hängen zu bleiben.
 
+**Ein Feld des Inspektors traf alles, was ausgewählt war — auch die falsche
+Art.** Er zeigt die Felder des **ersten** Ausgewählten und schrieb sie an
+**alle**. Bei zwei verschiedenen Arten war das nicht folgenlos, sondern
+zerstörend: Diagramm und Tabelle teilen sich `data` und `label`. Wer beide
+auswählte und im Feld „Zahlen" tippte, überschrieb die Zellen der Tabelle —
+gemessen: aus „Was⇥Wert / Eins⇥1" wurde „West⇥99", und der Verlust überlebte
+das Sichern. Ein Badge bekam auf demselben Weg ein `title`, das kein Zeichner
+liest und das in der Datei stand.
+
+Artgebundene Felder treffen jetzt nur ihre eigene Art, und die Leiste sagt es,
+wenn die Auswahl gemischt ist. Die *gemeinsamen* Felder — Ort, Maße, Ton,
+Füllung — treffen weiter alle: dafür wählt man mehrere aus.
+
+**Zwei Felder wirkten auf der Folie und waren im Inspektor nicht zu
+erreichen.** Die Wortmarke fiel in den `default`-Zweig und bekam gar keine
+eigenen Felder — dabei ist ihre Variante das einzige, was sie an sich selbst
+hat, und von den vier Werten malen drei verschiedene Bilder. Und die Typo-Stufe
+eines Form-Labels (`labelStyle`) steht im Dateiformat, wird gezeichnet und in
+die `.pptx` getragen; ein Feld dafür gab es nie. Beides war nur über den
+handgeschriebenen `nzl`-Block erreichbar — das Gegenstück zum toten
+Bedienelement: eine wirksame Angabe ohne einen Weg dorthin.
+
+**`min` und `max` standen nur als Attribute da.** Der Browser hält davon nur
+die Pfeiltasten ab; getippt wird alles. Eine −50 in „Breite" ergab eine Karte,
+deren Text Zeichen für Zeichen umbrach, und beim nächsten Öffnen stand
+stillschweigend eine 1 da — `normalizeElement` kappt beim Lesen. Der getippte
+Wert war damit weder behalten noch abgelehnt, sondern still ersetzt; dasselbe
+beim Einblendschritt, wo ein negativer Wert die ganze Choreografie samt
+gewählter Animation verschwinden ließ. Gekappt wird jetzt dort, wo die Grenze
+schon steht.
+
+**Und eine Zeitüberschreitung nannte nicht, worauf sie wartete.** Der
+Rauchtest druckte von einem Fehlschlag nur die erste Zeile — bei einem
+Playwright-Timeout ist das „locator.click: Timeout 30000ms exceeded" und sonst
+nichts. *Welcher* Griff ins Leere ging, steht im Aufrufprotokoll darunter.
+Zweimal in einer Runde war genau das die entscheidende Auskunft: einmal wartete
+ein Klick auf einen Reiter, der bei mehreren Ausgewählten „Element (2)" heißt,
+einmal auf einen Befund, der nie erschien. Gedruckt werden jetzt sechs Zeilen.
+
+Der zweite Fall ist dabei der lehrreichere: `fill('')` wartet darauf, dass ein
+Feld im Baum hängt — nicht darauf, dass der Schritt fertig gezeichnet ist. Baut
+React den Bereich unmittelbar danach neu auf, steht der alte Wert wieder da,
+und ohne leeres Feld gibt es keinen Befund zum Anklicken. Auf einem schnellen
+Rechner passiert das nie, in der CI schon. Gewartet wird deshalb darauf, dass
+der Wert wirklich leer *ist*.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,
