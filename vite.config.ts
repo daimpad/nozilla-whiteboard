@@ -48,6 +48,22 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
       '@theme': fileURLToPath(new URL('./theme.config.ts', import.meta.url)),
+      /*
+         Die beiden Wege von jsPDF, die dieses Werkzeug nicht geht.
+
+         `doc.svg()` und `doc.html()` laden `canvg` und `html2canvas` im Rumpf
+         über einen dynamischen Import nach. Gerufen wird keiner von beiden —
+         das PDF entsteht hier aus der `Scene` —, aber Rollup sieht die
+         Ausdrücke und legt zwei Lazy-Chunks an: 202 kB und 160 kB, die
+         ausgeliefert werden und die kein Browser je anfordert. Warum ein
+         leeres Modul und kein `external`, steht im Kopf von `jspdfOhne.ts`.
+
+         Nicht dabei ist `dompurify`: das lädt jsPDF aus demselben Rumpf nach,
+         dieses Werkzeug benutzt es aber selbst — `lib/markdown/render.ts`
+         reinigt damit das eingebettete HTML.
+      */
+      canvg: fileURLToPath(new URL('./src/lib/export/jspdfOhne.ts', import.meta.url)),
+      html2canvas: fileURLToPath(new URL('./src/lib/export/jspdfOhne.ts', import.meta.url)),
     },
   },
   server: {
