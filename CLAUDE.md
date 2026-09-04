@@ -2058,6 +2058,35 @@ selbst (`playwright install`), dieses Abbild bringt einen anderen mit. Wer eine
 Zeitüberschreitung nicht nachstellen kann, hat deshalb nicht unbedingt keinen
 Fehler — er hat einen anderen Rechner.
 
+**Die erzeugte Designdatei wurde gelesen und nie ausgeführt.** Für die Frage
+„was wird aus diesem Entwurf" gibt es zwei Rechnungen: `themeAusEntwurf()`
+zeichnet damit die Probefolie, `designdatei()` schreibt die Datei, die jemand
+mitnimmt. Fünf Prüfungen standen über der Datei — sie übersetzt, Prettier lässt
+sie in Ruhe, ESLint auch, jede Farbe steht einmal darin, der Export heißt wie
+verlangt. Alle fünf lesen sie als **Text**. Damit war belegt, dass sie *eine*
+Datei ist, und nirgends, dass sie *dieselbe* ist: die Probefolie hätte eine
+Laufweite zeigen können, die in der ausgelieferten Marke anders herauskommt, und
+gesehen hätte man es erst in der fremden Datei. Dritter Fall derselben Sorte in
+diesem Repo, nach `tabellenLabelHoehe()` und `tableColumnWidths()`.
+
+Ausgeführt wird sie jetzt wirklich — `ts.transpileModule`, die drei Importe
+bedient, das exportierte `BrandTheme` Feld für Feld gegen das der Vorschau. Mit
+TypeScript selbst und nicht mit einem nachgebauten Leser, dieselbe Linie wie bei
+Prettier und ESLint daneben. Zwei Dinge hängen daran: der Entwurf der Prüfung
+trägt eine gesetzte Laufweite und das fremde Zeichen-Set, denn beides geht in
+der Datei durch eine *Rechnung* und nicht durch eine Zuweisung — ein Entwurf mit
+`auszeichnungEnger: 0` ließe genau die durch. Und wer kein Erscheinungsbild
+findet, wirft: zwei `undefined` vergleichen sich klaglos, und die Prüfung wäre
+grün über einer Datei, die gar nichts exportiert.
+
+Nachgemessen: die beiden stimmen überein, in beiden mitgelieferten Zeichenwahlen.
+Und daneben lag ein Kommentar, der es nicht tat — `Wortmarkenentwurf.dateiname`
+versprach, „als `import` in der erzeugten Datei" zu landen. Dorthin geht
+`wortmarkeDateiname(id)`, ein aus dem Schlüssel gerechneter Name; der
+ausgesuchte Dateiname steht nur als Quittung im Formular. Ein Kommentar, der
+einem Feld eine Wirkung zuschreibt, die es nicht hat, ist die Vorstufe zu einem
+Feld, dessen Inhalt verworfen wird.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,

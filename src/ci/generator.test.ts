@@ -12,6 +12,8 @@
  * gegen die Regeln, an denen eine von Hand geschriebene auch gemessen wird.
  */
 import { afterEach, describe, expect, it } from 'vitest';
+import ts from 'typescript';
+import * as themeModul from '@/theme';
 import {
   activeTheme,
   availableThemes,
@@ -19,6 +21,7 @@ import {
   setActiveTheme,
   tonesOutsidePalette,
 } from '@/theme';
+import { withoutSignature } from '@/assets/icons';
 import { kanalabstand, kontrast, unterscheidbar } from '@/lib/contrast';
 import { registerThemes } from '@/themes';
 import { zeichneProbe } from './Vorschau';
@@ -491,7 +494,69 @@ describe('die erzeugte Designdatei', () => {
       expect(quelle, rolle).toContain(`${rolle}`);
     }
   });
+
+  it('ergibt ausgeführt dasselbe Erscheinungsbild, das die Vorschau zeigt', () => {
+    /*
+       Die Prüfung, an der das Versprechen dieser Seite hängt — und die
+       gefehlt hat.
+
+       Es gibt zwei Rechnungen für dieselbe Frage „was wird aus diesem
+       Entwurf". `themeAusEntwurf()` beantwortet sie für die Probefolie,
+       `designdatei()` für die Datei, die jemand mitnimmt. Die Prüfungen
+       darüber lesen die Datei als *Text*: sie belegen, dass sie übersetzt,
+       dass Prettier sie in Ruhe lässt, dass jede Farbe einmal darin steht.
+       Keine von ihnen führt sie aus, und genau dazwischen liegt der Fehler,
+       der hier dreimal vorkam — zwei Rechnungen laufen auseinander, und man
+       sieht es erst in der fremden Datei.
+
+       Ausgeführt wird sie deshalb wirklich: `ts.transpileModule` macht daraus
+       CommonJS, die drei Importe werden bedient, und das exportierte
+       `BrandTheme` wird Feld für Feld gegen das der Vorschau gehalten. Mit
+       TypeScript selbst und nicht mit einem nachgebauten Leser — dieselbe
+       Linie wie bei Prettier und ESLint zwei Prüfungen weiter oben.
+
+       Der Entwurf trägt dafür eine gesetzte Laufweite und das fremde
+       Zeichen-Set: beides geht in der Datei durch eine *Rechnung* und nicht
+       durch eine Zuweisung, und ein Entwurf mit `auszeichnungEnger: 0` ließe
+       genau die durch.
+    */
+    const entwurf = probeEntwurf({ auszeichnungEnger: 0.01, zeichen: 'ohne-signatur' });
+    const ausDerDatei = fuehreAus(designdatei(entwurf));
+    expect(ausDerDatei).toEqual(themeAusEntwurf(entwurf));
+  });
 });
+
+/**
+ * Eine erzeugte Designdatei ausführen und ihr `BrandTheme` zurückgeben.
+ *
+ * Die drei Importe, die der Emitter schreibt, werden bedient: `@/theme` und
+ * `@/assets/icons` mit den echten Modulen — ein nachgebautes Modul prüfte die
+ * Datei gegen eine Erfindung —, und `./<id>-wortmarke.svg?raw` mit dem
+ * Rohtext, den der Entwurf ohnehin trägt. Ein vierter Import wirft: er wäre
+ * eine Abhängigkeit, von der niemand weiß.
+ */
+function fuehreAus(quelltext: string): unknown {
+  const code = ts.transpileModule(quelltext, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+
+  const ausgang: Record<string, unknown> = {};
+  const fordere = (was: string): unknown => {
+    if (was === '@/theme') return themeModul;
+    if (was === '@/assets/icons') return { withoutSignature };
+    if (was.endsWith('?raw')) return { default: WORTMARKE };
+    throw new Error(`Die erzeugte Datei importiert „${was}" — davon weiß hier niemand.`);
+  };
+  new Function('require', 'exports', 'module', code)(fordere, ausgang, { exports: ausgang });
+
+  const theme = Object.values(ausgang).find(
+    (wert) => wert !== null && typeof wert === 'object' && 'palette' in (wert as object),
+  );
+  // Ohne diesen Riegel verglichen zwei `undefined` sich klaglos, und die
+  // Prüfung wäre grün über einer Datei, die gar nichts exportiert.
+  if (!theme) throw new Error('Die erzeugte Datei exportiert kein Erscheinungsbild.');
+  return theme;
+}
 
 /* -------------------------------------------------------------------------- */
 
