@@ -19,7 +19,7 @@ import {
   type TextMode,
 } from '@/lib/export';
 import { selectCanRedo, selectCanUndo, useDeckStore } from '@/state/deckStore';
-import { Button, Divider, IconButton, Segmented, cx } from '@/components/ui/controls';
+import { Button, Divider, IconButton, SectionTitle, Segmented, cx } from '@/components/ui/controls';
 import { Icon } from '@/components/ui/Icon';
 import type { ToolIconName } from '@/assets/icons';
 import { Logo } from '@/components/chrome/Logo';
@@ -38,7 +38,6 @@ export function TopBar() {
   const canUndo = useDeckStore(selectCanUndo);
   const canRedo = useDeckStore(selectCanRedo);
 
-  const newDeck = useDeckStore((state) => state.newDeck);
   const setZoom = useDeckStore((state) => state.setZoom);
   const toggleGrid = useDeckStore((state) => state.toggleGrid);
   const setSnap = useDeckStore((state) => state.setSnap);
@@ -74,21 +73,16 @@ export function TopBar() {
 
       <Divider className="mx-1" />
 
-      <IconButton
-        icon="file-lines"
-        label="Neues Deck (⌘⇧N)"
-        onClick={() => {
-          if (darfErsetzen()) newDeck();
-        }}
-      />
-      <BeispielMenu />
-      <IconButton
-        icon="folder"
-        label="Markdown-Deck öffnen (⌘O)"
-        onClick={() => void oeffneDeck()}
-      />
-      <IconButton icon="download" label="Markdown sichern (⌘S)" onClick={handleSave} />
+      {/*
+        Links steht, was mit der **Datei und der Marke** zu tun hat, rechts,
+        was mit der **Ansicht** zu tun hat. Das Zahnrad stand bis hierher
+        rechts neben „Vortragen" und war dort der einzige Fremdkörper: die
+        Erscheinung des Arbeitsplatzes, das Anlegen eines Erscheinungsbilds
+        und der Stand des Werkzeugs gehen den Vortrag nichts an.
+      */}
+      <DateiMenu onSave={handleSave} />
       <ExportMenu busy={busy} setBusy={setBusy} />
+      <SettingsMenu />
 
       <Divider className="mx-1" />
 
@@ -140,13 +134,6 @@ export function TopBar() {
 
         <Divider />
 
-        {/*
-          Das Zahnrad kam aus dem Fuß der Bausteinleiste hierher. Es steht
-          bewusst *vor* „Vortragen": der eine dunkle Knopf pro Ansicht ist die
-          Hauptsache, und Einstellungen sind es nie.
-        */}
-        <SettingsMenu />
-
         <Button variant="primary" icon="play" onClick={() => setMode('present')}>
           Vortragen
         </Button>
@@ -169,14 +156,22 @@ export function TopBar() {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Die mitgelieferten Decks.
+ * Alles, was ein Deck anlegt, ersetzt, öffnet oder sichert — an einer Stelle.
  *
- * Sie stehen nicht hinter „Neues Deck", weil das etwas anderes bedeutet: leer
- * anfangen. Ein Beispiel zu öffnen heißt, etwas Fertiges anzusehen — und
- * überschreibt, was gerade offen ist. Deshalb ein eigener Knopf und die
- * Rückfrage, sobald noch Ungesichertes daliegt.
+ * Vorher standen dafür vier Knöpfe und ein Untermenü nebeneinander in der
+ * Leiste. Das ist die Sorte Reihe, die man nur noch mit dem Kurzhinweis liest:
+ * fünf Zeichen, deren Unterschied „neu", „Beispiel", „öffnen", „sichern"
+ * heißt, und keines davon sieht man ihm an.
+ *
+ * Die mitgelieferten Decks stehen **flach** darin und nicht in einem
+ * Untermenü. Ein Menü im Menü ist mit der Maus fummelig und mit der Tastatur
+ * eine eigene Belegung; bei zwei Einträgen wäre das ein Bauwerk für nichts.
+ * Sie stehen aber unter einer eigenen Überschrift, denn sie bedeuten etwas
+ * anderes als „Neues Deck": leer anfangen ist das eine, etwas Fertiges
+ * ansehen das andere — und beides überschreibt, was gerade offen ist.
  */
-function BeispielMenu() {
+function DateiMenu({ onSave }: { onSave: () => void }) {
+  const newDeck = useDeckStore((state) => state.newDeck);
   const loadMarkdown = useDeckStore((state) => state.loadMarkdown);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -190,37 +185,56 @@ function BeispielMenu() {
     return () => document.removeEventListener('mousedown', zu);
   }, [open]);
 
-  const oeffne = (deck: (typeof bundledDecks)[number]) => {
+  const dann = (tu: () => void) => () => {
+    setOpen(false);
+    tu();
+  };
+
+  const oeffneBeispiel = (deck: (typeof bundledDecks)[number]) => {
     // Die Frage stand ursprünglich hier — als einzige von sechs Stellen.
     // Jetzt steht sie in `darfErsetzen()`, und die anderen fünf stellen sie
     // auch.
     if (!darfErsetzen()) return;
     loadMarkdown(deck.source, { fileName: deck.file });
-    setOpen(false);
   };
 
   return (
     <div className="relative" ref={ref}>
-      <IconButton
-        icon="book"
-        label="Beispiel öffnen"
-        active={open}
-        onClick={() => setOpen((value) => !value)}
-      />
+      <Button icon="file-lines" active={open} onClick={() => setOpen((value) => !value)}>
+        Datei
+      </Button>
       {open ? (
         <div
           className="nz-panel absolute left-0 top-9 z-popover w-64 animate-pop-in p-1 shadow-ui-lg"
           role="menu"
         >
-          {bundledDecks.map((deck) => (
-            <MenuItem
-              key={deck.file}
-              icon="file-lines"
-              label={deck.label}
-              hint={deck.hint}
-              onClick={() => oeffne(deck)}
-            />
-          ))}
+          <MenuItem
+            icon="file-lines"
+            label="Neues Deck"
+            hint="⌘⇧N — leer anfangen"
+            onClick={dann(() => {
+              if (darfErsetzen()) newDeck();
+            })}
+          />
+          <MenuItem
+            icon="folder"
+            label="Markdown-Deck öffnen"
+            hint="⌘O"
+            onClick={dann(() => void oeffneDeck())}
+          />
+          <MenuItem icon="download" label="Markdown sichern" hint="⌘S" onClick={dann(onSave)} />
+
+          <div className="border-t border-ui pt-1">
+            <SectionTitle>Beispiele</SectionTitle>
+            {bundledDecks.map((deck) => (
+              <MenuItem
+                key={deck.file}
+                icon="book"
+                label={deck.label}
+                onClick={dann(() => oeffneBeispiel(deck))}
+              />
+            ))}
+          </div>
         </div>
       ) : null}
     </div>
@@ -283,13 +297,21 @@ function ExportMenu({
 
   return (
     <div className="relative" ref={ref}>
-      <IconButton
+      {/*
+        Beschriftet und nicht nur ein Zeichen: „Datei" steht daneben und trägt
+        sein Wort, und ein nacktes Symbol dazwischen liest sich wie eine
+        Nebensache. Die zugängliche Beschriftung bleibt „Export" — ein Knopf
+        mit diesem Text heißt genauso wie einer mit diesem `label`, und der
+        Rauchtest greift ihn zehnmal darüber.
+      */}
+      <Button
         icon="share"
-        label="Export"
         active={open}
         disabled={Boolean(busy)}
         onClick={() => setOpen((value) => !value)}
-      />
+      >
+        Export
+      </Button>
       {open ? (
         <div
           className={cx(

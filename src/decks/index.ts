@@ -18,24 +18,21 @@ import musterkunde from './musterkunde.md?raw';
 export interface BundledDeck {
   /** Der Dateiname, unter dem es in der Kopfleiste steht. */
   file: string;
+  /**
+   * Die Beschriftung im Datei-Menü.
+   *
+   * Kurz und ohne Erklärzeile: die beiden Einträge stehen dort zwischen „Neues
+   * Deck" und „Öffnen", und was sie unterscheidet, ist genau eines — unter
+   * welchem Erscheinungsbild sie gesetzt sind. Ein Nebensatz über Layouts und
+   * Elementarten beantwortet eine Frage, die an dieser Stelle niemand stellt.
+   */
   label: string;
-  hint: string;
   source: string;
 }
 
 export const bundledDecks: readonly BundledDeck[] = [
-  {
-    file: 'welcome.md',
-    label: 'Willkommensmappe',
-    hint: 'nozilla — jedes Layout, jede Elementart',
-    source: welcome,
-  },
-  {
-    file: 'musterkunde.md',
-    label: 'Probenhaus',
-    hint: 'Muster — ein Deck unter fremder Marke',
-    source: musterkunde,
-  },
+  { file: 'welcome.md', label: 'nozilla-Design', source: welcome },
+  { file: 'musterkunde.md', label: 'Alternatives Design', source: musterkunde },
 ];
 
 /** Das Deck, mit dem das Werkzeug startet. */

@@ -105,6 +105,38 @@ async function bis(fn, was, frist = 15000) {
 }
 
 /**
+ * Warten, bis `fn()` `soll` liefert — und sonst klagen wie `gleich()`.
+ *
+ * Die Zusicherung *ist* die Bedingung. Das ist der Kern der Umstellung: „warte
+ * 400 ms, dann muss im Feld ‚Handgeschrieben' stehen" und „warte, bis im Feld
+ * ‚Handgeschrieben' steht" prüfen dasselbe — nur ist das Zweite schneller,
+ * wenn es stimmt, und genauso laut, wenn nicht. Die Meldung am Ende ist
+ * wortgleich die alte, samt dem zuletzt gelesenen Wert.
+ */
+async function bisGleich(fn, soll, was, frist = 15000) {
+  const ende = Date.now() + frist;
+  for (;;) {
+    const ist = await fn();
+    if (ist === soll) return ist;
+    if (Date.now() > ende) gleich(ist, soll, was);
+    await new Promise((weiter) => setTimeout(weiter, 40));
+  }
+}
+
+/** Warten, bis `fn()` wahr wird — und sonst klagen wie `wahr()`. */
+async function bisWahr(fn, was, frist = 15000) {
+  const ende = Date.now() + frist;
+  for (;;) {
+    const ist = await fn();
+    if (ist) return ist;
+    // Die Meldung darf eine Funktion sein: dann kann sie nennen, was zuletzt
+    // dastand — „nicht eingetreten" allein sagt nichts darüber, woran es lag.
+    if (Date.now() > ende) wahr(ist, typeof was === 'function' ? was() : was);
+    await new Promise((weiter) => setTimeout(weiter, 40));
+  }
+}
+
+/**
  * Warten, bis die Marken-Schriften da sind und die Fläche mit ihnen gezeichnet
  * hat.
  *
@@ -193,8 +225,11 @@ async function oeffneGenerator(kontext, vorhanden) {
 async function zumSchritt(seite, titel) {
   // Über den ausgesprochenen Namen und nicht über den Aufdruck: „Marke" steckt
   // in „Wortmarke", und die Zahl der offenen Befunde stünde mit im Aufdruck.
-  await reiter(seite, titel).click();
-  await seite.waitForTimeout(250);
+  const tab = reiter(seite, titel);
+  await tab.click();
+  // Der Reiter sagt selbst, ob er dran ist. Hier standen 250 ms, und diese
+  // Funktion wird vierunddreißigmal gerufen.
+  await bisGleich(() => tab.getAttribute('aria-selected'), 'true', `Schritt „${titel}" kam nicht`);
 }
 
 /** Der Reiter eines Schritts. */
@@ -251,11 +286,21 @@ async function setzeFarbe(seite, rolle, wert) {
 /** Die vier Zahlenfelder des Inspektors: x, y, Breite, Höhe. */
 async function masse(seite) {
   await seite.getByRole('button', { name: 'Element', exact: true }).click();
-  await seite.waitForTimeout(300);
-  return seite.evaluate(() =>
-    [...document.querySelectorAll('aside[aria-label="Inspektor"] input')]
-      .slice(0, 4)
-      .map((el) => Number(el.value)),
+  // Gewartet wird, bis vier Zahlen dastehen — und zwar Zahlen: ein Feld, das
+  // noch leer ist, ergäbe `NaN` und eine Meldung über eine falsche Kante,
+  // während in Wirklichkeit nur der Inspektor noch nicht so weit war.
+  let zuletzt = null;
+  return bisWahr(
+    async () => {
+      zuletzt = await seite.evaluate(() =>
+        [...document.querySelectorAll('aside[aria-label="Inspektor"] input')]
+          .slice(0, 4)
+          .map((el) => el.value),
+      );
+      const werte = zuletzt.map(Number);
+      return werte.length === 4 && werte.every(Number.isFinite) ? werte : null;
+    },
+    () => `der Inspektor zeigte keine vier Maße, sondern ${JSON.stringify(zuletzt)}`,
   );
 }
 
@@ -271,7 +316,13 @@ async function masse(seite) {
 async function klickeLeereFolie(seite) {
   const kasten = await seite.locator('.nz-stage').boundingBox();
   await seite.mouse.click(kasten.x + kasten.width * 0.9, kasten.y + kasten.height * 0.9);
-  await seite.waitForTimeout(300);
+  // Wozu diese Funktion da ist, steht in ihrem Titel: aus einem Feld heraus.
+  // Genau das ist auch die Bedingung — und sie hängt nicht daran, welche
+  // Leiste gerade offen steht.
+  await bisWahr(
+    () => seite.evaluate(() => !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)),
+    'der Zeiger blieb im Feld',
+  );
 }
 
 /** Steht dieser Text auf der Folie? Gefragt wird das Bild, nicht das Feld. */
@@ -488,12 +539,16 @@ async function main() {
     const treffer = [];
     for (let i = 0; i < anzahl; i += 1) {
       await kacheln.nth(i).click();
-      await seite.waitForTimeout(200);
+      // Die Kachel trägt `aria-current`, sobald ihre Folie die gezeigte ist —
+      // das ist die Bedingung, und nicht eine Pause, die hofft.
+      await bisWahr(
+        async () => (await kacheln.nth(i).getAttribute('aria-current')) === 'true',
+        `Folie ${i + 1} kam nicht nach vorn`,
+      );
       const balken = await seite.locator('[title^="Der Text steht"]').count();
       if (balken > 0) treffer.push(`Folie ${i + 1}`);
     }
     await kacheln.nth(0).click();
-    await seite.waitForTimeout(200);
     gleich(treffer.join(', '), '', 'Überlauf im mitgelieferten Deck');
   });
 
@@ -513,12 +568,13 @@ async function main() {
   await pruefe('ein Baustein landet an der Einsetzlinie', async () => {
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
-    await seite.waitForTimeout(500);
-
-    const [x] = await masse(seite);
     // Der linke Satzspiegel: dort fängt man zu lesen an, und dort fängt auch
     // alles Eingesetzte an. Die Spalte ist 48 % des Satzspiegels breit.
-    gleich(x, 88, 'linke Kante des eingesetzten Elements');
+    await bisGleich(
+      async () => (await masse(seite))[0],
+      88,
+      'linke Kante des eingesetzten Elements',
+    );
   });
 
   await pruefe('ein Label steht mit seinem Text auf derselben Linie', async () => {
@@ -566,16 +622,16 @@ async function main() {
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
 
     await seite.getByRole('button', { name: 'Element', exact: true }).click();
-    await seite.waitForTimeout(300);
     const feld = seite.locator('aside[aria-label="Inspektor"] textarea').first();
-    const vorher = await feld.inputValue();
+    // Der Inspektor füllt sein Feld aus dem ausgewählten Element; leer heißt,
+    // er ist noch nicht so weit.
+    const vorher = await bisWahr(() => feld.inputValue(), 'das Textfeld blieb leer');
 
     await feld.click();
     await seite.keyboard.press('Control+a');
     await seite.keyboard.type('Handgeschrieben', { delay: 40 });
-    await seite.waitForTimeout(400);
-    gleich(await feld.inputValue(), 'Handgeschrieben', 'was im Feld steht');
-    wahr(await steht('Handgeschrieben'), 'das Getippte steht nicht auf der Folie');
+    await bisGleich(() => feld.inputValue(), 'Handgeschrieben', 'was im Feld steht');
+    await bisWahr(() => steht('Handgeschrieben'), 'das Getippte steht nicht auf der Folie');
 
     /*
        Vor dem ⌘Z aus dem Feld heraus — und das ist keine Umständlichkeit,
@@ -585,13 +641,16 @@ async function main() {
        dieser Prüfung maß genau das und meldete „Handgeschriebe".
     */
     await klickeLeereFolie(seite);
-    await seite.waitForTimeout(300);
+    // Wirklich heraus: solange der Zeiger im Feld steht, gehört ⌘Z dem Browser.
+    await bisWahr(
+      () => seite.evaluate(() => document.activeElement?.tagName !== 'TEXTAREA'),
+      'der Zeiger blieb im Textfeld',
+    );
 
     await seite.keyboard.press('Control+z');
-    await seite.waitForTimeout(500);
 
     // Ein einziges ⌘Z bringt den ganzen Satz zurück auf den Stand davor.
-    wahr(await steht(vorher), `der Text nach einem ⌘Z — „${vorher}" fehlt auf der Folie`);
+    await bisWahr(() => steht(vorher), `der Text nach einem ⌘Z — „${vorher}" fehlt auf der Folie`);
     wahr(!(await steht('Handgeschrieben')), 'das Getippte steht immer noch auf der Folie');
   });
 
@@ -683,15 +742,23 @@ async function main() {
   });
 
   await pruefe('eine Karte reist über die Zwischenablage auf die nächste Folie', async () => {
-    // Für ein Werkzeug, das sich Whiteboard nennt, war ⌘V die auffälligste
-    // Lücke: eine Datei *fallen zu lassen* ging, sie *einzufügen* nicht.
+    /*
+       Für ein Werkzeug, das sich Whiteboard nennt, war ⌘V die auffälligste
+       Lücke: eine Datei *fallen zu lassen* ging, sie *einzufügen* nicht.
+
+       Erst auswählen, und das ist keine Förmlichkeit: ⌘C kopiert die
+       **Auswahl**. Ohne sie kopierte diese Prüfung nichts, fügte nichts ein
+       und verglich zweimal `undefined / undefined` — grün, und ohne einen
+       einzigen Handgriff belegt. Aufgefallen ist es erst, als `masse()` sagte,
+       was es wirklich sah: eine leere Liste.
+    */
+    await seite.locator('[data-hit-element]').first().click();
     const [x, y] = await masse(seite);
+    wahr(Number.isFinite(x) && Number.isFinite(y), `keine Karte ausgewählt: ${x} / ${y}`);
     await seite.keyboard.press('Control+c');
 
     await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
-    await seite.waitForTimeout(600);
     await seite.keyboard.press('Control+v');
-    await seite.waitForTimeout(900);
 
     const [x2, y2] = await masse(seite);
     // Auf einer *anderen* Folie behält die Kopie ihren Ort — das ist der Sinn
@@ -1717,6 +1784,77 @@ async function main() {
     await seite.waitForTimeout(900);
     seite.off('dialog', annehmen);
     gleich(await folien(), 1, 'das neue Deck kam nicht');
+  });
+
+  await pruefe('das Datei-Menü führt jeden Weg — und der Beispielweg fragt', async () => {
+    /*
+       Vier Knöpfe und ein Untermenü sind in dieses Menü gezogen: Neues Deck,
+       Öffnen, Sichern und die beiden mitgelieferten Decks. Keiner von ihnen
+       war je geprüft — sie standen in der Leiste und niemand fasste sie an.
+       Sie hinter ein Menü zu räumen, ohne diese Prüfung dazuzulegen, hätte
+       vier sichtbare ungeprüfte Wege gegen vier versteckte ungeprüfte
+       getauscht.
+
+       Und es sind nicht irgendwelche Wege: „Neues Deck" und die beiden
+       Beispiele ersetzen das offene Deck. Das ist die Familie aus „Sechs Wege
+       ersetzten das Deck, einer fragte".
+    */
+    const menue = seite.getByRole('button', { name: 'Datei', exact: true });
+    gleich(await menue.count(), 1, 'kein Datei-Menü in der Leiste');
+    await menue.click();
+
+    const eintraege = await seite
+      .getByRole('menu')
+      .first()
+      .locator('[role="menuitem"]')
+      .allInnerTexts();
+    const text = eintraege.join(' | ');
+    for (const soll of [
+      'Neues Deck',
+      'Markdown-Deck öffnen',
+      'Markdown sichern',
+      'nozilla-Design',
+      'Alternatives Design',
+    ]) {
+      wahr(text.includes(soll), `„${soll}" fehlt im Datei-Menü — da steht: ${text}`);
+    }
+
+    // Etwas Ungesichertes anlegen; ohne `dirty` fragt niemand, und das ist
+    // richtig so.
+    await seite.keyboard.press('Escape');
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+
+    // Gemessen wird das *Deck* und nicht der Dialog: eine Prüfung, die nur
+    // nachsieht, ob ein Fenster aufging, hielte auch dann, wenn danach
+    // trotzdem geladen würde.
+    // Der **Dateiname** und nicht der Decktitel: der zweite Span der
+    // Kopfzeile. Der erste trägt den Titel aus dem Frontmatter, und der ändert
+    // sich beim Laden zwar auch — aber er sagt nicht, welche Datei kam.
+    const titel = () => seite.locator('header span').nth(1).innerText();
+    const vorher = await titel();
+
+    let gefragt = false;
+    const ablehnen = (dialog) => {
+      gefragt = true;
+      void dialog.dismiss();
+    };
+    seite.on('dialog', ablehnen);
+    await menue.click();
+    await seite.getByRole('menuitem', { name: /Alternatives Design/ }).click();
+    await bisWahr(() => gefragt, 'das Beispiel lud, ohne zu fragen');
+    seite.off('dialog', ablehnen);
+    gleich(await titel(), vorher, 'das Deck überlebte die Ablehnung nicht');
+
+    // Und angenommen kommt es wirklich.
+    const annehmen = (dialog) => void dialog.accept();
+    seite.on('dialog', annehmen);
+    await menue.click();
+    await seite.getByRole('menuitem', { name: /Alternatives Design/ }).click();
+    await bisWahr(
+      async () => (await titel()).includes('musterkunde'),
+      () => `das Beispiel kam nicht an — in der Leiste steht „${vorher}"`,
+    );
+    seite.off('dialog', annehmen);
   });
 
   await pruefe('eine wiederhergestellte Sitzung gilt als ungesichert', async () => {
