@@ -1,18 +1,19 @@
 /**
- * The interactive canvas.
+ * Die Arbeitsfläche, auf der man etwas anfassen kann.
  *
- * The slide itself is drawn by `<SlideView/>` (SVG). Everything you can *grab*
- * lives in a DOM overlay above it: hit areas, the selection frame, resize and
- * rotate handles, the marquee and the smart-alignment guides. Keeping the two
- * apart means the drawing layer stays export-identical while the interaction
- * layer can be as chatty as it likes.
+ * Die Folie selbst zeichnet `<SlideView/>` als SVG. Alles, was man *greift*,
+ * liegt in einer DOM-Schicht darüber: Klickbereiche, der Auswahlrahmen, die
+ * Größen- und Drehgriffe, das Aufziehrechteck und die Hilfslinien. Die
+ * Trennung ist der Punkt — die zeichnende Schicht bleibt Zeichen für Zeichen
+ * die des Exports, während die greifende so gesprächig sein darf, wie sie
+ * will.
  *
  * Deshalb zieht diese Datei ihre Farben aus `ui.*`, nicht aus der CI: Rahmen,
  * Griffe, Hilfslinien und Raster sind Werkzeug und werden nie exportiert.
  */
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { canvas as canvasTokens, motion, ui } from '@/theme';
-import { connectorLabels, handleLabels, labelOf, shapeLabels } from '@/lib/labels';
+import { connectorLabels, handleLabels, kindLabels, labelOf, shapeLabels } from '@/lib/labels';
 import {
   computeSnap,
   normalizeRect,
@@ -26,6 +27,7 @@ import {
   type ResizeHandle,
 } from '@/lib/geometry/snap';
 import { elementFelder } from '@/lib/export/scene';
+import { mindestHoehe } from '@/model/factory';
 import { overflowOf } from '@/lib/overflow';
 import { useDeckStore } from '@/state/deckStore';
 import type { CanvasElement, Deck, Slide } from '@/model/types';
@@ -125,7 +127,7 @@ export function CanvasStage({ slide, deck, slideNumber, totalSlides }: CanvasSta
     [slide.elements, selectionSet],
   );
 
-  /** Client coordinates → slide coordinates. */
+  /** Vom Koordinatensystem des Fensters in das der Folie. */
   const toSlide = useCallback(
     (clientX: number, clientY: number) => {
       const rect = surfaceRef.current?.getBoundingClientRect();
@@ -236,17 +238,27 @@ export function CanvasStage({ slide, deck, slideNumber, totalSlides }: CanvasSta
           const original = id ? gesture.originals.get(id) : undefined;
           if (!id || !original || !gesture.handle) break;
 
-          // Express the drag in the element's own (unrotated) frame.
+          // Das Ziehen im eigenen, ungedrehten Rahmen des Elements
+          // ausdrücken — dann zieht ein gedrehtes Element an seinen eigenen
+          // Kanten und nicht an denen des Bildschirms.
           const rotation = gesture.rotations.get(id) ?? 0;
           const local = rotatePoint(dx, dy, 0, 0, -rotation);
 
+          /*
+             Die senkrechte Grenze kommt aus der Art und nicht aus der Hand:
+             für den Verbinder ist die Höhe null der Normalfall, und der Griff
+             hob sie auf 24 — eine einmal angefasste Linie war auf der Fläche
+             nie wieder gerade zu bekommen.
+          */
+          const art = slide.elements.find((element) => element.id === id)?.kind;
           const next = resizeRect(original, gesture.handle, local.x, local.y, {
             lockAspect: event.shiftKey,
             fromCenter: event.altKey,
             snap: snapOptions,
+            minHeight: art && mindestHoehe(art) === 0 ? 0 : undefined,
           });
 
-          // Keep the visual centre stable when the element is rotated.
+          // Die gesehene Mitte festhalten, solange das Element gedreht ist.
           let { x, y } = next;
           if (rotation) {
             const oldCenter = { x: original.x + original.w / 2, y: original.y + original.h / 2 };
@@ -423,7 +435,7 @@ export function CanvasStage({ slide, deck, slideNumber, totalSlides }: CanvasSta
           ))}
         </div>
 
-        {/* Hit areas — one per element, above the drawing, below the handles. */}
+        {/* Die Klickbereiche: einer je Element, über dem Bild, unter den Griffen. */}
         <div className="absolute inset-0">
           {slide.elements.map((element) => (
             <div
@@ -481,16 +493,31 @@ export function CanvasStage({ slide, deck, slideNumber, totalSlides }: CanvasSta
 /* Overlays                                                                    */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Das Raster, auf das eingerastet wird — und nur dieses.
+ *
+ * Gezeichnet wurde bisher `gridSize × gridMajorEvery`, also alle 32 Einheiten,
+ * während `computeSnap()` alle 8 einrastet. Wer eine Karte an einen sichtbaren
+ * Punkt zog, landete auf einer Zwischenstelle, die es im Bild nicht gibt: das
+ * Auge sah ein Raster, das Werkzeug rechnete mit einem vierfach feineren.
+ *
+ * Die 32 sind nicht falsch, sie gehören nur woandershin — sie sind die
+ * Punktrasterung des Untergrunds `grid`, also etwas, das auf der Folie landet
+ * und exportiert wird. Die steht in `scene.ts` und hat mit dieser Hilfe hier
+ * nichts zu tun. Zwei Raster, die gleich aussehen und Verschiedenes bedeuten,
+ * sind genau die Sorte Verwechslung, die dieses Repo schon mehrfach bezahlt
+ * hat.
+ */
 function GridOverlay({ scale }: { scale: number }) {
   const step = canvasTokens.gridSize * scale;
-  const major = step * canvasTokens.gridMajorEvery;
+  // Unter drei Pixeln ist es kein Raster mehr, sondern eine graue Fläche.
   if (step < 3) return null;
   return (
     <div
       className="pointer-events-none absolute inset-0 rounded-[inherit]"
       style={{
         backgroundImage: `radial-gradient(${ui.grid} 1px, transparent 1px)`,
-        backgroundSize: `${major}px ${major}px`,
+        backgroundSize: `${step}px ${step}px`,
         opacity: 0.5,
       }}
     />
@@ -672,25 +699,49 @@ function handleStyle(
   return { left: x, top: y, cursor: HANDLE_CURSORS[handle] };
 }
 
-function elementLabel(element: CanvasElement): string {
+/**
+ * Wie ein Element heißt, wenn es niemand sieht.
+ *
+ * Diese Zeichenkette steht vor keinem Auge: sie ist die Ansage, die eine
+ * Hilfstechnik vorliest, wenn der Tabstopp auf dem Element steht. Genau
+ * deshalb war sie falsch, ohne dass es jemandem auffiel — dieselbe Bauart wie
+ * „Resize nw" an acht Griffen.
+ *
+ * Der `default`-Zweig gab **drei** Arten den Namen einer vierten: Wortmarke,
+ * Diagramm und Tabelle hießen alle „Markdown-Block". Der `switch` zählt jetzt
+ * alle elf auf, und die Zuweisung an `never` bricht `tsc` ab, sobald eine
+ * zwölfte dazukommt — sonst hieße die auch so.
+ */
+export function elementLabel(element: CanvasElement): string {
   if (element.name) return element.name;
   switch (element.kind) {
     case 'text':
       return element.text.slice(0, 40) || 'Text';
+    case 'markdown':
+      return element.markdown.slice(0, 40) || labelOf(kindLabels, 'markdown');
     case 'card':
-      return element.title || 'Karte';
+      return element.title || labelOf(kindLabels, 'card');
     case 'badge':
-      return element.text || 'Badge';
+      return element.text || labelOf(kindLabels, 'badge');
     case 'icon':
-      return `Zeichen ${element.icon}`;
+      return `${labelOf(kindLabels, 'icon')} ${element.icon}`;
     case 'shape':
       return element.label || labelOf(shapeLabels, element.shape);
     case 'connector':
-      return labelOf(connectorLabels, element.connector);
+      return element.label || labelOf(connectorLabels, element.connector);
     case 'image':
-      return element.alt || 'Bild';
-    default:
-      return 'Markdown-Block';
+      return element.alt || labelOf(kindLabels, 'image');
+    case 'wordmark':
+      return labelOf(kindLabels, 'wordmark');
+    case 'chart':
+      return element.label || labelOf(kindLabels, 'chart');
+    case 'table':
+      return element.label || labelOf(kindLabels, 'table');
+    default: {
+      const unbekannt: never = element;
+      void unbekannt;
+      return labelOf(kindLabels, 'shape');
+    }
   }
 }
 

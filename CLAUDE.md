@@ -3043,6 +3043,82 @@ gesperrt, „Gruppieren" unter zweien. Die Kartenfelder folgen
 des Form-Labels erscheint nur, wenn ein Label dasteht. Und der Kopf der Datei
 war der letzte englische Kommentar im Projekt.
 
+**Das gezeigte Raster war viermal so grob wie das, auf das eingerastet wird.**
+`GridOverlay` rechnete `step = gridSize × scale`, benutzte die Zahl nur noch in
+der Sichtbarkeitsschwelle und malte `step × gridMajorEvery` — also alle 32
+Einheiten, während `computeSnap()` alle 8 einrastet. Wer eine Karte an einen
+sichtbaren Punkt zog, landete auf einer Zwischenstelle, die es im Bild nicht
+gibt: das Auge sah ein Raster, das Werkzeug rechnete mit einem vierfach
+feineren.
+
+Die 32 sind dabei nicht falsch, sie gehören nur woandershin — sie sind die
+Punktrasterung des Untergrunds `grid`, also etwas, das auf der Folie landet und
+exportiert wird, und die steht in `scene.ts`. Zwei Raster, die gleich aussehen
+und Verschiedenes bedeuten, standen unter demselben Namen nebeneinander.
+Geprüft wird am `background-size` der gemalten Ebene und nicht an der Rechnung
+daneben: die Zahl kann stimmen und die Fläche trotzdem eine andere malen.
+
+**Drei Arten sagten den Namen einer vierten an.** `elementLabel()` zählte
+sieben der elf Arten auf und schickte den Rest in ein `default: return
+'Markdown-Block'` — Wortmarke, Diagramm und Tabelle hießen damit alle so. Vor
+Augen steht diese Zeichenkette nie: sie ist das `aria-label` des Klickbereichs,
+also das, was eine Hilfstechnik vorliest, wenn der Tabstopp darauf steht. Genau
+deshalb fiel es niemandem auf, und genau deshalb steht derselbe Satz in dieser
+Liste schon einmal — „Resize nw" stand an acht Griffen, und niemand konnte es
+sehen.
+
+Geprüft wird die Regel und nicht eine Tabelle daneben: **keine Art trägt den
+Namen einer anderen**, dazu die Gegenrichtung, dass jede einen Namen trägt, den
+die Oberfläche kennt. Und im Browser am `aria-label` selbst, denn die Rechnung
+kann stimmen und das Markup etwas anderes tragen.
+
+**Der Verbinder verlor seine Höhe null an jedem Griff.** Er kommt mit `h = 0`
+aus der Fabrik — eine waagerechte Linie —, `normalizeElement` lässt die Null
+stehen, und seit der vorigen Runde nimmt der Inspektor sie an. Nur
+`resizeRect()` kannte eine einzige Grenze: `minElementSize`. Am Südgriff wurde
+daraus 24, am Nordgriff 24 *und* ein Versatz um 24 nach oben. Eine Linie, die
+man einmal angefasst hatte, war auf der Fläche nie wieder gerade zu bekommen;
+über den Inspektor schon, und das ist die schlimmste Sorte Unterschied —
+dasselbe Maß, zwei Antworten.
+
+`minSize` und `minHeight` sind jetzt zwei Fragen: die erste ist eine Größe für
+die Hand, unter der niemand mehr einen Griff trifft, die zweite die
+Gültigkeitsgrenze der Art. Gezogen wird im Rauchtest wirklich am Griff —
+`resizeRect()` bekommt die Grenze als Argument, und die Rechnung kann sie
+kennen, während die Fläche sie nicht mitgibt. Genau das war der Befund der
+vorigen Runde, eine Ebene höher.
+
+**Eine getippte 24, die dasselbe meinte wie ein Token.** `clampToSlide(rect,
+keep = 24)` hielt ein gezogenes Element auf der Folie, und `CLAUDE.md` schreibt
+seit dem Folienformat, die Schwelle der Formatwarnung sei „derselbe Wert, mit
+dem `clampToSlide()` ein gezogenes Element auf der Folie hält". Das stimmte,
+solange niemand eine der beiden Zahlen anfasst — geschrieben stand es als
+Zusage, gebaut war es als Zufall. Jetzt ist die Vorgabe
+`canvas.minElementSize`, und die Prüfung hält gegen das Token: wer die Vorgabe
+auf irgendetwas anderes setzt, wird rot.
+
+**Und die Behauptung, der Inspektor trage den letzten englischen Kommentar, war
+falsch.** Nachgezählt: **93 Zeilen in 23 Dateien**, angeführt von `deck.ts`,
+`typeset.ts`, `measure.ts`, `download.ts` und den beiden dieser Runde. Die
+Konvention steht im Kopf dieser Datei, geprüft hat sie nichts —
+`language.test.ts` sucht sichtbare Beschriftungen und keine Kommentare, und das
+ist auch richtig so. Übersetzt sind hier die beiden Dateien, die gegengeprüft
+wurden; die übrigen einundzwanzig stehen als Aufgabe da und nicht als erledigt.
+
+Der Fehler daran war nicht die Zahl, sondern die Form: eine Behauptung über den
+ganzen Baum, aufgestellt nach dem Lesen einer Datei. Zwei Zeilen `grep` hätten
+sie widerlegt, und sie standen in derselben Runde zur Verfügung wie alles
+andere, was gemessen wurde.
+
+**Was nachgemessen wurde und in Ordnung ist.** Die Größen- und Drehgriffe
+erscheinen nur bei genau einer Auswahl und nur an einem nicht gesperrten
+Element; ein gesperrtes lässt sich anwählen, aber nicht ziehen. Der
+Auswahlrahmen, der Klickbereich und der Überlaufstrich drehen sich alle drei um
+die Elementmitte und alle drei nur dort, wo `elementFelder()` eine Drehung
+bejaht. Ein Verlaufsschritt entsteht einmal je Geste und nicht je Bildrahmen.
+`computeSnap()` lässt das Raster stehen, wo eine Hilfslinie gewonnen hat, und
+rastet die andere Achse trotzdem ein.
+
 ---
 
 ## Git
