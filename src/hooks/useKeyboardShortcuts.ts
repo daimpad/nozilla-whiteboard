@@ -1,9 +1,15 @@
 /**
- * Global keyboard handling.
+ * Die Tastatur des ganzen Fensters.
  *
- * Everything is routed through store actions, and every shortcut is inert while
- * the user is typing in a field — the inspector has a lot of text areas and
- * "Backspace deletes the selected element" would be catastrophic inside one.
+ * Alles läuft über Aktionen des Stores, und alles ist stumm, solange jemand in
+ * einem Feld tippt — der Inspektor besteht zu großen Teilen aus Textfeldern,
+ * und „⌫ löscht das ausgewählte Element" wäre darin eine Katastrophe.
+ *
+ * Drei Sperren liegen übereinander, und sie beantworten drei verschiedene
+ * Fragen. `isTypingTarget` fragt, ob gerade Text entsteht. `istBedienelement`
+ * fragt, ob die Taste dem Knopf gehört, auf dem der Fokus steht. Und
+ * `zugedeckt` fragt, ob überhaupt jemand die Folie sieht, die eine Taste
+ * gleich verändern würde.
  */
 import { useEffect } from 'react';
 import { canvas } from '@/theme';
@@ -20,6 +26,27 @@ export const isTypingTarget = (target: EventTarget | null): boolean => {
   const tag = target.tagName;
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 };
+
+/**
+ * Ob die Taste dem Bedienelement gehört, auf dem der Fokus steht.
+ *
+ * Leertaste und Eingabe *drücken* einen Knopf — das ist die Bedienung ohne
+ * Maus, und sie ist nicht verhandelbar. Gemessen am Knopf „Folie hinzufügen":
+ * ein Tabstopp darauf, dann Leertaste, und statt einer neuen Folie kam die
+ * nächste — der `preventDefault` nahm dem Knopf seine Betätigung und
+ * blätterte stattdessen weiter. Im Vortrag traf es „Präsentation verlassen":
+ * eine Eingabe darauf ging eine Folie vor, statt den Vortrag zu beenden.
+ *
+ * Dieselbe Überlegung wie bei `Tab`, das dieses Werkzeug ausdrücklich nicht
+ * abfängt: wer die Tasten belegt, mit denen man überhaupt weiterkommt, sperrt
+ * den Benutzer dort ein, wo er gerade steht.
+ *
+ * Gefragt wird nach dem *Element* und nicht nach der Rolle: die Elemente der
+ * Arbeitsfläche tragen `role="button"`, damit sie einen Tabstopp bekommen,
+ * und dort soll die Leertaste weiterblättern.
+ */
+const istBedienelement = (target: EventTarget | null): boolean =>
+  target instanceof HTMLElement && target.closest('button, a[href], summary') !== null;
 
 export function useKeyboardShortcuts(): void {
   useEffect(() => {
@@ -93,6 +120,9 @@ export function useKeyboardShortcuts(): void {
 
       if (typing) return;
 
+      // Die zweite Sperre: was ein Knopf braucht, bekommt der Knopf.
+      if ((event.key === ' ' || event.key === 'Enter') && istBedienelement(event.target)) return;
+
       /* --------------------------------------------------------- undo/redo */
 
       if (mod && event.key.toLowerCase() === 'z') {
@@ -149,6 +179,69 @@ export function useKeyboardShortcuts(): void {
         return;
       }
 
+      /*
+         Die dritte Sperre: sieht überhaupt jemand die Folie?
+
+         Übersicht, Suche und Prompt liegen als eigene Schicht davor — die
+         Fluchtreihenfolge des `Escape` oben zählt sie der Reihe nach auf.
+         Alles darunter blieb trotzdem scharf. Wer im Suchfeld auf „Alle
+         ersetzen" geklickt hatte, stand danach auf einem Knopf und nicht in
+         einem Feld: ein `⌫` von dort löschte das ausgewählte Element auf der
+         Folie darunter, ohne dass etwas davon zu sehen war. Ein `n` legte
+         hinter dem Prompt-Dialog eine Folie an, ein `p` startete hinter der
+         Übersicht den Vortrag.
+      */
+      const zugedeckt = store.searchOpen || store.promptOpen || store.overviewOpen;
+
+      /* -------------------------------------------------------- blättern */
+
+      /*
+         *Welche* Folie zu sehen ist, darf auch eine offene Schicht ändern:
+         die Übersicht zeigt gerade, wo man steht, und wer sucht, will die
+         Fundstelle sehen. Geschoben wird dagegen nur, was man auch sieht —
+         deshalb zählt die Auswahl hier als leer, solange etwas davorliegt.
+      */
+      const auswahl = zugedeckt ? 0 : store.selection.length;
+      const step = event.shiftKey ? canvas.gridSize * 5 : canvas.gridSize;
+      switch (event.key) {
+        case 'ArrowLeft':
+          event.preventDefault();
+          if (auswahl > 0) store.nudgeSelection(-step, 0);
+          else store.previous();
+          return;
+        case 'ArrowRight':
+          event.preventDefault();
+          if (auswahl > 0) store.nudgeSelection(step, 0);
+          else store.next();
+          return;
+        case 'ArrowUp':
+          event.preventDefault();
+          if (auswahl > 0) store.nudgeSelection(0, -step);
+          else store.previous();
+          return;
+        case 'ArrowDown':
+          event.preventDefault();
+          if (auswahl > 0) store.nudgeSelection(0, step);
+          else store.next();
+          return;
+        case ' ':
+          event.preventDefault();
+          store.next();
+          return;
+        case 'Home':
+          event.preventDefault();
+          store.goTo(0);
+          return;
+        case 'End':
+          event.preventDefault();
+          store.goTo(store.deck.slides.length - 1);
+          return;
+        default:
+          break;
+      }
+
+      if (zugedeckt) return;
+
       /* -------------------------------------------------------- editing */
 
       if (mod && event.key.toLowerCase() === 'a') {
@@ -184,44 +277,16 @@ export function useKeyboardShortcuts(): void {
         return;
       }
 
-      const step = event.shiftKey ? canvas.gridSize * 5 : canvas.gridSize;
-      switch (event.key) {
-        case 'ArrowLeft':
-          event.preventDefault();
-          if (store.selection.length > 0) store.nudgeSelection(-step, 0);
-          else store.previous();
-          return;
-        case 'ArrowRight':
-          event.preventDefault();
-          if (store.selection.length > 0) store.nudgeSelection(step, 0);
-          else store.next();
-          return;
-        case 'ArrowUp':
-          event.preventDefault();
-          if (store.selection.length > 0) store.nudgeSelection(0, -step);
-          else store.previous();
-          return;
-        case 'ArrowDown':
-          event.preventDefault();
-          if (store.selection.length > 0) store.nudgeSelection(0, step);
-          else store.next();
-          return;
-        case ' ':
-          event.preventDefault();
-          store.next();
-          return;
-        case 'Home':
-          event.preventDefault();
-          store.goTo(0);
-          return;
-        case 'End':
-          event.preventDefault();
-          store.goTo(store.deck.slides.length - 1);
-          return;
-        default:
-          break;
-      }
+      /*
+         Blanke Buchstaben, und zwar wirklich blank.
 
+         `n` fragte danach, `g` und `p` nicht — und `g` fiel das nur deshalb
+         nicht auf die Füße, weil `⌘G` eine Ecke weiter oben schon
+         zurückkehrt. `⌘P` kehrte nirgends zurück: es startete den Vortrag
+         und nahm dem Browser dabei den Druckdialog weg. Ausgerechnet hier,
+         in einem Werkzeug, dessen Zweck druckbares Material ist.
+      */
+      if (mod) return;
       switch (event.key.toLowerCase()) {
         case 'g':
           event.preventDefault();
@@ -232,10 +297,8 @@ export function useKeyboardShortcuts(): void {
           store.setMode('present');
           break;
         case 'n':
-          if (!mod) {
-            event.preventDefault();
-            store.addSlide();
-          }
+          event.preventDefault();
+          store.addSlide();
           break;
         default:
           break;
@@ -252,6 +315,8 @@ async function toggleFullscreen(): Promise<void> {
     if (document.fullscreenElement) await document.exitFullscreen();
     else await document.documentElement.requestFullscreen();
   } catch {
-    // Fullscreen can be refused (permissions, embedded contexts) — ignore.
+    // Das Vollbild darf abgelehnt werden — in einem eingebetteten Rahmen oder
+    // ohne die nötige Erlaubnis. Zu sagen gibt es dazu nichts: wer die Taste
+    // drückt, sieht selbst, dass nichts geschieht.
   }
 }

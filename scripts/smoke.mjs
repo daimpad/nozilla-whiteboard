@@ -586,7 +586,7 @@ async function main() {
   });
 
   await pruefe('ein Baustein landet an der Einsetzlinie', async () => {
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
     // Der linke Satzspiegel: dort fängt man zu lesen an, und dort fängt auch
     // alles Eingesetzte an. Die Spalte ist 48 % des Satzspiegels breit.
@@ -637,7 +637,7 @@ async function main() {
        gibt ihm den Schlüssel, an dem der Verlauf denselben Handgriff erkennt.
        Ein Test am Store liefe an dieser Stelle vorbei.
     */
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
 
     await seite.getByRole('button', { name: 'Element', exact: true }).click();
@@ -685,7 +685,7 @@ async function main() {
        abfängt, mit der man weiterkommt, sperrt den Benutzer in dem Bereich
        ein, den er gerade erreicht hat.
     */
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
     await bisWahr(
       () => seite.locator('[data-hit-element]').count(),
@@ -724,6 +724,78 @@ async function main() {
       async () =>
         !(await seite.evaluate(() => Boolean(document.activeElement?.closest('.nz-stage svg')))),
       'Tab kam aus der Folie nicht wieder heraus',
+    );
+  });
+
+  await pruefe('die Leertaste drückt den Knopf, auf dem der Fokus steht', async () => {
+    /*
+       Der Fehler, gegen den das steht: `preventDefault` auf der Leertaste nahm
+       dem Knopf seine Betätigung. Ein Tabstopp auf „Folie hinzufügen", dann
+       Leertaste — und statt einer neuen Folie kam die nächste Folie. Im
+       Vortrag traf es „Präsentation verlassen": eine Eingabe darauf ging eine
+       Folie vor, statt den Vortrag zu beenden.
+
+       Nur der Browser kann das zeigen: in jsdom ist ein `defaultPrevented`
+       eine Zusicherung, hier ist es die Frage, ob der Knopf wirklich losgeht.
+    */
+    const streifen = seite.getByRole('navigation', { name: 'Folien' }).locator('button');
+    const vorher = await streifen.count();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).focus();
+    await seite.keyboard.press('Space');
+    await bisWahr(
+      async () => (await streifen.count()) > vorher,
+      'die Leertaste hat den Knopf nicht gedrückt, sondern weitergeblättert',
+    );
+  });
+
+  await pruefe('Suchen und Ersetzen ist auch mit der Maus zu erreichen', async () => {
+    /*
+       `⌘F` stand in zwei Kommentaren im Quelltext und in keiner einzigen
+       sichtbaren Beschriftung: wer das Kürzel nicht kannte, konnte im Deck
+       nicht suchen. Das Gegenstück zum toten Bedienelement — eine Wirkung
+       ohne einen Weg dorthin.
+    */
+    await seite.getByRole('button', { name: 'Suchen und Ersetzen (⌘F)', exact: true }).click();
+    await bisWahr(
+      () => seite.locator('[aria-label="Im Deck suchen"]').count(),
+      'die Suche ging über den Knopf nicht auf',
+    );
+    await seite.keyboard.press('Escape');
+  });
+
+  await pruefe('fünf Pfeiltasten sind ein ⌘Z wert', async () => {
+    /*
+       Jeder Anschlag legte einen Verlaufsschritt an: dreißig Anschläge waren
+       dreißig Schritte, und eine Sekunde auf der Taste räumt damit ein Viertel
+       der hundertzwanzig leer — ⌘Z nimmt danach acht Einheiten Bewegung
+       zurück statt der Änderung davor. Derselbe Fehler wie beim getippten
+       Wort weiter oben, eine Taste weiter.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
+    await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
+    /*
+       Gemessen wird der Klickbereich auf dem Schirm und nicht das Feld im
+       Inspektor: `undo()` leert die Auswahl, und danach zeigt die Leiste gar
+       keine Maße mehr. Der erste Anlauf dieser Prüfung meldete deshalb „der
+       Inspektor zeigte keine vier Maße" — eine Auskunft über die Auswahl, wo
+       eine über den Verlauf gefragt war.
+    */
+    const kasten = seite.locator('[data-hit-element]').first();
+    await bisWahr(() => kasten.count(), 'die Karte kam nicht auf die Folie');
+    const vorher = (await kasten.boundingBox()).x;
+
+    for (let i = 0; i < 5; i++) await seite.keyboard.press('ArrowRight');
+    await bisWahr(
+      async () => (await kasten.boundingBox()).x > vorher + 1,
+      'die Pfeiltasten haben nichts geschoben',
+    );
+
+    // Ein einziges ⌘Z bringt alle fünf zurück. Waren es fünf Schritte, steht
+    // die Karte danach noch vier Rasterschritte weiter rechts.
+    await seite.keyboard.press('Control+z');
+    await bisWahr(
+      async () => Math.abs((await kasten.boundingBox()).x - vorher) < 1,
+      'nach einem ⌘Z stand die Karte nicht wieder da, wo sie anfing',
     );
   });
 
@@ -781,7 +853,7 @@ async function main() {
     wahr(Number.isFinite(x) && Number.isFinite(y), `keine Karte ausgewählt: ${x} / ${y}`);
     await seite.keyboard.press('Control+c');
 
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     await seite.keyboard.press('Control+v');
 
     const [x2, y2] = await masse(seite);
@@ -797,7 +869,7 @@ async function main() {
     // damit alles außer der Taste selbst: dass der Zuhörer hängt, dass die
     // Datei gelesen wird, dass das Seitenverhältnis stimmt und dass das Bild
     // am Satzspiegel landet.
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
 
     await seite.evaluate(async () => {
       const flaeche = document.createElement('canvas');
@@ -909,7 +981,7 @@ async function main() {
       });
 
     /* ------------------------------------------------------- das Foto */
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     // Erst auf der neuen, leeren Folie einsetzen: `eingebettet()` sähe sonst
     // noch das Bild der vorigen und meldete es als das neue.
     await bisGleich(
@@ -938,7 +1010,7 @@ async function main() {
     );
 
     /* ----------------------------------------------- das Bildschirmfoto */
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     await bisGleich(
       () => seite.locator('.nz-stage svg image').count(),
       0,
@@ -963,7 +1035,7 @@ async function main() {
        Millionen Zeichen, wo dasselbe Bild als JPEG 219.000 braucht. Zwei
        davon, und die Sitzungsablage ist wieder tot.
     */
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     await bisGleich(
       () => seite.locator('.nz-stage svg image').count(),
       0,
@@ -1020,7 +1092,7 @@ async function main() {
        die Liste leer wird, wüsste sie auch dann zu melden, wenn das Ersetzen
        gar nichts geschrieben hätte.
     */
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     // Ausdrücklich der Reiter „Folie": stand vorher ein Element in der
     // Auswahl, zeigte der Inspektor dessen Felder, und „das erste Textfeld"
     // war ein ganz anderes. Der erste Anlauf tippte deshalb ins Leere und
@@ -1069,7 +1141,7 @@ async function main() {
   await pruefe('ein Diagramm zeichnet die Zahlen, die drinstehen', async () => {
     // Ein Diagramm ist ein Kunde der Szene wie jedes andere Element — deshalb
     // wird hier geprüft, was auf der Folie *steht*, nicht was das Modell hält.
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     await seite.locator('aside button').filter({ hasText: 'Balken' }).first().click();
 
     const folie = () => seite.evaluate(FOLIE);
@@ -1135,7 +1207,7 @@ async function main() {
        Markup ist das nicht zu sehen — wohl aber an den Kästen der Textknoten,
        und die verrät `getBBox()`.
     */
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     await seite.locator('aside button').filter({ hasText: 'Tabelle' }).first().click();
 
     await seite.getByRole('button', { name: 'Element', exact: true }).click();
@@ -1338,7 +1410,7 @@ async function main() {
        die richtigen Kennungen wählt, sähe man einer Zusicherung über den Store
        auch dann an, wenn der Inspektor sie nicht ruft.
     */
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     // Ausdrücklich in der **Bibliothek** gesucht: `aside button` trifft auch
     // die Leiste rechts, und dort steht die Art des ausgewählten Elements —
     // nach dem Einsetzen des Diagramms also ein zweites „Tabelle" im Weg.
@@ -1408,7 +1480,7 @@ async function main() {
        keins, und die Typo-Stufe eines Form-Labels stand nur im `nzl`-Block.
        Wer sie wollte, musste die Datei von Hand schreiben.
     */
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     await seite.locator('aside button').filter({ hasText: 'Wortmarke' }).first().click();
     await seite.getByRole('button', { name: 'Element', exact: true }).click();
     const inspektor = seite.locator('aside[aria-label="Inspektor"]');
@@ -1452,7 +1524,7 @@ async function main() {
        Öffnen stand stillschweigend eine 1 da: der Leser kappt. Der getippte
        Wert war damit weder behalten noch abgelehnt, sondern still ersetzt.
     */
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
     const breite = seite.locator('aside[aria-label="Inspektor"] input').nth(2);
     await seite.getByRole('button', { name: 'Element', exact: true }).click();
@@ -1487,7 +1559,7 @@ async function main() {
     // Die Gegenrichtung, und sie trägt die Regel: beim Verbinder *ist* die
     // Höhe null der Normalfall — eine waagerechte Linie. Eine Grenze, die
     // überall dieselbe ist, wäre hier zu streng.
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     await seite.locator('aside button').filter({ hasText: 'Pfeil' }).first().click();
     await seite.getByRole('button', { name: 'Element', exact: true }).click();
     const verbinderHoehe = seite.locator('aside[aria-label="Inspektor"] input').nth(3);
@@ -1546,7 +1618,7 @@ async function main() {
        Markup trotzdem etwas anderes trägt: gelesen wird das `aria-label` am
        Klickbereich, also das, was wirklich angesagt wird.
     */
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     // Ausdrücklich in der Bibliothek gesucht: `aside button` trifft auch die
     // Leiste rechts, und dort steht die Art des ausgewählten Elements.
     const bibliothek = seite.locator('aside[aria-label="Bausteinbibliothek"] button');
@@ -1593,7 +1665,7 @@ async function main() {
        Argument bekommt: die Rechnung kann sie kennen und die Fläche sie
        trotzdem nicht mitgeben. Gezogen wird deshalb wirklich am Griff.
     */
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     await seite
       .locator('aside[aria-label="Bausteinbibliothek"] button')
       .filter({ hasText: 'Pfeil' })
@@ -1635,7 +1707,7 @@ async function main() {
     // Zweimal ist genau das schon passiert — die Überschrift des Musterkunden
     // lief aus ihrem Kasten, eine Karte saß auf ihrer Unterkante. Beide Male
     // war alles grün, und gesehen habe ich es im Bild.
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     await seite.locator('aside button').filter({ hasText: 'Fließtext' }).first().click();
     // Erst wenn der Baustein liegt, ist die Frage „warnt es zu Unrecht" zu
     // stellen — auf einer leeren Folie warnt selbstverständlich nichts.
@@ -1716,7 +1788,7 @@ async function main() {
        Leiste sie trotzdem nicht ruft. Beide Richtungen, denn eine Warnung, die
        immer dasteht, ist keine.
     */
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     await seite.getByRole('button', { name: 'Folie', exact: true }).click();
     const markdown = seite.locator('aside[aria-label="Inspektor"] textarea').first();
     const warnung = seite.getByText('unter den Satzspiegel', { exact: false });
@@ -2009,7 +2081,7 @@ async function main() {
        Geprüft wird an der Meldung *nach* einem Export, der durchgeht — beides
        gehört zusammen: die Datei kommt, und der Mangel wird genannt.
     */
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     const feld = seite.locator('aside[aria-label="Inspektor"] textarea').first();
     await feld.click();
     await seite.keyboard.press('Control+a');
@@ -2118,7 +2190,7 @@ async function main() {
        die richtig rechnet, und ein Inspektor, der sie nicht ruft, sehen in
        jeder Zusicherung gleich aus.
     */
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
 
     const inspektor = seite.locator('aside[aria-label="Inspektor"]');
@@ -2278,7 +2350,7 @@ async function main() {
 
     // Etwas Ungesichertes anlegen — ohne `dirty` fragt niemand, und das ist
     // richtig so.
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     const vorher = await bisWahr(async () => {
       const zahl = await folien();
       return zahl > 1 ? zahl : null;
@@ -2342,7 +2414,7 @@ async function main() {
     // Etwas Ungesichertes anlegen; ohne `dirty` fragt niemand, und das ist
     // richtig so.
     await seite.keyboard.press('Escape');
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
 
     // Gemessen wird das *Deck* und nicht der Dialog: eine Prüfung, die nur
     // nachsieht, ob ein Fenster aufging, hielte auch dann, wenn danach
@@ -2485,7 +2557,7 @@ async function main() {
     // Etwas ändern, das die Folie *nicht* anfasst — sonst gäbe das Werkzeug
     // den Rohtext zu Recht auf. Eine neue Folie reicht und stößt die
     // Selbstsicherung an.
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
 
     // Die Selbstsicherung schreibt mit Verzögerung; gewartet wird auf das,
     // was sie schreibt.
@@ -2664,7 +2736,7 @@ async function main() {
       async () => Math.abs((await verhaeltnis()) - Math.SQRT2) < 0.02,
       'das A4-Deck kam nach dem Neuladen nicht zurück',
     );
-    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     const gesichert = await bisWahr(
       async () =>
         (await seite.evaluate(() => {

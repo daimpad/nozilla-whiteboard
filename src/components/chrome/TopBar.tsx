@@ -40,6 +40,7 @@ export function TopBar() {
   const showGrid = useDeckStore((state) => state.showGrid);
   const snap = useDeckStore((state) => state.snap);
   const overviewOpen = useDeckStore((state) => state.overviewOpen);
+  const searchOpen = useDeckStore((state) => state.searchOpen);
   const canUndo = useDeckStore(selectCanUndo);
   const canRedo = useDeckStore(selectCanRedo);
 
@@ -47,6 +48,7 @@ export function TopBar() {
   const toggleGrid = useDeckStore((state) => state.toggleGrid);
   const setSnap = useDeckStore((state) => state.setSnap);
   const toggleOverview = useDeckStore((state) => state.toggleOverview);
+  const toggleSearch = useDeckStore((state) => state.toggleSearch);
   const togglePrompt = useDeckStore((state) => state.togglePrompt);
   const setMode = useDeckStore((state) => state.setMode);
   const undo = useDeckStore((state) => state.undo);
@@ -102,12 +104,25 @@ export function TopBar() {
 
       <Divider className="mx-1" />
 
-      <IconButton icon="plus" label="Folie hinzufügen" onClick={() => addSlide()} />
+      <IconButton icon="plus" label="Folie hinzufügen (N)" onClick={() => addSlide()} />
       <IconButton
         icon="table"
         label="Folienübersicht (⌘K)"
         active={overviewOpen}
         onClick={() => toggleOverview()}
+      />
+      {/*
+         Suchen und Ersetzen war das einzige Merkmal ohne einen Weg mit der
+         Maus: `⌘F` stand in zwei Kommentaren im Quelltext und in keiner
+         einzigen sichtbaren Beschriftung. Wer das Kürzel nicht kannte, konnte
+         im Deck nicht suchen — das Gegenstück zum toten Bedienelement, eine
+         Wirkung ohne einen Weg dorthin.
+      */}
+      <IconButton
+        icon="magnifying-glass"
+        label="Suchen und Ersetzen (⌘F)"
+        active={searchOpen}
+        onClick={() => toggleSearch()}
       />
       <Button icon="wand-magic-sparkles" onClick={() => togglePrompt(true)}>
         Prompt
@@ -126,7 +141,7 @@ export function TopBar() {
           active={snap.grid || snap.smart}
           onClick={() => setSnap({ grid: !snap.grid, smart: !snap.smart })}
         />
-        <IconButton icon="table" label="Raster zeigen" active={showGrid} onClick={toggleGrid} />
+        <IconButton icon="table" label="Raster zeigen (G)" active={showGrid} onClick={toggleGrid} />
 
         <Segmented
           value={zoom === 'fit' ? 'fit' : 'custom'}

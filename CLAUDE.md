@@ -223,10 +223,10 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Neunundvierzig Handgriffe, die je einen
-  Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im Kopf von
-  `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`; die
-  Fassung passt nicht zur Bibliothek, deshalb
+  gegen das gebaute Verzeichnis. Siebenundsechzig Handgriffe, die je einen
+  Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im
+  Kopf von `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`;
+  die Fassung passt nicht zur Bibliothek, deshalb
   `SMOKE_CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
 
 Wenn du eine Ausgabe änderst, sieh sie dir an. Nicht die Zusicherung — das
@@ -3189,6 +3189,89 @@ Richtungen und nimmt die Warnung von selbst zurück, sobald wieder geschrieben
 werden kann. Ein geschlossener Dateidialog bleibt stumm, beim Sichern wie beim
 Öffnen. Und die `24` im Aufruf von `scenesToContactSheet()` stand ein zweites
 Mal neben ihrer eigenen Vorgabe — jetzt steht sie einmal da.
+
+**Ein gehaltener Pfeil war dreißig Verlaufsschritte.** Das Zusammenfassen gibt
+es seit den Textfeldern — ein getippter Buchstabe ist kein Schritt, ein
+getipptes Wort einer. `nudgeSelection` rief `history(state)` ohne Schlüssel:
+gemessen sind dreißig Anschläge dreißig Einträge, und eine Sekunde auf der
+Taste räumt damit ein Viertel der hundertzwanzig leer. ⌘Z nahm danach acht
+Einheiten Bewegung zurück statt der Änderung davor. Der Schlüssel trägt die
+Auswahl mit: wer aufhört, etwas anderes anwählt und weiterschiebt, hat einen
+neuen Handgriff getan.
+
+**`⌘P` startete den Vortrag und nahm dem Browser den Druckdialog.** Die drei
+blanken Buchstaben stehen in einem `switch` untereinander, und `n` fragte
+`!mod`, `g` und `p` nicht. Bei `g` fiel das nicht auf, weil `⌘G` eine Ecke
+weiter oben zurückkehrt; `⌘P` kehrte nirgends zurück — ausgerechnet in einem
+Werkzeug, dessen Zweck druckbares Material ist. Der Riegel steht jetzt vor dem
+`switch` und gilt für alle drei: eine Bedingung, die man je Fall wiederholt,
+ist eine Bedingung, die man je Fall vergisst.
+
+**Die Leertaste drückte nicht den Knopf, auf dem der Fokus stand.**
+`isTypingTarget` fragt nach `INPUT`, `TEXTAREA`, `SELECT` und
+`contentEditable` — ein Knopf ist keines davon. Ein Tabstopp auf „Folie
+hinzufügen", dann Leertaste, und statt einer neuen Folie kam die nächste
+Folie: der `preventDefault` nahm dem Knopf seine Betätigung. Im Vortrag traf
+es „Präsentation verlassen", wo eine Eingabe eine Folie vorging, statt den
+Vortrag zu beenden. Dieselbe Überlegung wie bei `Tab`, das dieses Werkzeug
+ausdrücklich nicht abfängt: wer die Tasten belegt, mit denen man überhaupt
+weiterkommt, sperrt den Benutzer dort ein, wo er gerade steht.
+
+Gefragt wird nach dem **Element** und nicht nach der Rolle — die Elemente der
+Arbeitsfläche tragen `role="button"`, damit sie einen Tabstopp bekommen, und
+dort soll die Leertaste weiterblättern. Und geprüft wird im Browser: in jsdom
+ist ein `defaultPrevented` eine Zusicherung, im Browser ist es die Frage, ob
+der Knopf wirklich losgeht.
+
+**Eine offene Schicht deckte die Folie zu, und keine Taste wusste davon.**
+Übersicht, Suche und Prompt liegen als eigene Schicht davor — die
+Fluchtreihenfolge des `Escape` zählt sie der Reihe nach auf. Alles darunter
+blieb trotzdem scharf. Wer im Suchfeld auf „Alle ersetzen" geklickt hatte,
+stand danach auf einem Knopf und nicht in einem Feld: ein `⌫` von dort löschte
+das ausgewählte Element auf der Folie darunter, ohne dass etwas davon zu sehen
+war. Ein `n` legte hinter dem Prompt-Dialog eine Folie an, ein `p` startete
+hinter der Übersicht den Vortrag.
+
+*Welche* Folie zu sehen ist, darf eine Taste trotzdem ändern: die Übersicht
+zeigt gerade, wo man steht, und wer sucht, will die Fundstelle sehen.
+Geschoben wird nur, was man auch sieht — die Auswahl zählt deshalb als leer,
+solange etwas davorliegt. Und `⌘Z` bleibt scharf: „⌘Z nimmt es in einem Zug
+zurück" steht in der Suchleiste, ein Riegel davor hätte die Zusage gebrochen.
+
+**`⌘F` stand in zwei Kommentaren und in keiner Beschriftung.** Suchen und
+Ersetzen war das einzige Merkmal ohne einen Weg mit der Maus: wer das Kürzel
+nicht kannte, konnte im Deck nicht suchen. Das ist das Gegenstück zum toten
+Bedienelement, das in dieser Liste zweimal steht — dort ein Feld ohne Wirkung,
+hier eine Wirkung ohne einen Weg dorthin. Es gibt jetzt einen Knopf in der
+Kopfleiste, und `G` und `N` stehen als Kürzel an ihren Knöpfen.
+
+**Und eine Ansage, die zweimal vorkommt, deckt die fehlende zu.** Der Wächter
+darüber liest die Belegungen aus der Quelle und verlangt für jede eine
+sichtbare Ansage oder eine Ausnahme mit Grund. Er urteilt über die **Taste**
+und nicht über die Bedeutung: `n` legt eine Folie an *und* schaltet im Vortrag
+die Notizen um, beide Knöpfe tragen `(N)`, und das `(N)` an einem von beiden
+wegzunehmen macht ihn nicht rot. Gefunden hat das die Gegenprobe, und deshalb
+steht es im Kopf der Prüfung — eine Grenze, die man kennt, ist etwas anderes
+als eine, die man für Deckung hält. Dieselbe Sorte Grenze eine Zeile weiter:
+ein `event.shiftKey` eine Ebene tiefer gehört zur Belegung darüber, `⇧⌘Z` ist
+hier `⌘Z`.
+
+**Das Sprachsieb urteilte über Prüfdateien.** `language.test.ts` liest jede
+`.tsx` unter `src` — auch die, die nie gezeichnet wird. `taste({ key:
+'Delete' })` in der Prüfung der Tastatur ist der DOM-Name einer Taste, und
+`istKlempnerei` lässt ihn nicht durch, weil er großgeschrieben ist. Der Kopf
+des Siebs sagt selbst, warum es nur `.tsx` liest: „dort steht, was gezeichnet
+wird". Eine `*.test.tsx` gehört nicht dazu. Die Gegenprobe steht daneben: eine
+englische Beschriftung in `TopBar.tsx` fängt es weiterhin.
+
+**Was nachgemessen wurde und in Ordnung ist.** Die zwölf Kürzel, die die
+Tastentabelle des Willkommens-Decks verspricht, tun alle, was ihre Zeile sagt
+— und die Prüfung liest die Tabelle, statt sie abzuschreiben: wer eine Zeile
+schreibt, ohne sie zu belegen, wird rot. `Escape` räumt die Schichten in der
+Reihenfolge ab, in der sie liegen, und gibt danach die Auswahl frei. `⌘S`,
+`⌘O`, `⌘⇧N`, `⌘K`, `⌘F` und die drei Leisten wirken auch aus einem Textfeld
+heraus, alles andere nicht. Und `⌘N` bleibt dem Browser: der `!mod`-Schalter,
+der bei `g` und `p` fehlte, stand bei `n` von Anfang an.
 
 ---
 
