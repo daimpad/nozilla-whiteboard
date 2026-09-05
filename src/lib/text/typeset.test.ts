@@ -306,3 +306,186 @@ describe('was der Setzer aus einem Text macht', () => {
     expect(zeilen('Siehe ![Logo](logo.png) hier.')).toEqual(['Siehe', 'hier.']);
   });
 });
+
+describe('was ein benanntes Zeichen auf der Folie wird', () => {
+  const lauf = (quelle: string) =>
+    textPrims(typesetMarkdown(quelle, { width: 400 }).prims)
+      .map(lineText)
+      .join(' ');
+
+  it('übersetzt den ganzen Latin-1-Block und nicht neun Namen daraus', () => {
+    /*
+       Der Vorrat war eine getippte Liste von neun Paaren. `&uuml;` stand
+       danach als `&uuml;` auf der Folie — in jeder Ausgabe, ohne ein Wort;
+       ein Markdown-Leser, der nach HTML setzt, zeigt dort „ü". Geprüft werden
+       die *Ränder* des Blocks und drei Stellen darin, denn eine um eins
+       verschobene Namensreihe übersetzt weiterhin, nur eben falsch.
+    */
+    expect(lauf('Gr&uuml;&szlig;e und &Auml;pfel')).toBe('Grüße und Äpfel');
+    expect(lauf('&nbsp;A')).toBe('\u00a0A');
+    expect(lauf('&yuml;')).toBe('ÿ');
+    expect(lauf('&reg; &times; &frac12;')).toBe('® × ½');
+  });
+
+  it('übersetzt Zahlen in beiden Schreibweisen', () => {
+    expect(lauf('&#252; &#xDF; &#x1F600;')).toBe('ü ß 😀');
+  });
+
+  it('lässt stehen, was es nicht kennt, statt zu raten', () => {
+    // Dieselbe Linie wie beim unbekannten `theme:`: den Wert behalten, die
+    // Lücke zeigen. HTML5 kennt 2231 Namen; wer alle mitschleppt, liefert
+    // hundert Kilobyte für einen Fall aus, den ein Deck nie hat.
+    expect(lauf('&spades; und &nichtsda;')).toBe('&spades; und &nichtsda;');
+    // Und ein Zahlwert, der gar kein XML-Zeichen benennt, bleibt sichtbar —
+    // übersetzt würde er beim Schreiben der `.svg` wieder herausgeschnitten.
+    expect(lauf('&#0; &#xD800;')).toBe('&#0; &#xD800;');
+  });
+
+  it('lässt einen Codespan in Ruhe', () => {
+    // In einem Codespan ist ein Zeichenname kein Zeichenname, sondern Text.
+    expect(lauf('Ein `&uuml;` Wort')).toBe('Ein &uuml; Wort');
+  });
+});
+
+describe('was aus einem weichen Umbruch wird', () => {
+  const laeufe = (quelle: string) =>
+    textPrims(typesetMarkdown(quelle, { width: 400 }).prims).flatMap((prim) =>
+      prim.runs.map((run) => run.text),
+    );
+
+  it('macht ein Leerzeichen daraus, schon im Lauf', () => {
+    /*
+       Der Umbruch kam als rohes `\n` bis in die `ScenePrim` und wurde erst in
+       den Ausgaben eingeebnet — im PPTX-Weg von `flattenWhitespace()`, auf der
+       Fläche vom Browser. Die vierte Einebnung fehlte: die Ersatzmessung der
+       Tests gibt `\n` eine andere Breite als dem Leerzeichen, und damit brach
+       jede Prüfung ohne Canvas an einer anderen Stelle um als der Browser.
+    */
+    expect(laeufe('Zeile eins\nZeile zwei')).not.toContain('\n');
+    expect(laeufe('Zeile eins\nZeile zwei')).toEqual([
+      'Zeile',
+      ' ',
+      'eins',
+      ' ',
+      'Zeile',
+      ' ',
+      'zwei',
+    ]);
+    // Und dieselbe Breite wie ein Leerzeichen, sonst misst der Test anders als
+    // der Browser.
+    const breite = (quelle: string) =>
+      textPrims(typesetMarkdown(quelle, { width: 400 }).prims)[0].runs.reduce(
+        (summe, run) => summe + run.width,
+        0,
+      );
+    expect(breite('a\nb')).toBeCloseTo(breite('a b'), 6);
+  });
+
+  it('lässt einen harten Umbruch einen Umbruch sein', () => {
+    // Die Gegenrichtung: zwei Leerzeichen am Zeilenende sind ein `br`, und das
+    // bleibt eine Zeilengrenze.
+    expect(
+      textPrims(typesetMarkdown('Zeile eins  \nZeile zwei', { width: 400 }).prims).map(lineText),
+    ).toEqual(['Zeile eins', 'Zeile zwei']);
+  });
+});
+
+describe('was der Setzer tut, wenn der Einzug die Breite auffrisst', () => {
+  const TIEF = [
+    ['Codeblock', '- A\n  - B\n    - C\n      - D\n\n        ```\n        x = 1;\n        ```'],
+    [
+      'Tabelle',
+      '- A\n  - B\n    - C\n      - D\n\n        | K | W |\n        | --- | --- |\n        | a | 1 |',
+    ],
+    ['Linie', '- A\n  - B\n    - C\n      - D\n\n        ---'],
+    ['Bild', '- A\n  - B\n    - C\n      - D\n\n        ![Alt](b.png)'],
+    ['Zitat', '> > > > Ein Satz, der ziemlich weit eingerückt steht'],
+  ] as const;
+
+  it('setzt nie ein negatives Maß', () => {
+    /*
+       Ein tief verschachtelter Punkt schiebt den Einzug über die Breite
+       hinaus, und `this.width - indent` wurde negativ. Gemessen kam die
+       Codeplatte als `<rect width="-6.4">` heraus — im SVG ein Fehlerwert, den
+       kein Betrachter zeichnet, und im PPTX-Weg ein `<a:ext cx="-…">`, das die
+       Datei gegen ihr eigenes Schema stellt. Kein Betrachter sagt das.
+    */
+    for (const [was, quelle] of TIEF) {
+      for (const breite of [40, 80, 160, 400]) {
+        for (const prim of typesetMarkdown(quelle, { width: breite }).prims) {
+          const maße = [prim.x, prim.y, ...(prim.t === 'text' ? [] : [prim.w, prim.h])];
+          for (const maß of maße) expect(Number.isFinite(maß), `${was} @${breite}`).toBe(true);
+          if (prim.t !== 'text') {
+            expect(prim.w, `${was} @${breite}: Breite`).toBeGreaterThanOrEqual(0);
+            expect(prim.h, `${was} @${breite}: Höhe`).toBeGreaterThanOrEqual(0);
+          }
+        }
+      }
+    }
+  });
+});
+
+describe('wo ein Bild ein Bild bleibt', () => {
+  const bilder = (quelle: string) =>
+    typesetMarkdown(quelle, { width: 400 }).prims.filter((prim) => prim.t === 'image').length;
+  const kursiv = (quelle: string) =>
+    textPrims(typesetMarkdown(quelle, { width: 400 }).prims)
+      .flatMap((prim) => prim.runs)
+      .filter((run) => run.font.italic)
+      .map((run) => run.text);
+
+  it('auch im Listenpunkt, in allen drei Schreibweisen', () => {
+    /*
+       Der Zerleger stand nur im Absatz-Zweig. Ein Listenpunkt reicht seine
+       Kinder an `flattenInline()` weiter, und dort wird aus einem
+       `image`-Token stillschweigend ein kursiver Lauf mit dem Alternativtext:
+       aus `- ![Logo](logo.png)` wurde „Logo" in Kursiv, in jeder Ausgabe.
+       Genau der Fehler, der im Absatz schon einmal behoben wurde, eine
+       Einrückung weiter.
+    */
+    expect(bilder('- ![Logo](logo.png)')).toBe(1);
+    expect(bilder('- Punkt\n\n  ![Logo](logo.png)')).toBe(1);
+    expect(bilder('- Davor ![Logo](logo.png) danach')).toBe(1);
+    // Und der Alternativtext steht danach nirgends mehr als Text auf der
+    // Folie — er ist die Beschreibung des Bildes, nicht sein Ersatz.
+    expect(kursiv('- ![Logo](logo.png)')).toEqual([]);
+    expect(kursiv('- Davor ![Logo](logo.png) danach')).toEqual([]);
+    // Der Text daneben bleibt.
+    expect(
+      textPrims(typesetMarkdown('- Davor ![Logo](logo.png) danach', { width: 400 }).prims).map(
+        lineText,
+      ),
+    ).toEqual(['Davor', 'danach']);
+  });
+});
+
+describe('was die gemeldete Breite meint', () => {
+  it('reicht bis zum äußersten Primitiv und nicht bis zur breitesten Zeile', () => {
+    /*
+       Die Buchführung hakte an fünf Stellen ein und ließ die Linie, den
+       Zitatbalken und den Marker aus: ein Codeblock über die volle Breite
+       meldete 105,6 von 600, und die Zeile darüber versprach „die breiteste
+       gesetzte Zeile". Gemessen wird jetzt am fertigen Primitiv.
+    */
+    const rand = (quelle: string, breite: number) => {
+      const gesetzt = typesetMarkdown(quelle, { width: breite });
+      const weiteste = Math.max(
+        0,
+        ...gesetzt.prims.map((prim) =>
+          prim.t === 'text'
+            ? prim.x + prim.runs.reduce((weit, run) => Math.max(weit, run.dx + run.width), 0)
+            : prim.x + prim.w,
+        ),
+      );
+      return { gemeldet: gesetzt.width, weiteste };
+    };
+
+    for (const quelle of ['```\nx\n```', '---', '> Zitat', 'Ein Satz.', '| K |\n| --- |\n| a |']) {
+      const { gemeldet, weiteste } = rand(quelle, 600);
+      expect(gemeldet, quelle).toBeCloseTo(weiteste, 6);
+    }
+    // Und eine Codeplatte nimmt die angebotene Breite — die Zahl sagt, was
+    // dasteht, nicht, was nötig wäre.
+    expect(rand('```\nx\n```', 600).gemeldet).toBeCloseTo(600, 6);
+  });
+});

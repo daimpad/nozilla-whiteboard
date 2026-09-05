@@ -77,7 +77,17 @@ export interface TypesetResult {
   prims: TypesetPrim[];
   /** Total laid-out height. */
   height: number;
-  /** Widest laid-out line — useful for shrink-to-fit boxes. */
+  /**
+   * Wie weit nach rechts wirklich etwas gesetzt wurde.
+   *
+   * Gemessen am fertigen Primitiv und nicht an einer Buchführung nebenher: die
+   * hakte an fünf Stellen ein und ließ die Linie, den Zitatbalken und den
+   * Marker aus — ein Codeblock über die volle Breite meldete 105,6 von 600, und
+   * die Zeile darüber versprach „die breiteste gesetzte Zeile". Wer hier
+   * einpassen will, muss wissen, dass eine Linie und eine Codeplatte die
+   * angebotene Breite *nehmen* und nicht *fordern*; die Zahl sagt, was dasteht,
+   * nicht, was nötig wäre.
+   */
   width: number;
 }
 
@@ -190,7 +200,6 @@ class Layout {
   readonly resolveImageSize?: (src: string) => { w: number; h: number } | undefined;
 
   y: number;
-  maxWidth = 0;
   private firstBlock = true;
 
   constructor(options: TypesetOptions) {
@@ -213,7 +222,11 @@ class Layout {
   }
 
   finish(): TypesetResult {
-    return { prims: this.prims, height: Math.max(0, this.y), width: this.maxWidth };
+    return {
+      prims: this.prims,
+      height: Math.max(0, this.y),
+      width: Math.max(0, rechterRand(this.prims) - this.originX),
+    };
   }
 
   private gapBefore(amount: number): void {
@@ -279,26 +292,18 @@ class Layout {
           tracking: style.tracking,
         });
         const teile = paragraph.tokens ?? [];
-        const bilder = teile.filter((teil) => teil.type === 'image');
-        if (bilder.length > 0) {
-          let stapel: Token[] = [];
-          const setzeStapel = () => {
-            const runs = flattenInline(stapel, spec, this.palette.text);
-            stapel = [];
-            if (runs.every((run) => run.text.trim() === '')) return;
+        if (teile.some((teil) => teil.type === 'image')) {
+          for (const teil of absatzteile(teile)) {
+            if ('bild' in teil) {
+              this.image(teil.bild, indent);
+              continue;
+            }
+            const runs = flattenInline(teil.inline, spec, this.palette.text);
+            if (runs.every((run) => run.text.trim() === '')) continue;
             this.gapBefore(base * 0.35);
             this.paragraph(runs, base * style.lineHeight, indent);
             this.y += base * 0.42;
-          };
-          for (const teil of teile) {
-            if (teil.type === 'image') {
-              setzeStapel();
-              this.image(teil as Tokens.Image, indent);
-              continue;
-            }
-            stapel.push(teil);
           }
-          setzeStapel();
           return;
         }
 
@@ -320,7 +325,7 @@ class Layout {
         });
         const runs = textToken.tokens
           ? flattenInline(textToken.tokens, spec, this.palette.text)
-          : [{ text: textToken.text ?? '', font: spec, color: this.palette.text }];
+          : [{ text: laufText(textToken.text ?? ''), font: spec, color: this.palette.text }];
         this.paragraph(runs, base * style.lineHeight, indent);
         return;
       }
@@ -353,7 +358,7 @@ class Layout {
           t: 'rect',
           x: this.originX + indent,
           y: this.y,
-          w: this.width - indent,
+          w: this.platz(indent),
           h: stroke.rule,
           fill: this.palette.border,
         });
@@ -498,11 +503,32 @@ class Layout {
           continue;
         }
         const withTokens = child as Token & { tokens?: Token[]; text?: string };
-        gesammelt.push(
-          ...(withTokens.tokens
-            ? flattenInline(withTokens.tokens, spec, this.palette.text)
-            : [{ text: withTokens.text ?? '', font: spec, color: this.palette.text }]),
-        );
+        if (!withTokens.tokens) {
+          gesammelt.push({
+            text: laufText(withTokens.text ?? ''),
+            font: spec,
+            color: this.palette.text,
+          });
+          continue;
+        }
+        /*
+           Und eine Abbildung bleibt auch hier eine Abbildung.
+
+           Der Zerleger stand nur im Absatz-Zweig; ein Listenpunkt reicht seine
+           Kinder an `flattenInline()` weiter, und dort wird aus einem
+           `image`-Token stillschweigend ein *kursiver Lauf mit dem
+           Alternativtext*. Aus `- ![Logo](logo.png)` wurde damit „Logo" in
+           Kursiv — in jeder Ausgabe, ohne ein Wort. Genau der Fehler, der im
+           Absatz schon einmal behoben wurde, eine Einrückung weiter.
+        */
+        for (const teil of absatzteile(withTokens.tokens)) {
+          if ('bild' in teil) {
+            setze();
+            this.image(teil.bild, contentIndent);
+            continue;
+          }
+          gesammelt.push(...flattenInline(teil.inline, spec, this.palette.text));
+        }
       }
       setze();
     } else {
@@ -527,7 +553,7 @@ class Layout {
     const spec = font({ family: 'mono', size, weight: style.weight });
     const lineHeight = size * style.lineHeight;
     const padding = base * 0.75;
-    const boxWidth = this.width - indent;
+    const boxWidth = this.platz(indent);
     const innerWidth = boxWidth - padding * 2;
 
     this.gapBefore(base * 0.4);
@@ -561,7 +587,6 @@ class Layout {
         width: w,
         runs: [{ dx: 0, text: laidLine.text, font: spec, color: this.palette.codeText, width: w }],
       });
-      this.trackWidth(indent + padding + w);
       lineY += lineHeight;
     }
 
@@ -599,7 +624,7 @@ class Layout {
     const size = style.size * this.scale;
     const cellPadY = size * 0.55;
     const cellPadX = size * 0.7;
-    const boxWidth = this.width - indent;
+    const boxWidth = this.platz(indent);
     const columns = Math.max(1, token.header.length);
 
     const specFor = (bold: boolean) =>
@@ -676,11 +701,10 @@ class Layout {
     for (const row of token.rows) drawRow(row, false);
 
     this.y = y + base * 0.5;
-    this.trackWidth(indent + boxWidth);
   }
 
   private image(token: Tokens.Image, indent: number): void {
-    const available = this.width - indent;
+    const available = this.platz(indent);
     const intrinsic = this.resolveImageSize?.(token.href) ?? undefined;
     const ratio = intrinsic && intrinsic.w > 0 ? intrinsic.h / intrinsic.w : 0.5625;
     const w = intrinsic ? Math.min(available, intrinsic.w) : available;
@@ -697,14 +721,13 @@ class Layout {
       alt: token.text ?? '',
     });
     this.y += h + this.baseSize * 0.5;
-    this.trackWidth(indent + w);
   }
 
   /* --------------------------------------------------------------- helpers */
 
   /** Wrap `runs` into lines and emit them, advancing `y`. */
   paragraph(runs: readonly StyledRun[], lineHeight: number, indent: number): void {
-    const available = this.width - indent;
+    const available = this.platz(indent);
     const lines = wrapRuns(runs, available);
 
     for (const lineRuns of lines) {
@@ -753,16 +776,39 @@ class Layout {
         width: lineWidth,
         runs: lineRuns,
       });
-      this.trackWidth(indent + lineWidth);
       this.y += lineHeight;
     }
 
     if (lines.length === 0) this.y += lineHeight;
   }
 
-  private trackWidth(value: number): void {
-    if (value > this.maxWidth) this.maxWidth = value;
+  /**
+   * Was von der Breite nach dem Einzug übrig bleibt — nie weniger als nichts.
+   *
+   * Ein tief verschachtelter Listenpunkt schiebt den Einzug über die Breite
+   * hinaus, und `this.width - indent` wurde dann negativ. Das ist keine
+   * Übertreibung von „passt nicht", sondern ein ungültiges Maß: die Codeplatte
+   * kam als `<rect width="-6.4">` heraus — im SVG ein Fehlerwert, den kein
+   * Betrachter zeichnet —, und im PPTX-Weg wird daraus ein `<a:ext cx="-…">`,
+   * das die Datei gegen ihr eigenes Schema stellt. Der Inhalt läuft weiterhin
+   * über die Kante, wie im Browser auch; nur die Maße bleiben Maße.
+   */
+  private platz(indent: number): number {
+    return Math.max(0, this.width - indent);
   }
+}
+
+/** Der äußerste rechte Rand über alle Primitive — in Folien-Koordinaten. */
+function rechterRand(prims: readonly TypesetPrim[]): number {
+  let rand = 0;
+  for (const prim of prims) {
+    const ende =
+      prim.t === 'text'
+        ? prim.x + prim.runs.reduce((weit, run) => Math.max(weit, run.dx + run.width), 0)
+        : prim.x + prim.w;
+    if (ende > rand) rand = ende;
+  }
+  return rand;
 }
 
 function maxFontSize(runs: readonly PositionedRun[]): number {
@@ -777,6 +823,36 @@ function inlineTokensOf(text: string): Token[] {
   const first = lexMarkdown(text)[0] as (Token & { tokens?: Token[] }) | undefined;
   if (first?.tokens?.length) return first.tokens;
   return [{ type: 'text', raw: text, text } as Token];
+}
+
+/**
+ * Ein Absatz zerfällt an seinen Abbildungen.
+ *
+ * Ein Bild läuft im Browser im Text mit; dieses Werkzeug kennt für ein Bild nur
+ * die Abbildung, also einen eigenen Block. Zerlegt wird deshalb in der
+ * Reihenfolge des Textes — Text, Bild, Text —, und zwar an *einer* Stelle:
+ * Absatz und Listenpunkt fragen dieselbe Rechnung. Zwei Zerleger für dieselbe
+ * Frage liefen in diesem Repo schon dreimal auseinander.
+ */
+type Absatzteil = { readonly bild: Tokens.Image } | { readonly inline: Token[] };
+
+function absatzteile(tokens: readonly Token[]): Absatzteil[] {
+  const teile: Absatzteil[] = [];
+  let stapel: Token[] = [];
+  const kippe = () => {
+    if (stapel.length > 0) teile.push({ inline: stapel });
+    stapel = [];
+  };
+  for (const token of tokens) {
+    if (token.type === 'image') {
+      kippe();
+      teile.push({ bild: token as Tokens.Image });
+      continue;
+    }
+    stapel.push(token);
+  }
+  kippe();
+  return teile;
 }
 
 /** Flatten marked's inline token tree into a list of uniformly-styled runs. */
@@ -817,7 +893,7 @@ export function flattenInline(
             walk(link.tokens, spec, currentColor, { ...deco, underline: true });
           } else {
             out.push({
-              text: link.text ?? link.href,
+              text: laufText(link.text ?? link.href),
               font: spec,
               color: currentColor,
               underline: true,
@@ -867,7 +943,7 @@ export function flattenInline(
         }
         case 'image':
           out.push({
-            text: (token as Tokens.Image).text || '',
+            text: laufText((token as Tokens.Image).text || ''),
             font: { ...spec, italic: true },
             color: currentColor,
             ...deco,
@@ -880,7 +956,7 @@ export function flattenInline(
             walk(withTokens.tokens, spec, currentColor, deco);
           } else if (withTokens.text) {
             out.push({
-              text: decodeEntities(withTokens.text),
+              text: laufText(withTokens.text),
               font: spec,
               color: currentColor,
               ...deco,
@@ -895,20 +971,87 @@ export function flattenInline(
   return out;
 }
 
+/*
+   Die Namen des Latin-1-Blocks, in der Reihenfolge ihrer Zeichen.
+
+   Sie werden *gerechnet* und nicht getippt: der n-te Name gehört zu
+   U+00A0 + n, und damit ist der Block vollständig, ohne dass jemand
+   sechsundneunzig Paare abschreibt. Eine getippte Liste wäre wieder das, was
+   hier vorher stand — eine Auswahl, bei der man erst merkt, was fehlt, wenn
+   es jemand schreibt.
+*/
+const LATIN1 =
+  'nbsp iexcl cent pound curren yen brvbar sect uml copy ordf laquo not shy reg macr ' +
+  'deg plusmn sup2 sup3 acute micro para middot cedil sup1 ordm raquo frac14 frac12 frac34 iquest ' +
+  'Agrave Aacute Acirc Atilde Auml Aring AElig Ccedil Egrave Eacute Ecirc Euml ' +
+  'Igrave Iacute Icirc Iuml ETH Ntilde Ograve Oacute Ocirc Otilde Ouml times ' +
+  'Oslash Ugrave Uacute Ucirc Uuml Yacute THORN szlig ' +
+  'agrave aacute acirc atilde auml aring aelig ccedil egrave eacute ecirc euml ' +
+  'igrave iacute icirc iuml eth ntilde ograve oacute ocirc otilde ouml divide ' +
+  'oslash ugrave uacute ucirc uuml yacute thorn yuml';
+
+/**
+ * Der Vorrat benannter Zeichen.
+ *
+ * Vollständig ist er nicht und kann es nicht sein: HTML5 kennt
+ * zweitausendzweihunderteinunddreißig Namen, und die mitzuschleppen hieße,
+ * hundert Kilobyte für einen Fall auszuliefern, den ein Deck nie hat. Was hier
+ * fehlt, wird deshalb **stehen gelassen und nicht erraten** — dieselbe Linie
+ * wie beim unbekannten `theme:`: den Wert behalten, die Lücke zeigen. Ein
+ * `&spades;` steht danach als `&spades;` auf der Folie, und wer das sieht,
+ * schreibt das Zeichen hin.
+ */
 const ENTITIES: Record<string, string> = {
-  '&amp;': '&',
-  '&lt;': '<',
-  '&gt;': '>',
-  '&quot;': '"',
-  '&#39;': "'",
-  '&nbsp;': ' ',
-  '&hellip;': '…',
-  '&mdash;': '—',
-  '&ndash;': '–',
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  hellip: '…',
+  mdash: '—',
+  ndash: '–',
+  ...Object.fromEntries(
+    LATIN1.split(' ').map((name, index) => [name, String.fromCharCode(0xa0 + index)]),
+  ),
 };
 
+/*
+   Ein Zeichen, das XML nicht kennt, wird nicht übersetzt.
+
+   `&#0;` und `&#xD800;` sind gültige Schreibweisen und trotzdem keine Zeichen,
+   die in eine `.svg` dürfen — `ohneVerboteneZeichen()` schnitte sie dort
+   wieder heraus. Sie *hier* zu übersetzen hieße, aus einer sichtbaren Angabe
+   eine unsichtbare zu machen; sie bleibt deshalb stehen.
+*/
+function erlaubtesZeichen(code: number): boolean {
+  if (code === 0x9 || code === 0xa || code === 0xd) return true;
+  if (code >= 0x20 && code <= 0xd7ff) return true;
+  if (code >= 0xe000 && code <= 0xfffd) return true;
+  return code >= 0x10000 && code <= 0x10ffff;
+}
+
 function decodeEntities(text: string): string {
-  return text.replace(/&(?:amp|lt|gt|quot|#39|nbsp|hellip|mdash|ndash);/g, (m) => ENTITIES[m] ?? m);
+  return text.replace(/&(#\d+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g, (ganz, name: string) => {
+    if (name[0] !== '#') return ENTITIES[name] ?? ganz;
+    const hex = name[1] === 'x' || name[1] === 'X';
+    const code = Number.parseInt(hex ? name.slice(2) : name.slice(1), hex ? 16 : 10);
+    return Number.isFinite(code) && erlaubtesZeichen(code) ? String.fromCodePoint(code) : ganz;
+  });
+}
+
+/**
+ * Der Text eines Laufs, so wie er auf die Folie gehört.
+ *
+ * Ein weicher Markdown-Umbruch kam bis hierher als rohes `\n` durch und wurde
+ * erst in den Ausgaben eingeebnet — im PPTX-Weg von `flattenWhitespace()`, auf
+ * der Fläche vom Browser, der ein `\n` in einem `<tspan>` wie ein Leerzeichen
+ * misst. Drei Einebnungen für dieselbe Tatsache, und die vierte fehlte: die
+ * Ersatzmessung der Tests gibt `\n` eine andere Breite als dem Leerzeichen,
+ * und damit bricht jede Prüfung ohne Canvas an einer anderen Stelle um als der
+ * Browser. Eingeebnet wird deshalb hier, wo der Lauf entsteht.
+ */
+function laufText(text: string): string {
+  return decodeEntities(text).replace(/[\r\n\t]+/g, ' ');
 }
 
 /* -------------------------------------------------------------------------- */

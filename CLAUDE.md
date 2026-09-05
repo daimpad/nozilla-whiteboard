@@ -2316,6 +2316,70 @@ und über alle Elementarten, Töne, Füllungen und Untergründe gibt es **keine*
 Kombination, in der ein solches Primitiv auf einem eigenen, andersfarbigen
 Körper liegt. Der Fall, der beim Text falsch war, ist hier nicht erreichbar.
 
+**Neun Zeichennamen, und alles andere stand da, wie es geschrieben war.**
+`decodeEntities()` führte eine getippte Liste von neun Paaren; `&uuml;` kam
+damit als `&uuml;` auf die Folie, in jeder Ausgabe, ohne ein Wort. Ein
+Markdown-Leser, der nach HTML setzt, zeigt dort „ü" — der Browser übersetzt für
+ihn, und wer aus einem Redaktionssystem einfügt, bekommt genau diese
+Schreibweise. Übersetzt werden jetzt der ganze **Latin-1-Block** und **jede
+Zahl** in beiden Schreibweisen; die sechsundneunzig Namen sind dabei
+*gerechnet* und nicht getippt — der n-te Name gehört zu U+00A0 + n. Eine
+getippte Liste wäre wieder das, was vorher dastand.
+
+Vollständig ist es damit nicht: HTML5 kennt 2231 Namen, und die mitzuschleppen
+hieße, hundert Kilobyte für einen Fall auszuliefern, den ein Deck nie hat. Was
+fehlt, bleibt deshalb **stehen und wird nicht erraten** — dieselbe Linie wie
+beim unbekannten `theme:`: den Wert behalten, die Lücke zeigen. Und eine Zahl,
+die gar kein XML-Zeichen benennt (`&#0;`, `&#xD800;`), bleibt ebenfalls
+sichtbar: übersetzt schnitte `ohneVerboteneZeichen()` sie beim Schreiben der
+`.svg` wieder heraus, und aus einer sichtbaren Angabe würde eine unsichtbare.
+Geprüft werden die **Ränder** des Blocks und drei Stellen darin — eine um eins
+verschobene Namensreihe übersetzt weiterhin, nur eben falsch.
+
+**Ein weicher Umbruch kam als rohes `\n` bis in die Ausgaben.** Eingeebnet
+wurde er dreimal am Ende: im PPTX-Weg von `flattenWhitespace()`, auf der Fläche
+vom Browser, der ein `\n` im `<tspan>` wie ein Leerzeichen misst — und die
+vierte Einebnung fehlte. Die Ersatzmessung der Tests gibt `\n` eine andere
+Breite als dem Leerzeichen (8,48 gegen 4,5), also brach **jede Prüfung ohne
+Canvas an einer anderen Stelle um als der Browser**. Drei Rechnungen für
+dieselbe Tatsache, und man sieht es nur im Vergleich. Eingeebnet wird jetzt in
+`laufText()`, wo der Lauf entsteht.
+
+**Ein Einzug, der die Breite auffrisst, ergab ein negatives Maß.** Ein sechs
+Ebenen tiefer Listenpunkt schiebt den Einzug über die Elementbreite hinaus, und
+`this.width - indent` wurde negativ. Gemessen kam die Codeplatte als `<rect
+width="-6.4">` heraus — im SVG ein Fehlerwert, den kein Betrachter zeichnet —,
+und im PPTX-Weg wird daraus ein `<a:ext cx="-…">`, das die Datei gegen ihr
+eigenes Schema stellt. Fünf Stellen rechneten so; sie fragen jetzt `platz()`.
+Der Überlauf selbst bleibt: der Inhalt läuft über die Kante, wie im Browser
+auch, und eine Regel dagegen wäre erfunden. Nur die Maße bleiben Maße.
+
+**Eine Abbildung im Listenpunkt fiel aus jeder Ausgabe.** Der Zerleger stand
+nur im Absatz-Zweig; ein Listenpunkt reicht seine Kinder an `flattenInline()`
+weiter, und dort wird aus einem `image`-Token stillschweigend ein *kursiver
+Lauf mit dem Alternativtext*. Aus `- ![Logo](logo.png)` wurde damit „Logo" in
+Kursiv — in allen drei Schreibweisen, auch der, in der das Bild allein im Punkt
+steht. Wörtlich „Eine Abbildung wurde nur erkannt, wenn sie allein im Absatz
+stand", eine Einrückung weiter: die Reparatur von damals hat die zweite Stelle
+nicht mitgenommen, weil es sie als eigene Rechnung gab. Zerlegt wird jetzt in
+`absatzteile()`, und beide fragen dieselbe.
+
+Was ausdrücklich bleibt: in einer **Überschrift** und in einer
+**Tabellenzelle** wird ein Bild weiter zum kursiven Alternativtext. Beides ist
+kein Blockfluss — eine Abbildung mitten in einer Zellenreihe hätte keinen Ort
+—, und der Text ist dort das, was von der Angabe übrig bleibt, nicht ihr
+stiller Verlust.
+
+**Die gemeldete Breite versprach die breiteste Zeile und lieferte weniger.**
+`TypesetResult.width` wurde nebenher gebucht, an fünf Stellen von Hand, und die
+Linie, die Codeplatte, der Zitatbalken und der Marker hakten nicht ein: ein
+Codeblock über die volle Breite meldete 105,6 von 600. Gelesen hat die Zahl
+niemand — und genau das ist die Falle, nicht ihre Entschuldigung: ein falscher
+Wert, den keiner liest, ist ein Wert, den der Nächste liest. Gemessen wird
+jetzt am fertigen Primitiv, und die Zeile darüber sagt, was die Zahl meint —
+dass eine Linie und eine Codeplatte die angebotene Breite *nehmen* und nicht
+*fordern*.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,
