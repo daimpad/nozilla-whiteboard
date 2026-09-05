@@ -94,6 +94,21 @@ function melde(zeichen: readonly string[], schnitte: readonly string[]): void {
   melder?.({ zeichen, schnitte });
 }
 
+/**
+ * Schnitte melden, die ein anderer Weg nicht unterbringen konnte.
+ *
+ * Denselben Melder, weil es dieselbe Auskunft ist: „ihr Text steht in der
+ * Ersatzschrift". Der zweite Kunde ist der SVG-Export — bekommt er die
+ * Schnitte nicht als `@font-face` eingebettet, nennt die Datei sie nur beim
+ * Namen, und auf einem fremden Rechner steht der Text in irgendetwas anderem.
+ * Dort stand ein `console.warn` mit dem Satz „ein Fehlschlag bleibt
+ * folgenlos" daneben; folgenlos ist er für den *Export*, nicht für den, der
+ * die Datei danach öffnet.
+ */
+export function meldeSchnittausfall(schnitte: readonly string[]): void {
+  melde([], schnitte);
+}
+
 const ROLLEN: readonly FontFamilyKey[] = ['display', 'body', 'mono'];
 
 /**

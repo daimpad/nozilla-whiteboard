@@ -8,7 +8,16 @@
  * Millisekunden später fest.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { darfErsetzen, grund, oeffneDeck, sichereDeck, startAutosave } from './persistence';
+import {
+  STORAGE_KEY,
+  UNLESBAR_KEY,
+  darfErsetzen,
+  grund,
+  loadSession,
+  oeffneDeck,
+  sichereDeck,
+  startAutosave,
+} from './persistence';
 import { createStarterDeck, useDeckStore } from './deckStore';
 
 /*
@@ -198,5 +207,128 @@ describe('wenn eine Datei-Aktion scheitert', () => {
     // Ein geworfenes Objekt ohne Botschaft darf nicht als „[object Object]"
     // vor Augen kommen.
     expect(grund({})).toBe('Unbekannter Fehler.');
+  });
+});
+
+/**
+ * Eine unlesbare Sitzung ist nicht dasselbe wie keine.
+ *
+ * Beide gaben `null` zurück, und der Unterschied war alles: bei „keine" hat
+ * hier noch nie jemand gearbeitet, bei „unlesbar" stehen seine Zeichen in der
+ * Ablage und niemand sagt es. Das Werkzeug startete mit der Willkommensmappe,
+ * und siebenhundert Millisekunden nach der ersten Änderung schrieb die
+ * Selbstsicherung darüber.
+ *
+ * Geprüft wird an der **Ablage** und nicht am Rückgabewert: dass `loadSession()`
+ * `null` liefert, sagt nichts darüber, ob der Rohtext noch da ist.
+ */
+describe('eine Sitzung, die sich nicht lesen lässt', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useDeckStore.getState().zeigeHinweis(null);
+  });
+
+  const kaputt = (roh: string) => {
+    localStorage.setItem(STORAGE_KEY, roh);
+    return loadSession();
+  };
+
+  it('bleibt erhalten und wird beim Namen genannt', () => {
+    const roh = JSON.stringify({ markdown: '---\ntitle: Meins\n---\n\n# Folie.', savedAt: 1 });
+    const halb = roh.slice(0, roh.length - 15);
+
+    expect(kaputt(halb)).toBeNull();
+    // Der Rohtext steht wortgleich beiseite …
+    expect(localStorage.getItem(UNLESBAR_KEY)).toBe(halb);
+    // … der kaputte Eintrag ist weg, damit die Selbstsicherung ihn nicht trifft …
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+    // … und die Oberfläche weiß davon.
+    const hinweis = String(useDeckStore.getState().hinweis);
+    expect(hinweis).toMatch(/nicht lesen/i);
+    expect(hinweis).toContain(String(halb.length));
+    expect(hinweis).toContain(UNLESBAR_KEY);
+  });
+
+  it('gilt auch für einen Eintrag ohne Markdown', () => {
+    // Kein Wurf, sondern eine fremde Gestalt — der zweite stille Weg.
+    const fremd = JSON.stringify({ deck: { slides: [] }, version: 2 });
+    expect(kaputt(fremd)).toBeNull();
+    expect(localStorage.getItem(UNLESBAR_KEY)).toBe(fremd);
+    expect(String(useDeckStore.getState().hinweis)).toMatch(/kein Markdown/i);
+  });
+
+  it('schweigt dagegen, wo es wirklich nichts gab', () => {
+    /*
+       Die Gegenrichtung, und sie trägt die Regel: ein Hinweis beim ersten
+       Start wäre eine Warnung über etwas, das nie existiert hat — genau die
+       Sorte Wächter, die man abschaltet.
+    */
+    expect(loadSession()).toBeNull();
+    expect(useDeckStore.getState().hinweis).toBeNull();
+    expect(localStorage.getItem(UNLESBAR_KEY)).toBeNull();
+  });
+
+  it('holt eine heile Sitzung zurück, ohne etwas beiseitezulegen', () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        markdown: '---\ntitle: Heil\n---\n\n# Folie.',
+        fileName: 'heil.md',
+        slideIndex: 0,
+        savedAt: 1,
+      }),
+    );
+    const sitzung = loadSession();
+    expect(sitzung?.deck.meta.title).toBe('Heil');
+    expect(sitzung?.fileName).toBe('heil.md');
+    expect(localStorage.getItem(UNLESBAR_KEY)).toBeNull();
+    expect(useDeckStore.getState().hinweis).toBeNull();
+  });
+});
+
+/**
+ * Ein Sichern, das woanders landet, sagt es.
+ *
+ * `saveBlob()` fällt auf einen Download zurück, wenn das Schreiben in den
+ * Dateigriff scheitert — die Datei ist verschoben, die Berechtigung abgelaufen.
+ * Die Politik stimmt; nur las `sichereDeck()` das `via` nicht. Das Deck galt
+ * als gesichert, der Griff blieb stehen, und die geöffnete Datei auf der
+ * Platte war weiter die alte.
+ */
+describe('wohin gesichert wurde', () => {
+  beforeEach(() => {
+    useDeckStore.getState().zeigeHinweis(null);
+    useDeckStore.setState({ fileName: 'meins.md', fileHandle: undefined });
+    exportMarkdown.mockReset();
+  });
+
+  it('meldet, wenn statt in die Datei heruntergeladen wurde', async () => {
+    useDeckStore.setState({ fileHandle: {} as FileSystemFileHandle });
+    exportMarkdown.mockResolvedValue({ via: 'download' });
+
+    expect(await sichereDeck()).toBe(true);
+    const hinweis = String(useDeckStore.getState().hinweis);
+    expect(hinweis).toContain('meins.md');
+    expect(hinweis).toMatch(/heruntergeladen/i);
+    expect(hinweis).toMatch(/nicht auf dem neuesten Stand/i);
+  });
+
+  it('schweigt, wenn die Datei wirklich beschrieben wurde', () => {
+    useDeckStore.setState({ fileHandle: {} as FileSystemFileHandle });
+    exportMarkdown.mockResolvedValue({ via: 'handle', handle: {} });
+    return sichereDeck().then(() => {
+      expect(useDeckStore.getState().hinweis).toBeNull();
+    });
+  });
+
+  it('schweigt auch beim ersten Sichern ohne Datei', async () => {
+    /*
+       Die Gegenrichtung, ohne die die Prüfung oben auch für einen Hinweis
+       bestünde, der immer kommt: wer noch nie gesichert hat, *soll* einen
+       Download bekommen, und das ist keine Meldung wert.
+    */
+    exportMarkdown.mockResolvedValue({ via: 'download' });
+    expect(await sichereDeck()).toBe(true);
+    expect(useDeckStore.getState().hinweis).toBeNull();
   });
 });

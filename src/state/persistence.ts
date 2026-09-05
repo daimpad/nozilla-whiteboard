@@ -1,10 +1,11 @@
 /**
- * Local persistence.
+ * Die Sitzung im Browser.
  *
- * The deck is autosaved to `localStorage` as Markdown — the same Markdown the
- * export pipeline writes — so a reload never loses work, and the recovered
- * state is a file you could have written by hand. No database, no sync, no
- * server: the whole point of the tool.
+ * Das Deck wird als Markdown in `localStorage` gesichert — dasselbe Markdown,
+ * das auch der Export schreibt. Ein Neuladen verliert damit nichts, und was
+ * zurückkommt, ist eine Datei, die man von Hand hätte schreiben können. Keine
+ * Datenbank, kein Abgleich, kein Server: das ist der ganze Punkt des
+ * Werkzeugs.
  */
 import { exportMarkdown, openMarkdownFile } from '@/lib/export';
 import { parseDeck, serializeDeck } from '@/lib/markdown/deck';
@@ -20,6 +21,16 @@ import { useDeckStore } from './deckStore';
  * auseinander — gefunden würde es sonst mitten in einem Vortrag.
  */
 export const STORAGE_KEY = 'nozilla-whiteboard:session:v1';
+
+/**
+ * Wohin eine Sitzung ausweicht, die sich nicht lesen ließ.
+ *
+ * Der Eintrag wird **nicht** weggeworfen. Was hier landet, ist der Rohtext,
+ * wortgleich — dieselbe Linie wie beim unlesbaren `nzl`-Block und beim
+ * unbekannten `theme:`: den Wert behalten, die Lücke zeigen.
+ */
+export const UNLESBAR_KEY = `${STORAGE_KEY}:unlesbar`;
+
 const AUTOSAVE_DELAY = 700;
 
 interface StoredSession {
@@ -37,29 +48,90 @@ function readStorage(): Storage | null {
   }
 }
 
+/**
+ * Die gemerkte Sitzung zurückholen.
+ *
+ * ## Warum eine unlesbare Sitzung nicht dasselbe ist wie keine
+ *
+ * Beide Fälle gaben `null` zurück, und der Unterschied war alles: bei „keine"
+ * hat der Benutzer noch nie hier gearbeitet, bei „unlesbar" stehen seine
+ * Zeichen in der Ablage und niemand sagt es. Das Werkzeug startete dann mit
+ * der Willkommensmappe, und siebenhundert Millisekunden nach der ersten
+ * Änderung schrieb die Selbstsicherung darüber. Gemessen an einer
+ * abgeschnittenen Ablage: **6296 Zeichen** Arbeit, weg ohne ein Wort.
+ *
+ * Wörtlich der teuerste Fehler dieses Projekts, eine Ebene höher — beim
+ * unlesbaren `nzl`-Block ging eine Folie verloren, hier das ganze Deck.
+ *
+ * Der Rohtext geht deshalb zur Seite (`UNLESBAR_KEY`), der kaputte Eintrag
+ * weg, und gesagt wird es auch. **In dieser Reihenfolge**: lässt sich der Text
+ * nicht beiseitelegen — die Ablage ist voll, das Fenster privat —, bleibt er,
+ * wo er ist. Ihn zu entfernen, weil das Ausweichen scheiterte, wäre genau der
+ * Verlust, gegen den das hier gebaut ist.
+ */
 export function loadSession(): { deck: Deck; fileName: string; slideIndex: number } | null {
   const storage = readStorage();
   if (!storage) return null;
+
+  const raw = storage.getItem(STORAGE_KEY);
+  if (!raw) return null;
+
   try {
-    const raw = storage.getItem(STORAGE_KEY);
-    if (!raw) return null;
     const session = JSON.parse(raw) as StoredSession;
-    if (typeof session.markdown !== 'string') return null;
+    if (typeof session.markdown !== 'string') {
+      return bewahre(storage, raw, 'der Eintrag trägt kein Markdown');
+    }
     return {
       deck: parseDeck(session.markdown),
       fileName: session.fileName || 'untitled.md',
       slideIndex: session.slideIndex ?? 0,
     };
-  } catch {
-    return null;
+  } catch (error) {
+    return bewahre(storage, raw, grund(error));
   }
+}
+
+/**
+ * Den Rohtext einer unlesbaren Sitzung beiseitelegen und es sagen.
+ *
+ * Gibt immer `null` zurück: der Aufrufer soll weiterarbeiten können. Die
+ * Politik stimmt — eine kaputte Ablage darf das Werkzeug nicht aufhalten —,
+ * das Schweigen nicht.
+ */
+function bewahre(storage: Storage, roh: string, warum: string): null {
+  let beiseite = false;
+  try {
+    storage.setItem(UNLESBAR_KEY, roh);
+    storage.removeItem(STORAGE_KEY);
+    beiseite = true;
+  } catch {
+    // Kontingent erschöpft. Dann bleibt der Eintrag lieber liegen, wo er ist.
+  }
+
+  /*
+     Und wenn das Ausweichen scheitert, wird auch das gesagt — nicht
+     beschönigt. Der Eintrag bleibt dann liegen, wo er ist, und die nächste
+     Selbstsicherung schreibt darüber; wer die Zeichen retten will, muss das
+     Fenster jetzt in Ruhe lassen. Ein Hinweis, der Sicherheit verspricht, die
+     es nicht gibt, wäre schlechter als keiner.
+  */
+  useDeckStore
+    .getState()
+    .zeigeHinweis(
+      `Die gemerkte Sitzung ließ sich nicht lesen: ${warum}. Ihre ${roh.length} Zeichen ` +
+        (beiseite
+          ? `sind unverändert erhalten und stehen in der Ablage des Browsers unter „${UNLESBAR_KEY}".`
+          : `stehen weiter unter „${STORAGE_KEY}" — beiseitelegen ließen sie sich nicht, ` +
+            'und die nächste Selbstsicherung schreibt darüber.'),
+    );
+  return null;
 }
 
 export function clearSession(): void {
   readStorage()?.removeItem(STORAGE_KEY);
 }
 
-/** Start autosaving. Returns an unsubscribe function. */
+/** Die Selbstsicherung anwerfen. Zurück kommt, wie man sie wieder abstellt. */
 export function startAutosave(): () => void {
   const storage = readStorage();
   if (!storage) return () => undefined;
@@ -170,7 +242,28 @@ export async function sichereDeck(): Promise<boolean> {
       handle: state.fileHandle,
     });
     useDeckStore.getState().markSaved({ handle: result.handle });
-    useDeckStore.getState().zeigeHinweis(null);
+    /*
+       Geschrieben wurde — nur vielleicht nicht dorthin, wo der Benutzer es
+       erwartet.
+
+       `saveBlob()` fällt auf einen Download zurück, wenn das Schreiben in den
+       Dateigriff scheitert: die Datei ist verschoben, die Berechtigung
+       abgelaufen, das Laufwerk weg. Die Politik stimmt — lieber ein Download
+       als ein verlorener Handgriff —, und `SaveResult.via` sagt es auch. Nur
+       las das hier niemand: das Deck galt als gesichert, der Griff blieb
+       stehen, und die geöffnete Datei auf der Platte war weiter die alte.
+       Wer danach das Fenster schloss, hatte seine Arbeit in einem Download,
+       von dem er nichts wusste.
+    */
+    useDeckStore
+      .getState()
+      .zeigeHinweis(
+        state.fileHandle && result.via === 'download'
+          ? `„${state.fileName}" ließ sich nicht an Ort und Stelle beschreiben — das Deck ` +
+              'wurde stattdessen heruntergeladen. Die geöffnete Datei ist damit nicht auf ' +
+              'dem neuesten Stand.'
+          : null,
+      );
     return true;
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') return false;
@@ -214,7 +307,7 @@ export function grund(error: unknown): string {
   return text === '[object Object]' ? 'Unbekannter Fehler.' : text;
 }
 
-/** Warn before leaving with unsaved changes. Returns an unsubscribe function. */
+/** Vor dem Verlassen mit ungesicherter Arbeit warnen; zurück kommt das Abstellen. */
 export function guardUnsavedChanges(): () => void {
   const handler = (event: BeforeUnloadEvent) => {
     if (!useDeckStore.getState().dirty) return;
