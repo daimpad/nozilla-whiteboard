@@ -2279,6 +2279,43 @@ heraus, Tabellenzellen standen zu groß, ein Kartenlabel doppelt —, und keine
 der vorhandenen Prüfungen sah sie: sie greifen einzelne XML-Knoten heraus, und
 was gar nicht da ist, hat keinen Knoten.
 
+**Ein kaputtes Bild nahm den Rest der Folie mit.** „Füllend" klemmt den
+Überstand ab — `saveGraphicsState()`, ein Pfad, `clip()` —, und das
+`restoreGraphicsState()` stand hinter dem `addImage` im `try`. Warf das, und
+genau darauf ist der `catch` daneben gebaut („ein falsch angemeldetes Format,
+eine beschädigte Datei"), blieb die Klemme stehen: alles, was danach auf der
+Seite gezeichnet wird, liegt im Rechteck des kaputten Bildes und ist nicht zu
+sehen. Gemessen am Operatorenlauf: `save · clip · showText · restore`, die
+Textzeile also innerhalb der Klemme.
+
+Der Satz über dem `catch` stimmt weiterhin — ein kaputtes Bild darf den Export
+nicht abbrechen. Nur hat es dabei die halbe Folie mitgenommen, und das ist
+schlimmer als ein Abbruch: **der Abbruch sagt es.** Aufgehoben wird der
+Beschnitt jetzt im `finally`.
+
+Geprüft wird am **Operatorenlauf** und nicht am Text: `getTextContent()` liest
+den Inhaltsstrom und meldet die Zeile auch dann, wenn eine Klemme sie
+unsichtbar macht. Nur die Reihenfolge sagt es.
+
+**Und für den Text im PDF gab es keine Zusicherung über seinen Ort.** Drei
+Fehler dieses Repos waren „zwei Ausgaben, zwei Stellen"; der PDF-Weg rechnet
+die Position selbst, teilt Läufe an Schriftgrenzen und misst den Vorlauf mit
+`measureText()` — und niemand hielt das je gegen die Szene. Verglichen wird
+jetzt der **Zeilenanfang**: pdfjs fasst Läufe zusammen und zerlegt eine
+gesperrte Zeile in einzelne Zeichen, aber der erste Eintrag einer Zeile beginnt
+in beiden Fällen dort, wo die Szene sie ansetzt. Nachgemessen stimmen alle
+Zeilen beider mitgelieferter Decks.
+
+**Was nachgemessen wurde und richtig ist: das Abflachen halbdurchsichtiger
+Flächen.** Der Kopf von `drawText` begründet, warum Text *nicht* gegen den
+Folienuntergrund verrechnet wird — für Flächen und Striche gilt es weiter, und
+die Frage war, ob dabei gegen den falschen Grund gerechnet wird. Zwei
+Messungen: in den mitgelieferten Decks gibt es drei Sorten halbdurchsichtiger
+Nicht-Text-Primitive, alle auf dem Untergrund, gegen den sie verrechnet werden;
+und über alle Elementarten, Töne, Füllungen und Untergründe gibt es **keine**
+Kombination, in der ein solches Primitiv auf einem eigenen, andersfarbigen
+Körper liegt. Der Fall, der beim Text falsch war, ist hier nicht erreichbar.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,
