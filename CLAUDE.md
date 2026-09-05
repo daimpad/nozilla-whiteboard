@@ -2574,6 +2574,30 @@ dieselbe Breite und denselben Anfang wie `u` und nur mehr Höhe, `ä`/`a` und
 und `⌫` in einem Space-Mono-Lauf kommen aus Inter, kein Lauf bleibt als Text
 stehen.
 
+**Ein `Z` mit einer Zahl dahinter drehte sich, bis der Speicher überlief.**
+Jeder Befehl des Pfad-Lesers verbraucht mindestens eine Zahl und kommt damit
+voran — `Z` verbraucht keine. Stand hinter ihm eine Zahl, lief die Schleife
+weiter, ohne den Zeiger zu bewegen: gemessen **34,8 Sekunden**, dann
+`RangeError: Invalid array length`. Im Browser ist das ein eingefrorener Tab
+und ein Gigabyte Speicher auf dem Weg. Nach einem `Z` ist eine Zahl jetzt ein
+Fehler mit Namen.
+
+**Und die Flaggen eines Bogens sind einzelne Ziffern, keine Zahl.** `a5 5 0
+0110 0` heißt largeArc=0, sweep=1, x=10; der Leser zerlegte den Pfad vorweg in
+eine Wortliste, las daraus die 110 und brach mit „Invalid number in path data:
+undefined" ab. Das ist keine Schrulle, sondern genau das, was SVGO schreibt —
+die Datei eines Logos sieht in aller Regel so aus. Der Wurf landet in
+`pathSegs()`, also in einem `useMemo` beim Zeichnen: **weißes Fenster**.
+Gelesen wird jetzt mit einem Zeiger statt mit einer Wortliste, und die Flaggen
+zeichenweise.
+
+**Und die Prüfliste sah die Pfaddaten nie an.** Für die Wortmarke prüfte sie
+Größe, viewBox und Füllfarben — nie, ob aus dem `d` überhaupt eine Kurve wird.
+Eine Datei mit einem unlesbaren Pfad kam grün durch und nahm beim Zeichnen die
+Seite mit; dieselbe Bauart wie das weiße Fenster nach einer fremden `.json`.
+Sie liest die Pfade jetzt wirklich — mit `parsePath()`, also mit dem Leser, der
+beim Zeichnen urteilt, und nicht mit einer nachgebauten Regel.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,

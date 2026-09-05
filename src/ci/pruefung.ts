@@ -24,6 +24,7 @@
  * `hinweis` ist das, was der Nächste wissen muss und nicht raten soll.
  */
 import { nozillaTheme, readPaths, readViewBox } from '@/theme';
+import { parsePath } from '@/lib/geometry/path';
 import { AA, AA_GROSS, kanaele, kontrast, unterscheidbar } from '@/lib/contrast';
 import {
   paletteRollen,
@@ -704,8 +705,37 @@ function pruefeWortmarke(entwurf: CiEntwurf): Befund[] {
     });
   }
 
-  const pfade = readPaths(marke.svg).map((pfad) => pfad.fill);
+  const gelesen = readPaths(marke.svg);
+  const pfade = gelesen.map((pfad) => pfad.fill);
   const gleich = (a: string, b: string) => a.toUpperCase() === b.toUpperCase();
+
+  /*
+     Und die Pfaddaten selbst werden **gelesen** und nicht nur gezählt.
+
+     Geprüft wurden bisher Größe, viewBox und Füllfarben — nie, ob aus dem `d`
+     überhaupt eine Kurve wird. `pathSegs()` in `scene.ts` ruft `parsePath()`
+     beim Zeichnen, also in einem `useMemo` während des Renderns: ein Pfad, den
+     der Leser nicht versteht, wirft dort und nimmt die Seite mit. Die
+     Prüfliste stand derweil auf grün — dieselbe Bauart wie das weiße Fenster
+     nach einer fremden `.json`.
+  */
+  const unlesbar = gelesen
+    .map((pfad, index) => {
+      try {
+        parsePath(pfad.d);
+        return null;
+      } catch (fehler) {
+        return `Pfad ${index + 1}: ${fehler instanceof Error ? fehler.message : String(fehler)}`;
+      }
+    })
+    .filter((eintrag): eintrag is string => eintrag !== null);
+  if (unlesbar.length > 0) {
+    befunde.push({
+      rang: 'fehler',
+      feld,
+      text: `${unlesbar.length === 1 ? 'Ein Pfad lässt' : `${unlesbar.length} Pfade lassen`} sich nicht lesen: ${unlesbar.slice(0, 2).join(' · ')}. Gezeichnet wird daraus nichts — die Vorschau bliebe leer, und in der fertigen Marke fehlte der Schriftzug.`,
+    });
+  }
   /** Eine Angabe, die wirklich malt — `none` ist eine Wahl, leer ist eine Lücke. */
   const malt = (fuellung: string) => Boolean(fuellung) && fuellung.toLowerCase() !== 'none';
 

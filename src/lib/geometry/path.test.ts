@@ -99,6 +99,67 @@ describe('parsePath', () => {
     ]);
   });
 
+  it('liest zusammengezogene Bogenflaggen', () => {
+    /*
+       Die Flaggen eines Bogens sind einzelne Ziffern und dürfen zusammenkleben:
+       `a5 5 0 0110 0` heißt largeArc=0, sweep=1, x=10. Der Leser zerlegte den
+       Pfad vorweg in Zahlen, las daraus die 110 und brach mit „Invalid number
+       in path data: undefined" ab — und das ist keine Schrulle, sondern genau
+       das, was SVGO schreibt. Die Datei eines Logos sieht in aller Regel so
+       aus, der Wurf landet beim Zeichnen in einem `useMemo`, und das Fenster
+       bleibt weiß.
+
+       Geprüft wird gegen die *ausgeschriebene* Fassung derselben Kurve: beide
+       müssen dieselben Segmente ergeben.
+    */
+    const gespreizt = segsToPath(parsePath('M10 10 a5 5 0 0 1 10 0'));
+    for (const kompakt of ['M10 10a5 5 0 0110 0', 'M10 10a5 5 0 01 10 0', 'M10 10a5 5 0 01,10,0']) {
+      expect(segsToPath(parsePath(kompakt)), kompakt).toBe(gespreizt);
+    }
+
+    // Und die Flaggen werden wirklich gelesen und nicht geraten: derselbe
+    // Bogen mit sweep = 0 läuft in die andere Richtung.
+    expect(segsToPath(parsePath('M10 10a5 5 0 0010 0'))).not.toBe(gespreizt);
+  });
+
+  it('dreht sich nicht, wenn hinter einem Z eine Zahl steht', () => {
+    /*
+       Jeder Befehl außer `Z` verbraucht mindestens eine Zahl und kommt damit
+       voran. `Z` verbraucht keine — stand eine Zahl dahinter, lief die
+       Schleife weiter, ohne den Zeiger zu bewegen. Gemessen: 34,8 Sekunden,
+       dann `RangeError: Invalid array length`; im Browser ein eingefrorener
+       Tab und ein Gigabyte Speicher auf dem Weg.
+    */
+    expect(() => parsePath('M0 0 L10 0 Z 5 5')).toThrow(/Z takes no arguments/);
+
+    // Die Gegenrichtung: ein `Z` mit einem Befehl dahinter ist gewöhnlich und
+    // muss durchgehen.
+    expect(parsePath('M0 0 L10 0 Z M20 0 L30 0').map((seg) => seg.c)).toEqual([
+      'M',
+      'L',
+      'Z',
+      'M',
+      'L',
+    ]);
+  });
+
+  it('nennt jeden kaputten Pfad beim Namen, statt zu rechnen', () => {
+    // Die Pfade kommen aus einer hochgeladenen SVG-Datei; was der Leser nicht
+    // versteht, muss er *schnell* und mit einem Satz zurückweisen.
+    for (const [d, muster] of [
+      ['M', /Invalid number/],
+      ['M0 0 L', /Invalid number/],
+      ['0 0', /must start with a command/],
+      ['M0 0 A1 1 0 2 0 5 5', /Arc flag must be 0 or 1/],
+      ['M0 0a1 1 0 0', /Arc flag must be 0 or 1/],
+    ] as Array<[string, RegExp]>) {
+      expect(() => parsePath(d), d).toThrow(muster);
+    }
+    // Ein leerer Pfad ist kein Fehler, sondern nichts.
+    expect(parsePath('')).toEqual([]);
+    expect(parsePath('   ')).toEqual([]);
+  });
+
   it('rejects path data that does not start with a command', () => {
     expect(() => parsePath('10 20')).toThrow();
   });
