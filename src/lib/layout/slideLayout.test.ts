@@ -6,10 +6,10 @@
  * eingeschlossen.
  */
 import { describe, expect, it } from 'vitest';
-import { canvas, folienhoehe } from '@/theme';
+import { canvas, folienformate, folienhoehe, setzeFolienformat } from '@/theme';
 import { createEmptySlide, parseDeck } from '@/lib/markdown/deck';
 import { buildSlideBackdrop } from '@/lib/export/scene';
-import { flowBounds, unterDerKante } from './slideLayout';
+import { flowBounds, insertColumns, insertColumnWidth, unterDerKante } from './slideLayout';
 
 /** Ein Deck mit einem Element je genannter Höhe, eines je Folie. */
 function deckMit(...hoehen: number[]) {
@@ -116,5 +116,37 @@ describe('der Kasten des Fließtextes', () => {
     // rechnet.
     const schlicht = '# Titel\n\nEin Absatz danach.';
     expect(flowBounds('default', schlicht, masse)).toEqual(flowBounds('default', schlicht));
+  });
+});
+
+describe('die Spalten, in die eingesetzt wird', () => {
+  it('liegen im Raster — wie der Prompt es verlangt', () => {
+    /*
+       Drei Stellen sprechen über dasselbe Raster: `computeSnap()` und
+       `resizeRect()` rasten jedes gezogene Element darauf ein, und der
+       Deck-Prompt verlangt vom Modell ein Vielfaches von `gridSize`. Das
+       Einsetzen sprach nicht mit: 530 Einheiten bei x = 662. Sichtbar wurde
+       es beim ersten Anfassen — das Element sprang auf das Raster und verlor
+       dabei die rechte Kante des Satzspiegels.
+    */
+    const breite = insertColumnWidth();
+    expect(breite % canvas.gridSize).toBe(0);
+    for (const x of insertColumns()) expect(x % canvas.gridSize).toBe(0);
+
+    // Und die Absicht bleibt: die letzte Spalte endet auf dem Satzspiegel.
+    const letzte = insertColumns().at(-1)!;
+    expect(letzte + breite).toBe(canvas.width - canvas.margin.right);
+  });
+
+  it('halten das auch auf einem anderen Blatt', () => {
+    // `canvas` ist eine lebendige Bindung; eine Zahl, die nur im Startformat
+    // aufgeht, ist keine Zusicherung.
+    for (const blatt of folienformate) {
+      setzeFolienformat(blatt);
+      expect(`${blatt}: ${insertColumnWidth() % canvas.gridSize}`).toBe(`${blatt}: 0`);
+      for (const x of insertColumns())
+        expect(`${blatt}: ${x % canvas.gridSize}`).toBe(`${blatt}: 0`);
+    }
+    setzeFolienformat('16-9');
   });
 });
