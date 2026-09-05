@@ -207,11 +207,20 @@ function istKlempnerei(text: string): boolean {
   return /^[a-z0-9:\-/[\]. %]+$/.test(text);
 }
 
+/**
+ * Alle `.tsx` unter `src` — außer den Prüfdateien.
+ *
+ * Eine `*.test.tsx` wird nie gezeichnet: was darin steht, sieht niemand außer
+ * dem, der sie liest. Aufgefallen ist das an `taste({ key: 'Delete' })` in der
+ * Prüfung der Tastatur — der DOM-Name einer Taste, den dieses Sieb für eine
+ * englische Beschriftung hielt. Der Filter `istKlempnerei` fängt ihn nicht,
+ * weil er großgeschrieben ist.
+ */
 function quellen(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const path = join(dir, entry);
     if (statSync(path).isDirectory()) return quellen(path);
-    return path.endsWith('.tsx') ? [path] : [];
+    return path.endsWith('.tsx') && !path.endsWith('.test.tsx') ? [path] : [];
   });
 }
 

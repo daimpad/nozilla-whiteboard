@@ -854,7 +854,18 @@ export const useDeckStore = create<EditorState>()((set, get) => {
         if (state.selection.length === 0) return {};
         const targets = new Set(state.selection);
         return {
-          ...history(state),
+          /*
+             Ein gehaltener Pfeil ist eine Geste und nicht dreißig Schritte.
+             Gemessen: dreißig Anschläge waren dreißig Einträge im Verlauf,
+             und eine Sekunde auf der Taste räumt damit ein Viertel der
+             hundertzwanzig leer — ⌘Z nimmt danach acht Einheiten Bewegung
+             zurück statt der Änderung davor. Wörtlich der Fehler, den das
+             Zusammenfassen für die Textfelder längst behebt.
+
+             Der Schlüssel trägt die Auswahl mit: wer aufhört, etwas anderes
+             anwählt und dann wieder schiebt, hat einen neuen Handgriff getan.
+          */
+          ...history(state, `schieben:${state.selection.join()}`),
           deck: withElements(state, (elements) =>
             elements.map((element) =>
               targets.has(element.id) && !element.locked
