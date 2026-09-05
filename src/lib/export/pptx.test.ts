@@ -17,7 +17,7 @@ import { brand, nozillaTheme, palette, registerTheme, setActiveTheme, typeScale 
 import { deckToPptx, EMU, slideCx, slideCy } from './pptx';
 import { buildSlideScene, footerMark, tabellenLabelHoehe } from './scene';
 import { sceneToSvg } from './svg';
-import { footerFrame } from '@/lib/layout/slideLayout';
+import { flowFrame, footerFrame } from '@/lib/layout/slideLayout';
 import { bundledDecks } from '@/decks';
 import { folienhoehe, setzeFolienformat } from '@/theme';
 import { createZip, crc32, utf8 } from './zip';
@@ -1024,6 +1024,296 @@ describe('Grenzfälle', () => {
 });
 
 /* -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- */
+/* Wo die .pptx den Text hinlegt — gegen dieselbe Folie als SVG                 */
+/* -------------------------------------------------------------------------- */
+
+/** Eine Folie aus einem `nzl`-Block, einmal als Paket und einmal als SVG. */
+async function beides(nzl: readonly string[], markdown = '', layout = 'canvas') {
+  const quelle = [
+    '<!-- nzl',
+    `layout: ${layout}`,
+    ...(nzl.length ? ['elements:'] : []),
+    ...nzl,
+    '-->',
+    '',
+    markdown,
+  ].join('\n');
+  const deck = parseDeck(quelle);
+  const teile = await readZip(await deckToPptx(deck, { images: new Map() }));
+  return {
+    pptx: new JSDOM(teile.get('ppt/slides/slide1.xml') ?? '', { contentType: 'text/xml' }).window
+      .document,
+    svg: new JSDOM(sceneToSvg(buildSlideScene(deck.slides[0], deck)), { contentType: 'text/xml' })
+      .window.document,
+  };
+}
+
+/** Die Textrahmen eines Folien-XML, in Folien-Einheiten. */
+function textrahmen(doc: Document) {
+  return Array.from(doc.getElementsByTagName('p:sp'))
+    .map((sp) => {
+      const off = sp.getElementsByTagName('a:off')[0];
+      const ext = sp.getElementsByTagName('a:ext')[0];
+      const x = Number(off?.getAttribute('x')) / EMU;
+      const y = Number(off?.getAttribute('y')) / EMU;
+      const w = Number(ext?.getAttribute('cx')) / EMU;
+      const h = Number(ext?.getAttribute('cy')) / EMU;
+      return {
+        x,
+        y,
+        w,
+        h,
+        mitte: [x + w / 2, y + h / 2] as [number, number],
+        algn: sp.getElementsByTagName('a:pPr')[0]?.getAttribute('algn') ?? 'l',
+        groessen: Array.from(sp.getElementsByTagName('a:rPr')).map(
+          (r) => Number(r.getAttribute('sz')) / 75,
+        ),
+        text: Array.from(sp.getElementsByTagName('a:t'))
+          .map((t) => t.textContent)
+          .join(''),
+      };
+    })
+    .filter((rahmen) => rahmen.text.trim());
+}
+
+/** Die Grundlinien eines SVG, gefiltert nach ihrem Text. */
+function svgZeilen(doc: Document, treffer: RegExp) {
+  return Array.from(doc.getElementsByTagName('text'))
+    .filter((t) => treffer.test(t.textContent ?? ''))
+    .map((t) => ({
+      x: Number(t.getAttribute('x')),
+      y: Number(t.getAttribute('y')),
+      size: Number(
+        t.getAttribute('font-size') ??
+          Array.from(t.getElementsByTagName('tspan'))[0]?.getAttribute('font-size'),
+      ),
+      text: t.textContent ?? '',
+    }));
+}
+
+/** Einen Punkt um (ax, ay) drehen — Grad, im Uhrzeigersinn wie im SVG. */
+function dreh(x: number, y: number, ax: number, ay: number, grad: number): [number, number] {
+  const bogen = (grad * Math.PI) / 180;
+  const cos = Math.cos(bogen);
+  const sin = Math.sin(bogen);
+  return [ax + (x - ax) * cos - (y - ay) * sin, ay + (x - ax) * sin + (y - ay) * cos];
+}
+
+describe('wo die .pptx den Text hinlegt', () => {
+  it('setzt ein Markdown-Element in die Stufe und Ausrichtung der Folie', async () => {
+    /*
+       Hier stand `baseStyle: 'small'` und gar keine Ausrichtung. Ein
+       Markdown-Element war in PowerPoint 13 statt 16 — fast ein Viertel
+       kleiner als auf der Folie — und ein mittig gesetztes stand linksbündig
+       da. Gesehen hat es niemand: das einzige Markdown-Element der
+       mitgelieferten Decks besteht aus einer Überschrift und einer Tabelle,
+       und die tragen ihre eigene Stufe. Gefunden hat es der Vergleich mit dem
+       SVG.
+    */
+    const { pptx, svg } = await beides([
+      '  - kind: markdown',
+      '    x: 100',
+      '    y: 100',
+      '    w: 600',
+      '    h: 300',
+      '    align: center',
+      '    markdown: Ein Absatz Fließtext.',
+    ]);
+    const rahmen = textrahmen(pptx).find((r) => r.text.includes('Fließtext'));
+    const zeile = svgZeilen(svg, /Fließtext/)[0];
+    expect(rahmen?.groessen).toEqual([zeile.size]);
+    expect(rahmen?.algn).toBe('ctr');
+  });
+
+  it('rückt nicht ein, wo die Folie nicht einrückt', async () => {
+    /*
+       `scene.ts` rechnet für `text` und `markdown` `inner = fill === 'none' ?
+       0 : padding` — und beide Arten kommen mit `fill: 'none'` aus der Fabrik.
+       Der Rahmen stand hier trotzdem immer um den Innenabstand eingerückt: das
+       Element war in PowerPoint verschoben *und* schmaler, brach also auch
+       anders um.
+    */
+    const ohne = await beides([
+      '  - kind: markdown',
+      '    x: 100',
+      '    y: 100',
+      '    w: 600',
+      '    h: 300',
+      '    padding: 40',
+      '    fill: none',
+      '    markdown: Ein Absatz.',
+    ]);
+    const frei = textrahmen(ohne.pptx).find((r) => r.text.includes('Absatz'));
+    expect([frei?.x, frei?.w]).toEqual([100, 600]);
+    expect(svgZeilen(ohne.svg, /Absatz/)[0].x).toBe(100);
+
+    // Die Gegenrichtung: mit Fläche wirkt der Abstand sehr wohl — auf der
+    // Folie wie in der Datei.
+    const mit = await beides([
+      '  - kind: markdown',
+      '    x: 100',
+      '    y: 100',
+      '    w: 600',
+      '    h: 300',
+      '    padding: 40',
+      '    fill: flat',
+      '    markdown: Ein Absatz.',
+    ]);
+    const gefuellt = textrahmen(mit.pptx).find((r) => r.text.includes('Absatz'));
+    expect([gefuellt?.x, gefuellt?.w]).toEqual([140, 520]);
+    expect(svgZeilen(mit.svg, /Absatz/)[0].x).toBe(140);
+  });
+
+  it('setzt ein Abzeichen so groß wie die Folie', async () => {
+    /*
+       Die Szene setzt ein Abzeichen in `label` und deckelt auf 40 % der Höhe;
+       der PPTX-Weg schrieb `labelSmall`, also eine Einheit kleiner und
+       ungedeckelt. Das traf jedes Abzeichen beider mitgelieferter Decks.
+    */
+    for (const hoehe of [48, 20]) {
+      const { pptx, svg } = await beides([
+        '  - kind: badge',
+        '    x: 200',
+        '    y: 200',
+        '    w: 240',
+        `    h: ${hoehe}`,
+        '    text: Marke',
+      ]);
+      const rahmen = textrahmen(pptx).find((r) => r.text.includes('MARKE'));
+      expect(rahmen?.groessen, `Höhe ${hoehe}`).toEqual([svgZeilen(svg, /MARKE/)[0].size]);
+    }
+  });
+
+  it('legt einen gedrehten Textrahmen dorthin, wo die Folie ihn zeigt', async () => {
+    /*
+       PowerPoint dreht eine Form um die Mitte *ihres eigenen* Rahmens, die
+       Szene dreht jedes Element um dessen Mitte. Solange der Textkasten mit dem
+       Element konzentrisch ist, ist das dasselbe — sobald ein Icon, ein
+       Ziffernquadrat oder eine Tabellenüberschrift ihn verschiebt, nicht mehr.
+       Gemessen bei 30°: die Ziffer einer Schritt-Karte lag 70 Einheiten neben
+       ihrem Quadrat, die Überschrift einer Tabelle 33,5, die einer Karte mit
+       Icon 13,5, der Text eines Abzeichens mit Icon 6,3.
+
+       Geprüft wird an der Stelle, an der der Text landet: der Inhalt sitzt
+       unverändert im Rahmen, der Rahmen liegt bei 30° woanders, und gedreht
+       wird um dessen Mitte. Also erst um die Verschiebung des Rahmens
+       mitnehmen, dann drehen — und das Ergebnis muss die Grundlinie sein, die
+       das SVG der gedrehten Folie zeigt.
+    */
+    const FAELLE: Array<[string, RegExp, string[]]> = [
+      [
+        'Karte mit Icon',
+        /Titel/,
+        ['  - kind: card', '    variant: feature', '    icon: rocket', '    title: Titel'],
+      ],
+      [
+        'Schritt-Karte',
+        /^3$/,
+        ['  - kind: card', '    variant: step', '    label: "3"', '    title: Titel'],
+      ],
+      [
+        'Tabelle mit Überschrift',
+        /ÜBERSCHRIFT/,
+        ['  - kind: table', '    label: Überschrift', '    data: "A\tB\nEins\t1"'],
+      ],
+      ['Abzeichen mit Icon', /MARKE/, ['  - kind: badge', '    icon: rocket', '    text: Marke']],
+      ['Textelement', /Gedreht/, ['  - kind: text', '    text: Gedreht']],
+    ];
+
+    for (const [was, treffer, felder] of FAELLE) {
+      const bau = (winkel: number) =>
+        beides([
+          ...felder,
+          '    x: 200',
+          '    y: 200',
+          '    w: 340',
+          '    h: 220',
+          `    rotation: ${winkel}`,
+        ]);
+      const gerade = await bau(0);
+      const schraeg = await bau(30);
+      const box0 = textrahmen(gerade.pptx).find((r) => treffer.test(r.text));
+      const box30 = textrahmen(schraeg.pptx).find((r) => treffer.test(r.text));
+      const p0 = svgZeilen(gerade.svg, treffer)[0];
+      const p30 = svgZeilen(schraeg.svg, treffer)[0];
+      expect([was, box0, box30, p0, p30].every(Boolean), `${was}: nicht gefunden`).toBe(true);
+
+      const [px, py] = dreh(
+        p0.x + (box30!.mitte[0] - box0!.mitte[0]),
+        p0.y + (box30!.mitte[1] - box0!.mitte[1]),
+        box30!.mitte[0],
+        box30!.mitte[1],
+        30,
+      );
+      expect(Math.hypot(px - p30.x, py - p30.y), `${was}: Abstand zur Folie`).toBeLessThan(0.5);
+    }
+  }, 30000);
+
+  it('stapelt Fließtext und Tabelle in der Reihenfolge des Textes', async () => {
+    /*
+       Dass eine Tabelle nicht im Textfluss stehen kann, ist eine Eigenschaft
+       des Formats. Dass deshalb *alle* Absätze über *alle* Tabellen rutschten,
+       war keine: „Text danach" stand in der `.pptx` oberhalb der Tabelle, also
+       vor dem, was er erklärt.
+    */
+    const { pptx } = await beides(
+      [],
+      ['Text davor.', '', '| A | B |', '| --- | --- |', '| 1 | 2 |', '', 'Text danach.'].join('\n'),
+      'default',
+    );
+    const davor = textrahmen(pptx).find((r) => r.text.includes('davor'))!;
+    const danach = textrahmen(pptx).find((r) => r.text.includes('danach'))!;
+    const tabelle = pptx.getElementsByTagName('p:graphicFrame')[0];
+    const tabelleY = Number(tabelle.getElementsByTagName('a:off')[0].getAttribute('y')) / EMU;
+    expect(davor.y).toBeLessThan(tabelleY);
+    expect(danach.y).toBeGreaterThan(tabelleY);
+  });
+
+  it('richtet den Stapel aus, statt ihn oben anzuschlagen', async () => {
+    /*
+       Fünf der sechs Layouts setzen ihren Fließtext mittig. Mit einer Tabelle
+       fiel der Rahmen in den Zweig, der gar keinen Anker mitgab: die Folie
+       zeigte den Satz mittig, die `.pptx` oben am Satzspiegel.
+    */
+    const { pptx } = await beides(
+      [],
+      ['Ein Satz.', '', '| A |', '| --- |', '| 1 |'].join('\n'),
+      'statement',
+    );
+    const satz = textrahmen(pptx).find((r) => r.text.includes('Ein Satz'))!;
+    expect(satz.y).toBeGreaterThan(flowFrame('statement')!.y);
+  });
+
+  it('rückt eine Liste so weit ein wie der Setzer', async () => {
+    /*
+       `marL` stand auf `level * 24 + round(size * 1.1)` — zwei Zahlen, die in
+       keiner Leiter der CI stehen. Der Setzer stellt seine Marke in einen
+       Streifen von 1,35 Geviert und schreibt dahinter weiter; damit steht der
+       Text eines Punktes auf `(level + 1) * Streifen`. Geprüft wird an der
+       Stelle, an der er wirklich steht — im SVG.
+    */
+    const { pptx, svg } = await beides(
+      [],
+      ['- Erster Punkt', '- Zweiter Punkt', '  - Verschachtelt tief'].join('\n'),
+      'default',
+    );
+    const rahmen = Array.from(pptx.getElementsByTagName('p:sp')).find((sp) =>
+      sp.textContent?.includes('Erster'),
+    )!;
+    const links = Number(rahmen.getElementsByTagName('a:off')[0].getAttribute('x')) / EMU;
+    const absaetze = Array.from(rahmen.getElementsByTagName('a:p'));
+    for (const [text, breite] of [
+      ['Erster Punkt', /Erster Punkt/],
+      ['Verschachtelt tief', /Verschachtelt tief/],
+    ] as Array<[string, RegExp]>) {
+      const absatz = absaetze.find((a) => a.textContent?.includes(text))!;
+      const marL = Number(absatz.getElementsByTagName('a:pPr')[0]?.getAttribute('marL') ?? 0) / EMU;
+      expect(links + marL, text).toBeCloseTo(svgZeilen(svg, breite)[0].x, 6);
+    }
+  });
+});
 
 describe('der Text der .pptx gegen den des SVG', () => {
   it('lässt kein Wort der Folie zurück', async () => {

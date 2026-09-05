@@ -22,7 +22,7 @@
 import type { Token, Tokens } from 'marked';
 import { color as ci, typeScale, type TypeStyleName } from '@/theme';
 import { lexMarkdown, lexInline } from '@/lib/markdown/render';
-import { flattenInline, type StyledRun } from '@/lib/text/typeset';
+import { flattenInline, GRUNDSTIL, type StyledRun } from '@/lib/text/typeset';
 import { font, type FontSpec } from '@/lib/text/measure';
 import type { BackgroundStyle } from './scene';
 
@@ -102,7 +102,7 @@ export function markdownToBlocks(source: string, options: BlockOptions = {}): Bl
   const palette = options.palette ?? defaultPalette();
   const scale = options.scale ?? 1;
   const align = options.align ?? 'l';
-  const baseStyle = options.baseStyle ?? 'body';
+  const baseStyle = options.baseStyle ?? GRUNDSTIL;
 
   const spec = (name: TypeStyleName): FontSpec => {
     const style = typeScale[name];
