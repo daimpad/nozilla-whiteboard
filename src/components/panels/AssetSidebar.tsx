@@ -1,9 +1,9 @@
 /**
- * The CI asset palette.
+ * Die Bibliothek der Bausteine.
  *
- * Every tile previews itself by running the real scene pipeline at thumbnail
- * scale, so the palette can never advertise something the canvas would draw
- * differently.
+ * Jede Kachel zeichnet sich selbst über die echte Zeichenstrecke, nur im
+ * Kleinen. Die Bibliothek kann deshalb nichts anbieten, was die Fläche danach
+ * anders malt.
  */
 import { memo, useMemo, useState } from 'react';
 import { color as ci, elementTones, toneNames, type ToneName } from '@/theme';

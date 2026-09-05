@@ -5,7 +5,7 @@ export interface Size {
   height: number;
 }
 
-/** Observe an element's content-box size. Returns a callback ref plus the size. */
+/** Die Innenmaße eines Knotens beobachten — zurück kommen ein Ref und das Maß. */
 export function useElementSize<T extends HTMLElement>(): [
   (node: T | null) => void,
   Size,

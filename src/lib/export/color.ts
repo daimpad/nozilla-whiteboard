@@ -1,4 +1,4 @@
-/** Colour parsing shared by the PDF backend (which needs numeric channels). */
+/** Farben lesen — der PDF-Weg braucht die Kanäle als Zahlen. */
 
 export interface Rgba {
   r: number;
@@ -64,9 +64,9 @@ export function parseColor(input: string | undefined): Rgba | null {
 }
 
 /**
- * Flatten a translucent colour onto an opaque backdrop. PDF fills honour a
- * graphics-state alpha, but flattening keeps stroke joins from double-darkening
- * where sub-paths overlap.
+ * Eine halbdurchsichtige Farbe auf einen deckenden Untergrund abflachen. PDF
+ * kennt zwar eine Deckkraft im Grafikzustand — aber ohne das Abflachen
+ * verdunkeln sich überlappende Teilpfade an ihren Stoßstellen doppelt.
  */
 export function flatten(color: Rgba, backdrop: Rgba): Rgba {
   if (color.a >= 1) return color;

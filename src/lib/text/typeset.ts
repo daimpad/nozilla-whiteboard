@@ -1,14 +1,15 @@
 /**
- * A miniature Markdown typesetter.
+ * Ein Setzer für Markdown, im Kleinen.
  *
- * It turns Markdown into positioned, styled text lines plus the few decorations
- * that go with them (bullets, rules, code-block panels, quote bars, tables).
- * The output is deliberately dumb — absolute coordinates and paint properties —
- * so the SVG and PDF exporters can emit it without understanding Markdown at
- * all. That is what makes exports *vector text* rather than screenshots.
+ * Er macht aus Markdown gesetzte Zeilen samt dem wenigen Beiwerk, das dazu
+ * gehört: Aufzählungspunkte, Linien, Codeplatten, Zitatbalken, Tabellen. Was
+ * herauskommt, ist mit Absicht dumm — absolute Koordinaten und Farbangaben —,
+ * damit der SVG- und der PDF-Weg es ausgeben können, ohne ein Wort Markdown zu
+ * verstehen. Genau das macht aus einem Export *Vektortext* statt eines
+ * Bildschirmfotos.
  *
- * The DOM renders Markdown with CSS instead, but from the same CI type scale
- * (`theme.config.ts`), so the two agree closely.
+ * Im DOM setzt CSS dasselbe Markdown, aber aus derselben Typo-Leiter
+ * (`theme.config.ts`); die beiden stimmen deshalb eng überein.
  */
 import type { Token, Tokens } from 'marked';
 import { color as ci, stroke, typeScale } from '@/theme';
@@ -21,7 +22,7 @@ import { baselineOffset, font, measureText, type FontSpec } from './measure';
 /* -------------------------------------------------------------------------- */
 
 export interface PositionedRun {
-  /** Offset from the line's origin x. */
+  /** Der Abstand vom linken Anfang der Zeile. */
   dx: number;
   text: string;
   font: FontSpec;
@@ -35,7 +36,7 @@ export interface PositionedRun {
   width: number;
 }
 
-/** A uniformly-styled span of text, before line breaking. */
+/** Ein durchgehend gleich gesetztes Stück Text, vor dem Umbruch. */
 export interface StyledRun {
   text: string;
   font: FontSpec;
@@ -53,9 +54,9 @@ export interface StyledRun {
 export type TypesetPrim =
   | {
       t: 'text';
-      /** Left edge of the line (runs are positioned relative to this). */
+      /** Die linke Kante der Zeile; die Läufe stehen relativ dazu. */
       x: number;
-      /** Baseline y. */
+      /** Die Grundlinie, senkrecht. */
       y: number;
       runs: PositionedRun[];
       width: number;
@@ -98,7 +99,7 @@ export function listenEinzug(size: number): number {
 
 export interface TypesetResult {
   prims: TypesetPrim[];
-  /** Total laid-out height. */
+  /** Die gesetzte Gesamthöhe. */
   height: number;
   /**
    * Wie weit nach rechts wirklich etwas gesetzt wurde.
@@ -144,19 +145,19 @@ export function defaultPalette(): TypesetPalette {
 }
 
 export interface TypesetOptions {
-  /** Available width for the flow, in slide units. */
+  /** Die Breite, die dem Fließtext zur Verfügung steht, in Folien-Einheiten. */
   width: number;
   palette?: Partial<TypesetPalette>;
-  /** Multiplies every type size — used to fit a deck into a smaller frame. */
+  /** Streckt jede Schriftgröße — so passt ein Deck in einen kleineren Rahmen. */
   scale?: number;
   align?: 'left' | 'center' | 'right';
-  /** The type style used for body paragraphs (headings scale from the CI ramp). */
+  /** Die Stufe für Fließtext; Überschriften kommen aus der Leiter der CI. */
   baseStyle?: TypeStyleName;
-  /** Look up an image's intrinsic size so exports can lay it out correctly. */
+  /** Die echten Maße eines Bildes, damit die Ausgaben es richtig setzen. */
   resolveImageSize?: (src: string) => { w: number; h: number } | undefined;
-  /** Starting y offset. */
+  /** Der senkrechte Anfang. */
   offsetY?: number;
-  /** Starting x offset. */
+  /** Der waagerechte Anfang. */
   offsetX?: number;
 }
 
@@ -173,8 +174,8 @@ export function typesetMarkdown(source: string, options: TypesetOptions): Typese
 }
 
 /**
- * Lay out a plain (but inline-Markdown-aware) string in one type style — the
- * text element's renderer.
+ * Eine schlichte Zeichenkette in *einer* Stufe setzen — Auszeichnungen im Text
+ * werden dabei gelesen. Das ist der Zeichner des Text-Elements.
  */
 export function typesetText(
   text: string,
@@ -395,7 +396,8 @@ class Layout {
       }
 
       case 'html': {
-        // Raw HTML is not typeset — exporting it as vector text would be a lie.
+        // Rohes HTML wird nicht gesetzt: es als Vektortext auszugeben wäre eine
+        // Behauptung darüber, wie es aussieht, die niemand eingelöst hat.
         return;
       }
 
@@ -482,7 +484,7 @@ class Layout {
       });
     }
 
-    // Content, indented past the marker.
+    // Der Inhalt, eingerückt hinter der Marke.
     const contentIndent = indent + markerWidth;
     const inlineTokens: Token[] = [];
     const nested: Token[] = [];
@@ -754,7 +756,7 @@ class Layout {
 
   /* --------------------------------------------------------------- helpers */
 
-  /** Wrap `runs` into lines and emit them, advancing `y`. */
+  /** `runs` in Zeilen brechen, ausgeben und dabei `y` weiterschieben. */
   paragraph(runs: readonly StyledRun[], lineHeight: number, indent: number): void {
     const available = this.platz(indent);
     const lines = wrapRuns(runs, available);
@@ -884,7 +886,7 @@ function absatzteile(tokens: readonly Token[]): Absatzteil[] {
   return teile;
 }
 
-/** Flatten marked's inline token tree into a list of uniformly-styled runs. */
+/** Den Inline-Baum von marked zu einer Liste gleich gesetzter Läufe machen. */
 export function flattenInline(
   tokens: readonly Token[],
   base: FontSpec,
@@ -1088,9 +1090,10 @@ function laufText(text: string): string {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Greedy line breaking across a list of styled runs. Words never split unless a
- * single word is wider than the line, in which case it is broken by character —
- * the same behaviour a browser gives with `overflow-wrap: anywhere`.
+ * Gieriger Zeilenumbruch über eine Liste gesetzter Läufe. Ein Wort wird nie
+ * getrennt — es sei denn, es ist für sich allein breiter als die Zeile; dann
+ * wird es zeichenweise gebrochen, so wie ein Browser es mit
+ * `overflow-wrap: anywhere` täte.
  */
 /**
  * Wie breit jede Spalte einer Tabelle wird.
@@ -1197,7 +1200,7 @@ export function wrapRuns(runs: readonly StyledRun[], maxWidth: number): Position
   let x = 0;
 
   const flush = () => {
-    // Trim trailing whitespace from the finished line.
+    // Den Weißraum am Ende der fertigen Zeile abschneiden.
     while (current.length > 0 && current[current.length - 1].text.trim() === '') {
       const removed = current.pop();
       if (removed) x -= removed.width;
@@ -1304,7 +1307,7 @@ function breakByCharacter(
   return out;
 }
 
-/** Soft-wrap a code line without breaking on spaces. */
+/** Eine Codezeile umbrechen, ohne an den Leerzeichen zu trennen. */
 function softWrapMono(text: string, spec: FontSpec, maxWidth: number): Array<{ text: string }> {
   if (!text) return [{ text: '' }];
   if (measureText(text, spec) <= maxWidth) return [{ text }];

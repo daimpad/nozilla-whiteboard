@@ -1,9 +1,10 @@
 /**
- * Slide layout presets.
+ * Die mitgelieferten Folienlayouts.
  *
- * A layout decides where the *flow* (Markdown) content sits inside the slide
- * and how it is typeset. Freeform canvas elements ignore layouts entirely —
- * they are absolutely positioned — which is exactly the hybrid the tool is for.
+ * Ein Layout entscheidet, wo der *Fließtext* aus dem Markdown auf der Folie
+ * sitzt und wie er gesetzt wird. Die frei gelegten Elemente kümmert das nicht
+ * — sie stehen an ihren eigenen Koordinaten. Genau diese zwei Naturen
+ * nebeneinander sind der Zweck dieses Werkzeugs.
  */
 import { canvas } from '@/theme';
 import { typesetMarkdown } from '@/lib/text/typeset';
@@ -17,14 +18,14 @@ export interface FlowFrame {
   h: number;
   align: 'left' | 'center' | 'right';
   valign: 'top' | 'middle' | 'bottom';
-  /** Multiplies the CI type scale for this layout. */
+  /** Streckt die Typo-Leiter der CI für dieses Layout. */
   scale: number;
   baseStyle: TypeStyleName;
 }
 
 /**
- * The frame for a layout, or `null` when the layout has no flow content at all
- * (`blank` and `canvas` hand the whole slide to the freeform elements).
+ * Der Rahmen eines Layouts — oder `null`, wenn es gar keinen Fließtext trägt:
+ * `blank` und `canvas` überlassen die ganze Folie den freien Elementen.
  */
 export function flowFrame(layout: SlideLayout): FlowFrame | null {
   /*
@@ -123,7 +124,7 @@ export function flowFrame(layout: SlideLayout): FlowFrame | null {
 }
 
 /**
- * Where the deck footer and slide number sit.
+ * Wo die Fußzeile des Decks und die Foliennummer sitzen.
  *
  * Eine Funktion und kein Objekt: als Konstante trüge sie die Höhe des Formats,
  * das beim Laden galt, und die Fußzeile eines A4-Decks stünde auf halber

@@ -39,7 +39,8 @@ describe('computeSnap', () => {
   });
 
   it('aligns centres, not only edges', () => {
-    // Moving rect is 100 wide; its centre lands on the slide centre line.
+    // Das gezogene Rechteck ist 100 breit; seine Mitte trifft die Mittelachse
+    // der Folie.
     const result = computeSnap(rect(canvas.width / 2 - 50 + 3, 10), [], {
       grid: false,
       smart: true,

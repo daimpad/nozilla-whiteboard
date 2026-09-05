@@ -1,9 +1,9 @@
 /**
- * Scene → PDF.
+ * Szene → PDF.
  *
- * True vector output: shapes become PDF path operators, text becomes real PDF
- * text (selectable, searchable, copy-pasteable). Nothing is rasterised except
- * bitmap images the author placed themselves.
+ * Echte Vektoren: aus Formen werden Pfad-Operatoren, aus Text wird echter
+ * PDF-Text — markierbar, durchsuchbar, kopierbar. Gerastert wird nichts außer
+ * den Bildern, die jemand selbst auf die Folie gelegt hat.
  *
  * Schriften: die Marken-Schnitte werden **eingebettet**. jsPDF liest dafür die
  * TrueType-Fassung aus `public/fonts/` und legt nur die tatsächlich benutzten
@@ -35,16 +35,16 @@ import { parseColor, type Rgba } from './color';
 import { meldeFehlendeBilder } from './images';
 import type { Scene, ScenePrim, SceneRun } from './scene';
 
-/** Slide units → PDF points. 1280×720 slide units become a 960×540 pt page. */
+/** Folien-Einheiten → PDF-Punkte: aus 1280 × 720 wird eine Seite 960 × 540 pt. */
 export const PDF_SCALE = 0.75;
 
 export interface PdfOptions {
   title?: string;
   author?: string;
   subject?: string;
-  /** Override the slide-unit → point scale. */
+  /** Den Maßstab von der Folien-Einheit zum Punkt überschreiben. */
   scale?: number;
-  /** Bitmap data for `image` primitives, keyed by `href`. */
+  /** Die Bilddaten für `image`-Primitive, nach `href` abgelegt. */
   images?: Map<string, { dataUrl: string; format: string; w?: number; h?: number }>;
   /**
    * Die Marken-Schriften einbetten (Vorgabe). Aus, wenn die Szene ohnehin
@@ -122,8 +122,9 @@ async function embedFaces(
 }
 
 /**
- * jsPDF is loaded on demand: it is by far the heaviest dependency, and a deck
- * that is never exported should not pay for it at boot.
+ * jsPDF wird erst bei Bedarf geholt: es ist die mit Abstand schwerste
+ * Abhängigkeit, und ein Deck, das nie ausgegeben wird, soll sie beim Starten
+ * nicht bezahlen.
  */
 export async function scenesToPdf(
   scenes: readonly Scene[],
@@ -195,7 +196,7 @@ function drawScene(
     const next = Math.min(1, Math.max(0, value));
     if (Math.abs(next - currentOpacity) < 0.001) return;
     currentOpacity = next;
-    // jsPDF exposes the graphics-state constructor on the instance.
+    // jsPDF hängt den Erzeuger des Grafikzustands an die Instanz.
     const GStateCtor = (
       doc as unknown as {
         GState?: new (options: Record<string, unknown>) => unknown;
@@ -312,9 +313,9 @@ function drawSegs(
 }
 
 /**
- * Split a normalised segment list into subpaths whose legs are expressed the
- * way jsPDF's `lines()` wants them: deltas from the current point, in *unscaled*
- * units (the `scale` argument does the conversion).
+ * Eine Segmentliste in Teilpfade schneiden, deren Schenkel so dastehen, wie
+ * jsPDFs `lines()` sie haben will: als Abstände vom aktuellen Punkt und in
+ * *ungerechneten* Einheiten — die Umrechnung macht das Argument `scale`.
  */
 export function splitSubpaths(
   segs: readonly Seg[],
@@ -456,7 +457,7 @@ function drawText(
       const yPt = (prim.y + dx * sin) * scale;
       doc.text(stueck.text, xPt, yPt, {
         baseline: 'alphabetic',
-        // jsPDF measures rotation counter-clockwise; the scene is clockwise.
+        // jsPDF zählt den Winkel gegen den Uhrzeigersinn, die Szene mit ihm.
         angle:
           textMatrix(doc, angleDeg, run, xPt, seitenhoehe - yPt) ??
           (angleDeg ? -angleDeg : undefined),
@@ -490,7 +491,8 @@ function drawDecoration(
   doc.setLineDashPattern([], 0);
 
   for (const dy of offsets) {
-    // Rotate both the run offset and the vertical decoration offset.
+    // Gedreht werden beide: der Versatz des Laufs und der senkrechte Versatz
+    // des Strichs.
     const startX = prim.x + run.dx * cos - dy * sin;
     const startY = prim.y + run.dx * sin + dy * cos;
     doc.lines(

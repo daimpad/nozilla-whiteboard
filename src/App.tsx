@@ -1,8 +1,9 @@
 /**
- * The application shell.
+ * Das Gehäuse der Anwendung.
  *
- * Edit mode is [library | canvas | inspector]; presentation mode takes over the
- * whole window. Deck files and images can be dropped anywhere.
+ * Beim Arbeiten stehen Bibliothek, Fläche und Inspektor nebeneinander; der
+ * Vortrag nimmt das ganze Fenster ein. Deck-Dateien und Bilder darf man
+ * irgendwohin ins Fenster ziehen.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { starterDeck } from '@/decks';
@@ -155,7 +156,7 @@ export default function App() {
       beiFehlendenBildern(null);
       beiAusfallImExport(null);
     };
-    // Startup runs once; the store is the source of truth from then on.
+    // Der Start läuft einmal; von da an ist der Store die Wahrheit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

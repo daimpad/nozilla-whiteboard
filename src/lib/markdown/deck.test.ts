@@ -24,7 +24,7 @@ import { revealAnimations, shadowNames, strokeNames, toneNames, typeScale } from
 import { createElement } from '@/model/factory';
 import { bundledDecks } from '@/decks';
 
-/** Slide ids are runtime-only; ignore them when comparing round trips. */
+/** Die Folienkennung gibt es nur zur Laufzeit — beim Rundlauf zählt sie nicht. */
 function stable(deck: Deck) {
   return {
     meta: deck.meta,
@@ -140,7 +140,8 @@ describe('parseDeck', () => {
 
     const [element] = deck.slides[0].elements;
     expect(element).toMatchObject({ id: 'b1', kind: 'badge', x: 88, y: 96, w: 160, h: 40 });
-    // Untouched properties come from the CI defaults, not from the file.
+    // Was niemand angefasst hat, kommt aus den Vorgaben der CI und nicht aus
+    // der Datei.
     expect(element).toMatchObject({ tone: 'signal', fill: 'framed', opacity: 1, rotation: 0 });
   });
 
@@ -262,7 +263,7 @@ describe('serializeDeck', () => {
     const deck = parseDeck('# S');
     deck.slides[0].meta.notes = 'watch out for --> this';
     const output = serializeDeck(deck);
-    // Exactly one comment terminator: the real one.
+    // Genau ein Kommentarende — das echte.
     expect(output.match(/-->/g)).toHaveLength(1);
     expect(parseDeck(output).slides[0].meta.notes).toBe('watch out for --> this');
   });

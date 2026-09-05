@@ -1,7 +1,7 @@
 /**
- * Overview mode — a thumbnail grid for jumping between slides and reordering
- * them. Thumbnails are live `<SlideView/>`s, so they show exactly what the
- * slide is, elements included.
+ * Die Übersicht — ein Raster aus Kacheln, um zwischen Folien zu springen und
+ * sie umzustellen. Die Kacheln sind lebendige `<SlideView/>`, sie zeigen also
+ * genau das, was die Folie ist, Elemente eingeschlossen.
  */
 import { useEffect, useRef } from 'react';
 import { canvas } from '@/theme';

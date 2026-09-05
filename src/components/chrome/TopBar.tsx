@@ -1,6 +1,6 @@
 /**
- * The application bar: deck identity, file actions, the export menu, canvas
- * options and the presentation switch.
+ * Die Kopfleiste: wer das Deck ist, die Wege zur Datei, das Export-Menü, was
+ * die Fläche zeigt, und der Sprung in den Vortrag.
  */
 import { useEffect, useRef, useState } from 'react';
 import { darfErsetzen, grund, oeffneDeck, sichereDeck } from '@/state/persistence';

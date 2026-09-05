@@ -1,10 +1,10 @@
 /**
- * Scene → SVG.
+ * Szene → SVG.
  *
- * Output is a standalone, self-describing SVG 1.1 document: real `<path>`,
- * `<rect>`, `<ellipse>` and `<text>` elements — no `foreignObject`, no embedded
- * HTML, no rasterisation. It opens correctly in browsers *and* in vector
- * editors, and the text stays selectable and editable.
+ * Heraus kommt ein SVG 1.1, das für sich steht und sich selbst erklärt: echte
+ * `<path>`, `<rect>`, `<ellipse>` und `<text>` — kein `foreignObject`, kein
+ * eingebettetes HTML, nichts Gerastertes. Es öffnet im Browser *und* im
+ * Zeichenprogramm, und der Text bleibt markierbar und änderbar.
  *
  * Schriften: `<text>` allein nennt nur einen Namen, den die Gegenseite haben
  * muss. Deshalb kann `fontCss` die benutzten Schnitte als `@font-face` mit
@@ -18,7 +18,7 @@ import { round, segsToPath } from '@/lib/geometry/path';
 import { laufStriche, type Scene, type ScenePrim, type SceneRun } from './scene';
 
 export interface SvgOptions {
-  /** Pretty-print with newlines and indentation. */
+  /** Mit Zeilenumbrüchen und Einrückung schreiben. */
   pretty?: boolean;
   /**
    * `@font-face`-Regeln, die in die Datei eingebettet werden — gebaut von
@@ -76,7 +76,7 @@ function fontStyleBlock(css: string | undefined, pad: string): string {
   return `${pad}<defs><style type="text/css"><![CDATA[\n${css}\n]]></style></defs>`;
 }
 
-/** Convenience: the whole deck as a vertical strip of slides in one SVG. */
+/** Bequemlichkeit: das ganze Deck als Streifen von Folien in einem SVG. */
 export function scenesToContactSheet(scenes: Scene[], gap = 24, fontCss?: string): string {
   if (scenes.length === 0)
     return sceneToSvg({ width: 0, height: 0, background: '#fff', prims: [], title: 'Empty' });
@@ -107,11 +107,11 @@ export function scenesToContactSheet(scenes: Scene[], gap = 24, fontCss?: string
 /* -------------------------------------------------------------------------- */
 
 /**
- * Serialise primitives to SVG markup.
+ * Primitive zu SVG-Markup schreiben.
  *
- * The on-screen canvas injects this same markup into a live `<svg>`, which is
- * what makes the editor literally WYSIWYG with respect to SVG export: there is
- * no second renderer that could disagree.
+ * Die Fläche setzt genau dieses Markup in ein lebendes `<svg>` ein. Das ist
+ * der Grund, warum der Bildschirm und die `.svg` wörtlich dasselbe zeigen: es
+ * gibt keinen zweiten Zeichner, der widersprechen könnte.
  */
 export function primsToSvgMarkup(prims: readonly ScenePrim[], separator = ''): string {
   return prims.map((prim) => primToSvg(prim)).join(separator);
@@ -257,8 +257,8 @@ function runToTspan(run: SceneRun, originX: number, originY: number): string {
 }
 
 /**
- * Underlines and strikethroughs are drawn as rects rather than
- * `text-decoration`, which several vector editors ignore.
+ * Unter- und Durchstreichungen werden als Rechtecke gezeichnet und nicht über
+ * `text-decoration` — das ignorieren mehrere Zeichenprogramme.
  *
  * Wo sie liegen, rechnet `laufStriche()` — dieselbe Rechnung, die der
  * Umriss-Weg geht. Hier standen eigene Zahlen, und sie waren andere.

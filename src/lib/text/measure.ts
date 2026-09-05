@@ -1,11 +1,12 @@
 /**
- * Text measurement.
+ * Schriftmaße.
  *
- * The exporters need real glyph advances to break lines, and they must agree
- * with what the browser did on screen — so measurement goes through the same
- * font stack via a 2-D canvas. Under jsdom (tests) there is no canvas, so a
- * deterministic width model stands in; it is only ever used for unit tests and
- * for the "no canvas" degenerate case, never for real export.
+ * Die Ausgabewege brauchen echte Vorschübe, um Zeilen zu brechen, und sie
+ * müssen mit dem übereinstimmen, was der Browser auf dem Bildschirm getan hat
+ * — gemessen wird deshalb über denselben Schriftstapel in einem Canvas. Unter
+ * jsdom, also in den Tests, gibt es keines; dort springt ein festes
+ * Rechenmodell ein. Es gilt nur für die Tests und für den Fall „kein Canvas",
+ * nie für einen echten Export.
  */
 import { fontFamily } from '@/theme';
 
@@ -16,7 +17,7 @@ export interface FontSpec {
   size: number;
   weight: number;
   italic: boolean;
-  /** Letter spacing as a fraction of the font size (em), matching the CI scale. */
+  /** Die Laufweite als Bruchteil der Schriftgröße (Geviert), wie in der CI. */
   tracking: number;
 }
 
@@ -50,7 +51,7 @@ function context(): CanvasRenderingContext2D | null {
       canvasEl.width = 8;
       canvasEl.height = 8;
       ctx = canvasEl.getContext('2d');
-      // jsdom returns null (or a stub without measureText).
+      // jsdom gibt `null` zurück — oder eine Attrappe ohne `measureText`.
       if (ctx && typeof ctx.measureText !== 'function') ctx = null;
     }
   } catch {
@@ -62,7 +63,7 @@ function context(): CanvasRenderingContext2D | null {
 const cache = new Map<string, number>();
 const CACHE_LIMIT = 20000;
 
-/** Advance width of `text` in the given font, including letter spacing. */
+/** Die Breite von `text` in dieser Schrift, Laufweite eingerechnet. */
 export function measureText(text: string, spec: FontSpec): number {
   if (!text) return 0;
   const key = `${spec.family}|${spec.size}|${spec.weight}|${spec.italic ? 'i' : 'n'}|${text}`;
@@ -75,7 +76,7 @@ export function measureText(text: string, spec: FontSpec): number {
   return base + trackingWidth(text, spec);
 }
 
-/** Extra width contributed by letter spacing (applied between glyphs). */
+/** Was die Laufweite zusätzlich braucht — sie sitzt zwischen den Zeichen. */
 export function trackingWidth(text: string, spec: FontSpec): number {
   if (!spec.tracking || text.length === 0) return 0;
   return spec.tracking * spec.size * text.length;
@@ -95,8 +96,8 @@ function computeWidth(text: string, spec: FontSpec): number {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Per-character advance as a fraction of the em, roughly matching a humanist
- * sans at 400 weight. Used only when no 2-D canvas exists.
+ * Der Vorschub je Zeichen als Bruchteil des Gevierts, ungefähr nach einer
+ * humanistischen Grotesk im Schnitt 400. Gilt nur, wenn es kein Canvas gibt.
  */
 const NARROW = new Set([...'ijltfIr!.,:;\'"|[]()`']);
 const WIDE = new Set([...'mwMW@%']);
@@ -117,12 +118,12 @@ export function approximateWidth(text: string, spec: FontSpec): number {
   return em * spec.size * weightFactor;
 }
 
-/** Clear the measurement cache — used when a webfont finishes loading. */
+/** Den Messpuffer leeren — sobald eine Webschrift angekommen ist. */
 export function resetMeasurementCache(): void {
   cache.clear();
 }
 
-/** Whether real (canvas) metrics are available in this environment. */
+/** Ob es hier echte Maße gibt, also ein Canvas. */
 export function hasRealMetrics(): boolean {
   return context() !== null;
 }
@@ -132,14 +133,15 @@ export function hasRealMetrics(): boolean {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Ratios used to place a baseline inside a line box. These are stable enough
- * across the CI stack's fallbacks that hard-coding them keeps SVG, PDF and DOM
- * in agreement — measuring per-font would make the three diverge.
+ * Die Verhältnisse, mit denen die Grundlinie in der Zeile sitzt. Über den
+ * Schriftstapel der CI hinweg sind sie stabil genug, dass sie festgeschrieben
+ * SVG, PDF und Fläche zusammenhalten — je Schrift zu messen ließe die drei
+ * auseinanderlaufen.
  */
 export const ASCENT_RATIO = 0.76;
 export const DESCENT_RATIO = 0.24;
 
-/** Baseline offset from the top of a line box of height `lineHeight`. */
+/** Wie tief die Grundlinie in einer Zeile der Höhe `lineHeight` liegt. */
 export function baselineOffset(fontSize: number, lineHeight: number): number {
   const leading = lineHeight - fontSize;
   return leading / 2 + fontSize * ASCENT_RATIO;

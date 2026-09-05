@@ -288,7 +288,8 @@ describe('SVG export', () => {
     expect(svg).toContain('SHIP IT');
     expect(svg).toContain(`font-size="${typeScale.h1.size}"`);
     expect(svg).toContain(`font-weight="${typeScale.h1.weight}"`);
-    // Colours come from the CI ramp, never from an ad-hoc literal.
+    // Die Farben kommen aus der Leiter der CI und nie aus einem hingeschriebenen
+    // Wert.
     expect(svg).toContain(color.ink);
     const literals = svg.match(/#[0-9a-f]{3,6}\b/gi) ?? [];
     const allowed = new Set(Object.values(palette).map((value) => value.toLowerCase()));
