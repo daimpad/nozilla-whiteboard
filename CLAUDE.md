@@ -2537,6 +2537,43 @@ wirklich fallen lassen: `keepIfChanged(..., 16)` statt `defaultPadding[kind]`
 schreibt nur *mehr* in die Datei und ändert nichts — rot wird die Prüfung erst,
 wenn der Schreiber den Wert ganz weglässt.
 
+**Der Strich unter einem Wort lag im PNG woanders als im SVG.** Unter- und
+Durchstreichung sind keine Glyphen; jede Ausgabe zieht sie selbst — und jede
+zog sie anders: `svg.ts` nahm `max(0.8, size · 0.058)` bei `size · 0.13`, der
+Umriss-Weg `max(1, size · 0.055)` bei `size · 0.14`. Gemessen an einem Link in
+16 Einheiten: das SVG setzt ihn auf y = 90,64 mit 0,928 Dicke, der Umriss auf y
+= 90,80 mit 1,00 — und der Umriss ist das, was im PNG steht. Bei kleiner
+Schrift wächst der Unterschied auf ein Viertel, weil die beiden Untergrenzen
+verschieden sind. `laufStriche()` ist jetzt die eine Rechnung, und geprüft wird
+an beiden Ergebnissen: das SVG-Rect gegen die Hülle des Umriss-Pfades, für drei
+Größen und beide Striche.
+
+**Und was im Export herausfällt, sagte niemand.** Ein Zeichen, das keine der
+Marken-Schriften führt, bekam ein `console.warn` — dieselbe Stille wie beim
+leeren `catch` der Selbstsicherung und beim fehlenden Bild: die *Politik*
+stimmt, ein fehlendes Zeichen darf keinen Export abbrechen, das Schweigen
+nicht. Der zweite Fall stand überhaupt nirgends: kommt die `.ttf` eines
+Schnitts nicht an — der wahrscheinlichste Grund ist ein eigenes
+Erscheinungsbild, das nur die `.woff2` mitliefert —, bleibt sein Text
+unkonvertiert. Gemessen: mit fehlendem Zilla Slab steht die Überschrift danach
+als *Text* in der Szene, und im PNG malt sie die Vorgabeschrift des
+Betrachters, denn ein über eine Blob-URL geladenes SVG sieht die Schriften der
+Seite nicht. Das sieht aus wie ein Fehler des Werkzeugs und ist eine fehlende
+Datei.
+
+Gemeldet wird über `beiAusfallImExport()`, an genau *einer* Stelle:
+`glyphCoverFor()` hat zwei Kunden, den Umriss-Weg und den PDF-Weg, und beide
+bekommen die Meldung damit umsonst. Die Naht liegt wie bei den Bildern im
+Sitzungsstart — `lib/` kennt `state/` nicht.
+
+**Was nachgemessen wurde und in Ordnung ist.** Die Drehung eines Textprimitivs
+ist im Umriss-Weg exakt: 106 Punkte, größte Abweichung 0,000000 gegen die
+Drehung derselben Punkte um (x, y). Zusammengesetzte Zeichen stimmen — `ü` hat
+dieselbe Breite und denselben Anfang wie `u` und nur mehr Höhe, `ä`/`a` und
+`é`/`e` ebenso, `ß` ist ein eigenes Zeichen. Und die Ersatzkette greift: `⌘`
+und `⌫` in einem Space-Mono-Lauf kommen aus Inter, kein Lauf bleibt als Text
+stehen.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,

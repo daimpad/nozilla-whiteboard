@@ -1380,6 +1380,29 @@ export function kartenTitelGroesse(element: CardElement): number {
 }
 
 /**
+ * Wo die Striche eines Laufs liegen — relativ zur Grundlinie, Y nach unten.
+ *
+ * Unter- und Durchstreichung sind keine Glyphen; jede Ausgabe zieht sie selbst.
+ * Und jede zog sie anders: `svg.ts` nahm `max(0.8, size · 0.058)` bei
+ * `size · 0.13`, der Umriss-Weg `max(1, size · 0.055)` bei `size · 0.14`.
+ * Gemessen an einem Link in Inter 16: das SVG setzt den Strich auf y = 90,64
+ * mit 0,928 Einheiten Dicke, der Umriss auf y = 90,80 mit 1,00 — und der
+ * Umriss ist das, was im PNG steht. Bei kleiner Schrift wächst der Unterschied
+ * auf ein Viertel, weil die beiden Untergrenzen verschieden sind.
+ *
+ * Zwei Rechnungen für dieselbe Frage, und man sieht es nur im Vergleich der
+ * beiden Dateien. Die Zahlen sind die des SVG geblieben: die Fläche zeichnet
+ * mit demselben Markup, also ist das, was der Bildschirm zeigt.
+ */
+export function laufStriche(run: SceneRun): Array<{ y: number; h: number }> {
+  const dicke = Math.max(0.8, run.font.size * 0.058);
+  const striche: Array<{ y: number; h: number }> = [];
+  if (run.underline) striche.push({ y: run.font.size * 0.13, h: dicke });
+  if (run.strike) striche.push({ y: -run.font.size * 0.27, h: dicke });
+  return striche;
+}
+
+/**
  * Wie groß die Schrift eines Abzeichens wirklich wird.
  *
  * Die Stufe ist `label`, und sie wird gedeckelt: ein flaches Abzeichen soll

@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { starterDeck } from '@/decks';
 import { readDroppedFile } from '@/lib/export/download';
 import { beiFehlendenBildern } from '@/lib/export/images';
+import { beiAusfallImExport, type Ausfall } from '@/lib/export/glyphCover';
 import { imageElementFromFile } from '@/lib/imageElement';
 import { insertFrame } from '@/lib/layout/slideLayout';
 import { useDeckTheme } from '@/hooks/useDeckTheme';
@@ -43,6 +44,37 @@ export function fehlendeBilderText(fehlend: readonly string[]): string {
   return fehlend.length === 1
     ? `Ein Bild ließ sich nicht laden und fehlt in der Ausgabe: ${liste}`
     : `${fehlend.length} Bilder ließen sich nicht laden und fehlen in der Ausgabe: ${liste}`;
+}
+
+/**
+ * Der Satz, mit dem ein Ausfall im Export gemeldet wird.
+ *
+ * Zwei Dinge können herausfallen, und sie haben verschiedene Ursachen: ein
+ * Zeichen, das keine der Marken-Schriften führt, und ein Schnitt, dessen Datei
+ * nicht ankommt. Genannt werden beide, denn der Rat ist ein anderer — beim
+ * Zeichen ein anderes Zeichen, beim Schnitt die fehlende `.ttf`.
+ */
+export function ausfallText(ausfall: Ausfall): string {
+  const teile: string[] = [];
+  if (ausfall.zeichen.length > 0) {
+    const liste = ausfall.zeichen.slice(0, 3).join(' ');
+    const rest = ausfall.zeichen.length - 3;
+    teile.push(
+      ausfall.zeichen.length === 1
+        ? `Ein Zeichen führt keine der Schriften und fehlt in der Ausgabe: ${liste}`
+        : `${ausfall.zeichen.length} Zeichen führt keine der Schriften und fehlen in der Ausgabe: ${liste}${rest > 0 ? ` und ${rest} weitere` : ''}`,
+    );
+  }
+  if (ausfall.schnitte.length > 0) {
+    const liste = ausfall.schnitte.slice(0, 3).join(', ');
+    const rest = ausfall.schnitte.length - 3;
+    const rumpf =
+      ausfall.schnitte.length === 1
+        ? 'Ein Schnitt ließ sich nicht laden; sein Text steht in der Ersatzschrift'
+        : `${ausfall.schnitte.length} Schnitte ließen sich nicht laden; ihr Text steht in der Ersatzschrift`;
+    teile.push(`${rumpf}: ${liste}${rest > 0 ? ` und ${rest} weitere` : ''}`);
+  }
+  return teile.join(' · ');
 }
 
 export default function App() {
@@ -110,10 +142,18 @@ export default function App() {
       useDeckStore.getState().zeigeHinweis(fehlendeBilderText(fehlend));
     });
 
+    // Und dieselbe Naht für das, was der Schriftweg nicht setzen konnte: ein
+    // Zeichen, das keine der Schriften führt, oder ein Schnitt, dessen Datei
+    // nicht ankam. Beides stand vorher bestenfalls auf der Konsole.
+    beiAusfallImExport((ausfall) => {
+      useDeckStore.getState().zeigeHinweis(ausfallText(ausfall));
+    });
+
     return () => {
       stopAutosave();
       stopGuard();
       beiFehlendenBildern(null);
+      beiAusfallImExport(null);
     };
     // Startup runs once; the store is the source of truth from then on.
     // eslint-disable-next-line react-hooks/exhaustive-deps

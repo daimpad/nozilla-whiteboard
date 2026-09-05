@@ -16,9 +16,16 @@ import { availableThemes, isThemeId, setActiveTheme } from '@/theme';
 import { registerThemes } from '@/themes';
 import { segsBounds } from '@/lib/geometry/path';
 import { buildSlideScene, type Scene, type ScenePrim } from './scene';
-import { outlineScene } from './outline';
+import { outlineScene, outlineScenes } from './outline';
 import { facesFor, resolveFace } from './fontFiles';
-import { ersatzkette, glyphCoverFor, splitByFace } from './glyphCover';
+import {
+  beiAusfallImExport,
+  ersatzkette,
+  glyphCoverFor,
+  splitByFace,
+  type Ausfall,
+} from './glyphCover';
+import { ausfallText } from '@/App';
 import { primsToSvgMarkup, sceneToSvg } from './svg';
 
 /** `fetch` auf das Dateisystem legen — dieselben Dateien, die ausgeliefert werden. */
@@ -241,6 +248,123 @@ describe('Zeichen, die die gesetzte Schrift nicht führt', () => {
     expect(mit.prims.some((prim) => prim.t === 'text')).toBe(false);
     expect(segmente(mit)).toBe(segmente(ohne));
     expect(segmente(mit)).toBeGreaterThan(0);
+  });
+
+  it('sagt es, wenn ein Zeichen herausfällt', async () => {
+    /*
+       Hier stand ein `console.warn`, und das ist dieselbe Stille wie beim
+       leeren `catch` der Selbstsicherung und beim fehlenden Bild: die Politik
+       stimmt — ein fehlendes Zeichen darf einen Export nicht abbrechen —, das
+       Schweigen nicht. Ein `😀` fällt aus PNG und PDF heraus, und wer die
+       Datei nicht selbst ansieht, merkt es beim Vortrag.
+    */
+    const gemeldet: Ausfall[] = [];
+    beiAusfallImExport((ausfall) => gemeldet.push(ausfall));
+    try {
+      await glyphCoverFor([szene('Zeichen: \u{1F600}')]);
+    } finally {
+      beiAusfallImExport(null);
+    }
+    expect(gemeldet).toHaveLength(1);
+    expect(gemeldet[0].zeichen).toContain('\u{1F600}');
+    expect(ausfallText(gemeldet[0])).toContain('\u{1F600}');
+
+    // Die Gegenrichtung: ein gewöhnlicher Satz meldet nichts. Ein Melder, der
+    // immer anschlägt, wird abgeschaltet und bewacht dann gar nichts mehr.
+    const still: Ausfall[] = [];
+    beiAusfallImExport((ausfall) => still.push(ausfall));
+    try {
+      await glyphCoverFor([szene('Ein gewöhnlicher Satz.')]);
+    } finally {
+      beiAusfallImExport(null);
+    }
+    expect(still).toEqual([]);
+  });
+
+  it('sagt es auch, wenn die Datei eines Schnitts nicht ankommt', async () => {
+    /*
+       Der zweite Fall stand überhaupt nirgends. Kommt die `.ttf` eines
+       Schnitts nicht an — der wahrscheinlichste Grund ist ein eigenes
+       Erscheinungsbild, das nur die `.woff2` mitliefert —, bleibt sein Text
+       unkonvertiert: im PNG malt ihn die Vorgabeschrift des Betrachters, denn
+       ein über eine Blob-URL geladenes SVG sieht die Schriften der Seite
+       nicht. Das sieht aus wie ein Fehler des Werkzeugs und ist eine fehlende
+       Datei.
+
+       Die Module werden dafür frisch geladen: `fontFiles.ts` merkt sich
+       gelesene Bytes, und ein Schnitt, den eine frühere Prüfung schon geholt
+       hat, käme aus dem Puffer statt aus dem 404.
+    */
+    vi.resetModules();
+    const echt = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(
+        typeof input === 'string' ? input : input instanceof URL ? input.href : '',
+      );
+      const datei = url.split('/').pop() ?? '';
+      if (datei.startsWith('ZillaSlab')) return new Response('weg', { status: 404 });
+      return echt(input as RequestInfo);
+    }) as typeof fetch;
+
+    const frisch = await import('./glyphCover');
+    const gemeldet: Array<{ schnitte: readonly string[] }> = [];
+    frisch.beiAusfallImExport((ausfall) => gemeldet.push(ausfall));
+    try {
+      await frisch.glyphCoverFor([szene('# Eine Überschrift in Zilla Slab')]);
+    } finally {
+      frisch.beiAusfallImExport(null);
+      globalThis.fetch = echt;
+      vi.resetModules();
+    }
+    expect(gemeldet).toHaveLength(1);
+    expect(gemeldet[0].schnitte.some((id) => id.startsWith('ZillaSlab'))).toBe(true);
+    expect(ausfallText({ zeichen: [], schnitte: ['ZillaSlab-Bold'] })).toContain('ZillaSlab-Bold');
+  });
+
+  it('zieht den Strich dorthin, wo ihn das SVG zieht', async () => {
+    /*
+       Unter- und Durchstreichung sind keine Glyphen; jede Ausgabe zieht sie
+       selbst — und jede zog sie anders: `svg.ts` nahm `max(0.8, size · 0.058)`
+       bei `size · 0.13`, der Umriss-Weg `max(1, size · 0.055)` bei
+       `size · 0.14`. Gemessen an einem Lauf in 16 Einheiten: das SVG setzt den
+       Strich auf y = 90,64 mit 0,928 Dicke, der Umriss auf y = 90,80 mit 1,00
+       — und der Umriss ist das, was im PNG steht. Bei kleiner Schrift wächst
+       der Unterschied auf ein Viertel, weil die Untergrenzen verschieden sind.
+
+       Geprüft wird an beiden Ergebnissen und nicht an der Formel: das SVG-Rect
+       gegen die Hülle des Umriss-Pfades.
+    */
+    for (const size of [16, 12, 34]) {
+      for (const art of ['underline', 'strike'] as const) {
+        const lauf = {
+          dx: 0,
+          text: 'Wort',
+          font: font({ size }),
+          color: '#000000',
+          width: 40,
+          [art]: true,
+        };
+        const prim = { t: 'text' as const, x: 100, y: 200, runs: [lauf] };
+
+        const markup = primsToSvgMarkup([prim]);
+        const rect = markup.match(
+          /<rect x="([-\d.]+)" y="([-\d.]+)" width="([-\d.]+)" height="([-\d.]+)"/,
+        );
+        expect(rect, `${art} @${size}: kein rect im SVG`).not.toBeNull();
+
+        const [um] = await outlineScenes([{ ...szene('x'), prims: [prim] }]);
+        const strich = um.prims.find(
+          (p): p is Extract<ScenePrim, { t: 'path' }> => p.t === 'path' && p.segs.length === 5,
+        );
+        expect(strich, `${art} @${size}: kein Strich im Umriss`).toBeDefined();
+        const box = segsBounds(strich!.segs);
+
+        expect(box.x, `${art} @${size}: x`).toBeCloseTo(Number(rect![1]), 6);
+        expect(box.y, `${art} @${size}: y`).toBeCloseTo(Number(rect![2]), 6);
+        expect(box.w, `${art} @${size}: Breite`).toBeCloseTo(Number(rect![3]), 6);
+        expect(box.h, `${art} @${size}: Dicke`).toBeCloseTo(Number(rect![4]), 6);
+      }
+    }
   });
 
   it('teilt einen Lauf für den PDF-Weg in Stücke je Schnitt', async () => {
