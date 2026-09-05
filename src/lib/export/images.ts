@@ -1,10 +1,11 @@
 /**
- * Image resolution for export.
+ * Die Bilder für den Export beschaffen.
  *
- * SVG can reference an image by URL, but a PDF needs the actual bytes and both
- * need intrinsic dimensions to lay Markdown figures out correctly. This module
- * loads every image a deck references once, up front, and hands back a lookup
- * the scene builder and the PDF writer share.
+ * Ein SVG darf ein Bild über seine Adresse nennen, ein PDF braucht die Bytes
+ * — und beide brauchen die echten Maße, damit eine Abbildung im Markdown
+ * richtig gesetzt wird. Dieses Modul lädt jedes Bild, auf das ein Deck zeigt,
+ * einmal vorweg und gibt ein Verzeichnis zurück, das der Szenenbau und der
+ * PDF-Weg gemeinsam benutzen.
  */
 import type { Deck } from '@/model/types';
 import { escapeXml } from './svg';
@@ -58,7 +59,7 @@ export function meldeFehlendeBilder(fehlend: readonly string[]): void {
 
 const MARKDOWN_IMAGE_RE = /!\[[^\]]*]\(\s*<?([^)\s>]+)>?(?:\s+["'][^"']*["'])?\s*\)/g;
 
-/** Every image source a deck refers to, from elements and from Markdown. */
+/** Jede Bildquelle eines Decks — aus den Elementen und aus dem Markdown. */
 export function collectImageSources(deck: Deck): string[] {
   const found = new Set<string>();
 
@@ -91,8 +92,10 @@ export function collectImageSources(deck: Deck): string[] {
 }
 
 /**
- * Load every source into a data URL plus its intrinsic size. Failures are
- * skipped rather than thrown — one missing image must not fail an export.
+ * Jede Quelle als Daten-URL samt ihren echten Maßen holen. Was scheitert, wird
+ * übergangen und nicht geworfen: ein fehlendes Bild darf ein Deck von dreißig
+ * Folien nicht ungedruckt lassen. Gemeldet wird es trotzdem — siehe
+ * `meldeFehlendeBilder()`.
  */
 export async function resolveImages(sources: readonly string[]): Promise<ImageMap> {
   const entries = await Promise.all(sources.map((src) => resolveOne(src)));
@@ -156,7 +159,7 @@ function formatOf(dataUrl: string): string {
   return 'JPEG';
 }
 
-/** A `resolveImageSize` callback for the typesetter, backed by an `ImageMap`. */
+/** Ein `resolveImageSize` für den Setzer, gespeist aus einer `ImageMap`. */
 /* -------------------------------------------------------------------------- */
 /* Die Maße, die auch die Fläche braucht                                       */
 /* -------------------------------------------------------------------------- */

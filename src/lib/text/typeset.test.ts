@@ -58,7 +58,8 @@ describe('wrapRuns', () => {
 
   it('preserves every word across the line breaks', () => {
     const words = wrapRuns(runs, 100)
-      // A break replaces the space it broke on, so rejoin lines with one.
+      // Ein Umbruch tritt an die Stelle des Leerzeichens, an dem er brach —
+      // beim Zusammensetzen kommt es deshalb wieder dazwischen.
       .map((line) => line.map((run) => run.text).join(''))
       .join(' ')
       .split(/\s+/)

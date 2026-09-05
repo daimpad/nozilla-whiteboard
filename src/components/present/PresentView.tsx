@@ -71,13 +71,13 @@ export function PresentView() {
       className="relative flex h-full w-full items-center justify-center overflow-hidden bg-ui-inverse"
       onPointerMove={showChrome}
       onClick={(event) => {
-        // Clicking the slide advances; clicking a control does not.
+        // Ein Klick auf die Folie blättert weiter, einer auf einen Knopf nicht.
         if ((event.target as HTMLElement).closest('button')) return;
         advance();
       }}
     >
       <div
-        // Re-keying on the slide restarts the transition animation.
+        // Ein neuer Schlüssel je Folie startet den Übergang von vorn.
         key={`${slide.id}-${slideIndex}`}
         className={cx('nz-stage nz-stage--present overflow-hidden', transitionClass)}
         style={{

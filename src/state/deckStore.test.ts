@@ -46,7 +46,8 @@ describe('slides', () => {
     addShape();
     store().duplicateSlide();
     expect(store().deck.slides).toHaveLength(3);
-    // The copy owns fresh element ids, so editing one never edits the other.
+    // Die Kopie bekommt eigene Kennungen: wer an einer arbeitet, ändert die
+    // andere nie mit.
     const ids = store().deck.slides.flatMap((slide) => slide.elements.map((e) => e.id));
     expect(new Set(ids).size).toBe(ids.length);
 

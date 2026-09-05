@@ -3110,6 +3110,20 @@ ganzen Baum, aufgestellt nach dem Lesen einer Datei. Zwei Zeilen `grep` hätten
 sie widerlegt, und sie standen in derselben Runde zur Verfügung wie alles
 andere, was gemessen wurde.
 
+**Und auch die 93 waren zu wenig.** Richtig gezählt — mit einem Sieb, das
+Kommentare aus dem Quelltext schneidet, deutsche Marker verwirft und
+englische Funktionswörter verlangt — waren es **209 Zeilen in 39 Dateien**.
+Sie sind jetzt übersetzt; was das Sieb danach noch meldet, sind
+`eslint-disable`-Direktiven, Codebeispiele in Doc-Kommentaren und zwei
+absichtlich zitierte englische Sätze (die Anleitung von jsPDF und der alte
+Kommentar, gegen den eine Prüfung geschrieben ist).
+
+Zweimal dieselbe Lehre in derselben Sache: **eine Zahl über den ganzen Baum
+gehört gemessen, und ein Sieb, das sie misst, gehört in beide Richtungen
+geprüft.** Das zweite Sieb ließ zuerst jede englische Zeile durch, in der ein
+Wort stand, das im Deutschen dasselbe schreibt — „was", „die", „man", „in",
+„am", „so". Erst ohne diese sechs kam heraus, was wirklich noch dastand.
+
 **Was nachgemessen wurde und in Ordnung ist.** Die Größen- und Drehgriffe
 erscheinen nur bei genau einer Auswahl und nur an einem nicht gesperrten
 Element; ein gesperrtes lässt sich anwählen, aber nicht ziehen. Der

@@ -59,7 +59,7 @@ describe('parsePath', () => {
 
   it('reflects the control point for T', () => {
     const segs = parsePath('M 0 0 Q 2 4 4 0 T 8 0');
-    // The implied control point mirrors (2,4) about (4,0) → (6,-4).
+    // Der gedachte Griff spiegelt (2,4) an (4,0) — also (6,−4).
     expect(segs[2]).toMatchObject({ c: 'C' });
     const t = segs[2] as Extract<Seg, { c: 'C' }>;
     expect(t.x1).toBeCloseTo(4 + (2 / 3) * 2, 6);

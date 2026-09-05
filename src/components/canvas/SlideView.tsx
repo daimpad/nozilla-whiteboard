@@ -1,10 +1,10 @@
 /**
- * The slide renderer.
+ * Der Zeichner der Folie.
  *
- * It draws by injecting the *exact* markup the SVG exporter produces, so what
- * appears on screen and what lands in an exported file are the same bytes.
- * Elements are wrapped in their own `<g>` so each can carry its reveal
- * animation independently.
+ * Er zeichnet, indem er *genau* das Markup einsetzt, das der SVG-Export
+ * erzeugt: was auf dem Bildschirm steht und was in der Datei landet, sind
+ * dieselben Bytes. Jedes Element steckt in einem eigenen `<g>`, damit es seine
+ * Einblendung für sich tragen kann.
  */
 import { memo, useMemo } from 'react';
 import { canvas, motion } from '@/theme';
@@ -29,11 +29,11 @@ export interface SlideViewProps {
   deck: Deck;
   slideNumber?: number;
   totalSlides?: number;
-  /** Elements with a reveal step above this are hidden. */
+  /** Elemente mit einem höheren Einblendschritt bleiben verborgen. */
   revealStep?: number;
-  /** Animate elements as they appear (presentation mode). */
+  /** Die Elemente beim Erscheinen bewegen — das gilt dem Vortrag. */
   animateReveals?: boolean;
-  /** Draw the deck footer and slide number. */
+  /** Die Fußzeile des Decks und die Foliennummer mitzeichnen. */
   chrome?: boolean;
   /**
    * Jedes Element in die Tab-Reihenfolge legen.

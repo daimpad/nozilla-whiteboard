@@ -1,15 +1,15 @@
 /**
- * A tiny, dependency-free 2-D path toolkit.
+ * Ein kleiner Werkzeugkasten für Pfade in der Ebene, ohne fremde Bibliothek.
  *
- * Everything that is drawn — CI shapes, icons, connectors, card chrome — is
- * reduced to the same normalised segment list (`Seg[]`: move / line / cubic /
- * close). The DOM renderer serialises segments to an SVG `d` attribute, the SVG
- * exporter does the same, and the PDF exporter walks them with jsPDF's
- * `lines()` primitive. One geometry pipeline, three outputs, no drift.
+ * Alles, was gezeichnet wird — die Formen der CI, die Icons, die Verbinder,
+ * das Beiwerk einer Karte —, wird auf dieselbe Segmentliste gebracht (`Seg[]`:
+ * Absetzen, Linie, Kubik, Schließen). Die Fläche schreibt daraus ein
+ * `d`-Attribut, der SVG-Weg dasselbe, und der PDF-Weg läuft sie mit jsPDFs
+ * `lines()` ab. Eine Geometrie, drei Ausgaben, kein Auseinanderlaufen.
  *
- * Elliptical arcs are deliberately unsupported: jsPDF has no arc operator, so
- * every curve here is a cubic Bézier. `KAPPA` is the standard circle-to-cubic
- * constant.
+ * Ellipsenbögen gibt es hier mit Absicht nicht: PDF kennt keinen
+ * Bogen-Operator, also ist jede Kurve eine kubische Bézierkurve. `KAPPA` ist
+ * die übliche Konstante, mit der eine Kubik einen Viertelkreis annähert.
  */
 
 export type Seg =
@@ -18,12 +18,12 @@ export type Seg =
   | { c: 'C'; x1: number; y1: number; x2: number; y2: number; x: number; y: number }
   | { c: 'Z' };
 
-/** Affine matrix: x' = a·x + c·y + e, y' = b·x + d·y + f */
+/** Affine Matrix: x' = a·x + c·y + e, y' = b·x + d·y + f */
 export type Mat = readonly [number, number, number, number, number, number];
 
 export const IDENTITY: Mat = [1, 0, 0, 1, 0, 0];
 
-/** 4·(√2 − 1)/3 — the cubic control-point offset that approximates a quarter circle. */
+/** 4·(√2 − 1)/3 — der Griffabstand, mit dem eine Kubik den Viertelkreis trifft. */
 export const KAPPA = 0.5522847498307936;
 
 /* -------------------------------------------------------------------------- */
@@ -70,7 +70,7 @@ export function matRotate(degrees: number): Mat {
   return [cos, sin, -sin, cos, 0, 0];
 }
 
-/** Rotation about an arbitrary pivot. */
+/** Drehung um einen beliebigen Drehpunkt. */
 export function matRotateAbout(degrees: number, cx: number, cy: number): Mat {
   return matMultiply(matMultiply(matTranslate(cx, cy), matRotate(degrees)), matTranslate(-cx, -cy));
 }
@@ -141,7 +141,7 @@ export function segsToPath(segs: readonly Seg[], precision = 3): string {
   return out.join(' ');
 }
 
-/** Axis-aligned bounding box of a segment list (control points included). */
+/** Die achsenparallele Hülle einer Segmentliste, Griffe eingeschlossen. */
 export function segsBounds(segs: readonly Seg[]): { x: number; y: number; w: number; h: number } {
   let minX = Infinity;
   let minY = Infinity;
@@ -170,10 +170,11 @@ export function segsBounds(segs: readonly Seg[]): { x: number; y: number; w: num
 /* -------------------------------------------------------------------------- */
 
 /**
- * Parse SVG path data into absolute move/line/cubic/close segments.
- * Quadratics are exactly promoted to cubics; smooth variants get their implied
- * reflected control point. Elliptical arcs (A/a) become cubics — PDF kennt
- * keinen Bogen-Operator, und alle drei Ausgaben sollen dieselbe Kurve zeichnen.
+ * Pfaddaten eines SVG in absolute Segmente lesen: Absetzen, Linie, Kubik,
+ * Schließen. Quadratische Kurven werden exakt zu Kubiken erhoben, die glatten
+ * Schreibweisen bekommen ihren gespiegelten Griff. Ellipsenbögen (A/a) werden
+ * zu Kubiken — PDF kennt keinen Bogen-Operator, und alle drei Ausgaben sollen
+ * dieselbe Kurve zeichnen.
  */
 /*
    Gelesen wird mit einem Zeiger, nicht mit einer Wortliste.
@@ -211,7 +212,8 @@ export function parsePath(d: string): Seg[] {
   let cy: number = 0;
   let startX: number = 0;
   let startY: number = 0;
-  // Last cubic/quadratic control point, for S/T reflection.
+  // Der letzte Griff einer Kubik beziehungsweise einer Quadratischen — für
+  // die Spiegelung bei S und T.
   let lastCubicCtrl: { x: number; y: number } | null = null;
   let lastQuadCtrl: { x: number; y: number } | null = null;
 
@@ -381,12 +383,14 @@ export function parsePath(d: string): Seg[] {
 }
 
 /**
- * Elliptical arc → cubic Béziers, per the SVG endpoint-parameterisation notes
- * (F.6.5 / F.6.6). The arc is split into sweeps of at most 90°, each of which a
- * cubic approximates to well under a tenth of a pixel at icon scale.
+ * Ellipsenbogen → kubische Bézierkurven, nach der Endpunkt-Parametrisierung
+ * des SVG-Standards (F.6.5 / F.6.6). Der Bogen wird in Stücke von höchstens
+ * 90° geteilt; eine Kubik trifft jedes davon im Maßstab eines Icons auf
+ * deutlich unter ein Zehntel Pixel genau.
  *
- * This exists because PDF has no arc operator: `parsePath` normalises to
- * move/line/cubic so all three renderers draw the identical curve.
+ * Es gibt das, weil PDF keinen Bogen-Operator kennt: `parsePath` bringt alles
+ * auf Absetzen, Linie und Kubik, damit alle drei Zeichner dieselbe Kurve
+ * malen.
  */
 export function arcToCubics(
   x1: number,
@@ -399,7 +403,7 @@ export function arcToCubics(
   x2: number,
   y2: number,
 ): Seg[] {
-  // Degenerate radii collapse the arc to a straight line (SVG F.6.2).
+  // Entartete Radien machen aus dem Bogen eine Gerade (SVG F.6.2).
   if (rxIn === 0 || ryIn === 0) return [{ c: 'L', x: x2, y: y2 }];
   if (x1 === x2 && y1 === y2) return [];
 
@@ -414,7 +418,7 @@ export function arcToCubics(
   const x1p = cosPhi * dx2 + sinPhi * dy2;
   const y1p = -sinPhi * dx2 + cosPhi * dy2;
 
-  // Scale the radii up if they are too small to span the chord (F.6.6).
+  // Die Radien vergrößern, wenn sie die Sehne nicht überspannen (F.6.6).
   const lambda = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry);
   if (lambda > 1) {
     const scale = Math.sqrt(lambda);

@@ -7,8 +7,9 @@ import { maxRevealStep } from '@/model/types';
 import { toneNames } from '@/theme';
 
 /**
- * The deck that ships with the app is also the widest end-to-end fixture we
- * have: it exercises every layout, background, element kind and reveal.
+ * Das mitgelieferte Deck ist zugleich der breiteste Prüfstein, den es hier
+ * gibt: es geht jedes Layout durch, jeden Untergrund, jede Elementart und
+ * jeden Einblendschritt.
  */
 describe('the bundled welcome deck', () => {
   const deck = parseDeck(welcome);

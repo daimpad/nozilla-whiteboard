@@ -1,13 +1,15 @@
 /**
- * The editor store.
+ * Der Zustand des Editors.
  *
- * One deck, one selection, one history stack. Every mutation goes through an
- * action here so that undo/redo, the dirty flag and autosave stay correct
- * without any component having to think about them.
+ * Ein Deck, eine Auswahl, ein Verlauf. Jede Änderung geht durch eine Aktion
+ * hier hindurch — damit Rückgängig, der Merker „nicht gesichert" und die
+ * Selbstsicherung stimmen, ohne dass eine Komponente daran denken müsste.
  *
- * History discipline: atomic actions snapshot themselves. Continuous gestures
- * (drag, resize, rotate) call `pushHistory()` once when the gesture starts and
- * then use the plain mutators, so a drag is one undo step rather than sixty.
+ * Die Regel für den Verlauf: eine Aktion, die für sich steht, legt ihren
+ * Schnappschuss selbst ab. Eine fortlaufende Geste — ziehen, in der Größe
+ * ändern, drehen — ruft einmal am Anfang `pushHistory()` und arbeitet danach
+ * mit den schlichten Aktionen; ein Ziehen ist damit *ein* Schritt und nicht
+ * sechzig.
  *
  * Was sich nicht als Geste erkennen lässt — Tippen in ein Feld —, bekommt
  * einen Schlüssel mit: gleicher Schlüssel kurz hintereinander heißt gleicher
@@ -346,7 +348,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
   };
 
   /**
-   * Replace the current slide via a producer, keeping everything else intact.
+   * Die offene Folie durch eine Rechnung ersetzen und alles andere so lassen.
    *
    * Wer eine Folie ändert, gibt damit ihren unlesbaren Block auf — und das ist
    * richtig so. Der Rohtext wird beim Sichern wortgleich zurückgeschrieben,
@@ -497,7 +499,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
     next: () => get().goTo(get().slideIndex + 1),
     previous: () => get().goTo(get().slideIndex - 1),
 
-    /** Reveal the next step, or move to the next slide once the slide is done. */
+    /** Den nächsten Einblendschritt zeigen — und danach die nächste Folie. */
     advance: () =>
       set((state) => {
         const slide = currentSlide(state);
@@ -1150,10 +1152,10 @@ export const selectCurrentSlide = (state: EditorState): Slide | undefined =>
   state.deck.slides[state.slideIndex];
 
 /**
- * Selectors that build a new array must be read through `useShallow`, otherwise
- * `useSyncExternalStore` sees a fresh snapshot on every render and spins.
- * `useSelectedElements` is the safe entry point; the raw selector is exported
- * only for tests and non-React callers.
+ * Ein Selektor, der ein frisches Array baut, gehört über `useShallow` gelesen
+ * — sonst sieht `useSyncExternalStore` bei jedem Zeichnen einen neuen Stand
+ * und dreht sich im Kreis. `useSelectedElements` ist der sichere Weg; der rohe
+ * Selektor steht nur für Tests und Aufrufer außerhalb von React hier.
  */
 export const selectSelectedElements = (state: EditorState): CanvasElement[] => {
   const slide = state.deck.slides[state.slideIndex];

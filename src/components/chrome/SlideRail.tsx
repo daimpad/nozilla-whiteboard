@@ -1,6 +1,6 @@
 /**
- * The filmstrip beneath the canvas — always-visible slide navigation and
- * reordering without leaving edit mode.
+ * Der Filmstreifen unter der Fläche — Folien wechseln und umstellen, ohne die
+ * Arbeit zu verlassen, und immer im Blick.
  */
 import { useEffect, useRef } from 'react';
 import { canvas } from '@/theme';

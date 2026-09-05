@@ -1,10 +1,11 @@
 /**
- * Vitest setup.
+ * Was vitest vor jedem Lauf aufsetzt.
  *
- * jsdom has no 2-D canvas. Stubbing `getContext` to return `null` (instead of
- * letting jsdom log "not implemented" for every call) makes the text measurer
- * fall back to its deterministic width model — which is what we *want* under
- * test: layout assertions then hold on any machine, with or without fonts.
+ * jsdom hat kein Canvas. `getContext` auf `null` zu stellen — statt jsdom bei
+ * jedem Ruf „not implemented" schreiben zu lassen — schickt die Schriftmessung
+ * auf ihr festes Rechenmodell zurück, und genau das ist unter Test *gewollt*:
+ * eine Zusicherung über den Satz gilt dann auf jedem Rechner, mit Schriften
+ * wie ohne.
  */
 if (typeof HTMLCanvasElement !== 'undefined') {
   HTMLCanvasElement.prototype.getContext = (() =>

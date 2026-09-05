@@ -1,9 +1,10 @@
 /**
- * Markdown → HTML for the on-screen renderer.
+ * Markdown → HTML, für das, was auf dem Bildschirm steht.
  *
- * The exporters do *not* use this module; they typeset from the token stream
- * (`lexMarkdown`) so that SVG and PDF output is real vector text rather than a
- * screenshot. Both paths share the same CI type scale, so they agree.
+ * Die Ausgabewege benutzen dieses Modul *nicht*: sie setzen aus dem Tokenstrom
+ * (`lexMarkdown`), damit im SVG und im PDF echter Vektortext steht und kein
+ * Bildschirmfoto. Beide Wege lesen dieselbe Typo-Leiter der CI und stimmen
+ * deshalb überein.
  */
 import DOMPurify from 'dompurify';
 import { Marked, type Token, type TokensList } from 'marked';
@@ -49,12 +50,12 @@ const marked = new Marked({
   extensions: [markExtension as never],
 });
 
-/** Tokenise Markdown. Used by the SVG/PDF typesetter. */
+/** Markdown in Token zerlegen — so liest der Setzer für SVG und PDF. */
 export function lexMarkdown(source: string): TokensList {
   return marked.lexer(source ?? '');
 }
 
-/** Tokenise a single run of inline Markdown (bold / italic / code / links). */
+/** Ein Stück Text mit Auszeichnungen zerlegen: fett, kursiv, Code, Verweise. */
 export function lexInline(source: string): Token[] {
   const text = source ?? '';
   if (!text) return [];
@@ -80,9 +81,9 @@ function getPurifier(): typeof DOMPurify | null {
 }
 
 /**
- * Render Markdown to sanitised HTML. Sanitising matters even though the app is
- * local-only: decks are files that get passed around, and a `.md` should never
- * be able to run script just because someone opened it.
+ * Markdown zu gereinigtem HTML. Das Reinigen zählt auch bei einem Werkzeug,
+ * das nur lokal läuft: Decks sind Dateien, die herumgereicht werden, und eine
+ * `.md` darf nichts ausführen dürfen, bloß weil jemand sie geöffnet hat.
  */
 export function renderMarkdown(source: string): string {
   const html = marked.parse(source ?? '', { async: false }) as string;
@@ -94,7 +95,7 @@ export function renderMarkdown(source: string): string {
   });
 }
 
-/** Strip Markdown to plain text — used for thumbnails, titles and alt text. */
+/** Markdown auf reinen Text bringen — für Kacheln, Titel, Alternativtext. */
 export function markdownToPlainText(source: string): string {
   return (source ?? '')
     .replace(/```[\s\S]*?```/g, ' ')

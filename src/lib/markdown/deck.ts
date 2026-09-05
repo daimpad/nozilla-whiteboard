@@ -3,12 +3,12 @@
  *
  * File shape:
  *
- *   ---                       ← deck frontmatter (YAML), optional
+ *   ---                       ← Frontmatter des Decks (YAML), freiwillig
  *   title: Quarterly Review
  *   author: Nozilla
  *   ---
  *
- *   <!-- nzl                  ← per-slide metadata (YAML), optional
+ *   <!-- nzl                  ← Metadaten der Folie (YAML), freiwillig
  *   layout: title
  *   transition: rise
  *   elements:
@@ -19,15 +19,16 @@
  *       ...
  *   -->
  *
- *   # Slide one
+ *   # Folie eins
  *
- *   ---                       ← slide delimiter
+ *   ---                       ← Folientrenner
  *
- *   # Slide two
+ *   # Folie zwei
  *
- * The format is deliberately boring: a deck that has never been touched by the
- * canvas is just ordinary Markdown, and a deck saved from the canvas still
- * reads as ordinary Markdown with one metadata comment per slide.
+ * Das Format ist mit Absicht langweilig: ein Deck, das die Fläche nie
+ * angefasst hat, ist gewöhnliches Markdown — und eines, das von der Fläche
+ * gesichert wurde, liest sich weiter als gewöhnliches Markdown mit einem
+ * Metadaten-Kommentar je Folie.
  */
 import yaml from 'js-yaml';
 import { slideLayouts, slideTransitions } from '@/theme';
@@ -43,7 +44,7 @@ import {
 } from '@/model/types';
 import { createId, minimizeElement, normalizeElement } from '@/model/factory';
 
-/** The keyword that opens a Nozilla metadata comment. */
+/** Das Wort, mit dem ein Metadaten-Kommentar dieses Werkzeugs beginnt. */
 export const META_TAG = 'nzl';
 
 export const DEFAULT_SLIDE_META: SlideMeta = {
@@ -66,7 +67,8 @@ export function parseDeck(source: string): Deck {
 
   const slides = chunks.map((chunk) => parseSlide(chunk));
 
-  // A completely empty file still yields one editable slide.
+  // Auch aus einer ganz leeren Datei wird eine Folie, an der man arbeiten
+  // kann.
   if (slides.length === 0) {
     slides.push(createEmptySlide());
   }
@@ -89,12 +91,13 @@ export function splitFrontmatter(text: string): { frontmatter: string | null; bo
 }
 
 /**
- * Split a deck body on `---` slide delimiters.
+ * Den Rumpf eines Decks an den `---`-Folientrennern teilen.
  *
- * A line of three-or-more dashes only counts as a delimiter when it is not
- * inside a fenced code block or an HTML comment, and when the line before it is
- * blank — which is exactly what keeps a Setext `Heading\n---` from silently
- * cutting a deck in half.
+ * Eine Zeile aus drei oder mehr Strichen ist nur dann ein Trenner, wenn sie
+ * weder in einem Codeblock noch in einem HTML-Kommentar steht und wenn die
+ * Zeile davor leer ist. Genau das hält eine Überschrift in der
+ * Setext-Schreibweise (`Überschrift\n---`) davon ab, ein Deck stillschweigend
+ * in zwei Teile zu schneiden.
  */
 /**
  * Den Text Zeile für Zeile durchgehen und sagen, was wo gilt.
@@ -373,7 +376,7 @@ function pick<T extends string>(value: unknown, allowed: readonly T[], fallback:
     : fallback;
 }
 
-/** Re-pack z-indices to a dense 0..n-1 range, preserving relative order. */
+/** Die Ebenen dicht auf 0…n−1 packen, ohne die Reihenfolge zu ändern. */
 export function normalizeZOrder(elements: readonly CanvasElement[]): CanvasElement[] {
   return elements
     .map((element, index) => ({ element, index }))
@@ -420,9 +423,9 @@ export function serializeSlide(slide: Slide): string {
      eingerückten Zeile darunter.
   */
   const markdown = geschuetzterFliesstext(slide.markdown.replace(/^\n+/, '').replace(/\s+$/, ''));
-  // A slide with neither content nor metadata still needs *something* on the
-  // page, otherwise the delimiters would collapse and the slide would vanish
-  // on the next load.
+  // Eine Folie ohne Inhalt und ohne Metadaten braucht trotzdem *etwas* auf dem
+  // Papier — sonst fielen die Trenner zusammen und die Folie wäre beim
+  // nächsten Öffnen verschwunden.
   if (!block) return markdown || `<!-- ${META_TAG} -->`;
   return markdown ? `${block}\n\n${markdown}` : block;
 }
@@ -526,12 +529,13 @@ function dumpYaml(data: Record<string, unknown>): string {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Slide content can legitimately contain `-->`, which would otherwise close the
- * metadata comment early. The pair below is a bijection:
+ * Der Inhalt einer Folie darf mit gutem Recht ein `-->` enthalten — das würde
+ * den Metadaten-Kommentar zu früh schließen. Das Paar darunter ist eindeutig
+ * in beide Richtungen:
  *
  *   `-->`         ⇄ `--&gt;`
  *   `--&gt;`      ⇄ `--&&gt;`
- *   `--&&gt;`     ⇄ `--&&&gt;`   … and so on.
+ *   `--&&gt;`     ⇄ `--&&&gt;`   … und so weiter.
  */
 export function escapeCommentTerminators(text: string): string {
   return text.replace(/--(&*)(?:gt;|>)/g, (_match, amps: string) => `--&${amps}gt;`);
