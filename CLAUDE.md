@@ -3043,6 +3043,153 @@ gesperrt, „Gruppieren" unter zweien. Die Kartenfelder folgen
 des Form-Labels erscheint nur, wenn ein Label dasteht. Und der Kopf der Datei
 war der letzte englische Kommentar im Projekt.
 
+**Das gezeigte Raster war viermal so grob wie das, auf das eingerastet wird.**
+`GridOverlay` rechnete `step = gridSize × scale`, benutzte die Zahl nur noch in
+der Sichtbarkeitsschwelle und malte `step × gridMajorEvery` — also alle 32
+Einheiten, während `computeSnap()` alle 8 einrastet. Wer eine Karte an einen
+sichtbaren Punkt zog, landete auf einer Zwischenstelle, die es im Bild nicht
+gibt: das Auge sah ein Raster, das Werkzeug rechnete mit einem vierfach
+feineren.
+
+Die 32 sind dabei nicht falsch, sie gehören nur woandershin — sie sind die
+Punktrasterung des Untergrunds `grid`, also etwas, das auf der Folie landet und
+exportiert wird, und die steht in `scene.ts`. Zwei Raster, die gleich aussehen
+und Verschiedenes bedeuten, standen unter demselben Namen nebeneinander.
+Geprüft wird am `background-size` der gemalten Ebene und nicht an der Rechnung
+daneben: die Zahl kann stimmen und die Fläche trotzdem eine andere malen.
+
+**Drei Arten sagten den Namen einer vierten an.** `elementLabel()` zählte
+sieben der elf Arten auf und schickte den Rest in ein `default: return
+'Markdown-Block'` — Wortmarke, Diagramm und Tabelle hießen damit alle so. Vor
+Augen steht diese Zeichenkette nie: sie ist das `aria-label` des Klickbereichs,
+also das, was eine Hilfstechnik vorliest, wenn der Tabstopp darauf steht. Genau
+deshalb fiel es niemandem auf, und genau deshalb steht derselbe Satz in dieser
+Liste schon einmal — „Resize nw" stand an acht Griffen, und niemand konnte es
+sehen.
+
+Geprüft wird die Regel und nicht eine Tabelle daneben: **keine Art trägt den
+Namen einer anderen**, dazu die Gegenrichtung, dass jede einen Namen trägt, den
+die Oberfläche kennt. Und im Browser am `aria-label` selbst, denn die Rechnung
+kann stimmen und das Markup etwas anderes tragen.
+
+**Der Verbinder verlor seine Höhe null an jedem Griff.** Er kommt mit `h = 0`
+aus der Fabrik — eine waagerechte Linie —, `normalizeElement` lässt die Null
+stehen, und seit der vorigen Runde nimmt der Inspektor sie an. Nur
+`resizeRect()` kannte eine einzige Grenze: `minElementSize`. Am Südgriff wurde
+daraus 24, am Nordgriff 24 *und* ein Versatz um 24 nach oben. Eine Linie, die
+man einmal angefasst hatte, war auf der Fläche nie wieder gerade zu bekommen;
+über den Inspektor schon, und das ist die schlimmste Sorte Unterschied —
+dasselbe Maß, zwei Antworten.
+
+`minSize` und `minHeight` sind jetzt zwei Fragen: die erste ist eine Größe für
+die Hand, unter der niemand mehr einen Griff trifft, die zweite die
+Gültigkeitsgrenze der Art. Gezogen wird im Rauchtest wirklich am Griff —
+`resizeRect()` bekommt die Grenze als Argument, und die Rechnung kann sie
+kennen, während die Fläche sie nicht mitgibt. Genau das war der Befund der
+vorigen Runde, eine Ebene höher.
+
+**Eine getippte 24, die dasselbe meinte wie ein Token.** `clampToSlide(rect,
+keep = 24)` hielt ein gezogenes Element auf der Folie, und `CLAUDE.md` schreibt
+seit dem Folienformat, die Schwelle der Formatwarnung sei „derselbe Wert, mit
+dem `clampToSlide()` ein gezogenes Element auf der Folie hält". Das stimmte,
+solange niemand eine der beiden Zahlen anfasst — geschrieben stand es als
+Zusage, gebaut war es als Zufall. Jetzt ist die Vorgabe
+`canvas.minElementSize`, und die Prüfung hält gegen das Token: wer die Vorgabe
+auf irgendetwas anderes setzt, wird rot.
+
+**Und die Behauptung, der Inspektor trage den letzten englischen Kommentar, war
+falsch.** Nachgezählt: **93 Zeilen in 23 Dateien**, angeführt von `deck.ts`,
+`typeset.ts`, `measure.ts`, `download.ts` und den beiden dieser Runde. Die
+Konvention steht im Kopf dieser Datei, geprüft hat sie nichts —
+`language.test.ts` sucht sichtbare Beschriftungen und keine Kommentare, und das
+ist auch richtig so. Übersetzt sind hier die beiden Dateien, die gegengeprüft
+wurden; die übrigen einundzwanzig stehen als Aufgabe da und nicht als erledigt.
+
+Der Fehler daran war nicht die Zahl, sondern die Form: eine Behauptung über den
+ganzen Baum, aufgestellt nach dem Lesen einer Datei. Zwei Zeilen `grep` hätten
+sie widerlegt, und sie standen in derselben Runde zur Verfügung wie alles
+andere, was gemessen wurde.
+
+**Was nachgemessen wurde und in Ordnung ist.** Die Größen- und Drehgriffe
+erscheinen nur bei genau einer Auswahl und nur an einem nicht gesperrten
+Element; ein gesperrtes lässt sich anwählen, aber nicht ziehen. Der
+Auswahlrahmen, der Klickbereich und der Überlaufstrich drehen sich alle drei um
+die Elementmitte und alle drei nur dort, wo `elementFelder()` eine Drehung
+bejaht. Ein Verlaufsschritt entsteht einmal je Geste und nicht je Bildrahmen.
+`computeSnap()` lässt das Raster stehen, wo eine Hilfslinie gewonnen hat, und
+rastet die andere Achse trotzdem ein.
+
+**Eine unlesbare Sitzung war von gar keiner nicht zu unterscheiden.**
+`loadSession()` gab in beiden Fällen `null` zurück, und der Unterschied war
+alles: bei „keine" hat hier noch nie jemand gearbeitet, bei „unlesbar" stehen
+seine Zeichen in der Ablage und niemand sagt es. Das Werkzeug startete dann mit
+der Willkommensmappe, und siebenhundert Millisekunden nach der ersten Änderung
+schrieb die Selbstsicherung darüber. Gemessen an einer abgeschnittenen Ablage:
+**6296 Zeichen** Arbeit, weg ohne ein Wort. Wörtlich der teuerste Fehler dieses
+Projekts, eine Ebene höher — beim unlesbaren `nzl`-Block ging eine Folie
+verloren, hier das ganze Deck.
+
+Es gab zwei Wege hinein, und nur einer war ein Wurf: ein kaputtes JSON und ein
+Eintrag, dem schlicht das `markdown` fehlt — der zweite lief über ein stilles
+`return null` mitten in der Funktion. Der Rohtext geht jetzt zur Seite
+(`UNLESBAR_KEY`), der kaputte Eintrag weg, und gesagt wird es auch. **In dieser
+Reihenfolge**: lässt sich der Text nicht beiseitelegen — die Ablage voll, das
+Fenster privat —, bleibt er, wo er ist, und der Hinweis sagt genau das, samt
+der Warnung, dass die nächste Selbstsicherung darüberschreibt. Ein Hinweis, der
+Sicherheit verspricht, die es nicht gibt, wäre schlechter als keiner.
+
+Geprüft wird an der **Ablage** und nicht am Rückgabewert: dass `loadSession()`
+`null` liefert, sagt nichts darüber, ob der Rohtext noch da ist. Und in der
+Gegenrichtung, dass beim allerersten Start niemand gewarnt wird — eine Meldung
+über etwas, das nie existiert hat, ist die Sorte Wächter, die man abschaltet.
+
+**Ein Sichern, das woanders landete, galt als gelungen.** `saveBlob()` fällt
+auf einen Download zurück, wenn das Schreiben in den Dateigriff scheitert — die
+Datei ist verschoben, die Berechtigung abgelaufen, das Laufwerk weg. Die
+Politik stimmt, und `SaveResult.via` sagt es sogar. Nur las `sichereDeck()` das
+nie: das Deck galt als gesichert, `dirty` fiel auf `false`, der Griff blieb
+stehen, und die geöffnete Datei auf der Platte war weiter die alte. Wer danach
+das Fenster schloss, hatte seine Arbeit in einem Download, von dem er nichts
+wusste.
+
+Die Gegenrichtung gehört dazu und ist hier der eigentliche Befund: wer noch
+**nie** gesichert hat, *soll* einen Download bekommen, und das ist keine
+Meldung wert. Ohne diese Hälfte stünde die Warnung bei jedem ersten ⌘S.
+
+**Und der dritte Fall derselben Familie an einem Tag.** `fontCssFor()` fing das
+Scheitern des Einbettens mit einem `console.warn` und dem Satz „ein Fehlschlag
+bleibt folgenlos". Der stimmt für den *Export* — die Datei entsteht — und nicht
+für den, der sie danach öffnet: ohne die eingebetteten Schnitte nennt das SVG
+seine Schriften nur beim Namen, und auf einem fremden Rechner steht der Text in
+irgendetwas anderem. Gemeldet wird jetzt über `beiAusfallImExport()`, also über
+den Melder, den es für genau diese Auskunft schon gibt — „ein Schnitt ließ sich
+nicht laden; sein Text steht in der Ersatzschrift" ist wortgleich der Satz, um
+den es geht.
+
+Genannt wird dabei die **Kennung** des Schnitts und nicht Familie plus Gewicht:
+der Umriss-Weg meldet über denselben Kanal, und zwei Schreibweisen für
+denselben Schnitt in derselben Meldung wären eine Frage zu viel. Aufgefallen
+ist das erst am Testergebnis — die eine Seite schrieb „ZillaSlab-Bold", die
+andere „Zilla Slab 700".
+
+**Zwei englische Beschriftungen standen im Dateidialog des Betriebssystems.**
+„Markdown deck" in der Auswahl beim Öffnen und „.md file" beziehungsweise
+„File" in der Zeile „Dateityp" beim Sichern. Sie sind so sichtbar wie jede
+Beschriftung im Fenster — nur eben in einem Dialog, den das System zeichnet.
+`language.test.ts` liest ganz `src` und sah sie trotzdem nicht: „deck" und
+„file" stehen in keiner seiner Listen, und sie dort einzutragen wäre falsch,
+denn „Deck" ist in diesem Projekt ein deutsches Wort. Das ist die bekannte
+Grenze eines Siebs, das nach Wortformen urteilt, und keine Lücke, die sich mit
+einem Eintrag schließen ließe.
+
+**Was nachgemessen wurde und in Ordnung ist.** Der Folienindex aus der Sitzung
+wird geklemmt — nicht hier, sondern weil `loadDeck()` auf null setzt und
+`goTo()` seine Grenzen hält. Die Selbstsicherung meldet ihr Scheitern in beide
+Richtungen und nimmt die Warnung von selbst zurück, sobald wieder geschrieben
+werden kann. Ein geschlossener Dateidialog bleibt stumm, beim Sichern wie beim
+Öffnen. Und die `24` im Aufruf von `scenesToContactSheet()` stand ein zweites
+Mal neben ihrer eigenen Vorgabe — jetzt steht sie einmal da.
+
 ---
 
 ## Git

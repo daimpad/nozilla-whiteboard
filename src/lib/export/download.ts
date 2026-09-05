@@ -1,10 +1,19 @@
 /**
- * File I/O for a browser-only app: downloads, the File System Access API when
- * the browser offers it, and drag-and-drop / picker reads.
+ * Dateien in einem Werkzeug, das nur im Browser läuft: Downloads, die File
+ * System Access API dort, wo der Browser sie anbietet, und das Lesen aus dem
+ * Dateidialog oder von einer ins Fenster gezogenen Datei.
+ *
+ * Die Beschriftungen hier stehen im Dialog des **Betriebssystems** — in der
+ * Auswahlliste „Dateityp". Sie sind damit so sichtbar wie jede Beschriftung im
+ * Fenster und gehören deshalb auf Deutsch. Gesehen hat sie kein Test:
+ * `language.test.ts` liest zwar ganz `src`, aber „Markdown deck" und
+ * „.md file" bestehen aus Wörtern, die in keiner seiner Listen stehen — und
+ * eine Liste um „file" und „deck" zu erweitern, hieße die halbe Oberfläche zu
+ * verurteilen, denn „Deck" ist hier ein deutsches Wort.
  */
 
 export interface SaveResult {
-  /** `handle` when saved in place, `download` when the browser downloaded it. */
+  /** `handle`, wenn an Ort und Stelle geschrieben wurde; `download` sonst. */
   via: 'handle' | 'download';
   handle?: FileSystemFileHandle;
 }
@@ -51,14 +60,19 @@ export function downloadBlob(blob: Blob, filename: string): void {
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  // Revoke on the next frame so Safari has committed the navigation.
+  // Erst später freigeben, damit Safari die Navigation abgeschlossen hat.
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
 /**
- * Save a blob. When a `handle` is supplied (a file the user previously opened
- * or saved), the bytes are written straight back to it — that is what makes
- * "open a deck, edit it, press ⌘S" behave like a real editor.
+ * Einen Blob sichern. Ist ein `handle` dabei — eine Datei, die vorher geöffnet
+ * oder gesichert wurde —, gehen die Bytes unmittelbar dorthin zurück. Genau
+ * das lässt „ein Deck öffnen, ändern, ⌘S" sich anfühlen wie ein richtiger
+ * Editor.
+ *
+ * Schlägt das fehl, wird **heruntergeladen statt aufgegeben** — und `via` sagt
+ * es. Wer den Rückgabewert nicht liest, hält eine Datei für aktuell, die es
+ * nicht ist; das stand in `sichereDeck()` und ist dort behoben.
  */
 export async function saveBlob(
   blob: Blob,
@@ -73,7 +87,7 @@ export async function saveBlob(
       return { via: 'handle', handle: options.handle };
     } catch (error) {
       if (isAbort(error)) throw error;
-      // Fall through to a download if writing in place failed.
+      // An Ort und Stelle ging es nicht — weiter zum Download.
     }
   }
 
@@ -98,7 +112,7 @@ export async function saveBlob(
       return { via: 'handle', handle };
     } catch (error) {
       if (isAbort(error)) throw error;
-      // Any other failure: fall back to a plain download.
+      // Alles andere: zurück auf den gewöhnlichen Download.
     }
   }
 
@@ -128,7 +142,7 @@ export interface OpenedFile {
   handle?: FileSystemFileHandle;
 }
 
-/** Open a Markdown deck, preferring the picker so ⌘S can write back in place. */
+/** Ein Deck öffnen — über den Dateidialog, damit ⌘S zurückschreiben kann. */
 export async function openMarkdownFile(): Promise<OpenedFile | null> {
   const picker = openPicker();
   if (picker) {
@@ -137,7 +151,7 @@ export async function openMarkdownFile(): Promise<OpenedFile | null> {
         multiple: false,
         types: [
           {
-            description: 'Markdown deck',
+            description: 'Markdown-Deck',
             accept: { 'text/markdown': ['.md', '.markdown'] },
           },
         ],
@@ -147,7 +161,7 @@ export async function openMarkdownFile(): Promise<OpenedFile | null> {
       return { name: file.name, text: await file.text(), handle };
     } catch (error) {
       if (isAbort(error)) return null;
-      // Fall through to the classic input element.
+      // Weiter zum klassischen Eingabefeld.
     }
   }
 
@@ -173,7 +187,7 @@ export async function readDroppedFile(file: File): Promise<OpenedFile> {
   return { name: file.name, text: await file.text() };
 }
 
-/** Read an image file into a `data:` URI so it survives being saved in a deck. */
+/** Ein Bild als `data:`-URI lesen, damit es das Sichern im Deck übersteht. */
 export function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -204,7 +218,7 @@ function extensionsOf(filename: string): string[] {
 }
 
 function describe(extensions: string[]): string {
-  return extensions.length > 0 ? `${extensions.join(', ')} file` : 'File';
+  return extensions.length > 0 ? `${extensions.join(', ')}-Datei` : 'Datei';
 }
 
 function isAbort(error: unknown): boolean {

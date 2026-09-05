@@ -145,3 +145,82 @@ describe('rotatePoint', () => {
     expect(back.y).toBeCloseTo(-3, 9);
   });
 });
+
+describe('das kleinste Maß', () => {
+  it('lässt dem Verbinder seine Höhe null', () => {
+    /*
+       `minSize` ist eine Größe für die Hand: unter `minElementSize` trifft
+       niemand mehr einen Griff. Für den Verbinder ist die Höhe null aber der
+       Normalfall — eine waagerechte Linie —, und der Griff hob sie auf 24. Am
+       Nordgriff schob er das Element dabei um 24 nach oben. Eine Linie, die
+       man einmal angefasst hatte, war auf der Fläche nie wieder gerade zu
+       bekommen.
+    */
+    const flach: Rect = { x: 0, y: 100, w: 200, h: 0 };
+
+    const ohne = resizeRect(flach, 's', -50, -50, {});
+    expect(`ohne minHeight: h ${ohne.h}`).toBe(`ohne minHeight: h ${canvas.minElementSize}`);
+
+    const mit = resizeRect(flach, 's', -50, -50, { minHeight: 0 });
+    expect(`am Südgriff: h ${mit.h}`).toBe('am Südgriff: h 0');
+
+    // Und am Nordgriff bleibt das Element, wo es war.
+    const nord = resizeRect(flach, 'n', 0, 50, { minHeight: 0 });
+    expect(`am Nordgriff: y ${nord.y}, h ${nord.h}`).toBe('am Nordgriff: y 100, h 0');
+  });
+
+  it('gilt in der Breite weiter für alle', () => {
+    // Die Gegenrichtung: `minHeight` ist die Senkrechte und sonst nichts.
+    const schmal = resizeRect({ x: 0, y: 0, w: 200, h: 0 }, 'e', -500, 0, { minHeight: 0 });
+    expect(`Breite ${schmal.w}`).toBe(`Breite ${canvas.minElementSize}`);
+  });
+
+  it('gilt auch beim Halten des Seitenverhältnisses', () => {
+    /*
+       `lockAspect()` hatte eine eigene Kappung und kannte nur eine Grenze.
+       Bei einem Verhältnis von 2:1 verlangt eine Breite von 24 eine Höhe von
+       12 — die alte Fassung hob sie auf 24 und brach damit genau das
+       Verhältnis, das zu halten sie da ist.
+
+       Nicht am Verbinder gemessen: dessen Höhe ist null, das Verhältnis
+       deshalb per Übereinkunft 1, und der Fall sagt über die Kappung nichts.
+    */
+    const flach = { x: 0, y: 0, w: 200, h: 100 };
+    const mit = resizeRect(flach, 'se', -400, -400, { lockAspect: true, minHeight: 0 });
+    expect(`mit minHeight 0: ${mit.w} × ${mit.h}`).toBe(
+      `mit minHeight 0: ${canvas.minElementSize} × ${canvas.minElementSize / 2}`,
+    );
+
+    const ohne = resizeRect(flach, 'se', -400, -400, { lockAspect: true });
+    expect(`ohne: ${ohne.w} × ${ohne.h}`).toBe(
+      `ohne: ${canvas.minElementSize} × ${canvas.minElementSize}`,
+    );
+  });
+});
+
+describe('clampToSlide', () => {
+  it('hält so viel auf der Folie, wie ein Element mindestens misst', () => {
+    /*
+       Die Vorgabe stand als getippte `24` da — dieselbe Zahl wie
+       `minElementSize` und aus einem anderen Grund. `CLAUDE.md` schreibt seit
+       dem Folienformat, die Schwelle der Formatwarnung sei „derselbe Wert, mit
+       dem `clampToSlide()` ein gezogenes Element auf der Folie hält"; das
+       stimmte, solange niemand eine der beiden Zahlen anfasst.
+
+       Geprüft wird gegen das Token und nicht gegen eine Zahl: wer die Vorgabe
+       auf irgendetwas anderes setzt, wird hier rot.
+    */
+    const keep = canvas.minElementSize;
+    const links = clampToSlide({ x: -9999, y: 0, w: 100, h: 100 });
+    expect(`links: ${links.x}`).toBe(`links: ${-100 + keep}`);
+
+    const rechts = clampToSlide({ x: 9999, y: 0, w: 100, h: 100 });
+    expect(`rechts: ${rechts.x}`).toBe(`rechts: ${canvas.width - keep}`);
+
+    const oben = clampToSlide({ x: 0, y: -9999, w: 100, h: 100 });
+    expect(`oben: ${oben.y}`).toBe(`oben: ${-100 + keep}`);
+
+    const unten = clampToSlide({ x: 0, y: 9999, w: 100, h: 100 });
+    expect(`unten: ${unten.y}`).toBe(`unten: ${canvas.height - keep}`);
+  });
+});

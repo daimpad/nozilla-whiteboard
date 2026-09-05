@@ -1,10 +1,11 @@
 /**
- * The export/import pipeline.
+ * Der Weg aus dem Werkzeug heraus — und zurück.
  *
- * Three destinations, one source of truth:
- *   • Markdown — the deck itself, positions and all (lossless, re-importable).
- *   • SVG      — one slide, or the whole deck as a contact sheet, as vectors.
- *   • PDF      — the deck as vector pages with selectable text.
+ * Drei Ziele, eine Quelle:
+ *   • Markdown — das Deck selbst, samt Koordinaten. Verlustfrei und wieder
+ *                einlesbar; es *ist* das Dateiformat.
+ *   • SVG      — eine Folie oder das ganze Deck als Kontaktbogen, als Vektoren.
+ *   • PDF      — das Deck als Vektorseiten mit markierbarem Text.
  *
  * Für SVG und PDF gibt es zwei Wege, wie die Schrift in die Datei kommt —
  * siehe `TextMode`. Beide erzeugen dasselbe Bild; sie unterscheiden sich
@@ -25,6 +26,7 @@ import { downloadBlob, saveText, slugify, type SaveResult } from './download';
 import { scenesToPdf, type PdfOptions } from './pdf';
 import { sceneToSvg, scenesToContactSheet } from './svg';
 import { embeddedFontCss, facesFor } from './fontFiles';
+import { meldeSchnittausfall } from './glyphCover';
 import { outlineScenes } from './outline';
 import { deckToPptx, type PptxOptions } from './pptx';
 
@@ -177,10 +179,10 @@ export function buildDeckScenes(deck: Deck, options: DeckSceneOptions = {}): Sce
 /* -------------------------------------------------------------------------- */
 
 export interface SvgExportOptions {
-  /** Slide index to export; omit for the whole deck as a contact sheet. */
+  /** Welche Folie; ohne Angabe das ganze Deck als Kontaktbogen. */
   slideIndex?: number;
   filename?: string;
-  /** Skip the footer and slide number. */
+  /** Fußzeile und Foliennummer weglassen. */
   bare?: boolean;
   /** Wie die Schrift in die Datei kommt. Vorgabe: einbetten. */
   text?: TextMode;
@@ -211,7 +213,7 @@ export async function renderSvg(
 
   const single = typeof options.slideIndex === 'number';
   const svg = inlineImageHrefs(
-    single ? sceneToSvg(scenes[0], { fontCss }) : scenesToContactSheet(scenes, 24, fontCss),
+    single ? sceneToSvg(scenes[0], { fontCss }) : scenesToContactSheet(scenes, undefined, fontCss),
     images,
   );
 
@@ -222,8 +224,16 @@ export async function renderSvg(
 /**
  * Die `@font-face`-Regeln für die Schnitte, die in diesen Szenen vorkommen.
  *
- * Ein Fehlschlag bleibt folgenlos: die Datei nennt ihre Schriften dann nur
- * beim Namen, wie vor dieser Erweiterung auch.
+ * Hier stand „ein Fehlschlag bleibt folgenlos" und ein `console.warn`. Der
+ * Satz stimmt für den *Export* — die Datei entsteht — und nicht für den, der
+ * sie danach öffnet: ohne die eingebetteten Schnitte nennt das SVG seine
+ * Schriften nur beim Namen, und auf einem fremden Rechner steht der Text in
+ * irgendetwas anderem. Das sieht aus wie ein Fehler des Werkzeugs und ist eine
+ * Datei, die nicht ankam.
+ *
+ * Dieselbe Stille wie beim leeren `catch` der Selbstsicherung und beim
+ * fehlenden Bild, und dieselbe Antwort: gemeldet wird über den Melder, den es
+ * für genau diese Auskunft schon gibt.
  */
 async function fontCssFor(scenes: readonly Scene[]): Promise<string | undefined> {
   const specs = scenes.flatMap((scene) =>
@@ -233,8 +243,11 @@ async function fontCssFor(scenes: readonly Scene[]): Promise<string | undefined>
   if (faces.length === 0) return undefined;
   try {
     return (await embeddedFontCss(faces)) || undefined;
-  } catch (error) {
-    console.warn('Schriften nicht einbettbar — das SVG nennt sie nur beim Namen.', error);
+  } catch {
+    // Genannt wird die **Kennung** und nicht Familie plus Gewicht: der
+    // Umriss-Weg meldet über denselben Kanal, und zwei Schreibweisen für
+    // denselben Schnitt in derselben Meldung wären eine Frage zu viel.
+    meldeSchnittausfall(faces.map((face) => face.id));
     return undefined;
   }
 }
@@ -244,7 +257,7 @@ async function fontCssFor(scenes: readonly Scene[]): Promise<string | undefined>
 /* -------------------------------------------------------------------------- */
 
 export interface PdfExportOptions extends Omit<PdfOptions, 'images' | 'embedFonts'> {
-  /** Export a single slide instead of the whole deck. */
+  /** Nur eine Folie statt des ganzen Decks. */
   slideIndex?: number;
   filename?: string;
   bare?: boolean;

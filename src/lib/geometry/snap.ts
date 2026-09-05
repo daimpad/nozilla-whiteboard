@@ -1,6 +1,7 @@
 /**
- * Alignment: grid snapping plus "smart guides" against sibling elements, the
- * slide edges, the slide centre lines and the CI safe-area margins.
+ * Ausrichten: das Einrasten auf dem Raster, dazu Hilfslinien gegen die
+ * Geschwister auf der Folie, die Folienkanten, die Mittelachsen und den
+ * Satzspiegel der CI.
  */
 import { canvas } from '@/theme';
 
@@ -15,18 +16,18 @@ export type GuideOrientation = 'v' | 'h';
 
 export interface Guide {
   orientation: GuideOrientation;
-  /** X for vertical guides, Y for horizontal guides. */
+  /** X bei senkrechten Linien, Y bei waagerechten. */
   position: number;
-  /** Extent of the drawn guide line, in slide units. */
+  /** Wie weit die Linie gezeichnet wird, in Folien-Einheiten. */
   start: number;
   end: number;
 }
 
 export interface SnapOptions {
-  /** Snap positions to the CI grid. */
+  /** Auf das Raster der CI einrasten. */
   grid: boolean;
   gridSize?: number;
-  /** Align to sibling elements / slide landmarks. */
+  /** An den Geschwistern und den festen Linien der Folie ausrichten. */
   smart: boolean;
   threshold?: number;
 }
@@ -88,7 +89,7 @@ export function unionRects(rects: readonly Rect[]): Rect | null {
   return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 }
 
-/** The fixed lines every slide offers: edges, centres and CI safe-area margins. */
+/** Die festen Linien jeder Folie: Kanten, Mitten und der Satzspiegel. */
 export function slideLandmarks(): { vertical: number[]; horizontal: number[] } {
   const { width, height, margin } = canvas;
   return {
@@ -98,8 +99,8 @@ export function slideLandmarks(): { vertical: number[]; horizontal: number[] } {
 }
 
 /**
- * Resolve a proposed top-left position for `moving` into a snapped position,
- * returning the guides that should be drawn while the snap is active.
+ * Eine vorgeschlagene linke obere Ecke für `moving` einrasten lassen — und
+ * dazu die Linien zurückgeben, die währenddessen zu zeichnen sind.
  */
 export function computeSnap(
   moving: Rect,
@@ -116,7 +117,7 @@ export function computeSnap(
   if (options.smart) {
     const landmarks = slideLandmarks();
 
-    // Candidate lines on the moving rect, expressed as offsets from its origin.
+    // Die Linien des gezogenen Rechtecks, als Abstände von seiner Ecke.
     const movingV = [
       { offset: 0, value: moving.x },
       { offset: moving.w / 2, value: moving.x + moving.w / 2 },
@@ -213,18 +214,31 @@ export const resizeHandles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as con
 export type ResizeHandle = (typeof resizeHandles)[number];
 
 export interface ResizeOptions {
-  /** Preserve the starting aspect ratio (Shift). */
+  /** Das Seitenverhältnis vom Anfang halten (Umschalt). */
   lockAspect?: boolean;
-  /** Grow symmetrically about the centre (Alt). */
+  /** Symmetrisch um die Mitte wachsen (Alt). */
   fromCenter?: boolean;
   snap?: SnapOptions;
   minSize?: number;
+  /**
+   * Das kleinste Maß in der Senkrechten, falls es ein anderes ist.
+   *
+   * `minSize` ist eine Größe für die Hand: unter `minElementSize` trifft
+   * niemand mehr einen Griff. Für den Verbinder ist die Höhe null aber kein
+   * zu kleines Maß, sondern der Normalfall — eine waagerechte Linie. Er kommt
+   * mit `h = 0` aus der Fabrik, der Leser lässt die Null stehen und der
+   * Inspektor nimmt sie an; nur der Griff hob sie auf 24, und am Nordgriff
+   * schob er das Element dabei um 24 nach oben. Damit war eine Linie, die man
+   * einmal angefasst hatte, auf der Fläche nie wieder gerade zu bekommen.
+   */
+  minHeight?: number;
 }
 
 /**
- * Apply a pointer delta to a rect for a given handle. Deltas are expressed in
- * the element's *own* (unrotated) frame — the caller un-rotates them first, so
- * resizing a rotated element still drags along its own edges.
+ * Eine Zeigerbewegung an einem Griff auf ein Rechteck anwenden. Die Bewegung
+ * steht im **eigenen**, ungedrehten Rahmen des Elements — der Aufrufer dreht
+ * sie vorher zurück, damit ein gedrehtes Element an seinen eigenen Kanten
+ * gezogen wird und nicht an denen des Bildschirms.
  */
 export function resizeRect(
   start: Rect,
@@ -234,6 +248,7 @@ export function resizeRect(
   options: ResizeOptions = {},
 ): Rect {
   const min = options.minSize ?? canvas.minElementSize;
+  const minH = options.minHeight ?? min;
   const grid = options.snap?.grid ?? true;
   const gridSize = options.snap?.gridSize ?? canvas.gridSize;
   const snap = (v: number) => (grid ? snapValueToGrid(v, gridSize) : v);
@@ -251,8 +266,8 @@ export function resizeRect(
     if (south) h = start.h + dy * 2;
     if (north) h = start.h - dy * 2;
     w = Math.max(min, snap(w));
-    h = Math.max(min, snap(h));
-    if (options.lockAspect) ({ w, h } = lockAspect(start, w, h, min));
+    h = Math.max(minH, snap(h));
+    if (options.lockAspect) ({ w, h } = lockAspect(start, w, h, min, minH));
     x = start.x + start.w / 2 - w / 2;
     y = start.y + start.h / 2 - h / 2;
     return { x, y, w, h };
@@ -264,15 +279,15 @@ export function resizeRect(
     x = Math.min(snap(start.x + dx), right - min);
     w = right - x;
   }
-  if (south) h = Math.max(min, snap(start.h + dy));
+  if (south) h = Math.max(minH, snap(start.h + dy));
   if (north) {
     const bottom = start.y + start.h;
-    y = Math.min(snap(start.y + dy), bottom - min);
+    y = Math.min(snap(start.y + dy), bottom - minH);
     h = bottom - y;
   }
 
   if (options.lockAspect) {
-    const locked = lockAspect(start, w, h, min);
+    const locked = lockAspect(start, w, h, min, minH);
     if (west) x = start.x + start.w - locked.w;
     if (north) y = start.y + start.h - locked.h;
     w = locked.w;
@@ -282,19 +297,25 @@ export function resizeRect(
   return { x, y, w, h };
 }
 
-function lockAspect(start: Rect, w: number, h: number, min: number): { w: number; h: number } {
+function lockAspect(
+  start: Rect,
+  w: number,
+  h: number,
+  min: number,
+  minH: number,
+): { w: number; h: number } {
   const ratio = start.h === 0 ? 1 : start.w / start.h;
-  // Follow whichever axis moved further, proportionally.
+  // Der Achse folgen, die sich weiter bewegt hat — proportional.
   const byWidth = Math.abs(w - start.w) >= Math.abs(h - start.h);
   if (byWidth) {
     const nw = Math.max(min, w);
-    return { w: nw, h: Math.max(min, nw / ratio) };
+    return { w: nw, h: Math.max(minH, nw / ratio) };
   }
-  const nh = Math.max(min, h);
+  const nh = Math.max(minH, h);
   return { w: Math.max(min, nh * ratio), h: nh };
 }
 
-/** Rotate a point about a pivot (degrees, clockwise in screen coordinates). */
+/** Einen Punkt um einen Drehpunkt drehen — Grad, im Uhrzeigersinn auf dem Schirm. */
 export function rotatePoint(
   x: number,
   y: number,
@@ -311,8 +332,18 @@ export function rotatePoint(
   return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
 }
 
-/** Clamp a rect so it keeps at least `keep` px of itself over the slide. */
-export function clampToSlide(rect: Rect, keep = 24): Rect {
+/**
+ * Ein Rechteck so klemmen, dass mindestens `keep` Einheiten davon auf der
+ * Folie bleiben.
+ *
+ * Die Vorgabe ist `minElementSize` und stand hier als getippte `24` — was
+ * dasselbe war und aus einem anderen Grund. `CLAUDE.md` schreibt seit dem
+ * Folienformat, die Schwelle der Formatwarnung sei „derselbe Wert, mit dem
+ * `clampToSlide()` ein gezogenes Element auf der Folie hält"; das stimmte,
+ * solange niemand eine der beiden Zahlen anfasst. Jetzt stimmt es von Bauart
+ * wegen.
+ */
+export function clampToSlide(rect: Rect, keep = canvas.minElementSize): Rect {
   return {
     ...rect,
     x: Math.min(Math.max(rect.x, -rect.w + keep), canvas.width - keep),

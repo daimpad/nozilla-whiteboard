@@ -1500,6 +1500,137 @@ async function main() {
     );
   });
 
+  await pruefe('das gezeigte Raster ist das, auf das eingerastet wird', async () => {
+    /*
+       Gezeichnet wurde `gridSize × gridMajorEvery`, also alle 32 Einheiten,
+       während `computeSnap()` alle 8 einrastet: wer eine Karte an einen
+       sichtbaren Punkt zog, landete auf einer Zwischenstelle, die es im Bild
+       nicht gibt. Die 32 sind nicht falsch, sie gehören nur woandershin — sie
+       sind die Punktrasterung des Untergrunds `grid`, also etwas, das auf der
+       Folie landet und exportiert wird.
+
+       Gemessen wird am `background-size` der gemalten Ebene und nicht an der
+       Rechnung daneben: die Zahl kann stimmen und die Fläche trotzdem eine
+       andere malen.
+    */
+    // Das Raster steht von Haus aus an; ein Klick hier machte es aus.
+    const gemalt = await bis(
+      () =>
+        seite.evaluate(() => {
+          const buehne = document.querySelector('.nz-stage');
+          for (const knoten of buehne?.querySelectorAll('div') ?? []) {
+            const stil = getComputedStyle(knoten);
+            if (stil.backgroundImage.includes('radial-gradient')) return stil.backgroundSize;
+          }
+          return null;
+        }),
+      'keine Rasterebene auf der Fläche',
+    );
+
+    // Der Maßstab der Fläche: die gemalte Breite gegen die Folienbreite.
+    const buehne = await seite.locator('.nz-stage').boundingBox();
+    const massstab = buehne.width / 1280;
+    const punkte = Number.parseFloat(gemalt);
+    const einheiten = Math.round(punkte / massstab);
+    gleich(einheiten, 8, `das gemalte Raster misst ${einheiten} Einheiten (${gemalt})`);
+  });
+
+  await pruefe('jede Elementart sagt ihren eigenen Namen an', async () => {
+    /*
+       Der `default`-Zweig von `elementLabel()` gab drei Arten den Namen einer
+       vierten: Wortmarke, Diagramm und Tabelle hießen alle „Markdown-Block".
+       Vor Augen steht die Zeichenkette nie — sie ist das, was eine
+       Hilfstechnik vorliest —, und genau deshalb fiel es niemandem auf.
+
+       Hier und nicht nur in vitest, weil die Rechnung stimmen kann und das
+       Markup trotzdem etwas anderes trägt: gelesen wird das `aria-label` am
+       Klickbereich, also das, was wirklich angesagt wird.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    // Ausdrücklich in der Bibliothek gesucht: `aside button` trifft auch die
+    // Leiste rechts, und dort steht die Art des ausgewählten Elements.
+    const bibliothek = seite.locator('aside[aria-label="Bausteinbibliothek"] button');
+    for (const baustein of ['Balken', 'Tabelle', 'Wortmarke']) {
+      await bibliothek.filter({ hasText: baustein }).first().click();
+    }
+    await bisWahr(
+      async () => (await seite.locator('[data-hit-element]').count()) >= 3,
+      'die drei Bausteine kamen nicht auf die Folie',
+    );
+
+    const ansagen = await seite
+      .locator('[data-hit-element]')
+      .evaluateAll((knoten) => knoten.map((n) => n.getAttribute('aria-label')));
+
+    // Kein Element heißt „Markdown" — das war die Ansage, die der
+    // `default`-Zweig dreien von ihnen gab.
+    gleich(
+      ansagen.filter((a) => a === 'Markdown').length,
+      0,
+      `„Markdown" steht in den Ansagen: ${JSON.stringify(ansagen)}`,
+    );
+    // Und jede Ansage ist eine eigene: dieselbe Zeichenkette an zwei Arten war
+    // genau der Fehler.
+    gleich(
+      new Set(ansagen).size,
+      ansagen.length,
+      `zwei Elemente sagen dasselbe an: ${JSON.stringify(ansagen)}`,
+    );
+    // Die Wortmarke trägt keinen eigenen Text und sagt deshalb ihren Namen.
+    wahr(ansagen.includes('Wortmarke'), `die Wortmarke fehlt: ${JSON.stringify(ansagen)}`);
+  });
+
+  await pruefe('ein Verbinder lässt sich wieder flach ziehen', async () => {
+    /*
+       Der Verbinder kommt mit der Höhe null aus der Fabrik — eine waagerechte
+       Linie —, der Leser lässt die Null stehen und der Inspektor nimmt sie an.
+       Nur der Griff hob sie auf `minElementSize`, und am Nordgriff schob er
+       das Element dabei um denselben Betrag nach oben. Eine Linie, die man
+       einmal angefasst hatte, war auf der Fläche nie wieder gerade zu
+       bekommen.
+
+       Hier und nicht nur in vitest, weil `resizeRect()` die Grenze als
+       Argument bekommt: die Rechnung kann sie kennen und die Fläche sie
+       trotzdem nicht mitgeben. Gezogen wird deshalb wirklich am Griff.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite
+      .locator('aside[aria-label="Bausteinbibliothek"] button')
+      .filter({ hasText: 'Pfeil' })
+      .first()
+      .click();
+
+    const hoehenfeld = async () => {
+      const [, , , h] = await masse(seite);
+      return h;
+    };
+    gleich(await hoehenfeld(), 0, 'der Verbinder kommt nicht flach aus der Bibliothek');
+
+    const ziehe = async (dy) => {
+      const griff = await seite.locator('[data-handle="s"]').first().boundingBox();
+      wahr(griff, 'kein Südgriff am ausgewählten Verbinder');
+      const x = griff.x + griff.width / 2;
+      const y = griff.y + griff.height / 2;
+      await seite.mouse.move(x, y);
+      await seite.mouse.down();
+      // In Schritten, damit die Geste als Bewegung erkannt wird: unter zwei
+      // Pixeln gilt sie als Klick und der Verlaufsschritt bleibt aus.
+      await seite.mouse.move(x, y + dy / 2);
+      await seite.mouse.move(x, y + dy);
+      await seite.mouse.up();
+    };
+
+    await ziehe(80);
+    await bisWahr(async () => (await hoehenfeld()) > 0, 'der Griff gab dem Verbinder keine Höhe');
+
+    await ziehe(-400);
+    await bisGleich(
+      hoehenfeld,
+      0,
+      'der Verbinder kam nicht auf die Höhe null zurück — der Griff kappt bei minElementSize',
+    );
+  });
+
   await pruefe('ein überlaufender Text meldet sich, ein passender nicht', async () => {
     // Zweimal ist genau das schon passiert — die Überschrift des Musterkunden
     // lief aus ihrem Kasten, eine Karte saß auf ihrer Unterkante. Beide Male
