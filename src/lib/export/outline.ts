@@ -31,7 +31,7 @@ import {
 } from '@/lib/geometry/path';
 import { measureText } from '@/lib/text/measure';
 import { glyphCoverFor, type GlyphCover } from './glyphCover';
-import type { Scene, ScenePrim, SceneRun } from './scene';
+import { laufStriche, type Scene, type ScenePrim, type SceneRun } from './scene';
 
 /**
  * Alle Textprimitiven einer Szene durch Pfade ersetzen.
@@ -179,18 +179,20 @@ function advanceBefore(run: SceneRun, upTo: number): number {
   return measureText(run.text.slice(0, upTo), run.font);
 }
 
-/** Unterstreichung und Durchstreichung als Rechtecke. */
+/**
+ * Unterstreichung und Durchstreichung als Rechtecke.
+ *
+ * Wo sie liegen, rechnet `laufStriche()` — dieselbe Rechnung, die der
+ * SVG-Weg geht. Hier standen eigene Zahlen, und sie waren andere: der Strich
+ * lag im PNG 0,16 Einheiten tiefer und war 7,8 % dicker als im SVG, bei
+ * kleiner Schrift um ein Viertel.
+ */
 function decorations(run: SceneRun): Seg[][] {
-  const rules: Seg[][] = [];
-  const thickness = Math.max(1, run.font.size * 0.055);
-  const rule = (y: number): Seg[] => [
+  return laufStriche(run).map(({ y, h }) => [
     { c: 'M', x: 0, y },
     { c: 'L', x: run.width, y },
-    { c: 'L', x: run.width, y: y + thickness },
-    { c: 'L', x: 0, y: y + thickness },
+    { c: 'L', x: run.width, y: y + h },
+    { c: 'L', x: 0, y: y + h },
     { c: 'Z' },
-  ];
-  if (run.underline) rules.push(rule(run.font.size * 0.14));
-  if (run.strike) rules.push(rule(-run.font.size * 0.28));
-  return rules;
+  ]);
 }

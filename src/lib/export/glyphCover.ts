@@ -46,6 +46,54 @@ import type { TrueTypeFont } from '@/lib/text/truetype';
 import { loadOutlines, resolveFace, type FaceRef } from './fontFiles';
 import type { Scene, SceneRun } from './scene';
 
+/* -------------------------------------------------------------------------- */
+/* Was herausfällt, wird gesagt                                                */
+/* -------------------------------------------------------------------------- */
+
+/** Was der Export nicht setzen konnte. */
+export interface Ausfall {
+  /** Zeichen, die keine der Schriften führt — sie fehlen in der Ausgabe. */
+  readonly zeichen: readonly string[];
+  /** Schnitte, deren Datei nicht ankam — ihr Text bleibt unkonvertiert. */
+  readonly schnitte: readonly string[];
+}
+
+export type Ausfallmeldung = (ausfall: Ausfall) => void;
+
+let melder: Ausfallmeldung | null = null;
+
+/**
+ * Wohin die Nachricht geht, dass ein Zeichen oder ein Schnitt fehlt.
+ *
+ * Hier stand ein `console.warn`, und das ist dieselbe Stille wie beim leeren
+ * `catch` der Selbstsicherung und beim fehlenden Bild: die *Politik* stimmt —
+ * ein fehlendes Zeichen darf einen Export nicht abbrechen —, das Schweigen
+ * nicht. Ein `😀` fällt aus PNG und PDF heraus, und wer die Datei nicht selbst
+ * ansieht, merkt es beim Vortrag.
+ *
+ * Der zweite Fall stand überhaupt nirgends: kommt die `.ttf` eines Schnitts
+ * nicht an — der wahrscheinlichste Grund ist ein eigenes Erscheinungsbild, das
+ * nur die `.woff2` mitliefert —, bleibt sein Text unkonvertiert. Im PNG malt
+ * ihn dann die Vorgabeschrift des Betrachters, denn ein über eine Blob-URL
+ * geladenes SVG sieht die Schriften der Seite nicht; im PDF fällt er auf eine
+ * Kernschrift zurück. Beides sieht aus wie ein Fehler des Werkzeugs und ist
+ * eine fehlende Datei.
+ *
+ * Gemeldet wird über einen Melder und nicht durch einen Import aus dem Store:
+ * `lib/` kennt `state/` nicht. Die eine Verdrahtung steht im Sitzungsstart —
+ * dieselbe Bauart wie bei `beiFehlendenBildern()`, und aus demselben Grund an
+ * **einer** Stelle: `glyphCoverFor()` hat genau zwei Kunden, den Umriss-Weg und
+ * den PDF-Weg.
+ */
+export function beiAusfallImExport(fn: Ausfallmeldung | null): void {
+  melder = fn;
+}
+
+function melde(zeichen: readonly string[], schnitte: readonly string[]): void {
+  if (zeichen.length === 0 && schnitte.length === 0) return;
+  melder?.({ zeichen, schnitte });
+}
+
 const ROLLEN: readonly FontFamilyKey[] = ['display', 'body', 'mono'];
 
 /**
@@ -110,6 +158,7 @@ export async function glyphCoverFor(scenes: readonly Scene[]): Promise<GlyphCove
 
   const geladen = new Map<string, TrueTypeFont>();
   const faces = new Map<string, FaceRef>();
+  const nichtGeladen = new Set<string>();
 
   const lade = async (face: FaceRef | null): Promise<TrueTypeFont | undefined> => {
     if (!face) return undefined;
@@ -122,6 +171,8 @@ export async function glyphCoverFor(scenes: readonly Scene[]): Promise<GlyphCove
     } catch {
       // Ein Schnitt, der nicht ankommt, ist kein Abbruch: der Umriss-Weg lässt
       // den Lauf dann als Text stehen, der PDF-Weg nimmt die Kernschrift.
+      // Gesagt wird es trotzdem — siehe `beiAusfallImExport()`.
+      nichtGeladen.add(face.id);
       return undefined;
     }
   };
@@ -168,13 +219,9 @@ export async function glyphCoverFor(scenes: readonly Scene[]): Promise<GlyphCove
       if (treffer) ersatz.set(schluessel(spec, codePoint), treffer);
       else ohne.push(String.fromCodePoint(codePoint));
     }
-
-    if (ohne.length > 0) {
-      console.warn(
-        `Diese Zeichen führt keine der Schriften — sie fehlen im Export: ${[...new Set(ohne)].join(' ')}`,
-      );
-    }
   }
+
+  melde([...new Set(ohne)], [...nichtGeladen]);
 
   return {
     faceFor(spec, codePoint) {

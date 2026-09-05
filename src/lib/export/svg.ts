@@ -15,7 +15,7 @@
  */
 import { brand, fontFamily } from '@/theme';
 import { round, segsToPath } from '@/lib/geometry/path';
-import type { Scene, ScenePrim, SceneRun } from './scene';
+import { laufStriche, type Scene, type ScenePrim, type SceneRun } from './scene';
 
 export interface SvgOptions {
   /** Pretty-print with newlines and indentation. */
@@ -259,23 +259,18 @@ function runToTspan(run: SceneRun, originX: number, originY: number): string {
 /**
  * Underlines and strikethroughs are drawn as rects rather than
  * `text-decoration`, which several vector editors ignore.
+ *
+ * Wo sie liegen, rechnet `laufStriche()` — dieselbe Rechnung, die der
+ * Umriss-Weg geht. Hier standen eigene Zahlen, und sie waren andere.
  */
 function decorationRect(run: SceneRun, originX: number, originY: number): string {
-  const thickness = Math.max(0.8, run.font.size * 0.058);
-  const parts: string[] = [];
-  if (run.underline) {
-    parts.push(
-      `<rect x="${round(originX + run.dx)}" y="${round(originY + run.font.size * 0.13)}" ` +
-        `width="${round(run.width)}" height="${round(thickness)}" fill="${run.color}"/>`,
-    );
-  }
-  if (run.strike) {
-    parts.push(
-      `<rect x="${round(originX + run.dx)}" y="${round(originY - run.font.size * 0.27)}" ` +
-        `width="${round(run.width)}" height="${round(thickness)}" fill="${run.color}"/>`,
-    );
-  }
-  return parts.join('');
+  return laufStriche(run)
+    .map(
+      (strich) =>
+        `<rect x="${round(originX + run.dx)}" y="${round(originY + strich.y)}" ` +
+        `width="${round(run.width)}" height="${round(strich.h)}" fill="${run.color}"/>`,
+    )
+    .join('');
 }
 
 /* -------------------------------------------------------------------------- */
