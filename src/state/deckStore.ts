@@ -18,6 +18,7 @@ import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { canvas } from '@/theme';
 import { flowBounds, insertColumnWidth, insertFrame } from '@/lib/layout/slideLayout';
+import { bildmass } from '@/lib/export/images';
 import { typesetMarkdown, typesetText } from '@/lib/text/typeset';
 import type { RevealAnimation, ToneName } from '@/theme';
 import {
@@ -636,18 +637,18 @@ export const useDeckStore = create<EditorState>()((set, get) => {
       let anzahl = 0;
 
       const slides = get().deck.slides.map((slide) => {
-        const geaendert: Partial<Slide> = {};
+        const aenderung: Partial<Slide> = {};
 
         const markdown = ersetzeAlle(slide.markdown, gesucht, ersatz);
         if (markdown.anzahl > 0) {
           anzahl += markdown.anzahl;
-          geaendert.markdown = markdown.text;
+          aenderung.markdown = markdown.text;
         }
 
         const notizen = ersetzeAlle(slide.meta.notes ?? '', gesucht, ersatz);
         if (notizen.anzahl > 0) {
           anzahl += notizen.anzahl;
-          geaendert.meta = { ...slide.meta, notes: notizen.text };
+          aenderung.meta = { ...slide.meta, notes: notizen.text };
         }
 
         /*
@@ -665,17 +666,27 @@ export const useDeckStore = create<EditorState>()((set, get) => {
               patch[schluessel] = neu.text;
             }
           }
-          return Object.keys(patch).length > 0
-            ? ({ ...element, ...patch } as CanvasElement)
-            : element;
+          /*
+             `geaendert()` und nicht `{ ...element, ...patch }`: wer ein Element
+             anfasst, gibt seinen Rohblock auf. Der Kopf von `withElements()`
+             führt „Alle ersetzen" als einen der zehn Wege auf, die das früher
+             umgingen — und es war der eine, der es weiter tat: `withElements()`
+             gilt der *offenen* Folie, dieser Weg geht durch alle.
+
+             Erreichbar ist es heute nicht: ein Element mit Rohblock kommt als
+             `shape` mit lauter Vorgabewerten aus dem Leser, und in leeren
+             Feldern findet die Suche nichts. Die Zusage steht trotzdem an zwei
+             Stellen im Klartext, und eine Zusage, die nur fast gilt, ist keine.
+          */
+          return Object.keys(patch).length > 0 ? geaendert(element, patch) : element;
         });
         if (elements.some((element, i) => element !== slide.elements[i])) {
-          geaendert.elements = elements;
+          aenderung.elements = elements;
         }
 
         // Unveränderte Folien bleiben *dasselbe Objekt*: der Verlauf teilt
         // sich mit der Gegenwart, was sich nicht geändert hat.
-        return Object.keys(geaendert).length > 0 ? { ...slide, ...geaendert } : slide;
+        return Object.keys(aenderung).length > 0 ? { ...slide, ...aenderung } : slide;
       });
 
       if (anzahl === 0) return 0;
@@ -730,10 +741,19 @@ export const useDeckStore = create<EditorState>()((set, get) => {
       // Rechtsbündig am Satzspiegel und unter das, was dort schon steht —
       // die Mitte gehört dem Fließtext. Warum, steht in `insertFrame()`.
       const kasten = spalteFuer(element);
-      // Der Fließtext zählt als besetzte Fläche mit. Sonst läge das erste
-      // eingesetzte Element mitten in der Überschrift — der Grund, aus dem
-      // früher überhaupt rechts eingesetzt wurde.
-      const text = slide ? flowBounds(slide.meta.layout, slide.markdown) : null;
+      /*
+         Der Fließtext zählt als besetzte Fläche mit. Sonst läge das erste
+         eingesetzte Element mitten in der Überschrift — der Grund, aus dem
+         früher überhaupt rechts eingesetzt wurde.
+
+         **Mit den Bildmaßen**, wie die Fläche misst. Ohne sie fällt der Setzer
+         auf „volle Spaltenbreite, Verhältnis 0,5625" zurück: bei einem
+         300 × 300-Logo im Fließtext sind das 762 Einheiten statt 441, und der
+         gemiedene Kasten ist um ein Drittel zu hoch. `flowBounds()` bekam den
+         Maßgeber, als der Fehler in `useClipboard` auffiel — hier stand er
+         nicht, und das ist der häufigere Weg: die Bausteinbibliothek.
+      */
+      const text = slide ? flowBounds(slide.meta.layout, slide.markdown, bildmass) : null;
       const spot = insertFrame(slide?.elements ?? [], kasten, text ? [text] : []);
       const placed = clampToSlide({ ...spot, ...kasten });
       state.addElement({ ...element, ...kasten, x: placed.x, y: placed.y } as CanvasElement);
