@@ -51,6 +51,18 @@ export function matScale(sx: number, sy: number = sx): Mat {
   return [sx, 0, 0, sy, 0, 0];
 }
 
+/**
+ * Waagerechte Scherung: x' = x + k·y, y bleibt.
+ *
+ * Der Winkel steckt im Faktor — `k = tan θ`. Wer scheren will, muss wissen, in
+ * welche Richtung seine Y-Achse zeigt: auf der Folie wächst y nach unten, im
+ * Textraum eines PDF nach oben, und ein kursiver Schnitt lehnt in beiden
+ * Fällen *oben* nach rechts.
+ */
+export function matShearX(k: number): Mat {
+  return [1, 0, k, 1, 0, 0];
+}
+
 export function matRotate(degrees: number): Mat {
   const rad = (degrees * Math.PI) / 180;
   const cos = Math.cos(rad);

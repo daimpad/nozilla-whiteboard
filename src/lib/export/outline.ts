@@ -25,12 +25,14 @@ import {
   matMultiply,
   matRotateAbout,
   matScale,
+  matShearX,
   matTranslate,
   transformSegs,
   type Seg,
 } from '@/lib/geometry/path';
 import { measureText } from '@/lib/text/measure';
 import { glyphCoverFor, type GlyphCover } from './glyphCover';
+import { kursivNeigung } from './fontFiles';
 import { laufStriche, type Scene, type ScenePrim, type SceneRun } from './scene';
 
 /**
@@ -143,6 +145,20 @@ function hatSchrift(run: SceneRun, cover: GlyphCover): boolean {
 function runToSegs(run: SceneRun, cover: GlyphCover): Seg[] {
   const out: Seg[] = [];
 
+  /*
+     Kursiv ohne kursiven Schnitt wird geschert — wie es der Browser tut.
+
+     Auf der Folie wächst y nach unten, die Versalhöhe liegt also *über* der
+     Grundlinie bei negativem y. Damit der Kopf nach rechts kippt, muss die
+     Neigung negativ eingesetzt werden: x' = x − k·y.
+
+     Geschert wird nur die Glyphe. Unter- und Durchstreichung bleiben gerade —
+     der Browser zieht sie waagerecht, und der SVG-Weg schreibt dafür ein
+     ungeschertes Rechteck.
+  */
+  const neigung = kursivNeigung(run.font);
+  const schere = neigung ? matShearX(-neigung) : null;
+
   let index = 0;
   for (const character of run.text) {
     index += character.length;
@@ -158,8 +174,12 @@ function runToSegs(run: SceneRun, cover: GlyphCover): Seg[] {
       const scale = run.font.size / font.unitsPerEm;
       // Der Browser hat den Vorschub bis *vor* dieses Zeichen schon bestimmt.
       const x = advanceBefore(run, index - character.length);
+      const auf = matScale(scale, -scale);
       out.push(
-        ...transformSegs(glyph.segs, matMultiply(matTranslate(x, 0), matScale(scale, -scale))),
+        ...transformSegs(
+          glyph.segs,
+          matMultiply(matTranslate(x, 0), schere ? matMultiply(schere, auf) : auf),
+        ),
       );
     }
   }

@@ -483,6 +483,27 @@ export const fontWeight = {
 } as const;
 
 /**
+ * Der Winkel, um den ein kursiver Lauf geschert wird, wenn es keinen Schnitt
+ * dafür gibt.
+ *
+ * Die CI führt neun Schnitte und keinen kursiven. Auf dem Bildschirm ist das
+ * folgenlos — der Browser schert selbst —, in den beiden Ausgaben, die ihre
+ * Glyphen selbst zeichnen, war es das nicht: `*kursiv*` stand im PDF und im
+ * PNG aufrecht, während SVG und PowerPoint es schräg zeigten.
+ *
+ * Vierzehn Grad, und zwar **nachgemessen** und nicht angenommen: derselbe
+ * Schnitt einmal aufrecht und einmal kursiv in ein Canvas gezeichnet, den
+ * linken Rand des H-Stammes in zwei Zeilen 190 Pixel auseinander gesucht — die
+ * Neigung ist 0,2474, also tan 13,9°. Es ist auch der Wert, den CSS für
+ * `oblique` ohne Winkelangabe vorsieht.
+ *
+ * Er steht hier und nicht in `brandTheme.ts`: er gehört keiner Marke, sondern
+ * der Frage, wie ein fehlender Schnitt ersetzt wird — strukturell, wie Radius
+ * 0 und das 64er-Raster der Icons.
+ */
+export const syntheticItalicDegrees = 14;
+
+/**
  * Die Größenleiter des CI — acht Stufen, und sonst gibt es keine.
  *
  * Sie steht hier für sich, weil sie das ist, was sich ändert. Am 7. August

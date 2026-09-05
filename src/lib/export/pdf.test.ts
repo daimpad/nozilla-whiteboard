@@ -213,6 +213,88 @@ describe('ein Bild, das jsPDF nicht verdaut', () => {
 
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Kursiv, wo es keinen kursiven Schnitt gibt.
+ *
+ * jsPDF setzt den aufrechten Schnitt — die CI führt keinen kursiven —, und
+ * damit stand `*kursiv*` im PDF aufrecht, während SVG und PowerPoint es schräg
+ * zeigten. Nachgemessen mit `pdfjs-dist`: „Aufrecht" und „Kursiv" kamen beide
+ * als `Inter-Regular` zurück.
+ *
+ * Geprüft wird die **Textmatrix** der Datei: ihr `c` ist die Schere, und ihr
+ * `e`/`f` sagt, ob der Anker geblieben ist, wo er war.
+ */
+describe('kursiv im PDF', () => {
+  const einH = (italic: boolean, rotate = 0): Scene =>
+    szene([
+      {
+        t: 'text',
+        x: 400,
+        y: 300,
+        rotate: rotate || undefined,
+        runs: [
+          {
+            dx: 0,
+            text: 'H',
+            font: { family: 'body', size: 120, weight: 400, italic, tracking: 0 },
+            color: '#111111',
+            width: 100,
+          },
+        ],
+      },
+    ]);
+
+  const matrixVon = async (scene: Scene): Promise<number[]> => {
+    const doc = await scenesToPdf([scene], { embedFonts: false });
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const pdf = await pdfjs.getDocument({
+      data: new Uint8Array(doc.output('arraybuffer')),
+      disableFontFace: true,
+    }).promise;
+    const inhalt = await (await pdf.getPage(1)).getTextContent();
+    const eintrag = inhalt.items.find((item) => 'str' in item && item.str.trim());
+    if (!eintrag || !('transform' in eintrag)) throw new Error('kein Text im PDF');
+    return eintrag.transform;
+  };
+
+  it('schert die Textmatrix um vierzehn Grad', async () => {
+    const [gerade, kursiv] = await Promise.all([matrixVon(einH(false)), matrixVon(einH(true))]);
+
+    // `c` ist die Schere: aufrecht null, kursiv `Größe · tan 14°`.
+    expect(gerade[2]).toBeCloseTo(0, 6);
+    expect(kursiv[2] / kursiv[0]).toBeCloseTo(Math.tan((14 * Math.PI) / 180), 4);
+  });
+
+  it('lässt den Anker, wo er war', async () => {
+    /*
+       Die Falle, an der der erste Anlauf hing: bei einer *Gradzahl* dreht
+       jsPDF um den Textanker, bei einer **Matrix** legt es den Anker in das
+       Koordinatensystem, das die Matrix aufspannt. Gemessen stand dasselbe H
+       statt bei 300 pt bei 378,5 — genau um `k · y` verschoben, also um die
+       Schere selbst.
+    */
+    const [gerade, kursiv] = await Promise.all([matrixVon(einH(false)), matrixVon(einH(true))]);
+    expect(kursiv[4]).toBeCloseTo(gerade[4], 6);
+    expect(kursiv[5]).toBeCloseTo(gerade[5], 6);
+  });
+
+  it('dreht und schert zugleich', async () => {
+    // Ein gedrehter kursiver Lauf bekommt beides in einer Matrix. Ohne diese
+    // Prüfung bliebe offen, ob die Schere die Drehung überschreibt.
+    const [gerade, kursiv] = await Promise.all([
+      matrixVon(einH(false, 30)),
+      matrixVon(einH(true, 30)),
+    ]);
+    // Die Drehung steht in `a` und `b` und bleibt unberührt.
+    expect(kursiv[0]).toBeCloseTo(gerade[0], 6);
+    expect(kursiv[1]).toBeCloseTo(gerade[1], 6);
+    // Die Schere sitzt in `c`/`d` — und zwar gedreht mit.
+    expect(kursiv[2]).toBeGreaterThan(gerade[2]);
+    expect(kursiv[4]).toBeCloseTo(gerade[4], 6);
+    expect(kursiv[5]).toBeCloseTo(gerade[5], 6);
+  });
+});
+
 describe('wo das PDF seinen Text ansetzt', () => {
   it('beginnt jede Zeile dort, wo die Szene sie beginnt', async () => {
     /*

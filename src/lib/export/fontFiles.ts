@@ -16,7 +16,7 @@
  * beim Start — erst wenn jemand exportiert, und dann nur die Schnitte, die auf
  * den Folien wirklich vorkommen.
  */
-import { webfont, familyName, fontFamily } from '@/theme';
+import { webfont, familyName, fontFamily, syntheticItalicDegrees } from '@/theme';
 import type { FontFamilyKey, FontSpec } from '@/lib/text/measure';
 import { parseTrueType, type TrueTypeFont } from '@/lib/text/truetype';
 
@@ -58,6 +58,28 @@ export function resolveFace(spec: Pick<FontSpec, 'family' | 'weight'>): FaceRef 
     file: best.file,
     id: best.file.replace(/\.\w+$/, ''),
   };
+}
+
+/**
+ * Wie stark ein kursiver Lauf geschert werden muss — oder `0`.
+ *
+ * Der Bildschirm schert selbst, wenn eine Familie keinen kursiven Schnitt
+ * führt; die beiden Ausgaben, die ihre Glyphen selbst zeichnen, taten es
+ * nicht. `*kursiv*` stand damit im PDF und im PNG aufrecht, während SVG und
+ * PowerPoint es schräg zeigten — nachgemessen mit `pdfjs-dist`: „Aufrecht"
+ * und „Kursiv" kamen beide als `Inter-Regular` zurück.
+ *
+ * **Nur wenn es wirklich keinen gibt.** `resolveFace()` sucht heute
+ * ausdrücklich nur unter `style === 'normal'`; wer ihm eines Tages beibringt,
+ * einen kursiven Schnitt zu nehmen, bekäme sonst beides — den echten Schnitt
+ * *und* die Schere. Gefragt wird deshalb die Schnittliste des
+ * Erscheinungsbilds und nicht das, was `resolveFace()` gerade tut.
+ */
+export function kursivNeigung(spec: Pick<FontSpec, 'family' | 'weight' | 'italic'>): number {
+  if (!spec.italic) return 0;
+  const family = familyName(spec.family);
+  const echter = webfont.faces.some((face) => face.family === family && face.style === 'italic');
+  return echter ? 0 : Math.tan((syntheticItalicDegrees * Math.PI) / 180);
 }
 
 /** Alle Schnitte, die eine Menge von Vorgaben zusammen anfordert. */
