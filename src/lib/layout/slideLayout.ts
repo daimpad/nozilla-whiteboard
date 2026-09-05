@@ -158,20 +158,43 @@ export function footerFrame(): { y: number; left: number; right: number } {
  * besetzte Fläche (`flowBounds()`), und dann kann die erste Spalte dort
  * stehen, wo man zu lesen anfängt.
  */
+/**
+ * Wie breit ein eingesetztes Element ist — auf dem Raster.
+ *
+ * Die 0,48 sind knapp die halbe Satzspiegelbreite; das Runden auf `gridSize`
+ * kam dazu, weil sonst zwei Wahrheiten über dasselbe Raster nebeneinander
+ * standen. Der Deck-Prompt verlangt vom Modell „alle Werte auf ein Vielfaches
+ * von `gridSize` runden", `computeSnap()` und `resizeRect()` rasten jedes
+ * gezogene Element darauf ein — und das Einsetzen legte es mit 530 Einheiten
+ * bei x = 662 daneben. Sichtbar wurde es beim ersten Anfassen: das Element
+ * sprang auf das Raster und verlor dabei die rechte Kante des Satzspiegels.
+ *
+ * Zwei Einheiten schmaler, und die Rechnung geht auf: 528 bei x = 664 endet
+ * genau auf `width - margin.right`, und beide Zahlen liegen im Raster.
+ */
 export function insertColumnWidth(): number {
-  const { width, margin } = canvas;
-  return Math.round((width - margin.left - margin.right) * 0.48);
+  const { width, margin, gridSize } = canvas;
+  return Math.round(((width - margin.left - margin.right) * 0.48) / gridSize) * gridSize;
 }
 
 export function insertColumns(): number[] {
-  const { width, margin } = canvas;
+  const { width, margin, gridSize } = canvas;
   const innerW = width - margin.left - margin.right;
   const spalte = insertColumnWidth();
   const right = width - margin.right;
   const anzahl = Math.max(1, Math.floor(innerW / spalte));
   if (anzahl === 1) return [margin.left];
   const luecke = (right - margin.left - anzahl * spalte) / (anzahl - 1);
-  return Array.from({ length: anzahl }, (_, i) => Math.round(margin.left + i * (spalte + luecke)));
+  /*
+     Auch der Ort liegt im Raster, und zwar von Bauart wegen: die Lücke ist
+     eine Division und trifft es nicht von selbst. Bei zwei Spalten geht die
+     Rechnung heute auf — eine Zahl, die zufällig stimmt, ist genau das, was
+     dieses Repo schon dreimal für eine Zusicherung gehalten hat.
+  */
+  return Array.from(
+    { length: anzahl },
+    (_, i) => Math.round((margin.left + i * (spalte + luecke)) / gridSize) * gridSize,
+  );
 }
 
 /**

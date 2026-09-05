@@ -2892,6 +2892,82 @@ Auswahl wird beim Folienwechsel geleert und trägt danach keine toten Kennungen.
 `transformElements` legen keinen Verlaufsschritt an — das tut die Geste einmal
 am Anfang, und genau deshalb ist ein Ziehen ein Schritt und nicht sechzig.
 
+**Ein Prompt, der die Folie ausmisst und ihr Blatt verschweigt.** Der
+Deck-Prompt liest `canvas` aus der lebendigen Bindung: wer ein A4-Deck offen
+hat, bekommt „Die Folie ist 1280 × 1810 Einheiten (DIN A hoch)" und einen
+Satzspiegel, der bis 1738 reicht. Das Frontmatter, das er zeigt, führte
+`title`, `author` und `footer` — `format:` nicht, und `theme:` auch nicht. Ein
+Modell, das dem Prompt folgt, legt seine Karten bis y = 1810; die Antwort kommt
+ohne beide Schlüssel zurück, öffnet auf 16:9 und ist 720 hoch. Gemessen: ein
+Element bei y = 1400 steht danach 680 Einheiten unter der Folie, wo keine
+Ausgabe es zeigt und kein Klick es trifft.
+
+Dasselbe eine Marke weiter: der Prompt nennt die Schriften des gültigen
+Erscheinungsbilds, seine Signalfarbe und sein Zeichen-Set — und das Deck, das
+daraus entsteht, trägt nozilla. Beide Hälften sind derselbe Satz, und er steht
+in dieser Liste schon dreimal: **wer zu viel verspricht, bekommt vom Modell
+etwas, das die Seite eine Ecke weiter zurückweist, und der Fehler steht dann
+bei dem, der den Prompt befolgt hat.** Geprüft wird am Leser und nicht am Text:
+die beiden Zeilen, die der Prompt hinschreibt, gehen durch `parseDeck`, und was
+zurückkommt, muss das Blatt und die Marke sein, für die er gerechnet hat.
+
+**Elf von zwanzig Zahlen im eigenen Beispiel lagen neben dem Raster.** „Alle
+Werte auf ein Vielfaches von 8 runden" steht im Prompt, und der Haken der
+Prüfliste am Ende sagt es noch einmal — dazwischen stand `x: 700, y: 140, w:
+492, h: 190`, also in dem Beispiel, das ein Modell abschreibt. Vier von vier
+Zahlen im ersten Block, zwei von vier in jeder Karte des zweiten. Der
+Satzspiegel liegt selbst im Raster (88, 1192, 72, 648), die Forderung ist also
+erfüllbar: x 704 mit w 488 endet auf derselben Kante wie x 700 mit w 492.
+
+Und dahinter lag eine dritte Wahrheit über dasselbe Raster. `computeSnap()` und
+`resizeRect()` rasten jedes gezogene Element darauf ein, der Prompt verlangt es
+vom Modell — `insertColumnWidth()` legte ein eingesetztes Element mit 530
+Einheiten bei x = 662 daneben. Sichtbar wurde das beim ersten Anfassen: das
+Element sprang aufs Raster und verlor dabei die rechte Kante des Satzspiegels.
+Zwei Einheiten schmaler, und die Rechnung geht auf — 528 bei x = 664 endet
+genau auf `width - margin.right`.
+
+**`labelStyle` wirkte in vier Ausgaben und stand in keinem Prompt.** Die
+Feldtabelle ist von Hand geschrieben, elf Zeilen für elf Elementarten, und
+`minimizeElement()` schreibt daneben genau die Schlüssel, die in der `.md`
+landen. Verglichen fehlte einer: die Typo-Stufe einer Formbeschriftung. Sie
+steht im Dateiformat, wird gezeichnet und in die `.pptx` getragen — nur wusste
+kein Modell davon, und die Zeile darunter behauptete obendrein, die Typo-Leiter
+gelte „nur für kind: text". Gemessen wird jetzt am Serialisierer: eine zwölfte
+Angabe bekommt keine stillschweigende Ausnahme.
+
+**Zwei von fünf Untergründen wurden aufgezählt und nicht erklärt.** `ink` und
+`signal` standen in der Liste der erlaubten Werte und in keiner Erklärzeile —
+und es sind die beiden dunklen. Dazu fehlte die Warnung ganz, die die
+Oberfläche für dieselbe Frage längst hat: eine Fläche im Ton ihres Untergrunds
+ist da und nicht zu sehen. Nachgerechnet über alle Kombinationen sind es fünf
+Paare — paper+white, cream+paper, ink+ink, signal+signal, grid+white —, und sie
+stehen jetzt im Prompt. Getippt und nicht gerechnet, aus demselben Grund wie
+die Icon-Auswahl darüber: eine Liste, die sich aus dem Zeichner selbst ergibt,
+stellt den Test still, der sie prüfen soll. Gehalten wird sie gegen
+`unsichtbareFlaeche()`, in beide Richtungen — eine Warnung, die zu viel nennt,
+verurteilt eine Folie, die gut aussieht.
+
+**Eine Regel, die das eigene Material bricht.** „Überschriften sind Sätze mit
+Punkt." galt im Prompt für jede Überschrift. Das mitgelieferte Beispiel hält
+sich nicht daran, die Willkommensmappe auch nicht und das Deck der zweiten
+Marke ebenso wenig: in allen dreien trägt die `#`-Zeile einen Punkt und die
+`##`-Zeile keinen. Der Punkt gehört dem Kampagnensatz und nicht der
+Zwischenüberschrift. Die Regel sagt das jetzt, und geprüft wird sie an dem
+Material, an dem man sie ablesen kann — in beide Richtungen, denn eine Prüfung
+nur der ersten Hälfte wäre auch für „gar keine Punkte" grün.
+
+**Und die Prüfung daneben zählte drei von zwölf.** Die Zusicherung „das
+Beispiel hält sich an die eigenen Regeln" führte die Markergrenze als getippte
+`3` und die Verbotsliste als `/seamless|disruptiv|synergie/i`. Wer ein Wort
+ergänzt oder die Grenze senkt, bekäme von ihr kein Wort; sie liest jetzt
+`MAX_MARKERS_PER_PARAGRAPH` und `forbiddenWords`. Dieselbe Zeile steht in
+dieser Liste schon einmal und hieß dort „eine Härtungsliste, die man tippt,
+prüft die Hälfte". Zwei Stellen in `PROMPT.md` gingen mit: der Knopf steht seit
+dem Umbau der Kopfleiste nicht mehr „oben rechts", sondern links neben der
+Folienübersicht, und die Aufzählung dessen, was der Prompt leistet, kannte
+`theme:` und `format:` noch nicht.
+
 ---
 
 ## Git

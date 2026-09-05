@@ -18,6 +18,12 @@ Der Prompt schließt vier Lücken auf einmal:
 YAML-Einrückung, wo der Block relativ zum Fließtext steht. Ohne das errät ein
 Modell irgendein Markdown, und der Parser sieht eine einzige lange Folie.
 
+Dazu gehören `theme:` und `format:` im Frontmatter, und sie stehen nicht zur
+Zierde da: der Prompt misst die Folie aus dem Deck, das gerade offen ist. Wer
+ein A4-Deck geöffnet hat, bekommt „1280 × 1810 Einheiten (DIN A hoch)" — und
+ohne `format:` öffnet die Antwort auf 16:9, wo alles unterhalb von 720 nicht
+mehr auf der Folie liegt.
+
 **2 · Er nennt das Vokabular vollständig.** Layouts, Hintergründe, Farbrollen,
 Elementarten mit ihren Feldern, Kartenvarianten, Formen, Verbinder, Typo-Stufen,
 Einblend-Animationen, erlaubte Icon-Namen. Ein Wert, den der Parser nicht kennt,
@@ -45,7 +51,8 @@ Am Ende steht eine Prüfliste, die das Modell vor der Ausgabe abhakt.
 
 ### In der App (empfohlen)
 
-Oben rechts auf **Prompt** klicken. Das Formular fragt Thema, Art, Publikum,
+In der Hauptleiste auf **Prompt** klicken, neben der Folienübersicht. Das
+Formular fragt Thema, Art, Publikum,
 Ziel, Umfang und Material ab; rechts steht der fertige Prompt zum Kopieren.
 
 Die Antwort des Modells fügst du unten wieder ein und drückst **Als Deck
@@ -85,7 +92,11 @@ Eine einzige Markdown-Datei. Aufbau:
   title: …
   author: …
   footer: …
-  ---
+  theme: nozilla
+  format: 16-9
+  ---                       ← `theme` und `format` genau so übernehmen: ohne
+                              sie öffnet das Deck unter nozilla auf 16:9, und
+                              jede Koordinate darunter zeigt woandershin.
 
   <!-- nzl                  ← Metadaten dieser Folie (YAML), optional
   layout: title
@@ -93,10 +104,10 @@ Eine einzige Markdown-Datei. Aufbau:
   notes: Was die vortragende Person sagt.
   elements:
     - kind: card
-      x: 700
-      y: 140
-      w: 492
-      h: 190
+      x: 704
+      y: 144
+      w: 488
+      h: 192
       title: …
       body: …
   -->
@@ -145,7 +156,9 @@ layout:
   canvas     Nur freie Fläche
 
 background:  paper · cream · ink · signal · grid
-             paper = weiß (Standard) · cream = warmer Papierton · grid = weiß mit Punktraster
+             paper = weiß (Standard) · cream = warmer Papierton
+             ink = dunkel, Tinte als Fläche · signal = Signalfarbe als Fläche
+             grid = weiß mit Punktraster
 transition:  none · cut · fade · slide · push
 
 tone — die Farbrolle einer Fläche:
@@ -153,6 +166,8 @@ tone — die Farbrolle einer Fläche:
   white     Reines Weiß — hebt sich auf cremefarbenem Untergrund ab
   signal    Nur echte Handlungsaufforderungen — 5 % der Fläche
   ink       Invers — Tinte als Fläche, Papier als Schrift
+Nie den Ton des Untergrunds als Fläche: das Element ist dann da und nicht zu
+sehen. Unsichtbar sind paper+white · cream+paper · ink+ink · signal+signal · grid+white.
 
 fill:        none · outline · flat · framed
              none = nackt · outline = nur Kontur · flat = nur Fläche · framed = Fläche + Kontur
@@ -165,7 +180,7 @@ kind — die Elementarten und ihre Felder:
   card       variant, label, title, body, icon
   badge      text, icon
   icon       icon, frame (none|box)
-  shape      shape, label
+  shape      shape, label, labelStyle
   connector  connector, dashed, label
   image      src, alt, fit (cover|contain)
   wordmark   variant (auto|ink|paper|mono)
@@ -189,7 +204,7 @@ table.data:   eine Zeile je Zeile, Zellen getrennt an Tabulator, senkrechtem
               (---, ---:, :---:) als ZWEITE Zeile setzt die Ausrichtung der
               Spalten; weiter unten ist sie Inhalt.
 
-typeStyle (nur für kind: text):
+typeStyle (kind: text) und labelStyle (kind: shape) — dieselbe Leiter:
   display     140 px
   headline    88 px
   h1          68 px
@@ -238,7 +253,9 @@ DER MARKER — das Signature-Element, in der Signalfarbe
 
 SPRACHE
   Deutsch. Direkt. Kurze Verben statt langer Substantivketten.
-  Überschriften sind Sätze mit Punkt.
+  Der Kampagnensatz — die `#`-Überschrift der Titel- und Aussagefolien — ist
+  ein Satz mit Punkt. Zwischenüberschriften (`##`) sind Überschriften und
+  bekommen keinen.
   Keine Emoji. Keine Ausrufezeichen.
   Verboten: seamless, disruptive, disruptiv, synergy, synergie, empowern, orchestrieren, ganzheitlich, innovativ, state-of-the-art, best-in-class, leverage.
   Behaupte etwas und belege es — keine Werbefloskeln.
@@ -277,18 +294,18 @@ layout: split
 notes: Zahlen langsam vorlesen, sie tragen die Folie.
 elements:
   - kind: card
-    x: 700
+    x: 704
     y: 152
-    w: 492
+    w: 488
     h: 176
     variant: stat
     label: Wartung
     title: 38 %
     body: der Entwicklungszeit fließen in Fehlerbehebung.
   - kind: card
-    x: 700
+    x: 704
     y: 360
-    w: 492
+    w: 488
     h: 176
     variant: stat
     tone: signal
@@ -334,6 +351,7 @@ Kein Vorwort, keine Erklärung, kein umschließender Codeblock.
 Beginne mit `---` (dem Deck-Frontmatter).
 
 Prüfe vor der Ausgabe:
+□ Das Frontmatter trägt `theme: nozilla` und `format: 16-9`.
 □ Jeder Folientrenner `---` hat eine Leerzeile davor.
 □ Jeder `<!-- nzl`-Block ist mit `-->` geschlossen und sauber eingerückt.
 □ Alle x/y/w/h liegen im Raster und innerhalb 1280 × 720.

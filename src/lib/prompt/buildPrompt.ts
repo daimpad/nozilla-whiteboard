@@ -14,6 +14,8 @@
  * gegen die der Parser prüft.
  */
 import {
+  activeTheme,
+  aktivesFolienformat,
   brand,
   canvas,
   familyName,
@@ -28,6 +30,7 @@ import {
   typeScale,
   elementTones,
 } from '@/theme';
+import type { ToneName } from '@/theme';
 import { layoutDescriptions } from '@/lib/layout/slideLayout';
 import { iconNames } from '@/assets/icons';
 import { nozillaIcons } from '@/theme';
@@ -37,6 +40,7 @@ import {
   fillStyles,
   shapeNames,
   slideBackgrounds,
+  type SlideBackground,
 } from '@/model/types';
 
 /* -------------------------------------------------------------------------- */
@@ -250,6 +254,29 @@ export function promptIcons(): string[] {
 const list = (values: readonly string[]) => values.join(' · ');
 
 /**
+ * Untergrund und Ton, die einander wegmalen.
+ *
+ * Eine Fläche `flat` im Ton ihres Untergrunds ist da und nicht zu sehen — das
+ * Element steht in der Ebenenliste, lässt sich anwählen, hat Maße, und ist auf
+ * der Folie, im SVG, im PDF und in der `.pptx` nicht da. Für die *Oberfläche*
+ * gibt es dafür seit je eine Warnung (`unsichtbareFlaeche()`); das Modell, das
+ * eine Folie schreibt, ohne sie zu sehen, bekam sie nicht.
+ *
+ * Getippt und nicht gerechnet, aus demselben Grund wie die Icon-Auswahl ein
+ * Stück weiter oben: eine Liste, die sich aus dem Zeichner selbst ergibt,
+ * stellt zugleich den Test still, der sie prüfen soll. `prompt.test.ts` hält
+ * sie in **beide** Richtungen gegen `unsichtbareFlaeche()` — was hier steht,
+ * muss unsichtbar sein, und was nicht hier steht, muss sichtbar sein.
+ */
+const UNSICHTBAR: ReadonlyArray<readonly [SlideBackground, ToneName]> = [
+  ['paper', 'white'],
+  ['cream', 'paper'],
+  ['ink', 'ink'],
+  ['signal', 'signal'],
+  ['grid', 'white'],
+];
+
+/**
  * Das Seitenverhältnis der Folie, in Worten.
  *
  * Hier stand „(16:9)" fest im Text, und mit einem Folienformat je Deck wäre
@@ -292,7 +319,11 @@ Eine einzige Markdown-Datei. Aufbau:
   title: …
   author: …
   footer: …
-  ---
+  theme: ${activeTheme().id}
+  format: ${aktivesFolienformat()}
+  ---                       ← \`theme\` und \`format\` genau so übernehmen: ohne
+                              sie öffnet das Deck unter nozilla auf 16:9, und
+                              jede Koordinate darunter zeigt woandershin.
 
   <!-- nzl                  ← Metadaten dieser Folie (YAML), optional
   layout: title
@@ -300,10 +331,10 @@ Eine einzige Markdown-Datei. Aufbau:
   notes: Was die vortragende Person sagt.
   elements:
     - kind: card
-      x: 700
-      y: 140
-      w: 492
-      h: 190
+      x: 704
+      y: 144
+      w: 488
+      h: 192
       title: …
       body: …
   -->
@@ -345,11 +376,15 @@ layout:
 ${layouts}
 
 background:  ${list(slideBackgrounds)}
-             paper = weiß (Standard) · cream = warmer Papierton · grid = weiß mit Punktraster
+             paper = weiß (Standard) · cream = warmer Papierton
+             ink = dunkel, Tinte als Fläche · signal = Signalfarbe als Fläche
+             grid = weiß mit Punktraster
 transition:  ${list(slideTransitions)}
 
 tone — die Farbrolle einer Fläche:
 ${tones}
+Nie den Ton des Untergrunds als Fläche: das Element ist dann da und nicht zu
+sehen. Unsichtbar sind ${list(UNSICHTBAR.map(([bg, tone]) => `${bg}+${tone}`))}.
 
 fill:        ${list(fillStyles)}
              none = nackt · outline = nur Kontur · flat = nur Fläche · framed = Fläche + Kontur
@@ -362,7 +397,7 @@ kind — die Elementarten und ihre Felder:
   card       variant, label, title, body, icon
   badge      text, icon
   icon       icon, frame (none|box)
-  shape      shape, label
+  shape      shape, label, labelStyle
   connector  connector, dashed, label
   image      src, alt, fit (cover|contain)
   wordmark   variant (auto|ink|paper|mono)
@@ -386,7 +421,7 @@ table.data:   eine Zeile je Zeile, Zellen getrennt an Tabulator, senkrechtem
               (---, ---:, :---:) als ZWEITE Zeile setzt die Ausrichtung der
               Spalten; weiter unten ist sie Inhalt.
 
-typeStyle (nur für kind: text):
+typeStyle (kind: text) und labelStyle (kind: shape) — dieselbe Leiter:
 ${typeStyles}
 
 reveal — Elemente nacheinander einblenden:
@@ -422,7 +457,9 @@ DER MARKER — das Signature-Element, in der Signalfarbe
 
 SPRACHE
   Deutsch. Direkt. Kurze Verben statt langer Substantivketten.
-  Überschriften sind Sätze mit Punkt.
+  Der Kampagnensatz — die \`#\`-Überschrift der Titel- und Aussagefolien — ist
+  ein Satz mit Punkt. Zwischenüberschriften (\`##\`) sind Überschriften und
+  bekommen keinen.
   Keine Emoji. Keine Ausrufezeichen.
   Verboten: ${forbiddenWords.join(', ')}.
   Behaupte etwas und belege es — keine Werbefloskeln.`.trim();
@@ -465,18 +502,18 @@ layout: split
 notes: Zahlen langsam vorlesen, sie tragen die Folie.
 elements:
   - kind: card
-    x: 700
+    x: 704
     y: 152
-    w: 492
+    w: 488
     h: 176
     variant: stat
     label: Wartung
     title: 38 %
     body: der Entwicklungszeit fließen in Fehlerbehebung.
   - kind: card
-    x: 700
+    x: 704
     y: 360
-    w: 492
+    w: 488
     h: 176
     variant: stat
     tone: signal
@@ -573,6 +610,7 @@ Kein Vorwort, keine Erklärung, kein umschließender Codeblock.
 Beginne mit \`---\` (dem Deck-Frontmatter).
 
 Prüfe vor der Ausgabe:
+□ Das Frontmatter trägt \`theme: ${activeTheme().id}\` und \`format: ${aktivesFolienformat()}\`.
 □ Jeder Folientrenner \`---\` hat eine Leerzeile davor.
 □ Jeder \`<!-- nzl\`-Block ist mit \`-->\` geschlossen und sauber eingerückt.
 □ Alle x/y/w/h liegen im Raster und innerhalb ${canvas.width} × ${canvas.height}.
