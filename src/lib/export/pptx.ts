@@ -27,9 +27,9 @@ import {
   strokeWidth as strokeWidthOf,
   typeScale,
 } from '@/theme';
-import { flowFrame, footerFrame } from '@/lib/layout/slideLayout';
+import { flowFrame, flowOffsetY, footerFrame } from '@/lib/layout/slideLayout';
 import { segsBounds, type Seg } from '@/lib/geometry/path';
-import { tableColumnWidths, type StyledRun } from '@/lib/text/typeset';
+import { listenEinzug, tableColumnWidths, wrapRuns, type StyledRun } from '@/lib/text/typeset';
 import type { CanvasElement, Deck, Slide } from '@/model/types';
 import { slideTitle } from '@/model/types';
 import {
@@ -40,6 +40,7 @@ import {
   kartenFelder,
   kartenZiffer,
   kartenTitelGroesse,
+  abzeichenGroesse,
   tabellenLabelHoehe,
   type BackgroundStyle,
   type ScenePrim,
@@ -360,11 +361,11 @@ function flowShapes(
 ): string[] {
   const out: string[] = [];
   const paras = blocks.filter((block) => block.t === 'paras').flatMap((block) => block.paras);
-  const tables = blocks.filter((block) => block.t === 'table');
 
   // Ohne Tabelle bekommt der Fließtext den ganzen Rahmen und darf darin
-  // vertikal ausgerichtet werden — das ist der häufige Fall.
-  if (tables.length === 0) {
+  // vertikal ausgerichtet werden — das ist der häufige Fall, und PowerPoint
+  // richtet dann selbst aus, auch nachdem jemand Text ergänzt hat.
+  if (!blocks.some((block) => block.t === 'table')) {
     if (paras.length > 0) {
       out.push(
         textShape(nextId(), 'Inhalt', frame.x, frame.y, frame.w, frame.h, paras, {
@@ -375,24 +376,66 @@ function flowShapes(
     return out;
   }
 
-  // Mit Tabelle wird der Rahmen aufgeteilt: Text oben, Tabellen darunter. Eine
-  // Tabelle in PowerPoint ist ein eigener Rahmen und kann nicht im Textfluss
-  // stehen — das ist eine Eigenschaft des Formats, keine Entscheidung.
-  const tableHeights = tables.map((block) =>
-    block.t === 'table' ? TABLE_ROW_HEIGHT * (block.table.rows.length + 1) : 0,
+  /*
+     Mit Tabelle wird gestapelt — in der Reihenfolge des Textes.
+
+     Dass eine Tabelle nicht im Textfluss stehen kann, ist eine Eigenschaft des
+     Formats: in PowerPoint ist sie ein eigener Rahmen. Dass deshalb *alle*
+     Absätze über *alle* Tabellen rutschten, war keine. Gemessen an „Text
+     davor / Tabelle / Text danach": in der `.pptx` stand „Text danach"
+     oberhalb der Tabelle, also vor dem, was er erklärt.
+
+     Gestapelt wird nach gemessener Höhe, und gemessen wird mit `wrapRuns()` —
+     demselben Umbruch, den auch der Setzer geht. PowerPoint bricht danach
+     selbst um; die Höhe legt nur fest, wo der nächste Block anfängt.
+  */
+  const stuecke = blocks
+    .map((block) =>
+      block.t === 'table'
+        ? { block, hoehe: TABLE_ROW_HEIGHT * (block.table.rows.length + 1) }
+        : { block, hoehe: absatzHoehe(block.paras, frame.w) },
+    )
+    .filter((stueck) => stueck.hoehe > 0);
+
+  const gesamt = stuecke.reduce(
+    (summe, stueck, index) => summe + stueck.hoehe + (index > 0 ? BLOCKABSTAND : 0),
+    0,
   );
-  const tableTotal = tableHeights.reduce((sum, value) => sum + value + 16, 0);
-  const textHeight = Math.max(80, frame.h - tableTotal);
-  if (paras.length > 0) {
-    out.push(textShape(nextId(), 'Inhalt', frame.x, frame.y, frame.w, textHeight, paras));
+  // Der Stapel wird als Ganzes ausgerichtet — sonst stünde ein mittig
+  // gesetztes Layout mit Tabelle oben am Satzspiegel, während die Folie es
+  // mittig zeigt.
+  let y = flowOffsetY(frame, gesamt);
+  for (const { block, hoehe } of stuecke) {
+    if (block.t === 'table') {
+      out.push(tableShape(nextId(), frame.x, y, frame.w, hoehe, block.table, bg));
+    } else {
+      out.push(textShape(nextId(), 'Inhalt', frame.x, y, frame.w, hoehe, block.paras));
+    }
+    y += hoehe + BLOCKABSTAND;
   }
-  let y = frame.y + (paras.length > 0 ? textHeight + 16 : 0);
-  tables.forEach((block, index) => {
-    if (block.t !== 'table') return;
-    out.push(tableShape(nextId(), frame.x, y, frame.w, tableHeights[index], block.table, bg));
-    y += tableHeights[index] + 16;
-  });
   return out;
+}
+
+/** Der Abstand zwischen zwei gestapelten Blöcken des Fließtextes. */
+const BLOCKABSTAND = 16;
+
+/**
+ * Wie hoch ein Absatzblock im Rahmen wird.
+ *
+ * Gemessen mit `wrapRuns()`, also mit dem Umbruch des Setzers, und mit
+ * `absatzEinzug()`, also mit derselben Einrückung, die ins XML geht. Genau
+ * trifft es nicht — PowerPoint bricht mit seinen eigenen Schriftmaßen um —,
+ * und das muss es auch nicht: die Zahl sagt nur, wo der nächste Block anfängt.
+ */
+function absatzHoehe(paras: readonly Paragraph[], breite: number): number {
+  let hoehe = 0;
+  for (const para of paras) {
+    const size = para.runs[0]?.font.size ?? typeScale.body.size;
+    const spalte = Math.max(8, breite - absatzEinzug(para).marL);
+    const zeilen = Math.max(1, wrapRuns(para.runs, spalte).length);
+    hoehe += para.spaceBefore + zeilen * para.lineHeight * size;
+  }
+  return hoehe;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -519,14 +562,15 @@ function elementShapes(
       // Breite hinausgeht, bricht auf der Fläche um — in PowerPoint lag sie
       // dann über der ersten Tabellenzeile.
       const hoehe = tabellenLabelHoehe(element.label, breite);
+      const kasten = gedreht({ x: element.x + element.padding, y, w: breite, h: hoehe }, element);
       out.push(
         textShape(
           nextId(),
           'Überschrift',
-          element.x + element.padding,
-          y,
-          breite,
-          hoehe,
+          kasten.x,
+          kasten.y,
+          kasten.w,
+          kasten.h,
           [inlineToParagraph(element.label, 'label', { color: paint.muted })],
           { anchor: 't', rotation: element.rotation, opacity: element.opacity },
         ),
@@ -558,7 +602,7 @@ function elementShapes(
   if (TEXT_KINDS.has(element.kind)) {
     const paras = elementParagraphs(element, bg);
     if (paras.length > 0) {
-      const box = textBox(element);
+      const box = gedreht(textBox(element), element);
       out.push(
         textShape(nextId(), element.name ?? element.kind, box.x, box.y, box.w, box.h, paras, {
           anchor: anchorOf(element),
@@ -577,14 +621,23 @@ function elementShapes(
          die Stufe `h3` — 34 statt 24, also 42 % zu groß im selben Quadrat.
       */
       const ziffer = kartenZiffer();
+      const quadrat = gedreht(
+        {
+          x: element.x + element.padding,
+          y: element.y + element.padding + 10,
+          w: ziffer.kante,
+          h: ziffer.kante,
+        },
+        element,
+      );
       out.push(
         textShape(
           nextId(),
           'Schritt',
-          element.x + element.padding,
-          element.y + element.padding + 10,
-          ziffer.kante,
-          ziffer.kante,
+          quadrat.x,
+          quadrat.y,
+          quadrat.w,
+          quadrat.h,
           [
             {
               runs: [
@@ -619,7 +672,21 @@ function elementShapes(
  * Innenrand, läge die Überschrift auf dem Icon.
  */
 function textBox(element: CanvasElement): { x: number; y: number; w: number; h: number } {
-  const pad = Math.max(element.padding, 0);
+  /*
+     Ohne Fläche gibt es keinen Innenabstand.
+
+     `scene.ts` rechnet für `text` und `markdown` `inner = element.fill ===
+     'none' ? 0 : element.padding`, und `nutztInnenabstand()` sagt dasselbe:
+     ein Abstand braucht eine Kante, an der er messbar ist. Hier stand
+     dagegen immer `element.padding` — und beide Arten kommen mit
+     `fill: 'none'` aus der Fabrik. Gemessen an einem Markdown-Element bei
+     x = 100 mit 600 Breite und 40 Abstand: die Folie setzt bei 100 auf 600,
+     die `.pptx` bei 140 auf 520. Also nicht nur verschoben, sondern auch
+     anders umbrochen.
+  */
+  const ohneFlaeche =
+    (element.kind === 'text' || element.kind === 'markdown') && element.fill === 'none';
+  const pad = ohneFlaeche ? 0 : Math.max(element.padding, 0);
   let left = pad;
   let top = pad;
 
@@ -642,8 +709,16 @@ function textBox(element: CanvasElement): { x: number; y: number; w: number; h: 
         break;
     }
   } else if (element.kind === 'badge' && element.icon) {
-    // Das Icon steht vor dem Text; der Rahmen fängt dahinter an.
-    const size = typeScale.labelSmall.size;
+    /*
+       Das Icon steht vor dem Text; der Rahmen fängt dahinter an.
+
+       Die Szene setzt Icon und Text als *eine* mittige Gruppe; ein mittig
+       gesetzter Absatz in diesem Rahmen kommt auf dieselbe Mitte, weil der
+       Innenabstand sich links und rechts weghebt. Vorausgesetzt, das Icon ist
+       gleich breit — hier stand `typeScale.labelSmall.size`, die Szene rechnet
+       mit `abzeichenGroesse()`.
+    */
+    const size = abzeichenGroesse(element);
     left = pad + size * 1.6 + size * 0.6;
   }
 
@@ -653,6 +728,37 @@ function textBox(element: CanvasElement): { x: number; y: number; w: number; h: 
     w: Math.max(24, element.w - left - pad),
     h: Math.max(16, element.h - top - pad),
   };
+}
+
+/**
+ * Ein Kasten innerhalb eines Elements, gedreht wie das Element.
+ *
+ * PowerPoint dreht eine Form um die Mitte *ihres eigenen* Rahmens, die Szene
+ * dreht jedes Element um dessen Mitte (`elementMatrix`). Solange der Textkasten
+ * mit dem Element konzentrisch ist — gleicher Abstand ringsum —, ist das
+ * dasselbe, und für ein schlichtes Text- oder Markdown-Element stimmt es
+ * deshalb. Sobald ein Icon, ein Ziffernquadrat oder eine Tabellenüberschrift
+ * den Kasten nach oben oder zur Seite schiebt, ist es das nicht mehr.
+ *
+ * Gemessen bei 30°: die Ziffer einer Schritt-Karte lag 70 Einheiten neben
+ * ihrem Quadrat, die Überschrift einer Tabelle 33,5, die Überschrift einer
+ * Karte mit Icon 13,5 und der Text eines Abzeichens mit Icon 6,3. Der Kasten
+ * wird deshalb dorthin gelegt, wo ihn PowerPoints eigene Drehung hinbringt —
+ * dieselbe Rechnung wie in `scenenTextShape()` und `jsPdfEcke()`.
+ */
+function gedreht(
+  box: { x: number; y: number; w: number; h: number },
+  element: CanvasElement,
+): { x: number; y: number; w: number; h: number } {
+  if (!element.rotation) return box;
+  const mitte = drehePunkt(
+    box.x + box.w / 2,
+    box.y + box.h / 2,
+    element.rotation,
+    element.x + element.w / 2,
+    element.y + element.h / 2,
+  );
+  return { ...box, x: mitte.x - box.w / 2, y: mitte.y - box.h / 2 };
 }
 
 function anchorOf(element: CanvasElement): 'square' | 't' | 'ctr' | 'b' {
@@ -678,14 +784,33 @@ function elementParagraphs(element: CanvasElement, bg: BackgroundStyle): Paragra
     }
 
     case 'markdown':
+      /*
+         Stufe und Ausrichtung kommen von dort, wo die Szene sie hernimmt.
+
+         Hier stand `baseStyle: 'small'` und gar keine Ausrichtung: ein
+         Markdown-Element war in PowerPoint 13 statt 16 — fast ein Viertel
+         kleiner als auf der Folie — und ein mittig gesetztes stand linksbündig
+         da. Gesehen hat es niemand, weil das einzige Markdown-Element der
+         mitgelieferten Decks aus einer Überschrift und einer Tabelle besteht:
+         beide tragen ihre eigene Stufe, und der Grundstil kommt darin gar
+         nicht vor.
+      */
       return markdownToParagraphs(element.markdown, {
         palette,
-        baseStyle: 'small',
-        scale: 1,
+        align: element.align === 'center' ? 'ctr' : element.align === 'right' ? 'r' : 'l',
       });
 
     case 'badge':
-      return [inlineToParagraph(element.text, 'labelSmall', { color: paint.text, align: 'ctr' })];
+      // Stufe und Größe aus `abzeichenGroesse()`, also aus derselben Rechnung,
+      // nach der die Szene zeichnet: `label` statt `labelSmall`, und gedeckelt
+      // auf 40 % der Höhe.
+      return [
+        inlineToParagraph(element.text, 'label', {
+          color: paint.text,
+          align: 'ctr',
+          size: abzeichenGroesse(element),
+        }),
+      ];
 
     case 'card': {
       // Stufen und Abstände wie in `cardScene()`: Label, dann +6, Titel,
@@ -1201,14 +1326,34 @@ const BULLET_CHAR: Record<Exclude<BulletKind, 'none' | 'number'>, string> = {
   unchecked: '□',
 };
 
+/**
+ * Wie weit ein Absatz eingerückt steht — und wie weit seine Marke davorhängt.
+ *
+ * Eine Rechnung mit zwei Kunden: `paragraphXml()` schreibt sie ins XML,
+ * `absatzHoehe()` braucht sie, um zu wissen, wie breit die Textspalte noch ist.
+ * Zwei Rechnungen für dieselbe Frage laufen auseinander, und man sähe es erst
+ * in der fremden Datei.
+ */
+function absatzEinzug(para: Paragraph): { marL: number; haengend: number } {
+  const size = para.runs[0]?.font.size ?? typeScale.body.size;
+  /*
+     Die Marke hängt genau einen Markenstreifen weit vor dem Text — dieselbe
+     Breite, die der Setzer ihr gibt. Damit steht der Punkt eines Listeneintrags
+     auf `level * Streifen` und sein Text auf `(level + 1) * Streifen`, also
+     dort, wo die Folie ihn zeigt. Hier standen zwei erfundene Zahlen: eine
+     glatte 24 je Ebene und ein Überhang von 1,1 Geviert.
+  */
+  const haengend = para.bullet === 'none' ? 0 : listenEinzug(size);
+  return { marL: para.level * listenEinzug(size) + haengend, haengend };
+}
+
 function paragraphXml(para: Paragraph, opacity?: number): string {
   const size = para.runs[0]?.font.size ?? typeScale.body.size;
-  const indent = para.level * 24 + (para.bullet === 'none' ? 0 : 0);
-  const hanging = para.bullet === 'none' ? 0 : Math.round(size * 1.1);
+  const { marL, haengend: hanging } = absatzEinzug(para);
 
   const props: string[] = [];
   if (para.align !== 'l') props.push(`algn="${para.align}"`);
-  if (indent + hanging > 0) props.push(`marL="${emu(indent + hanging)}"`);
+  if (marL > 0) props.push(`marL="${emu(marL)}"`);
   if (hanging > 0) props.push(`indent="${emu(-hanging)}"`);
 
   const inner: string[] = [];

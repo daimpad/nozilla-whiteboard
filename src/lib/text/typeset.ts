@@ -73,6 +73,29 @@ export type TypesetPrim =
     }
   | { t: 'image'; x: number; y: number; w: number; h: number; src: string; alt: string };
 
+/**
+ * Der Grundstil des Fließtextes, wenn keiner genannt wird.
+ *
+ * Er steht hier und nicht zweimal: der PPTX-Weg baut seine Absätze mit einer
+ * eigenen Rechnung auf und trug dafür `'small'` ein — jedes Markdown-Element
+ * war in PowerPoint 13 statt 16, also fast ein Viertel kleiner als auf der
+ * Folie. Zwei Vorgaben für dieselbe Frage laufen auseinander, und man sieht es
+ * erst in der fremden Datei.
+ */
+export const GRUNDSTIL: TypeStyleName = 'body';
+
+/**
+ * Wie weit ein Listenpunkt seinen Inhalt einrückt.
+ *
+ * Der Setzer stellt seine Marke in einen Streifen von 1,35 Geviert und schreibt
+ * dahinter weiter. Der PPTX-Weg rechnete dafür mit einer glatten 24 — eine
+ * Zahl, die in keiner Leiter der CI steht und die bei jeder anderen Stufe als
+ * `body` neben dem lag, was die Folie zeigt.
+ */
+export function listenEinzug(size: number): number {
+  return size * 1.35;
+}
+
 export interface TypesetResult {
   prims: TypesetPrim[];
   /** Total laid-out height. */
@@ -207,7 +230,7 @@ class Layout {
     this.width = Math.max(1, options.width);
     this.scale = options.scale ?? 1;
     this.align = options.align ?? 'left';
-    this.baseStyle = options.baseStyle ?? 'body';
+    this.baseStyle = options.baseStyle ?? GRUNDSTIL;
     this.originX = options.offsetX ?? 0;
     this.y = options.offsetY ?? 0;
     this.resolveImageSize = options.resolveImageSize;
@@ -394,7 +417,7 @@ class Layout {
       weight: style.weight,
       tracking: style.tracking,
     });
-    const markerWidth = base * 1.35;
+    const markerWidth = listenEinzug(base);
     const lineHeight = base * style.lineHeight;
     const top = this.y;
 

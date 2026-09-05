@@ -58,7 +58,14 @@ import {
   type TypesetPrim,
   type TypesetResult,
 } from '@/lib/text/typeset';
-import type { CanvasElement, CardElement, Deck, Slide, SlideBackground } from '@/model/types';
+import type {
+  BadgeElement,
+  CanvasElement,
+  CardElement,
+  Deck,
+  Slide,
+  SlideBackground,
+} from '@/model/types';
 
 /* -------------------------------------------------------------------------- */
 /* Szenen-Modell                                                               */
@@ -1067,7 +1074,7 @@ export function buildElementPrims(
       emitBody(boxSegs(), true);
 
       const style = typeScale.label;
-      const size = Math.min(style.size, element.h * 0.4);
+      const size = abzeichenGroesse(element);
       const spec = font({
         family: style.family,
         size,
@@ -1370,6 +1377,19 @@ export function kartenZiffer(): { kante: number; schrift: FontSpec } {
 export function kartenTitelGroesse(element: CardElement): number {
   const stufe = typeScale[kartenFelder(element.variant).titel];
   return element.variant === 'stat' ? Math.min(stufe.size, element.h * 0.42) : stufe.size;
+}
+
+/**
+ * Wie groß die Schrift eines Abzeichens wirklich wird.
+ *
+ * Die Stufe ist `label`, und sie wird gedeckelt: ein flaches Abzeichen soll
+ * seine Versalien nicht über die eigene Kante schieben. Der PPTX-Weg schrieb
+ * dagegen `labelSmall` — eine Einheit kleiner, ungedeckelt —, und das traf
+ * jedes Abzeichen beider mitgelieferter Decks: auf der Folie 12, in der Datei
+ * 11.
+ */
+export function abzeichenGroesse(element: BadgeElement): number {
+  return Math.min(typeScale.label.size, element.h * 0.4);
 }
 
 /** Die Maße der Wortmarke bei einer gegebenen Höhe. */

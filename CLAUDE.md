@@ -2380,6 +2380,79 @@ jetzt am fertigen Primitiv, und die Zeile darüber sagt, was die Zahl meint —
 dass eine Linie und eine Codeplatte die angebotene Breite *nehmen* und nicht
 *fordern*.
 
+**Der PPTX-Weg setzte das Markdown-Element in einer anderen Stufe als die
+Folie.** `baseStyle: 'small'` stand dort, wo die Szene den Grundstil `body`
+nimmt: 13 gegen 16, also fast ein Viertel kleiner — und dazu gar keine
+Ausrichtung, ein mittig gesetztes Element stand linksbündig. Gesehen hat es
+niemand, weil das einzige Markdown-Element der mitgelieferten Decks aus einer
+Überschrift und einer Tabelle besteht; beide tragen ihre eigene Stufe, und der
+Grundstil kommt darin nicht vor. Die Vorgabe steht jetzt als `GRUNDSTIL` in
+`typeset.ts`, und beide Wege lesen sie.
+
+**Ein Innenabstand, den nur die Datei kannte.** `scene.ts` rechnet für `text`
+und `markdown` `inner = fill === 'none' ? 0 : padding` — ein Abstand braucht
+eine Kante, an der er messbar ist, und `nutztInnenabstand()` sagt dasselbe.
+`textBox()` im PPTX-Weg nahm dagegen immer den Abstand. Beide Arten kommen mit
+`fill: 'none'` aus der Fabrik, es traf also den Normalfall: gemessen an einem
+Markdown-Element bei x = 100 mit 600 Breite und 40 Abstand setzt die Folie bei
+100 auf 600, die `.pptx` bei 140 auf 520 — nicht nur verschoben, sondern auch
+anders umbrochen.
+
+**Ein Abzeichen, eine Einheit zu klein.** Die Szene setzt es in `label` und
+deckelt auf 40 % der Höhe, damit ein flaches Abzeichen seine Versalien nicht
+über die eigene Kante schiebt; der PPTX-Weg schrieb `labelSmall`, ungedeckelt.
+Das traf **jedes** Abzeichen beider mitgelieferter Decks — auf der Folie 12, in
+der Datei 11 —, und es traf auch den Vorlauf für das Icon, der aus derselben
+Größe gerechnet wird. `abzeichenGroesse()` ist jetzt die eine Rechnung mit drei
+Kunden.
+
+**Ein gedrehter Textrahmen drehte sich um die falsche Mitte.** PowerPoint dreht
+eine Form um die Mitte *ihres eigenen* Rahmens, `elementMatrix()` dreht jedes
+Element um dessen Mitte. Solange der Textkasten mit dem Element konzentrisch
+ist — gleicher Abstand ringsum —, ist das dasselbe, und für ein schlichtes
+Text- oder Markdown-Element stimmte es deshalb. Sobald ein Icon, ein
+Ziffernquadrat oder eine Tabellenüberschrift den Kasten verschiebt, nicht mehr.
+Gemessen bei 30°: die Ziffer einer Schritt-Karte lag 70 Einheiten neben ihrem
+Quadrat, die Überschrift einer Tabelle 33,5, die einer Karte mit Icon 13,5, der
+Text eines Abzeichens mit Icon 6,3.
+
+Der Kasten wird deshalb dorthin gelegt, wo ihn PowerPoints eigene Drehung
+hinbringt — dieselbe Rechnung wie in `scenenTextShape()` und `jsPdfEcke()`, zum
+dritten Mal aus demselben Grund. Geprüft wird an der Stelle, an der der Text
+landet, und nicht am Rahmen: der Inhalt sitzt unverändert im Kasten, der Kasten
+liegt bei 30° woanders, gedreht wird um dessen Mitte. Die erste Fassung der
+Prüfung verglich die Rahmenmitte mit einer Grundlinie und meldete deshalb an
+einem *richtigen* Element eine Abweichung von 204.
+
+**Alle Absätze rutschten über alle Tabellen.** Dass eine Tabelle nicht im
+Textfluss stehen kann, ist eine Eigenschaft des Formats — in PowerPoint ist sie
+ein eigener Rahmen. Dass deshalb der ganze Fließtext nach oben und alle
+Tabellen nach unten sortiert wurden, war keine: bei „Text davor / Tabelle /
+Text danach" stand die Erklärung in der `.pptx` über dem, was sie erklärt.
+Gestapelt wird jetzt in der Reihenfolge des Textes, nach einer mit `wrapRuns()`
+gemessenen Höhe — also mit dem Umbruch des Setzers und nicht mit einer zweiten
+Rechnung.
+
+Und der Zweig mit Tabelle gab gar keinen Anker mit. Fünf der sechs Layouts
+setzen ihren Fließtext mittig; die Folie zeigte den Satz in der Mitte, die
+`.pptx` oben am Satzspiegel. Ausgerichtet wird jetzt der ganze Stapel, über
+`flowOffsetY()` — dieselbe Funktion, mit der die Szene ihn ausrichtet.
+
+**Zwei erfundene Zahlen im Listeneinzug.** `marL` stand auf `level * 24 +
+round(size * 1.1)`; weder die 24 noch die 1,1 stehen in einer Leiter der CI.
+Der Setzer stellt seine Marke in einen Streifen von 1,35 Geviert und schreibt
+dahinter weiter — damit steht der Punkt eines Eintrags auf `level * Streifen`
+und sein Text auf `(level + 1) * Streifen`. `listenEinzug()` ist jetzt die eine
+Rechnung, und geprüft wird nicht gegen die Formel, sondern gegen die Stelle, an
+der das SVG den Text zeigt: 109,6 und 131,2 in beiden Ausgaben.
+
+**Was nachgemessen wurde und in Ordnung ist.** Jeder Zahlenwert des Pakets
+liegt im erlaubten Bereich seines Schemas — Versätze, Ausdehnungen,
+Schriftgrößen, Strichstärken, Spaltenbreiten, Zeilenhöhen, Deckkraft,
+Zeilenabstände, Einzüge —, und zwar für beide mitgelieferten Decks. Die Farbe
+jedes Wortes stimmt zwischen SVG und `.pptx` überein. Und beide Pakete gehen
+durch LibreOffice: sechs plus fünf Seiten, angesehen und richtig.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,
