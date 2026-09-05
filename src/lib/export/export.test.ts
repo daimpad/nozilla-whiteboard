@@ -14,7 +14,14 @@ import { parseDeck } from '@/lib/markdown/deck';
 import { segsBounds, type Seg } from '@/lib/geometry/path';
 import { createElement } from '@/model/factory';
 import type { Deck } from '@/model/types';
-import { buildElementPrims, buildSlideScene, elementPaint, withAlpha } from './scene';
+import {
+  buildElementPrims,
+  buildSlideScene,
+  elementPaint,
+  withAlpha,
+  type ScenePrim,
+} from './scene';
+import { font } from '@/lib/text/measure';
 import { primsToSvgMarkup, sceneToSvg, scenesToContactSheet, escapeXml } from './svg';
 import { inlineImageHrefs } from './images';
 import { splitSubpaths } from './pdf';
@@ -238,12 +245,16 @@ describe('SVG export', () => {
     /*
        Beide Richtungen, und die zweite ist der Grund für die Prüfung: mit
        Produktnamen steht genau eine `<desc>` da, ohne gar keine. Vorher stand
-       dort „Exported from " — eine leere Beschreibung behauptet, es gäbe eine,
+       dort „Erzeugt mit " — eine leere Beschreibung behauptet, es gäbe eine,
        und ist damit schlechter als keine. Dasselbe Argument wie beim leeren
        `descr` eines Alternativtexts.
+
+       Und der Satz steht auf Deutsch. Er ist der einzige, den dieses Werkzeug
+       als *Satz* in eine ausgelieferte Datei schreibt; PDF und PPTX legen nur
+       den Produktnamen in ihre Metadaten.
     */
     const scene = buildSlideScene(deck.slides[0], deck);
-    expect(sceneToSvg(scene)).toContain(`<desc>Exported from ${brand.product}</desc>`);
+    expect(sceneToSvg(scene)).toContain(`<desc>Erzeugt mit ${brand.product}</desc>`);
 
     const vorher = brand.product;
     try {
@@ -294,6 +305,91 @@ describe('SVG export', () => {
   it('is well-formed XML', () => {
     const parsed = new DOMParser().parseFromString(svg, 'image/svg+xml');
     expect(parsed.getElementsByTagName('parsererror')).toHaveLength(0);
+  });
+
+  it('zeichnet keinen Strich unter nichts', () => {
+    /*
+       Die Läufe ohne Text fielen aus den `<tspan>` heraus, aus den Strichen
+       nicht: ein leerer Lauf mit Unterstreichung ergab ein `<rect width="0">`,
+       und ein Primitiv, dessen Läufe alle leer sind, ein `<text></text>` samt
+       Gruppe. Unsichtbar und trotzdem falsch — wer das Markup liest, sucht den
+       Text dazu.
+    */
+    const spec = font({ size: 16 });
+    const leer = primsToSvgMarkup([
+      {
+        t: 'text',
+        x: 10,
+        y: 20,
+        runs: [{ dx: 0, text: '', font: spec, color: '#000', width: 0, underline: true }],
+      },
+    ]);
+    expect(leer).toBe('');
+
+    /*
+       Und der Fall, auf den es ankommt: der leere Lauf steht *neben* einem mit
+       Text. Der frühe Ausstieg oben fängt ihn nicht — die erste Fassung dieser
+       Prüfung führte nur den ganz leeren Fall und blieb bei der Gegenprobe
+       grün.
+    */
+    const gemischt = primsToSvgMarkup([
+      {
+        t: 'text',
+        x: 10,
+        y: 20,
+        runs: [
+          { dx: 0, text: '', font: spec, color: '#000', width: 0, underline: true },
+          { dx: 0, text: 'Hallo', font: spec, color: '#000', width: 40 },
+        ],
+      },
+    ]);
+    expect(gemischt).toContain('Hallo');
+    expect(gemischt).not.toContain('<rect ');
+
+    // Die Gegenrichtung: ein Lauf *mit* Text bekommt seinen Strich.
+    const voll = primsToSvgMarkup([
+      {
+        t: 'text',
+        x: 10,
+        y: 20,
+        runs: [{ dx: 0, text: 'Hallo', font: spec, color: '#000', width: 40, underline: true }],
+      },
+    ]);
+    expect(voll).toContain('<rect ');
+    expect(voll).toContain('Hallo');
+  });
+
+  it('schreibt eine volle Deckkraft nirgends hin', () => {
+    // Zwei Regeln für dieselbe Frage: `paintAttrs()` ließ `opacity` bei 1 weg,
+    // das Bild schrieb es hin.
+    const voll = primsToSvgMarkup([
+      { t: 'image', x: 0, y: 0, w: 10, h: 10, href: 'a.png', opacity: 1 },
+      { t: 'rect', x: 0, y: 0, w: 10, h: 10, fill: '#000', opacity: 1 },
+    ]);
+    expect(voll).not.toContain('opacity');
+
+    // Und die Gegenrichtung: eine halbe Deckkraft steht an beiden.
+    const halb = primsToSvgMarkup([
+      { t: 'image', x: 0, y: 0, w: 10, h: 10, href: 'a.png', opacity: 0.5 },
+      { t: 'rect', x: 0, y: 0, w: 10, h: 10, fill: '#000', opacity: 0.5 },
+    ]);
+    expect(halb.match(/opacity="0.5"/g)).toHaveLength(2);
+  });
+
+  it('verschluckt keine unbekannte Primitivart', () => {
+    /*
+       Hier stand `return ''`: eine sechste Primitivart wäre im SVG ersatzlos
+       verschwunden — auf der Fläche und in der Datei, denn beide gehen durch
+       dieselbe Funktion. Genau die Bauart, die dieses Repo zweimal teuer
+       bezahlt hat.
+
+       Die Zuweisung an `never` bricht schon `tsc` ab; hier wird geprüft, dass
+       die Zeile darunter *laut* ist und nicht still — falls jemand am
+       Compiler vorbeikommt.
+    */
+    expect(() =>
+      primsToSvgMarkup([{ t: 'nebel', x: 0, y: 0 } as unknown as ScenePrim]),
+    ).toThrowError(/Primitivart/);
   });
 
   it('stacks a whole deck into one contact sheet', () => {
@@ -429,6 +525,111 @@ describe('asset collection', () => {
     const out = inlineImageHrefs(svg, map as never);
     expect(out).toContain('data:image/png;base64,AAA');
     expect(out).not.toContain('claude');
+  });
+
+  /** Ein Eintrag der Bildkarte, so knapp wie die Prüfung ihn braucht. */
+  const eintrag = (src: string, dataUrl: string) =>
+    [src, { src, dataUrl, format: 'PNG', w: 10, h: 10 }] as const;
+
+  it('ersetzt den Verweis und nicht den Text, der ihn zeigt', () => {
+    /*
+       Ersetzt wurde mit `split().join()` über das ganze Markup. Eine Folie,
+       die zeigt, *wie* man ein Bild einbindet — ein Codeblock mit
+       `![Alt](logo.png)` —, trug danach ein bis zwei Megabyte Base64 als
+       Fließtext. Und ein Alternativtext, der den Dateinamen nennt, ebenso.
+    */
+    const deck = deckOf(
+      [
+        'So bindet man ein Bild ein:',
+        '',
+        '```',
+        '![Alt](logo.png)',
+        '```',
+        '',
+        '![Alt](logo.png)',
+      ].join('\n'),
+    );
+    const svg = sceneToSvg(buildSlideScene(deck.slides[0], deck));
+    const out = inlineImageHrefs(
+      svg,
+      new Map([eintrag('logo.png', 'data:image/png;base64,AAAA')]) as never,
+    );
+
+    const laeufe = [...out.matchAll(/<tspan[^>]*>([^<]*)<\/tspan>/g)].map((treffer) => treffer[1]);
+    expect(laeufe.some((lauf) => lauf.includes('![Alt](logo.png)'))).toBe(true);
+    expect(laeufe.some((lauf) => lauf.includes('data:'))).toBe(false);
+    // Die Gegenrichtung: der Verweis selbst wird sehr wohl ersetzt.
+    expect(out).toContain('href="data:image/png;base64,AAAA"');
+  });
+
+  it('ersetzt den ganzen Verweis und nicht sein Ende', () => {
+    /*
+       Sind `logo.png` und `bilder/logo.png` beide im Deck, wurde aus dem
+       zweiten `bilder/data:image/png;base64,…`: der Verweis tot, seine eigene
+       Daten-URL nie eingesetzt, und im PNG fehlte das Bild — ohne ein Wort,
+       denn geladen war es ja.
+    */
+    const svg = '<svg><image href="logo.png"/><image href="bilder/logo.png"/></svg>';
+    const out = inlineImageHrefs(
+      svg,
+      new Map([
+        eintrag('logo.png', 'data:image/png;base64,AAAA'),
+        eintrag('bilder/logo.png', 'data:image/png;base64,BBBB'),
+      ]) as never,
+    );
+    expect(out.match(/href="[^"]*"/g)).toEqual([
+      'href="data:image/png;base64,AAAA"',
+      'href="data:image/png;base64,BBBB"',
+    ]);
+  });
+
+  it('maskiert die Daten-URL wie jeden anderen Attributwert', () => {
+    // Dass eine gerasterte URL nur Base64 enthält, ist heute wahr und wäre
+    // morgen eine Annahme über eine fremde Funktion.
+    const out = inlineImageHrefs(
+      '<svg><image href="a.svg"/></svg>',
+      new Map([eintrag('a.svg', 'data:image/svg+xml;utf8,<svg a="b"/>')]) as never,
+    );
+    expect(out).not.toContain('href="data:image/svg+xml;utf8,<svg');
+    expect(
+      new DOMParser().parseFromString(out, 'image/svg+xml').querySelector('parsererror'),
+    ).toBeNull();
+  });
+
+  it('lässt keinen Verweis stehen, den der PNG-Weg nicht holen kann', () => {
+    /*
+       Der PNG-Weg legt das SVG über eine Blob-URL in ein `<img>`, und ein so
+       geladenes Dokument darf **keine** externen Ressourcen holen. Was nach
+       dem Einbetten noch relativ dasteht, fehlt im Bild — ersatzlos und ohne
+       Meldung, denn geladen wurde es ja.
+    */
+    const deck = deckOf(
+      [
+        '<!-- nzl',
+        'layout: default',
+        'elements:',
+        '  - kind: image',
+        '    x: 10',
+        '    y: 10',
+        '    w: 100',
+        '    h: 100',
+        '    src: bilder/logo.png',
+        '-->',
+        '',
+        '![Alt](logo.png)',
+      ].join('\n'),
+    );
+    const svg = sceneToSvg(buildSlideScene(deck.slides[0], deck));
+    const out = inlineImageHrefs(
+      svg,
+      new Map([
+        eintrag('logo.png', 'data:image/png;base64,AAAA'),
+        eintrag('bilder/logo.png', 'data:image/png;base64,BBBB'),
+      ]) as never,
+    );
+    const verweise = [...out.matchAll(/<image[^>]*\shref="([^"]*)"/g)].map((t) => t[1]);
+    expect(verweise.length).toBe(2);
+    expect(verweise.filter((v) => !v.startsWith('data:'))).toEqual([]);
   });
 });
 

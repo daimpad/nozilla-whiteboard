@@ -42,13 +42,19 @@ export function sceneToSvg(scene: Scene, options: SvgOptions = {}): string {
       `role="img" aria-label="${escapeXml(scene.title)}">`,
     `${pad}<title>${escapeXml(scene.title)}</title>`,
     /*
-       Ohne Produktnamen fällt die Zeile weg, statt „Exported from " zu
+       Ohne Produktnamen fällt die Zeile weg, statt „Erzeugt mit " zu
        schreiben. Dasselbe Argument wie beim leeren `descr` eines
        Alternativtexts: eine leere Beschreibung behauptet, es gäbe eine, und ist
        damit schlechter als keine. Der Generator warnt beim Anlegen; das hier
        ist die andere Hälfte, und sie liegt außerhalb seiner Reichweite.
+
+       Und der Satz steht auf Deutsch. Er ist der einzige, den dieses Werkzeug
+       in eine ausgelieferte Datei schreibt — PDF und PPTX legen nur den
+       Produktnamen in ihre Metadaten —, und wer eine `.svg` in einem
+       Zeichenprogramm öffnet, liest ihn dort. Eine Oberfläche auf Deutsch und
+       eine Datei auf Englisch sind zwei Sprachen für dieselbe Sache.
     */
-    brand.product.trim() ? `${pad}<desc>Exported from ${escapeXml(brand.product)}</desc>` : '',
+    brand.product.trim() ? `${pad}<desc>Erzeugt mit ${escapeXml(brand.product)}</desc>` : '',
     fontStyleBlock(options.fontCss, pad),
     body,
     '</svg>',
@@ -139,7 +145,14 @@ function primToSvg(prim: ScenePrim): string {
       const transform = prim.rotate
         ? ` transform="rotate(${round(prim.rotate)} ${round(prim.x)} ${round(prim.y)})"`
         : '';
-      const opacity = prim.opacity !== undefined ? ` opacity="${round(prim.opacity, 3)}"` : '';
+      // Dieselbe Bedingung wie in `paintAttrs()`: eine volle Deckkraft ist die
+      // Vorgabe und gehört nicht ins Markup. Hier stand nur `!== undefined`,
+      // und damit trug jedes Bild ein `opacity="1"`, während kein Rechteck es
+      // trug — zwei Regeln für dieselbe Frage.
+      const opacity =
+        prim.opacity !== undefined && prim.opacity < 1
+          ? ` opacity="${round(prim.opacity, 3)}"`
+          : '';
       const kopf =
         `<image x="${round(prim.x)}" y="${round(prim.y)}" width="${round(prim.w)}" ` +
         `height="${round(prim.h)}" href="${escapeXml(prim.href)}" ` +
@@ -156,8 +169,22 @@ function primToSvg(prim: ScenePrim): string {
       return prim.alt ? `${kopf}><title>${escapeXml(prim.alt)}</title></image>` : `${kopf}/>`;
     }
 
-    default:
-      return '';
+    default: {
+      /*
+         Kein stiller Verlust.
+
+         Hier stand `return ''`, und damit wäre eine sechste Primitivart im SVG
+         ersatzlos verschwunden — auf der Fläche und in der Datei, denn beide
+         gehen durch diese Funktion. Genau die Bauart, die dieses Repo zweimal
+         teuer bezahlt hat: „Eine unbekannte Elementart war ein stiller
+         Löschbefehl" und der unlesbare `nzl`-Block.
+
+         Die Zuweisung an `never` bricht schon `tsc` ab; der Wurf darunter ist
+         das Eingeständnis, dass diese Zeile unerreichbar sein soll.
+      */
+      const unbekannt: never = prim;
+      throw new Error(`Unbekannte Primitivart im SVG: ${JSON.stringify(unbekannt)}`);
+    }
   }
 }
 
@@ -184,19 +211,27 @@ function paintAttrs(
 }
 
 function textToSvg(prim: Extract<ScenePrim, { t: 'text' }>): string {
-  if (prim.runs.length === 0) return '';
+  /*
+     Gefiltert wird **einmal**, und beide Hälften lesen dasselbe Ergebnis.
+
+     Die Läufe ohne Text fielen aus den `<tspan>` heraus, aus den Strichen
+     nicht: ein leerer Lauf mit Unterstreichung ergab ein `<rect width="0">`,
+     und ein Textprimitiv, dessen Läufe alle leer sind, ein `<text></text>`
+     samt Gruppe. Beides ist unsichtbar und trotzdem falsch — ein Strich unter
+     nichts ist kein Strich, und wer das Markup liest, sucht den Text dazu.
+  */
+  const sichtbar = prim.runs.filter((run) => run.text.length > 0);
+  if (sichtbar.length === 0) return '';
 
   const transform = prim.rotate
     ? ` transform="rotate(${round(prim.rotate)} ${round(prim.x)} ${round(prim.y)})"`
     : '';
-  const opacity = prim.opacity !== undefined ? ` opacity="${round(prim.opacity, 3)}"` : '';
+  const opacity =
+    prim.opacity !== undefined && prim.opacity < 1 ? ` opacity="${round(prim.opacity, 3)}"` : '';
 
-  const tspans = prim.runs
-    .filter((run) => run.text.length > 0)
-    .map((run) => runToTspan(run, prim.x, prim.y))
-    .join('');
+  const tspans = sichtbar.map((run) => runToTspan(run, prim.x, prim.y)).join('');
 
-  const decorations = prim.runs
+  const decorations = sichtbar
     .filter((run) => run.underline || run.strike)
     .map((run) => decorationRect(run, prim.x, prim.y))
     .join('');
