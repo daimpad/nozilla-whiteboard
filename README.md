@@ -345,8 +345,9 @@ bleibt; `⌘1`, `⌘2` und `⌘3` tun dasselbe. Die Folie wächst von allein mit
 sie sich selbst misst. Was offen steht, bleibt im Browser und steht in keiner
 Datei: es gehört dem Arbeitsplatz, nicht dem Deck.
 
-**Suchen mit `⌘F`** — über den Fließtext, die Notizen und jedes Textfeld jedes
-Elements, quer durchs ganze Deck. Ein Treffer nennt die Folie und den
+**Suchen mit `⌘F`** oder über den Lupenknopf in der Kopfleiste — über den
+Fließtext, die Notizen und jedes Textfeld jedes Elements, quer durchs ganze
+Deck. Ein Treffer nennt die Folie und den
 Ausschnitt drumherum, ein Klick bringt einen hin und wählt das Element aus.
 Kennungen, Zeichennamen und Layoutwerte bleiben draußen: eine Suche, die alles
 durchkämmt, findet auf jede Frage etwas und damit nichts.
@@ -483,43 +484,71 @@ Drei Bausteine machen das möglich:
 theme.config.ts               Die CI. Eine Datei. Alles liest von hier.
 CLAUDE.md                     Arbeitsanweisung — Regeln und bekannte Fallen
 PROMPT.md                     Der Deck-Prompt, erklärt
-scripts/sync-ci.mjs           Holt Schriften, Marke und Icons aus dem CI-Repo
+index.html · ci.html          Zwei Einstiege — das Werkzeug und der Generator
+public/fonts/                 WOFF2 für den Bildschirm, TTF für den Export
+scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
+          smoke.mjs           Der Rauchtest: 67 Handgriffe gegen das Bauwerk
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set (554 Icons)
               icons.ts        Das Set des gültigen Erscheinungsbilds
-              *.generated.ts  Erzeugt — nicht von Hand ändern
               presets.ts      Die Bausteine, die die Bibliothek anbietet
+              *.generated.ts  Erzeugt — nicht von Hand ändern
   theme/      brandTheme.ts   Was ein Erscheinungsbild ausmacht — und was nicht
               runtime.ts      Welches gerade gilt (lebendige Bindungen)
+              folienformat.ts Auf welchem Blatt dieses Deck liegt (ebenso)
+              surface.ts      Hell oder dunkel — die Erscheinung des Werkzeugs
+              fonts.ts        Die Schnitte anfordern, bevor gemessen wird
               index.ts        Die Fassade über CI und Laufzeit
   themes/     index.ts        Hier kommen die eigenen Erscheinungsbilder an
               musterkunde.ts  Die Vorlage: jede wechselbare Rolle einmal belegt
   ci/         main.tsx        Der CI-Generator — zweite Seite, eigener Einstieg
+              CiGenerator.tsx Der Wizard: acht Schritte, Vorschau, Prüfliste
               entwurf.ts      Wonach gefragt wird; alles andere wird gerechnet
+              prompt.ts       Das Lastenheft für ein Sprachmodell
+              ruecklauf.ts    Dessen Antwort lesen und jede Korrektur nennen
               pruefung.ts     Jede Regel, die eine Designdatei bestehen muss
               emitter.ts      Entwurf → src/themes/<id>.ts
               Vorschau.tsx    Eine echte Folie, über die echte Zeichenstrecke
+  decks/      welcome.md      nozilla — jedes Layout, jede Elementart
+              musterkunde.md  Ein Deck unter fremder Marke, als Beleg
   model/      types.ts        Deck / Folie / Element
               factory.ts      Der einzige Weg, auf dem ein Element entsteht
   lib/
     markdown/ deck.ts         Markdown ⇄ Deck (das Dateiformat)
+              render.ts       Markdown → HTML und Token (für den Bildschirm)
     geometry/ path.ts         Segmente, Matrizen, Pfad-Parser (inkl. Bögen)
               shapes.ts       CI-Formen und Verbinder
               snap.ts         Raster, Hilfslinien, Größenänderung
+    layout/   slideLayout.ts  Wo der Fließtext sitzt und wo eingesetzt wird
     text/     measure.ts      Schriftmaße (+ deterministischer Ersatz für Tests)
               typeset.ts      Markdown → gesetzter Text
               truetype.ts     Zeichen → Umriss (glyf, cmap, composite)
     export/   scene.ts        Folie → Szene  ◄── die Drehscheibe
               svg.ts · pdf.ts Szene → Datei
+              png.ts          Eine Folie als Bild, über das SVG
+              glyphCover.ts   Welcher Schnitt ein Zeichen wirklich zeichnet
               fontFiles.ts    Schnitte beschaffen und kodieren
               outline.ts      Textprimitiven → Pfadprimitiven
+              images.ts       Jedes Bild einmal laden, samt seinen Maßen
+              download.ts     Die Datei aushändigen — Griff oder Download
               pptx.ts         Deck → PowerPoint (Geometrie aus der Szene,
                               Text aus dem Modell — deshalb bearbeitbar)
               pptxText.ts     Markdown → PowerPoint-Absätze
               pptxParts.ts    Master, Layout, Theme
               zip.ts          ZIP-Schreiber (eine .pptx ist ein ZIP)
     prompt/   buildPrompt.ts  Der Prompt, aus dem laufenden Schema gebaut
+    chart.ts · table.ts       Zahlen und Zellen lesen (kein eigener Zeichner)
+    overflow.ts               Was über seinen Kasten hinausläuft
+    search.ts                 Suchen und ersetzen über das ganze Deck
+    labels.ts                 Die deutschen Beschriftungen des Dateiformats
+    contrast.ts               Ob eine Farbe auf einer anderen lesbar ist
+    presenterChannel.ts       Was die beiden Vortragsfenster einander sagen
+  hooks/      useKeyboardShortcuts.ts  Die Tastatur des ganzen Fensters
+              useFonts · useTheme · useFolienformat · useImageSizes
+                              Die Zähler, an denen ein Merker verfällt
   state/      deckStore.ts    Zustand, Aktionen, Verlauf
+              persistence.ts  Öffnen, Sichern, Selbstsicherung, Rückfragen
+              workspace.ts    Welche Leisten offen stehen
   components/ canvas · panels · chrome · present · ui
 ```
 
@@ -648,22 +677,31 @@ WOFF2 kann keiner von beiden lesen.
 
 ## Tasten
 
-|                |                                                           |
-| -------------- | --------------------------------------------------------- |
-| `→` `←` `Leer` | Folie vor / zurück (in der Präsentation: Einblendschritt) |
-| Pfeiltasten    | Auswahl um eine Rasterstufe schieben (`⇧` = fünf)         |
-| `⌘D` / `⌫`     | Duplizieren / löschen                                     |
-| `⌘]` `⌘[`      | Nach vorn / nach hinten (`⇧` = ganz)                      |
-| `⌘A` / `Esc`   | Alles wählen / Auswahl aufheben                           |
-| `⌘Z` `⇧⌘Z`     | Rückgängig / wiederholen                                  |
-| `⌘O` `⌘S`      | Markdown öffnen / sichern                                 |
-| `⌘1` `⌘2` `⌘3` | Bausteine / Filmstreifen / Inspektor zu- und aufklappen   |
-| `⌘K`           | Übersicht                                                 |
-| `P` / `Esc`    | Präsentieren / zurück                                     |
-| `N` / `F`      | Notizen / Vollbild (während der Präsentation)             |
-| `G`            | Raster an/aus                                             |
+|                 |                                                           |
+| --------------- | --------------------------------------------------------- |
+| `→` `←` `Leer`  | Folie vor / zurück (in der Präsentation: Einblendschritt) |
+| `Pos1` `Ende`   | Erste / letzte Folie                                      |
+| Pfeiltasten     | Auswahl um eine Rasterstufe schieben (`⇧` = fünf)         |
+| `⌘D` / `⌫`      | Duplizieren / löschen                                     |
+| `⌘]` `⌘[`       | Nach vorn / nach hinten (`⇧` = ganz)                      |
+| `⌘G` / `⇧⌘G`    | Gruppieren / auflösen                                     |
+| `⌘A` / `Esc`    | Alles wählen / Auswahl aufheben                           |
+| `⌘Z` `⇧⌘Z`      | Rückgängig / wiederholen                                  |
+| `⌘O` `⌘S` `⌘⇧N` | Markdown öffnen / sichern / neues Deck                    |
+| `⌘F`            | Im Deck suchen und ersetzen                               |
+| `⌘1` `⌘2` `⌘3`  | Bausteine / Filmstreifen / Inspektor zu- und aufklappen   |
+| `⌘K`            | Übersicht                                                 |
+| `N` / `G`       | Folie anlegen / Raster an und aus                         |
+| `P` / `Esc`     | Präsentieren / zurück                                     |
+| `N` / `F`       | Notizen / Vollbild (während der Präsentation)             |
 
-Während du in einem Feld tippst, sind alle Tasten wirkungslos.
+Während du in einem Feld tippst, sind die Tasten stumm — **bis auf sechs**,
+und die mit Absicht: `⌘S`, `⌘O`, `⌘⇧N`, `⌘K`, `⌘F` und die drei Leisten.
+Wer im Notizfeld steht und `⌘F` drückt, meint das Deck und nicht das Feld.
+`Esc` und `⌘Z` gehören dabei weiter dem Feld.
+
+Und die Leertaste gehört dem Knopf, auf dem der Fokus steht: wer ohne Maus
+arbeitet, drückt damit den Knopf und blättert nicht weiter.
 
 ---
 

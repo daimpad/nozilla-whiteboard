@@ -113,29 +113,39 @@ theme.config.ts               Die CI. Eine Datei. Alles liest von hier.
 CLAUDE.md                     Diese Datei
 README.md                     Für Menschen, die das Werkzeug benutzen
 PROMPT.md                     Der Deck-Prompt, erklärt
-scripts/sync-ci.mjs           Holt Schriften, Marke und Icons aus dem CI-Repo
+index.html · ci.html          Zwei Einstiege — das Werkzeug und der Generator
+public/fonts/                 WOFF2 für den Bildschirm, TTF für den Export
+scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
+          smoke.mjs           Der Rauchtest: 67 Handgriffe gegen das Bauwerk
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set
               icons.ts        Das Set des gültigen Erscheinungsbilds
+              presets.ts      Die Bausteine, die die Bibliothek anbietet
               *.generated.ts  ERZEUGT — nicht von Hand ändern
   theme/      brandTheme.ts   Was ein Erscheinungsbild ausmacht — und was nicht
               runtime.ts      Welches gerade gilt (lebendige Bindungen)
               folienformat.ts Auf welchem Blatt dieses Deck liegt (ebenso)
               surface.ts      Hell oder dunkel — die Erscheinung des Werkzeugs
-              index.ts        Die Fassade: Inhalt aus der Laufzeit, Werkzeug aus
-                              der Konfiguration
+              fonts.ts        Die Schnitte anfordern und den Zähler hochzählen
+              wordmark.ts     Eine Wortmarke aus einem SVG lesen
+              index.ts        Die Fassade: Inhalt aus der Laufzeit,
+                              Werkzeug aus der Konfiguration
   themes/     index.ts        Hier kommen die eigenen Erscheinungsbilder an
               musterkunde.ts  Die Vorlage: jede wechselbare Rolle einmal belegt
   ci/         main.tsx        Der CI-Generator — zweite Seite, eigener Einstieg
+              CiGenerator.tsx Der Wizard: acht Schritte, Vorschau, Prüfliste
+              Anfang.tsx      Woher ein Entwurf kommt — leer, Datei, Rücklauf
               entwurf.ts      Wonach gefragt wird; alles andere wird gerechnet
               texte.ts        Wofür jede Rolle da ist — Formular *und* Prompt
               schritte.tsx    Die acht Schritte und ihre Felder
+              felder.tsx      Die Feldarten, aus denen ein Schritt besteht
               prompt.ts       Das Lastenheft für ein Sprachmodell
-              ruecklauf.ts    Dessen Antwort zurücklesen — und jede Korrektur nennen
-              sitzung.ts      Der Entwurf über ein ⌘R hinweg (eigener Schlüssel)
+              ruecklauf.ts    Dessen Antwort lesen und jede Korrektur nennen
+              sitzung.ts      Der Entwurf über ein ⌘R hinweg (eigener Griff)
               farbwert.ts     rgb(), Kurzform, fehlende Raute → #RRGGBB
               pruefung.ts     Jede Regel, die eine Designdatei bestehen muss
               emitter.ts      Entwurf → src/themes/<id>.ts
+              probedeck.ts    Die Folie, an der ein Entwurf beurteilt wird
               Vorschau.tsx    Eine echte Folie, über die echte Zeichenstrecke
   decks/      index.ts        Die mitgelieferten Decks
               welcome.md      nozilla — jedes Layout, jede Elementart
@@ -144,19 +154,42 @@ src/
               factory.ts      Der einzige Weg, auf dem ein Element entsteht
   lib/
     markdown/ deck.ts         Markdown ⇄ Deck (das Dateiformat)
+              render.ts       Markdown → HTML und Token (für den Bildschirm)
     geometry/ path.ts         Segmente, Matrizen, Pfad-Parser (inkl. Bögen)
+              shapes.ts       Die Formen der CI und der Verbinder
+              snap.ts         Raster, Hilfslinien, Größenänderung, Klemmen
+    layout/   slideLayout.ts  Wo der Fließtext sitzt und wo eingesetzt wird
     text/     measure.ts      Schriftmaße (+ Ersatz für Tests ohne Canvas)
               typeset.ts      Markdown → gesetzter Text
               truetype.ts     Zeichen → Umriss (glyf, cmap, composite)
     export/   scene.ts        Folie → Szene  ◄── die Drehscheibe
               glyphCover.ts   Welcher Schnitt ein Zeichen wirklich zeichnet
+              outline.ts      Textprimitive → Pfadprimitive
               svg.ts pdf.ts   Szene → Datei
-              png.ts          Szene → Bild (über das SVG, mit Umrissen)
+              png.ts raster.ts  Szene → Bild (über das SVG, mit Umrissen)
               pptx*.ts zip.ts Szene + Modell → PowerPoint
+              images.ts       Jedes Bild einmal laden, samt seinen Maßen
+              fontFiles.ts    Schnitte beschaffen und einbetten
+              download.ts     Die Datei aushändigen — Griff oder Download
+              index.ts        Was das Export-Menü ruft
+    prompt/   buildPrompt.ts  Der Deck-Prompt, aus dem laufenden Schema gebaut
+              zaun.ts         Einen Codezaun abnehmen — zwei Leser, eine Regel
     chart.ts table.ts         Zahlen und Zellen lesen (kein eigener Zeichner)
+    overflow.ts               Was über seinen Kasten hinausläuft
+    search.ts                 Suchen und ersetzen über das ganze Deck
+    labels.ts                 Die deutschen Beschriftungen des Dateiformats
+    contrast.ts               Ob eine Farbe auf einer anderen lesbar ist
+    imageElement.ts           Ein eingesetztes Bild auf sein Verhältnis bringen
+    clipboard.ts              Was aus der Zwischenablage ein Element wird
     presenterChannel.ts       Was die beiden Vortragsfenster einander sagen
+  hooks/      useKeyboardShortcuts.ts  Die Tastatur des ganzen Fensters
+              useFonts.ts · useTheme.ts · useFolienformat.ts · useImageSizes.ts
+                              Die Zähler, an denen ein Merker verfällt
+              useClipboard.ts · usePresenterChannel.ts · useElementSize.ts
+              useSurface.ts · useDeckTheme.ts
   state/      deckStore.ts    Zustand, Aktionen, Verlauf
-              workspace.ts    Welche Leisten offen stehen (gehört dem Arbeitsplatz)
+              persistence.ts  Öffnen, Sichern, Selbstsicherung, darfErsetzen()
+              workspace.ts    Welche Leisten offen stehen — dem Arbeitsplatz
   components/ canvas · panels · chrome · present · ui
 ```
 
@@ -231,6 +264,27 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
 
 Wenn du eine Ausgabe änderst, sieh sie dir an. Nicht die Zusicherung — das
 Bild.
+
+### Was noch nie gegengeprüft wurde
+
+Die Liste darunter ist aus achtundvierzig Runden entstanden, und jede Runde
+hat sich eine Datei vorgenommen und gegen ihr *Ergebnis* gemessen. Was dabei
+noch nicht an der Reihe war, steht hier — nicht als Vorwurf, sondern damit die
+nächste Runde nicht raten muss. „Ohne eigene Prüfdatei" heißt dabei nicht
+ungeprüft: die meisten werden über die Ausgabewege mitgenommen. Es heißt, dass
+keine Zusicherung je *auf sie* geschrieben wurde.
+
+| Bereich | Lage |
+| --- | --- |
+| `src/ci/` unter `CiGenerator.tsx` — `ruecklauf.ts`, `pruefung.ts`, `emitter.ts`, `schritte.tsx`, `entwurf.ts`, `sitzung.ts`, `prompt.ts` | rund 4.100 Zeilen, zwei Prüfdateien; der jüngste Code des Projekts |
+| `scripts/smoke.mjs` | der Wächter über allen anderen, nie selbst Gegenstand |
+| `theme.config.ts` und `src/theme/` | die CI und die lebendigen Bindungen; `fonts.ts` ohne eigene Prüfung |
+| Kopfleiste und Dialoge — `TopBar.tsx`, `PromptStudio.tsx`, `SearchPanel.tsx`, `SettingsMenu.tsx`, `Overview.tsx`, `SlideRail.tsx` | keine eigene Prüfdatei; Runde 48 hat nur die Tastenseite angefasst |
+| `scripts/sync-ci.mjs` | woher die CI kommt |
+| `assets/presets.ts` und `AssetSidebar.tsx` | jeder Baustein ist eine Zusage über das, was auf der Folie landet |
+| Vortragsweg — `presenterChannel.ts`, `PresentView.tsx`, `PresenterView.tsx` | zwei Fenster, ein Kanal, ein Einstieg ohne Store |
+| `lib/geometry/shapes.ts` | alles, was keine Ikone ist, wird von hier gezeichnet — **gar keine Prüfdatei** |
+| `lib/text/measure.ts`, `lib/markdown/render.ts` | ebenfalls ohne eigene Prüfdatei |
 
 ---
 
