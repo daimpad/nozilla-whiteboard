@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { chartScale, parseChartData } from './chart';
+import { chartScale, liesChart, parseChartData } from './chart';
+import { backgroundStyle, buildElementPrims } from '@/lib/export/scene';
+import { primsToSvgMarkup } from '@/lib/export/svg';
+import { createElement } from '@/model/factory';
 
 describe('die Zahlen eines Diagramms', () => {
   it('liest Beschriftung und Wert je Zeile', () => {
@@ -82,5 +85,99 @@ describe('deutsche Tausenderpunkte', () => {
     // „3.5" ist drei Komma fünf, und raten wäre hier schlimmer als lesen.
     expect(parseChartData('Nord\t3.5')[0].value).toBe(3.5);
     expect(parseChartData('Nord\t1.240')[0].value).toBe(1.24);
+  });
+});
+
+/*
+   Die Zahl wird gelesen, nicht herausgeschnitten.
+
+   `zahlAus` warf früher alles weg, was keine Ziffer, kein Komma, kein Punkt
+   und kein Minus war (`replace(/[^\d,.-]/g, '')`) — und das ist etwas anderes
+   als lesen: es macht aus jeder Zelle irgendeine Zahl. Geprüft wird deshalb
+   bis ins fertige SVG, denn dort steht sie am Balken.
+*/
+describe('eine Zelle, in der keine Zahl steht', () => {
+  it('erfindet keine aus dem, was danebensteht', () => {
+    // Gemessen: „1e3" wurde 13, und „1,23E+09" — die Schreibweise, in der eine
+    // Tabellenkalkulation große Zahlen ausgibt — wurde 1,23.
+    expect(parseChartData('Nord\t1e3')).toEqual([]);
+    expect(parseChartData('Nord\t1,23E+09')).toEqual([]);
+    // Zwei Zahlen in einer Zelle sind keine Zahl.
+    expect(parseChartData('Nord\t12 - 15')).toEqual([]);
+  });
+
+  it('macht aus einem Bindestrich im Namen kein Vorzeichen', () => {
+    /*
+       Ein einzelnes Leerzeichen trennt nicht, „Nord-West 12" ist also *eine*
+       Zelle. Der Bindestrich blieb beim Wegwerfen stehen und wurde zum Minus:
+       der Balken zeigte nach unten.
+    */
+    expect(parseChartData('Nord-West 12')[0].value).toBe(12);
+    // Und die Gegenrichtung: ein Minus, das wirklich eines ist, bleibt.
+    expect(parseChartData('Nord\t-12')[0].value).toBe(-12);
+  });
+
+  it('liest eine mit Komma getrennte Zeile nicht als Bruchteil', () => {
+    // „Region,12" wurde 0,12 — ein Diagramm aus lauter Nullen, ohne ein Wort.
+    // Das Komma trennt hier nicht (es ist das deutsche Dezimalzeichen), die
+    // Beschriftung bleibt deshalb leer; die Zahl muss trotzdem stimmen.
+    expect(parseChartData('Region,12')[0].value).toBe(12);
+  });
+
+  it('lässt jeden Zierrat gelten, der keine Ziffer enthält', () => {
+    // Die Gegenrichtung zu allem darüber: was vorher schon ging, geht weiter.
+    const wert = (quelle: string) => parseChartData(`Nord\t${quelle}`)[0]?.value;
+    expect(wert('1.240,5 €')).toBe(1240.5);
+    expect(wert('86 %')).toBe(86);
+    expect(wert('€ 1.240')).toBe(1.24);
+    expect(wert('1 234 567')).toBe(1234567);
+    expect(wert("1'234'567")).toBe(1234567);
+    expect(wert('(12)')).toBe(12);
+  });
+
+  it('nennt jede Zeile, die nichts hergab', () => {
+    /*
+       Der eigentliche Befund: eine Zeile ohne Zahl fiel wortlos heraus, die
+       Reihe hatte einen Balken weniger, und wer nicht nachzählte, merkte es
+       nie. Dieselbe Stille wie beim leeren `catch` der Selbstsicherung.
+    */
+    const lese = liesChart('Nord\t12\nSued\tkeine Angabe\n\nWest\t1e3');
+    expect(lese.punkte.map((p) => p.label)).toEqual(['Nord']);
+    expect(lese.ungelesen).toEqual(['Sued\tkeine Angabe', 'West\t1e3']);
+
+    // Und die Gegenrichtung: wo alles gelesen wurde, wird nichts gemeldet.
+    // Ohne sie bestünde die Prüfung auch für einen Melder, der immer klagt.
+    expect(liesChart('Nord\t12\n\n  \nSued\t8').ungelesen).toEqual([]);
+  });
+
+  it('steht mit dem, was gezeichnet wird, an einer Stelle', () => {
+    /*
+       Am Ergebnis und nicht am Leser: über dem Balken stand „13", während in
+       der Zelle „1e3" steht. Verglichen wird deshalb, was das SVG an Text
+       trägt, mit dem, was der Leser zurückgibt.
+    */
+    const data = 'Nord\t1e3\nSued\t2';
+    const element = createElement('chart', { w: 400, h: 240, data, values: true });
+    const markup = primsToSvgMarkup(buildElementPrims(element, backgroundStyle('paper')));
+    const texte = [...markup.matchAll(/<tspan[^>]*>([^<]*)<\/tspan>/g)].map((treffer) =>
+      treffer[1].trim(),
+    );
+    expect(texte).toEqual(['2', 'SUED']);
+  });
+});
+
+describe('sehr viele Zeilen', () => {
+  it('bringen die Achse nicht zum Werfen', () => {
+    /*
+       `Math.max(...werte)` ist eine Argumentliste, und die ist begrenzt:
+       gemessen warf es ab rund 130.000 Werten `RangeError`. Diese Rechnung
+       läuft beim Zeichnen in einem `useMemo` — das wäre ein weißes Fenster.
+    */
+    const punkte = Array.from({ length: 200_000 }, (_, i) => ({
+      label: '',
+      value: i,
+      signal: false,
+    }));
+    expect(chartScale(punkte)).toEqual({ min: 0, max: 199_999 });
   });
 });

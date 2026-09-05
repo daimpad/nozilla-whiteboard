@@ -181,10 +181,13 @@ connector:    line · arrow · double-arrow · elbow
 
 chart.data:   eine Zeile je Wert, „Beschriftung  Zahl". Getrennt wird an
               Tabulator, Semikolon, senkrechtem Strich oder ZWEI Leerzeichen.
+              In der Zelle mit der Zahl darf nur eine Zahl stehen — „1e3"
+              und „12 - 15" werden nicht gelesen.
               Ein * am Zeilenanfang hebt genau einen Wert hervor.
 table.data:   eine Zeile je Zeile, Zellen getrennt an Tabulator, senkrechtem
               Strich oder ZWEI Leerzeichen. Eine Markdown-Trennzeile
-              (---, ---:, :---:) setzt die Ausrichtung der Spalten.
+              (---, ---:, :---:) als ZWEITE Zeile setzt die Ausrichtung der
+              Spalten; weiter unten ist sie Inhalt.
 
 typeStyle (nur für kind: text):
   display     140 px

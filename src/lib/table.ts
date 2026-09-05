@@ -53,8 +53,9 @@ const AUSRICHTUNG = /^:?-{2,}:?$/;
 export function parseTable(source: string, mitKopf: boolean): Tabelle {
   const roh: string[][] = [];
   let ausrichtung: Zellenausrichtung[] = [];
+  let gesehen = 0;
 
-  for (const zeile of source.split('\n')) {
+  for (const zeile of ohneGemeinsamenEinzug(source.split('\n'))) {
     // Der führende und der abschließende Strich einer Markdown-Tabelle
     // gehören zum Rahmen und nicht zum Inhalt; ohne dieses Abschneiden
     // entstünde vorn und hinten je eine leere Spalte.
@@ -78,7 +79,23 @@ export function parseTable(source: string, mitKopf: boolean): Tabelle {
     if (!inhalt.trim()) continue;
 
     const zellen = inhalt.split(TRENNER).map((zelle) => zelle.trim().split(MASKE).join('|'));
-    if (zellen.every((zelle) => AUSRICHTUNG.test(zelle))) {
+
+    /*
+       Die Ausrichtungszeile ist die **zweite** Zeile — und nur die.
+
+       Gesucht wurde sie vorher in jeder Zeile, und damit verschwand jede
+       Zeile, deren Zellen alle aus Bindestrichen bestehen. Gemessen an
+       „Was|Wert / --|-- / 1|2": die mittlere Zeile stand in keiner Ausgabe
+       mehr, ohne ein Wort — dabei ist ein Strich die verbreitetste
+       Schreibweise für „keine Angabe". Eine zweite Trennzeile weiter unten
+       stellte obendrein die Ausrichtung aller Spalten um.
+
+       So steht es auch in Markdown: die Zeile aus Strichen trennt die
+       Kopfzeile vom Rumpf und kommt genau einmal vor. Was weiter unten wie
+       eine aussieht, ist Inhalt — den Wert behalten, die Lücke zeigen.
+    */
+    gesehen += 1;
+    if (gesehen === 2 && zellen.every((zelle) => AUSRICHTUNG.test(zelle))) {
       ausrichtung = zellen.map(ausrichtungAus);
       continue;
     }
@@ -98,6 +115,38 @@ export function parseTable(source: string, mitKopf: boolean): Tabelle {
     zeilen: mitKopf ? gefuellt.slice(1) : gefuellt,
     ausrichtung: Array.from({ length: spalten }, (_, index) => ausrichtung[index] ?? 'left'),
   };
+}
+
+/**
+ * Der Einzug, den alle Zeilen gemeinsam haben, gehört keiner Zelle.
+ *
+ * Links wird bewusst nicht beschnitten — bei Tabulatoren und der
+ * Zwei-Leerzeichen-Schreibweise *ist* der führende Trenner eine leere erste
+ * Zelle (siehe oben). Ein Einzug, den **jede** Zeile trägt, ist aber keine
+ * Spalte, sondern ein Einzug: eine eingerückt eingefügte Tabelle bekam damit
+ * vorn eine leere Spalte, die Platz nimmt und nichts zeigt.
+ *
+ * Der Unterschied hängt an dem Wort „gemeinsam". Der Fall, für den das
+ * Nicht-Beschneiden gebaut ist — eine Gruppenspalte, die nur in der ersten
+ * Zeile gefüllt ist —, hat in der ersten Zeile keinen Einzug; der gemeinsame
+ * ist damit leer und es wird nichts abgeschnitten.
+ */
+function ohneGemeinsamenEinzug(zeilen: readonly string[]): string[] {
+  let einzug: string | null = null;
+  for (const zeile of zeilen) {
+    if (!zeile.trim()) continue;
+    const eigener = /^\s*/.exec(zeile)?.[0] ?? '';
+    if (einzug === null) {
+      einzug = eigener;
+      continue;
+    }
+    let gleich = 0;
+    while (gleich < einzug.length && einzug[gleich] === eigener[gleich]) gleich += 1;
+    einzug = einzug.slice(0, gleich);
+    if (!einzug) break;
+  }
+  const ab = einzug?.length ?? 0;
+  return ab === 0 ? [...zeilen] : zeilen.map((zeile) => zeile.slice(ab));
 }
 
 function ausrichtungAus(zelle: string): Zellenausrichtung {

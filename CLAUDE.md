@@ -2598,6 +2598,78 @@ Seite mit; dieselbe Bauart wie das weiße Fenster nach einer fremden `.json`.
 Sie liest die Pfade jetzt wirklich — mit `parsePath()`, also mit dem Leser, der
 beim Zeichnen urteilt, und nicht mit einer nachgebauten Regel.
 
+**Eine Zahl wurde nicht gelesen, sondern freigeschnitten.** `zahlAus` warf
+alles weg, was keine Ziffer, kein Komma, kein Punkt und kein Minus war — und
+das ist etwas anderes als lesen: es macht aus *jeder* Zelle eine Zahl. Gemessen
+am fertigen SVG stand über dem Balken „13", wo in der Zelle „1e3" steht, und
+„1,2" für „1,23E+09" — die Schreibweise, in der eine Tabellenkalkulation große
+Zahlen ausgibt. Eine mit Komma getrennte Zeile („Region,12") wurde zu 0,12 ohne
+Beschriftung: aus einer eingefügten CSV-Datei ein Diagramm aus lauter Nullen.
+Und ein Bindestrich im Namen wurde zum Vorzeichen — „Nord-West 12" zeichnete
+einen Balken nach unten.
+
+Gesucht wird jetzt die Zahl, und es muss **genau eine** in der Zelle sein.
+Zierrat davor und dahinter darf weiter — ein Eurozeichen, ein Prozent, eine
+Einheit —, solange keine Ziffer darin steht; „12 - 15" ist damit keine Zahl und
+„1e3" auch nicht. Geprüft wird bis ins SVG: der Text am Balken muss der sein,
+den der Leser zurückgibt.
+
+**Und was dabei herausfiel, sagte niemand.** Eine Zeile ohne lesbare Zahl fiel
+wortlos heraus — die Reihe hatte einen Balken weniger, und wer nicht
+nachzählte, merkte es nie. Denselben Satz trägt diese Liste schon zweimal: beim
+leeren `catch` der Selbstsicherung und beim fehlenden Bild im Export. Die
+Politik stimmt — eine kaputte Zeile darf ein Diagramm nicht verhindern —, das
+Schweigen nicht. `liesChart()` gibt jetzt beides zurück, und es ist *eine*
+Rechnung mit zwei Kunden: der Zeichner nimmt `punkte`, der Inspektor
+`ungelesen` und nennt die erste betroffene Zeile beim Namen.
+
+Daran hängt eine Stelle, die keine Zusicherung in `chart.test.ts` zeigt: die
+Rechnung kann stimmen und der Inspektor sie trotzdem nicht rufen. Der
+Rauchtest tippt deshalb wirklich eine unlesbare Zeile und liest, was in der
+Leiste steht — in beide Richtungen, denn eine Warnung, die immer dasteht, ist
+keine.
+
+**`Math.max(...werte)` ist eine Argumentliste, und die ist begrenzt.** Ab rund
+130.000 Werten warf `chartScale` `RangeError: Maximum call stack size
+exceeded`. So viele Zeilen hat eine eingefügte Tabellenkalkulation nicht oft,
+aber sie kann sie haben — und die Rechnung läuft beim Zeichnen in einem
+`useMemo`, das wäre ein weißes Fenster wie beim Bogen mit den
+zusammengeschriebenen Flaggen. Gerechnet wird jetzt in einer Schleife.
+
+**Eine Zeile aus Strichen war ein stiller Löschbefehl.** `parseTable` suchte
+die Ausrichtungszeile (`---`, `:---:`, `---:`) in *jeder* Zeile und ließ sie
+fallen. Damit verschwand jede Zeile, deren Zellen alle aus Bindestrichen
+bestehen — und ein Strich ist die verbreitetste Schreibweise für „keine
+Angabe". Eine zweite Trennzeile weiter unten stellte obendrein die Ausrichtung
+aller Spalten um. In Markdown steht die Zeile aus Strichen genau einmal, unter
+der Kopfzeile; was weiter unten wie eine aussieht, ist Inhalt. Den Wert
+behalten, die Lücke zeigen — dieselbe Linie wie beim unlesbaren `nzl`-Block.
+
+**Ein Einzug, den jede Zeile trägt, wurde eine leere Spalte.** Links wird
+absichtlich nicht beschnitten, und der Grund steht weiter oben in dieser Liste:
+bei Tabulatoren und der Zwei-Leerzeichen-Schreibweise *ist* der führende
+Trenner eine leere erste Zelle. Ein Einzug, den **jede** Zeile hat, ist aber
+keiner — eine eingerückt eingefügte Tabelle bekam vorn eine Spalte, die Platz
+nimmt und nichts zeigt. Der Unterschied hängt an dem Wort „gemeinsam": der
+Fall, für den das Nicht-Beschneiden gebaut ist, hat in der ersten Zeile keinen
+Einzug, und damit ist der gemeinsame leer.
+
+**Und der Prompt versprach im selben Atemzug zu viel.** Er nannte die
+Trennzeile, ohne zu sagen, wo sie steht, und schwieg dazu, was in der Zelle mit
+der Zahl stehen darf. Ein Modell, das sich daran hält, bekäme eine Zeile, die
+nicht gezeichnet wird — und der Fehler stünde bei dem, der den Prompt befolgt
+hat. Beides steht jetzt darin.
+
+**Was nachgemessen wurde und so bleibt.** Ein Komma trennt in beiden Lesern
+nicht — es ist das deutsche Dezimalzeichen, und „1,5" muss eine Zahl bleiben;
+eine mit Komma getrennte Zeile hat deshalb weiterhin keine Beschriftung. Der
+Tabellenleser kennt das Semikolon nicht, der Diagrammleser schon: dort steht
+die Zahl hinten, und ein Semikolon in der Beschriftung kostet nur den
+Strichpunkt, während es in einer Tabellenzelle mitten im Satz vorkommt. Und die
+Trennzeile gilt auch bei `header: false` an zweiter Stelle — eine
+hereinkopierte Markdown-Tabelle trägt sie dort, ob man ihre erste Zeile als
+Kopf liest oder nicht.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,

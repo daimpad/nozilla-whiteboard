@@ -1104,6 +1104,26 @@ async function main() {
     wahr(nachher.includes('>EINS<'), 'die neuen Beschriftungen stehen nicht auf der Folie');
     wahr(!nachher.includes('>Eins<'), 'die Kategorie steht nicht in Versalien');
     wahr(!nachher.includes('>2023<'), 'die alten Beschriftungen stehen noch da');
+
+    /*
+       Und was der Leser nicht lesen konnte, sagt die Leiste.
+
+       Die Rechnung dazu steht in `liesChart()` und ist in `chart.test.ts`
+       geprüft — dass der Inspektor sie *ruft*, zeigt keine Zusicherung dort.
+       Beide Richtungen, denn eine Warnung, die immer dasteht, ist keine.
+    */
+    const leiste = seite.locator('aside[aria-label="Inspektor"]');
+    wahr(
+      !(await leiste.innerText()).includes('keine lesbare Zahl'),
+      'die Leiste warnt über zwei lesbaren Zahlen',
+    );
+    await feld.fill('Eins  10\nZwei  1e3');
+    await bisWahr(
+      async () => (await leiste.innerText()).includes('1e3'),
+      'die Leiste nennt die Zeile ohne lesbare Zahl nicht',
+    );
+    // „1e3" wurde früher zu 13: alles, was keine Ziffer war, fiel weg.
+    wahr(!(await folie()).markup.includes('>13<'), 'aus „1e3" wurde eine Zahl auf der Folie');
   });
 
   await pruefe('eine Tabelle teilt ihre Spalten nach dem, was drinsteht', async () => {
