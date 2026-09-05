@@ -112,6 +112,7 @@ export {
   uiRadius,
   uiShadow,
   fontWeight,
+  syntheticItalicDegrees,
   uiType,
   RADIUS,
   strokeNames,

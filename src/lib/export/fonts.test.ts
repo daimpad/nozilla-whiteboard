@@ -12,12 +12,13 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { parseDeck } from '@/lib/markdown/deck';
 import { font } from '@/lib/text/measure';
 import { bundledDecks } from '@/decks';
-import { availableThemes, isThemeId, setActiveTheme } from '@/theme';
+import { availableThemes, isThemeId, nozillaTheme, setActiveTheme, withTheme } from '@/theme';
+import type { BrandTheme } from '@/theme/brandTheme';
 import { registerThemes } from '@/themes';
 import { segsBounds } from '@/lib/geometry/path';
 import { buildSlideScene, type Scene, type ScenePrim } from './scene';
 import { outlineScene, outlineScenes } from './outline';
-import { facesFor, resolveFace } from './fontFiles';
+import { facesFor, kursivNeigung, resolveFace } from './fontFiles';
 import {
   beiAusfallImExport,
   ersatzkette,
@@ -144,6 +145,123 @@ describe('Text in Pfade', () => {
  * Systemschrift und es sah richtig aus. Im PNG stand „D" statt „⌘D", die Zeile
  * „Löschen" hatte gar keinen Wert mehr, und im PDF stand „#".
  */
+/**
+ * Kursiv, wo es keinen kursiven Schnitt gibt.
+ *
+ * Die CI führt neun Schnitte und keinen kursiven. Der Browser schert dann
+ * selbst; die beiden Wege, die ihre Glyphen selbst zeichnen, taten es nicht —
+ * `*kursiv*` stand im PDF und im PNG aufrecht, während SVG und PowerPoint es
+ * schräg zeigten.
+ *
+ * Gemessen wird an der Kontur: der linke Rand oben gegen den linken Rand
+ * unten. Ein H ist dafür das richtige Zeichen — zwei senkrechte Stämme, keine
+ * Rundung, die die Kante verwischt.
+ */
+describe('kursiv ohne kursiven Schnitt', () => {
+  const einH = (italic: boolean): Scene => ({
+    width: 1280,
+    height: 720,
+    background: '#FFFFFF',
+    title: 'Kursivprobe',
+    prims: [
+      {
+        t: 'text',
+        x: 100,
+        y: 300,
+        runs: [
+          {
+            dx: 0,
+            text: 'H',
+            font: font({ size: 120, family: 'body', weight: 400, italic }),
+            color: '#111111',
+            width: 100,
+          },
+        ],
+      },
+    ],
+  });
+
+  /** Die Neigung der Kontur: um wie viel der Kopf gegen den Fuß versetzt ist. */
+  const neigungVon = (prim: ScenePrim): number => {
+    if (prim.t !== 'path') throw new Error('kein Pfad');
+    const kasten = segsBounds(prim.segs);
+    const linksBei = (y: number) =>
+      Math.min(
+        ...prim.segs
+          .filter((seg) => 'y' in seg && Math.abs(seg.y - y) < 2)
+          .map((seg) => ('x' in seg ? seg.x : Infinity)),
+      );
+    return (linksBei(kasten.y) - linksBei(kasten.y + kasten.h)) / kasten.h;
+  };
+
+  it('schert die Kontur um vierzehn Grad', async () => {
+    const kursiv = await outlineScene(einH(true));
+    const pfad = kursiv.prims.find((prim) => prim.t === 'path');
+    expect(pfad).toBeDefined();
+    // tan 14° = 0,2493 — nachgemessen ist es auch das, was Chromium tut
+    // (0,2474 an einem 300 px großen H, der Rest ist Kantenglättung).
+    expect(neigungVon(pfad!)).toBeCloseTo(Math.tan((14 * Math.PI) / 180), 3);
+  });
+
+  it('lässt einen echten kursiven Schnitt in Ruhe', () => {
+    /*
+       Heute sucht `resolveFace()` ausdrücklich nur unter `style === 'normal'`,
+       eine Marke mit kursivem Schnitt bekommt ihn also ohnehin nicht. Wer ihm
+       das eines Tages beibringt, bekäme sonst beides — den echten Schnitt
+       *und* die Schere. Gefragt wird deshalb die Schnittliste und nicht das,
+       was `resolveFace()` gerade tut.
+    */
+    const kursiv = font({ size: 40, family: 'body', weight: 400, italic: true });
+    expect(kursivNeigung(kursiv)).toBeGreaterThan(0);
+
+    const mitSchnitt: BrandTheme = {
+      ...nozillaTheme,
+      webfont: {
+        ...nozillaTheme.webfont,
+        faces: [
+          ...nozillaTheme.webfont.faces,
+          { family: 'Inter', weight: 400, style: 'italic', file: 'Inter-Italic.woff2' },
+        ],
+      },
+    };
+    expect(withTheme(mitSchnitt, () => kursivNeigung(kursiv))).toBe(0);
+  });
+
+  it('lässt einen aufrechten Lauf gerade', async () => {
+    // Die Gegenrichtung. Ohne sie bestünde die Prüfung auch für eine Fassung,
+    // die jeden Lauf schert.
+    const gerade = await outlineScene(einH(false));
+    const pfad = gerade.prims.find((prim) => prim.t === 'path');
+    expect(neigungVon(pfad!)).toBeCloseTo(0, 6);
+  });
+
+  it('dreht um die Grundlinie und nicht um die Ecke', async () => {
+    /*
+       Die Schere geht um die Grundlinie: der Fuß des Zeichens bleibt, wo er
+       war, und nur der Kopf wandert nach rechts. Ginge sie um die Oberkante,
+       stünde der ganze Lauf versetzt — und der Vorschub, den der Browser
+       gemessen hat, wäre für die falsche Stelle gerechnet.
+    */
+    const [gerade, kursiv] = await Promise.all([
+      outlineScene(einH(false)),
+      outlineScene(einH(true)),
+    ]);
+    const kasten = (scene: Scene) => {
+      const pfad = scene.prims.find((prim) => prim.t === 'path');
+      if (pfad?.t !== 'path') throw new Error('kein Pfad');
+      return segsBounds(pfad.segs);
+    };
+    const a = kasten(gerade);
+    const b = kasten(kursiv);
+    // Unten dieselbe Kante, oben weiter rechts — und damit insgesamt breiter,
+    // genau wie ein synthetisch geneigter Lauf im Browser übersteht.
+    expect(b.x).toBeCloseTo(a.x, 1);
+    expect(b.w).toBeGreaterThan(a.w);
+    expect(b.y).toBeCloseTo(a.y, 1);
+    expect(b.h).toBeCloseTo(a.h, 1);
+  });
+});
+
 describe('Zeichen, die die gesetzte Schrift nicht führt', () => {
   const BEFEHL = 0x2318; // ⌘
   const LOESCHEN = 0x232b; // ⌫

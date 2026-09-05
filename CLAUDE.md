@@ -2782,16 +2782,57 @@ zeilenweise. Der Blick in die Datei ist trotzdem nicht umsonst: drei Seiten,
 geöffnet und angesehen, keine Zeile in einer anderen, der Absatz unter der
 Tabelle unter der Tabelle.
 
-**Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
-einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
-`i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,
-die Glyphen selbst zeichnen, können das nicht: die CI führt in neun Schnitten
-keinen kursiven, `resolveFace()` gibt den nächstliegenden zurück, und im
-eingebetteten PDF wie im PNG steht der Text aufrecht. Nachgemessen mit `pdfjs-
-dist`: „Aufrecht" und „Kursiv" kommen beide als `Inter-Regular` zurück. Die
-Reparatur ist eine Entscheidung und keine Zeile Code — entweder ein gescherter
-Umriss (was der Browser tut) in beiden Wegen, oder ein kursiver Schnitt in der
-CI. Bis dahin steht es hier.
+**Kursiv fiel im Export still aus — jetzt wird geschert.** `*kursiv*` erzeugt
+einen Lauf mit `font.italic`; SVG schreibt `font-style="italic"`, PPTX `i="1"`,
+und Browser wie PowerPoint schrägen selbst nach. Die beiden Wege, die ihre
+Glyphen selbst zeichnen, konnten das nicht: die CI führt in neun Schnitten
+keinen kursiven, `resolveFace()` gibt den nächstliegenden aufrechten zurück,
+und im eingebetteten PDF wie im PNG stand der Text aufrecht. Nachgemessen mit
+`pdfjs-dist`: „Aufrecht" und „Kursiv" kamen beide als `Inter-Regular` zurück.
+
+Der Winkel ist **nachgemessen und nicht angenommen**: derselbe Schnitt einmal
+aufrecht und einmal kursiv in ein Canvas gezeichnet, den linken Rand des
+H-Stammes in zwei Zeilen 190 Pixel auseinander gesucht — Chromium neigt um
+0,2474, also tan 13,9°. Es ist auch der Wert, den CSS für `oblique` ohne
+Winkelangabe vorsieht. Vierzehn Grad stehen deshalb in `theme.config.ts`, und
+zwar bei den strukturellen Werten und nicht im `BrandTheme`: sie gehören keiner
+Marke, sondern der Frage, wie ein fehlender Schnitt ersetzt wird.
+
+**Die Richtung ist an beiden Stellen ausgeschrieben, weil sie verschieden
+ist.** Auf der Folie wächst y nach unten, im Textraum eines PDF nach oben — und
+ein kursiver Schnitt lehnt in beiden Fällen *oben* nach rechts. Im Umriss-Weg
+geht die Neigung deshalb negativ ein (`x' = x − k·y`), in der PDF-Textmatrix
+positiv. Wer eine der beiden aus der anderen abschreibt, bekommt ein Zeichen,
+das nach hinten kippt, und sieht es erst in der Datei.
+
+**Und jsPDF legt den Anker anders, sobald man ihm eine Matrix gibt.** Bei einer
+*Gradzahl* dreht es um den Textanker; bei einer **Matrix** legt es den Anker
+ausdrücklich in das Koordinatensystem, das die Matrix aufspannt („the x and y
+offsets should be applied in the coordinate system established by this
+matrix"). Gemessen: dasselbe H stand statt bei 300 pt bei 378,5 — genau um `k ·
+y` verschoben, also um die Schere selbst. Mitgegeben wird deshalb `T(anker) · A
+· T(−anker)`; was jsPDF daraus baut, ist wieder `T(anker) · A`.
+
+**Was sich dabei *nicht* ändert, ist die Stelle.** Chromiums synthetische
+Neigung fasst die Vorschübe nicht an — nachgemessen an Zilla Slab Bold in 68
+px: „Kursiv" ist aufrecht wie kursiv 201,144 breit, und jedes einzelne Zeichen
+ebenso. Beide Wege fragen denselben `measureText`, die Glyphen stehen also an
+genau denselben x-Werten wie auf dem Bildschirm; geschert wird nur die Form,
+und zwar um die **Grundlinie**, damit der Fuß bleibt, wo er war. Der Lauf wird
+dadurch rechts breiter als seine gemessene Breite — genau wie im Browser.
+
+Unter- und Durchstreichung bleiben gerade: der Browser zieht sie waagerecht,
+und der SVG-Weg schreibt dafür ein ungeschertes Rechteck. Geschert wird
+ausdrücklich nur, wenn die Schnittliste des Erscheinungsbilds **keinen**
+kursiven führt — `resolveFace()` sucht heute nur unter `style === 'normal'`,
+und wer ihm das eines Tages abgewöhnt, bekäme sonst beides: den echten Schnitt
+und die Schere.
+
+**Was das Bild zeigt und was nicht.** Angesehen wurde der ausgegebene Umriss
+als SVG: die kursiven Wörter lehnen, die aufrechten stehen. Was dieses Bild
+*nicht* zeigt, ist der Wortabstand — es entsteht ohne Canvas und damit mit den
+Ersatzmaßen, nicht mit denen des Browsers. Dass die Stellen stimmen, ist
+deshalb gemessen und nicht angesehen; das ist der Absatz darüber.
 
 ---
 

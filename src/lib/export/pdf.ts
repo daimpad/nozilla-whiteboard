@@ -18,12 +18,19 @@
  * anders. Sichtbar ist das trotzdem, weshalb es der Notnagel bleibt und nicht
  * der Normalfall.
  */
-import type { jsPDF } from 'jspdf';
+import type { jsPDF, Matrix } from 'jspdf';
 import { brand, canvas as canvasTokens, pdfFontFamily } from '@/theme';
 import { measureText, type FontFamilyKey } from '@/lib/text/measure';
-import { facesFor, loadTtf, toBase64, type FaceRef } from './fontFiles';
+import { facesFor, kursivNeigung, loadTtf, toBase64, type FaceRef } from './fontFiles';
 import { glyphCoverFor, leereDeckung, splitByFace, type GlyphCover } from './glyphCover';
-import { ellipseSegs, rectSegs, type Seg } from '@/lib/geometry/path';
+import {
+  ellipseSegs,
+  matMultiply,
+  matShearX,
+  rectSegs,
+  type Mat,
+  type Seg,
+} from '@/lib/geometry/path';
 import { parseColor, type Rgba } from './color';
 import { meldeFehlendeBilder } from './images';
 import type { Scene, ScenePrim, SceneRun } from './scene';
@@ -214,7 +221,7 @@ function drawScene(
         drawSegs(doc, prim.segs, prim, scale, backdrop, prim.closed);
         break;
       case 'text':
-        drawText(doc, prim, scale, fonts, cover, setOpacity);
+        drawText(doc, prim, scale, fonts, cover, setOpacity, scene.height * scale);
         break;
       case 'image':
         setOpacity(prim.opacity ?? 1);
@@ -396,6 +403,7 @@ function drawText(
   fonts: FontMap,
   cover: GlyphCover,
   setOpacity: (value: number) => void,
+  seitenhoehe: number,
 ): void {
   const angleDeg = prim.rotate ?? 0;
   const rad = (angleDeg * Math.PI) / 180;
@@ -444,10 +452,14 @@ function drawText(
       // Umriss-Weg, damit beide Ausgaben an derselben Stelle setzen.
       const vor = stueck.at === 0 ? 0 : measureText(run.text.slice(0, stueck.at), run.font);
       const dx = run.dx + vor;
-      doc.text(stueck.text, (prim.x + dx * cos) * scale, (prim.y + dx * sin) * scale, {
+      const xPt = (prim.x + dx * cos) * scale;
+      const yPt = (prim.y + dx * sin) * scale;
+      doc.text(stueck.text, xPt, yPt, {
         baseline: 'alphabetic',
         // jsPDF measures rotation counter-clockwise; the scene is clockwise.
-        angle: angleDeg ? -angleDeg : undefined,
+        angle:
+          textMatrix(doc, angleDeg, run, xPt, seitenhoehe - yPt) ??
+          (angleDeg ? -angleDeg : undefined),
         charSpace: run.font.tracking ? run.font.tracking * run.font.size * scale : undefined,
       });
     }
@@ -490,6 +502,60 @@ function drawDecoration(
       false,
     );
   }
+}
+
+/**
+ * Die Textmatrix für einen kursiven Lauf — oder `null` für den Normalfall.
+ *
+ * Die CI führt keinen kursiven Schnitt, jsPDF setzt also den aufrechten; auf
+ * dem Bildschirm schert der Browser selbst, hier musste es jemand tun.
+ * `options.angle` nimmt statt einer Gradzahl auch eine `Matrix`, und dann ist
+ * sie die Textmatrix — Drehung und Schere in einem.
+ *
+ * Im **Textraum eines PDF wächst y nach oben**: damit der Kopf nach rechts
+ * kippt, geht die Neigung positiv ein. Auf der Folie ist es umgekehrt, und
+ * genau deshalb steht die Richtung an beiden Stellen ausgeschrieben statt
+ * einmal geraten.
+ *
+ * Gedreht wird wie zuvor gegen den Uhrzeigersinn — die Szene zählt anders
+ * herum —, und die Schere wird *zuerst* angewandt: sie gehört zur Schrift, die
+ * Drehung zum Element.
+ */
+function textMatrix(
+  doc: jsPDF,
+  angleDeg: number,
+  run: SceneRun,
+  ankerX: number,
+  ankerY: number,
+): Matrix | null {
+  const neigung = kursivNeigung(run.font);
+  if (!neigung) return null;
+
+  const rad = (-angleDeg * Math.PI) / 180;
+  const dreh: Mat = [Math.cos(rad), Math.sin(rad), -Math.sin(rad), Math.cos(rad), 0, 0];
+  const [a, b, c, d] = matMultiply(dreh, matShearX(neigung));
+
+  /*
+     Der Anker muss zurückgerechnet werden, und das ist die Falle.
+
+     Bei einer *Gradzahl* dreht jsPDF um den Textanker; bei einer **Matrix**
+     legt es den Anker ausdrücklich in das Koordinatensystem, das die Matrix
+     aufspannt („the x and y offsets should be applied in the coordinate system
+     established by this matrix"). Gemessen: dasselbe H stand statt bei 300 pt
+     bei 378,5 — genau um `k · y` verschoben, also um die Schere selbst.
+
+     Mitgegeben wird deshalb `T(anker) · A · T(−anker)`; was jsPDF daraus baut,
+     ist wieder `T(anker) · A`, und die Schere geht um die Grundlinie statt um
+     den Seitenursprung.
+  */
+  return doc.Matrix(
+    a,
+    b,
+    c,
+    d,
+    ankerX - (a * ankerX + c * ankerY),
+    ankerY - (b * ankerX + d * ankerY),
+  );
 }
 
 function pdfFontStyle(weight: number, italic: boolean): string {
