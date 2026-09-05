@@ -2744,6 +2744,44 @@ Folie. Und die Unterkante einer Tabelle wird um rund elf Einheiten zu flach
 geschätzt — die Linie unter der letzten Zeile liegt unter deren Grundlinie —,
 was innerhalb der Nachsicht bleibt und keinen echten Überlauf verdeckt.
 
+**Eine Tabellenzeile war vierzig Einheiten hoch, weil es dastand.**
+`TABLE_ROW_HEIGHT = 40` mit dem Kommentar, `a:tr h` sei für PowerPoint ohnehin
+nur eine *Mindest*höhe. Für die Zeile stimmt das — für den **Rahmen** nicht:
+dessen `cy` ist die Höhe, mit der dieses Werkzeug im Fließtext weiterstapelt.
+Gemessen am Setzer: eine einzeilige Zeile ist 34,45 hoch (13 × 1,55
+Zeilenabstand plus zweimal 13 × 0,55 Innenabstand), die Datei schrieb 40 — bei
+vier Zeilen 22 Einheiten Luft, die die Folie nicht hat. Und sobald eine Zelle
+umbricht, ist die Zeile 54,6 oder 74,75 hoch und die feste 40 zu *klein*:
+PowerPoint ließ die Zeile wachsen, der Rahmen blieb kurz, und der Absatz danach
+rückte in die Tabelle.
+
+`tabellenZeilen()` in `typeset.ts` ist jetzt die eine Rechnung mit zwei Kunden
+— dieselbe Linie wie `tableColumnWidths()` eine Funktion weiter oben, und zum
+vierten Mal in diesem Repo die Antwort auf „zwei Rechnungen für dieselbe
+Frage". Sie gibt je Zeile den Umbruch *und* die Höhe zurück: der Setzer
+zeichnet damit, der PowerPoint-Weg schreibt damit sein `a:tr h` und sein `cy`.
+Der Innenabstand steht darin und nicht mehr an beiden Enden — 0,55 senkrecht,
+0,7 waagerecht, aus der Schriftgröße gerechnet.
+
+**Und der Maßstab des Layouts fehlte auf halbem Weg.** Die Zellen kamen
+geskaliert in der Datei an (`typeScale.small.size × scale`), die Spaltenbreiten
+aber nicht: `tableShape()` kannte den Maßstab nicht und rechnete mit der
+ungeskalierten Größe. Im `split`-Layout (0,94) waren das zwei
+Spaltenaufteilungen für dieselbe Tabelle — gemessen 0,75 Einheiten Unterschied
+an der ersten Spaltenkante. Wenig, und trotzdem dieselbe Bauart: er steht jetzt
+als `size` im `TableModel`, weil `tableShape()` ihn sonst aus den Läufen raten
+müsste.
+
+**Was die Gegenprobe im Betrachter zeigt und was nicht.** LibreOffice bricht
+die Zellen **selbst** um und lässt die Zeilen wachsen: in der gerenderten Datei
+steht „Regio / n" in einer Spalte, in der die Folie „Region" auf eine Zeile
+setzt. Was man dort sieht, ist deshalb zum guten Teil die Zeilenumbruchrechnung
+des Betrachters mit *seinen* Schriften — die entscheidende Messung ist die
+deklarierte Höhe gegen die Haarlinien des Setzers, und die stimmt jetzt
+zeilenweise. Der Blick in die Datei ist trotzdem nicht umsonst: drei Seiten,
+geöffnet und angesehen, keine Zeile in einer anderen, der Absatz unter der
+Tabelle unter der Tabelle.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,

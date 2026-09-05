@@ -16,6 +16,7 @@ import { parseDeck } from '@/lib/markdown/deck';
 import { brand, nozillaTheme, palette, registerTheme, setActiveTheme, typeScale } from '@/theme';
 import { deckToPptx, EMU, slideCx, slideCy } from './pptx';
 import { buildSlideScene, footerMark, tabellenLabelHoehe } from './scene';
+import { segsBounds } from '@/lib/geometry/path';
 import { sceneToSvg } from './svg';
 import { flowFrame, footerFrame } from '@/lib/layout/slideLayout';
 import { bundledDecks } from '@/decks';
@@ -1100,6 +1101,157 @@ function dreh(x: number, y: number, ax: number, ay: number, grad: number): [numb
   const sin = Math.sin(bogen);
   return [ax + (x - ax) * cos - (y - ay) * sin, ay + (x - ax) * sin + (y - ay) * cos];
 }
+
+/**
+ * Die Zeilenhöhen einer Tabelle — gegen die Linien, die die Fläche zieht.
+ *
+ * Hier stand `TABLE_ROW_HEIGHT = 40`, eine feste Zahl. Für `a:tr h` war das
+ * vertretbar (PowerPoint liest sie als Mindesthöhe), für die Höhe des
+ * **Rahmens** nicht: dessen `cy` legt fest, wo der nächste Block anfängt.
+ * Gemessen: einzeilige Zeilen sind 34,45 hoch, eine Zeile mit umbrechender
+ * Zelle 74,75 — die Datei schrieb dreimal 40.
+ *
+ * Verglichen wird mit den Haarlinien der Szene: der Setzer zieht unter jede
+ * Zeile eine, ihre Abstände *sind* die Zeilenhöhen.
+ */
+describe('die Zeilen einer Tabelle in der .pptx', () => {
+  const tabellenDeck = (data: string, breite: number) =>
+    parseDeck(
+      [
+        '---',
+        'title: Zeilen',
+        'footer: F',
+        '---',
+        '',
+        '<!-- nzl',
+        'layout: canvas',
+        'elements:',
+        '  - kind: table',
+        '    x: 88',
+        '    y: 72',
+        `    w: ${breite}`,
+        '    h: 400',
+        '    data: |',
+        ...data.split('\n').map((zeile) => `      ${zeile}`),
+        '-->',
+        '',
+      ].join('\n'),
+    );
+
+  /** Die Abstände der Haarlinien unter den Zeilen — also die Zeilenhöhen. */
+  const ausDerSzene = (deck: ReturnType<typeof parseDeck>) => {
+    const szene = buildSlideScene(deck.slides[0], deck, {});
+    const linien = szene.prims
+      .filter((prim) => prim.t === 'path')
+      .map((prim) => (prim.t === 'path' ? segsBounds(prim.segs) : null))
+      .filter((kasten): kasten is NonNullable<typeof kasten> => kasten !== null)
+      .filter((kasten) => kasten.h < 2 && kasten.w > 100)
+      .map((kasten) => kasten.y);
+    return linien.slice(1).map((y, index) => y - linien[index]);
+  };
+
+  const ausDerDatei = async (deck: ReturnType<typeof parseDeck>) => {
+    const teile = await readZip(await deckToPptx(deck, { images: new Map() }));
+    const xml = teile.get('ppt/slides/slide1.xml') ?? '';
+    return {
+      zeilen: [...xml.matchAll(/<a:tr h="(\d+)"/g)].map(([, wert]) => Number(wert) / EMU),
+      rahmen: Number(/<p:graphicFrame>[\s\S]*?cy="(\d+)"/.exec(xml)?.[1] ?? 0) / EMU,
+    };
+  };
+
+  const nah = (a: number, b: number) => Math.abs(a - b) < 0.01;
+
+  it('schreibt die Höhen, die der Setzer zieht', async () => {
+    const deck = tabellenDeck('Was\tWert\nEins\t1\nZwei\t2', 600);
+    const { zeilen, rahmen } = await ausDerDatei(deck);
+    // Drei Zeilen: Kopf, Eins, Zwei.
+    expect(zeilen).toHaveLength(3);
+    // Die Abstände der Linien sind die Höhen der Zeilen *nach* der ersten.
+    const abstaende = ausDerSzene(deck);
+    expect(abstaende).toHaveLength(2);
+    for (const abstand of abstaende) {
+      expect(zeilen.every((hoehe) => nah(hoehe, abstand))).toBe(true);
+    }
+    // Und der Rahmen ist so hoch wie die Summe — er sagt PowerPoint, wo der
+    // nächste Block anfängt.
+    expect(
+      nah(
+        rahmen,
+        zeilen.reduce((a, b) => a + b, 0),
+      ),
+    ).toBe(true);
+  });
+
+  it('rechnet Spalten und Zeilen mit dem Maßstab des Layouts', async () => {
+    /*
+       `split` setzt seinen Fließtext auf 0,94. Die Zellen kamen damit
+       geschrumpft in der Datei an, die Spaltenbreiten aber nicht: sie wurden
+       mit der *ungeskalierten* Größe gerechnet, weil `tableShape()` den
+       Maßstab nicht kannte. Er steht jetzt als `size` im Modell.
+
+       Gemessen wird an der Szene: der Abstand zwischen dem Text der ersten und
+       dem der zweiten Spalte *ist* die Breite der ersten Spalte, denn beide
+       tragen denselben Innenabstand.
+    */
+    const deck = parseDeck(
+      [
+        '---',
+        'title: Maßstab',
+        'footer: F',
+        '---',
+        '',
+        '<!-- nzl',
+        'layout: split',
+        'bare: true',
+        '-->',
+        '',
+        '| Was | Ein etwas längerer Wert |',
+        '| --- | --- |',
+        '| Eins | 1 |',
+      ].join('\n'),
+    );
+    const teile = await readZip(await deckToPptx(deck, { images: new Map() }));
+    const xml = teile.get('ppt/slides/slide1.xml') ?? '';
+    const spalte = Number(/<a:gridCol w="(\d+)"/.exec(xml)?.[1] ?? 0) / EMU;
+
+    const szene = buildSlideScene(deck.slides[0], deck, {});
+    const kanten = [
+      ...new Set(szene.prims.filter((prim) => prim.t === 'text').map((prim) => prim.x)),
+    ].sort((a, b) => a - b);
+    expect(kanten.length).toBeGreaterThanOrEqual(2);
+
+    expect(Math.abs(spalte - (kanten[1] - kanten[0]))).toBeLessThan(0.01);
+  });
+
+  it('macht eine Zeile mit umbrechender Zelle höher', async () => {
+    /*
+       Die Gegenrichtung, und ohne sie bestünde die Prüfung darüber auch für
+       eine feste Zahl: sie muss *verschiedene* Höhen ergeben. Die feste 40 war
+       hier zu klein — PowerPoint ließ die Zeile wachsen, der Rahmen blieb
+       kurz, und der Absatz danach stand mitten in der Tabelle.
+    */
+    const lang =
+      'Ein ziemlich langer Satz, der in seiner Spalte mehrfach umbrechen muss und die Zeile hoch macht';
+    const deck = tabellenDeck(`Was\tWert\n${lang}\t1\nZwei\t2`, 300);
+    const { zeilen, rahmen } = await ausDerDatei(deck);
+
+    expect(new Set(zeilen).size).toBeGreaterThan(1);
+    // Die umbrechende Zeile ist die zweite; die letzte bleibt einzeilig.
+    expect(zeilen[1]).toBeGreaterThan(zeilen[2]);
+
+    // Und wieder gegen die Linien der Fläche: der Abstand zwischen der ersten
+    // und der zweiten Linie ist die Höhe der umgebrochenen Zeile.
+    const abstaende = ausDerSzene(deck);
+    expect(nah(zeilen[1], abstaende[0])).toBe(true);
+    expect(nah(zeilen[2], abstaende[1])).toBe(true);
+    expect(
+      nah(
+        rahmen,
+        zeilen.reduce((a, b) => a + b, 0),
+      ),
+    ).toBe(true);
+  });
+});
 
 describe('wo die .pptx den Text hinlegt', () => {
   it('setzt ein Markdown-Element in die Stufe und Ausrichtung der Folie', async () => {

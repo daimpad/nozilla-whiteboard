@@ -29,7 +29,14 @@ import {
 } from '@/theme';
 import { flowFrame, flowOffsetY, footerFrame } from '@/lib/layout/slideLayout';
 import { segsBounds, type Seg } from '@/lib/geometry/path';
-import { listenEinzug, tableColumnWidths, wrapRuns, type StyledRun } from '@/lib/text/typeset';
+import {
+  listenEinzug,
+  tabellenAbstandX,
+  tabellenZeilen,
+  tableColumnWidths,
+  wrapRuns,
+  type StyledRun,
+} from '@/lib/text/typeset';
 import type { CanvasElement, Deck, Slide } from '@/model/types';
 import { slideTitle } from '@/model/types';
 import {
@@ -392,7 +399,7 @@ function flowShapes(
   const stuecke = blocks
     .map((block) =>
       block.t === 'table'
-        ? { block, hoehe: TABLE_ROW_HEIGHT * (block.table.rows.length + 1) }
+        ? { block, hoehe: tabellenRahmenHoehe(block.table, frame.w) }
         : { block, hoehe: absatzHoehe(block.paras, frame.w) },
     )
     .filter((stueck) => stueck.hoehe > 0);
@@ -590,7 +597,7 @@ function elementShapes(
           element.x + element.padding,
           y,
           breite,
-          TABLE_ROW_HEIGHT * (block.table.rows.length + 1),
+          tabellenRahmenHoehe(block.table, breite),
           block.table,
           bg,
           element.opacity,
@@ -1459,8 +1466,35 @@ function flattenWhitespace(text: string): string {
 /* Tabelle                                                                     */
 /* -------------------------------------------------------------------------- */
 
-/** Mindesthöhe einer Tabellenzeile in Folien-Einheiten. */
-export const TABLE_ROW_HEIGHT = 40;
+/**
+ * Die Höhen der Zeilen einer Tabelle — und damit die des ganzen Rahmens.
+ *
+ * Hier stand `TABLE_ROW_HEIGHT = 40`, eine feste Zahl mit dem Kommentar,
+ * `a:tr h` sei ohnehin nur eine *Mindest*höhe. Für die Zeile stimmt das, für
+ * den **Rahmen** nicht: dessen `cy` legt fest, wo in PowerPoint der nächste
+ * Block anfängt. Gemessen am Setzer: eine einzeilige Zeile ist 34,45 hoch, die
+ * Datei schrieb 40 — bei drei Zeilen 17 Einheiten Luft, die die Folie nicht
+ * hat. Und sobald eine Zelle umbricht, ist die Zeile 54,6 oder 74,75 hoch und
+ * die feste 40 zu *klein*: PowerPoint ließ die Zeile wachsen, der Rahmen blieb
+ * kurz, und der Absatz danach stand mitten in der Tabelle.
+ *
+ * Gerechnet wird mit `tabellenZeilen()`, also mit derselben Rechnung, nach der
+ * die Fläche zeichnet.
+ */
+function tabellenMasse(
+  table: TableModel,
+  breite: number,
+): { spalten: number[]; hoehen: number[]; gesamt: number } {
+  const zeilen = [table.header, ...table.rows];
+  const spalten = tableColumnWidths(zeilen, breite, tabellenAbstandX(table.size), table.size);
+  const hoehen = tabellenZeilen(zeilen, spalten, table.size).map((zeile) => zeile.hoehe);
+  return { spalten, hoehen, gesamt: hoehen.reduce((a, b) => a + b, 0) };
+}
+
+/** Wie hoch der Rahmen einer Tabelle in der `.pptx` wird. */
+export function tabellenRahmenHoehe(table: TableModel, breite: number): number {
+  return tabellenMasse(table, breite).gesamt;
+}
 
 function tableShape(
   id: number,
@@ -1474,25 +1508,15 @@ function tableShape(
 ): string {
   const columns = Math.max(1, table.header.length);
   /*
-     Dieselben Spaltenbreiten wie auf der Fläche — aus derselben Funktion.
+     Dieselben Spaltenbreiten und Zeilenhöhen wie auf der Fläche — aus
+     derselben Funktion.
 
      Gleich breite Spalten waren hier lange richtig, weil sie es auch dort
      waren. Seit die Fläche nach Inhalt teilt, wären sie ein Unterschied
      zwischen dem, was man sieht, und dem, was ankommt — und den sähe man erst
      in PowerPoint.
   */
-  const zellPadX = typeScale.small.size * 0.7;
-  const breiten = tableColumnWidths(
-    [table.header, ...table.rows],
-    w,
-    zellPadX,
-    typeScale.small.size,
-  );
-  // `a:tr h` ist für PowerPoint eine *Mindest*höhe — eine Zeile mit
-  // umbrechendem Text wächst darüber hinaus. Eine geratene Aufteilung der
-  // Rahmenhöhe wäre deshalb falsch: sie würde Zeilen zu flach machen und die
-  // Linien mitten durch die Schrift legen.
-  const rowHeight = emu(TABLE_ROW_HEIGHT);
+  const { spalten: breiten, hoehen } = tabellenMasse(table, w);
 
   const cell = (runs: StyledRun[], spalte: number): string => {
     const para: Paragraph = {
@@ -1540,17 +1564,18 @@ function tableShape(
     );
   };
 
-  const rows = [
-    `<a:tr h="${rowHeight}">` +
-      table.header.map((runs, index) => cell(runs, index)).join('') +
+  /*
+     `a:tr h` ist für PowerPoint eine *Mindest*höhe — eine Zeile mit
+     umbrechendem Text wächst darüber hinaus. Geschrieben wird trotzdem die
+     gemessene Höhe und nicht eine geratene: eine zu flache Zeile legt ihre
+     Linie mitten durch die Schrift, eine zu hohe zieht die Tabelle auseinander.
+  */
+  const rows = [table.header, ...table.rows].map(
+    (row, zeile) =>
+      `<a:tr h="${emu(hoehen[zeile])}">` +
+      Array.from({ length: columns }, (_, index) => cell(row[index] ?? [], index)).join('') +
       '</a:tr>',
-    ...table.rows.map(
-      (row) =>
-        `<a:tr h="${rowHeight}">` +
-        Array.from({ length: columns }, (_, index) => cell(row[index] ?? [], index)).join('') +
-        '</a:tr>',
-    ),
-  ];
+  );
 
   return [
     '<p:graphicFrame>',
