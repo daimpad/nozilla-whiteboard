@@ -791,6 +791,35 @@ describe('die Prüfliste', () => {
     expect(traegtFehler(daneben)).toBe(true);
   });
 
+  it('hält eine Wortmarke auf, deren Pfaddaten sich nicht lesen lassen', () => {
+    /*
+       Geprüft wurden Größe, viewBox und Füllfarben — nie, ob aus dem `d`
+       überhaupt eine Kurve wird. `pathSegs()` in `scene.ts` ruft `parsePath()`
+       beim Zeichnen, also in einem `useMemo` während des Renderns: ein Pfad,
+       den der Leser nicht versteht, wirft dort und nimmt die Seite mit,
+       während die Prüfliste auf grün steht.
+    */
+    const kaputt = [
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48">',
+      '<path fill="#101010" d="M0 0 L120 0 Z 5 5"/>',
+      '<path fill="#E4003A" d="M140 24 L164 24 L164 48 Z"/>',
+      '</svg>',
+    ].join('');
+    const befunde = pruefe(
+      probeEntwurf({
+        wortmarke: { svg: kaputt, dateiname: 'x.svg', letters: '#101010', accent: '#E4003A' },
+      }),
+    );
+    expect(traegtFehler(befunde)).toBe(true);
+    expect(befunde.some((b) => b.text.includes('lässt sich nicht lesen'))).toBe(true);
+
+    // Die Gegenrichtung: die heile Marke geht durch — ein Wächter, der immer
+    // anschlägt, wird abgeschaltet.
+    expect(pruefe(probeEntwurf()).some((b) => b.text.includes('lässt sich nicht lesen'))).toBe(
+      false,
+    );
+  });
+
   it('meldet eine Leiter, die nicht steigt', () => {
     const krumm = pruefe(probeEntwurf({ textScale: { ...probeEntwurf().textScale, xl2: 20 } }));
     expect(krumm.some((b) => b.text.includes('Die Leiter steigt nicht'))).toBe(true);

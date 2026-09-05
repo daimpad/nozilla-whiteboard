@@ -160,13 +160,40 @@ export function segsBounds(segs: readonly Seg[]): { x: number; y: number; w: num
 /**
  * Parse SVG path data into absolute move/line/cubic/close segments.
  * Quadratics are exactly promoted to cubics; smooth variants get their implied
- * reflected control point. Elliptical arcs (A/a) throw — see the module note.
+ * reflected control point. Elliptical arcs (A/a) become cubics — PDF kennt
+ * keinen Bogen-Operator, und alle drei Ausgaben sollen dieselbe Kurve zeichnen.
  */
+/*
+   Gelesen wird mit einem Zeiger, nicht mit einer Wortliste.
+
+   Vorher zerlegte ein `d.match(...)` den ganzen Pfad vorweg in Befehle und
+   Zahlen. Zwei Dinge gingen damit nicht, und beide sind gemessen:
+
+   **Die Flaggen eines Bogens sind einzelne Ziffern und dürfen zusammenkleben.**
+   `a5 5 0 0110 0` heißt largeArc=0, sweep=1, x=10 — die Wortliste las daraus
+   die Zahl 110 und brach mit „Invalid number in path data: undefined" ab. Das
+   ist keine Schrulle: genau so schreibt SVGO, und damit sieht die Datei eines
+   Logos in aller Regel so aus. Der Wurf landet in einem `useMemo` beim
+   Zeichnen — also in einem weißen Fenster.
+
+   **Und ein `Z` mit einer Zahl dahinter drehte endlos.** Jeder andere Befehl
+   verbraucht mindestens eine Zahl und kommt damit voran; `Z` verbraucht keine.
+   Stand hinter ihm eine Zahl, lief die Schleife weiter, ohne den Zeiger zu
+   bewegen: gemessen 34,8 Sekunden, dann `RangeError: Invalid array length` —
+   im Browser ein eingefrorener Tab und ein Gigabyte Speicher auf dem Weg.
+
+   Mit einem Zeiger ist beides erledigt: die Flaggen werden zeichenweise
+   gelesen, und nach einem `Z` ist eine Zahl ein Fehler mit Namen statt einer
+   Endlosschleife.
+*/
+const ZAHL = /[+-]?(?:\d*\.\d+|\d+\.?)(?:[eE][+-]?\d+)?/y;
+const BEFEHL = /[MmLlHhVvCcSsQqTtAaZz]/y;
+const TRENNER = /[\s,]*/y;
+
 export function parsePath(d: string): Seg[] {
   const out: Seg[] = [];
-  const tokens = d.match(/[MmLlHhVvCcSsQqTtAaZz]|-?\d*\.?\d+(?:[eE][-+]?\d+)?/g) ?? [];
 
-  let i = 0;
+  let at = 0;
   let cmd = '';
   let cx: number = 0;
   let cy: number = 0;
@@ -176,24 +203,55 @@ export function parsePath(d: string): Seg[] {
   let lastCubicCtrl: { x: number; y: number } | null = null;
   let lastQuadCtrl: { x: number; y: number } | null = null;
 
-  const num = (): number => {
-    const token = tokens[i++];
-    const value = Number(token);
-    if (Number.isNaN(value)) throw new Error(`Invalid number in path data: ${String(token)}`);
-    return value;
+  const ueberspringe = () => {
+    TRENNER.lastIndex = at;
+    TRENNER.exec(d);
+    at = TRENNER.lastIndex;
   };
 
-  while (i < tokens.length) {
-    const token = tokens[i];
-    if (/[MmLlHhVvCcSsQqTtAaZz]/.test(token)) {
-      cmd = token;
-      i++;
+  const num = (): number => {
+    ueberspringe();
+    ZAHL.lastIndex = at;
+    const treffer = ZAHL.exec(d);
+    if (!treffer) throw new Error(`Invalid number in path data at ${at}: ${d.slice(at, at + 12)}`);
+    at = ZAHL.lastIndex;
+    return Number(treffer[0]);
+  };
+
+  /**
+   * Eine Bogenflagge ist **ein Zeichen**, nicht eine Zahl.
+   *
+   * Genau daran hing der Fehler: `0110` sind vier Angaben und nicht eine.
+   */
+  const flagge = (): boolean => {
+    ueberspringe();
+    const zeichen = d[at];
+    if (zeichen !== '0' && zeichen !== '1') {
+      throw new Error(`Arc flag must be 0 or 1 at ${at}: ${d.slice(at, at + 12)}`);
+    }
+    at += 1;
+    return zeichen === '1';
+  };
+
+  while (true) {
+    ueberspringe();
+    if (at >= d.length) break;
+
+    BEFEHL.lastIndex = at;
+    const befehl = BEFEHL.exec(d);
+    if (befehl) {
+      cmd = befehl[0];
+      at = BEFEHL.lastIndex;
     } else if (!cmd) {
       throw new Error(`Path data must start with a command: ${d}`);
     } else if (cmd === 'M') {
       cmd = 'L';
     } else if (cmd === 'm') {
       cmd = 'l';
+    } else if (cmd === 'Z' || cmd === 'z') {
+      // `closepath` nimmt keine Argumente. Ohne diesen Wurf verbrauchte die
+      // Schleife hier nichts und drehte sich, bis der Speicher überlief.
+      throw new Error(`Z takes no arguments at ${at}: ${d.slice(at, at + 12)}`);
     }
 
     const rel = cmd === cmd.toLowerCase();
@@ -292,8 +350,8 @@ export function parsePath(d: string): Seg[] {
         const rx = num();
         const ry = num();
         const rotation = num();
-        const largeArc = num() !== 0;
-        const sweep = num() !== 0;
+        const largeArc = flagge();
+        const sweep = flagge();
         const ex = num() + ox;
         const ey = num() + oy;
         out.push(...arcToCubics(cx, cy, rx, ry, rotation, largeArc, sweep, ex, ey));
