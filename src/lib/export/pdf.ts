@@ -220,6 +220,16 @@ function drawScene(
         setOpacity(prim.opacity ?? 1);
         drawImage(doc, prim, scale, options);
         break;
+      default: {
+        /*
+           Dieselbe Zusicherung wie im SVG-Weg: eine sechste Primitivart fiele
+           hier sonst still heraus, und man sähe es nur an einer Seite, auf der
+           etwas fehlt. Die Zuweisung an `never` bricht `tsc` ab — die Prüfung
+           dafür ist der Übersetzer und kein Testfall.
+        */
+        const unbekannt: never = prim;
+        throw new Error(`Unbekannte Primitivart im PDF: ${JSON.stringify(unbekannt)}`);
+      }
     }
   }
 

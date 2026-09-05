@@ -244,12 +244,39 @@ export function sizeResolver(map: ImageMap) {
  * für sich; und im PNG fehlte das Bild ersatzlos, weil ein über eine Blob-URL
  * geladenes SVG keine externen Ressourcen holen darf. Mit `&` im Pfad griff
  * die Ersetzung, mit `'` nicht — ein Fehler an genau einem Zeichen.
+ *
+ * ## Und ersetzt wird im **Attribut**, nicht im ganzen Text
+ *
+ * Hier stand `out.split(escapeXml(src)).join(entry.dataUrl)`, also eine
+ * Zeichenkettenersetzung über das ganze Markup. Zwei Folgen, beide gemessen:
+ *
+ * Der Pfad wurde auch dort ersetzt, wo er **Text** ist. Eine Folie, die zeigt,
+ * wie man ein Bild einbindet — also ein Codeblock mit `![Alt](logo.png)` —
+ * trug danach eine Daten-URL im Fließtext, im SVG wie in jeder Ausgabe, die
+ * daraus entsteht. Bei einem echten Bild sind das ein bis zwei Megabyte
+ * Base64 als Fließtext.
+ *
+ * Und er wurde **innerhalb eines längeren Pfades** ersetzt: sind `logo.png`
+ * und `bilder/logo.png` beide im Deck, wird aus dem zweiten Verweis
+ * `bilder/data:image/png;base64,…`. Der Verweis ist damit tot, seine eigene
+ * Daten-URL wird nie eingesetzt, und im PNG fehlt das Bild — wieder ohne ein
+ * Wort, denn geladen war es ja.
+ *
+ * Gesucht wird deshalb der **ganze Attributwert**. Und die Daten-URL wird
+ * maskiert wie jeder andere Attributwert auch: dass eine gerasterte URL nur
+ * Base64 enthält, ist heute wahr und wäre morgen eine Annahme über eine
+ * fremde Funktion.
  */
 export function inlineImageHrefs(svg: string, map: ImageMap): string {
-  let out = svg;
+  const nachMarkup = new Map<string, string>();
   for (const [src, entry] of map) {
     if (src === entry.dataUrl) continue;
-    out = out.split(escapeXml(src)).join(entry.dataUrl);
+    nachMarkup.set(escapeXml(src), entry.dataUrl);
   }
-  return out;
+  if (nachMarkup.size === 0) return svg;
+
+  return svg.replace(/href="([^"]*)"/g, (ganz, wert: string) => {
+    const daten = nachMarkup.get(wert);
+    return daten ? `href="${escapeXml(daten)}"` : ganz;
+  });
 }

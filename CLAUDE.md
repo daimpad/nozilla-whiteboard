@@ -2453,6 +2453,62 @@ Zeilenabstände, Einzüge —, und zwar für beide mitgelieferten Decks. Die Far
 jedes Wortes stimmt zwischen SVG und `.pptx` überein. Und beide Pakete gehen
 durch LibreOffice: sechs plus fünf Seiten, angesehen und richtig.
 
+**Der Verweis wurde überall ersetzt, wo er dastand.** `inlineImageHrefs()`
+schrieb `out.split(escapeXml(src)).join(entry.dataUrl)` über das ganze Markup,
+und das hat zwei Folgen, die beide gemessen sind. Der Pfad wurde auch dort
+ersetzt, wo er **Text** ist: eine Folie, die zeigt, wie man ein Bild einbindet
+— also ein Codeblock mit `![Alt](logo.png)` —, trug danach ein bis zwei
+Megabyte Base64 als Fließtext, im SVG wie in jeder Ausgabe, die daraus
+entsteht. Und er wurde **innerhalb eines längeren Pfades** ersetzt: sind
+`logo.png` und `bilder/logo.png` beide im Deck, wird aus dem zweiten
+`href="bilder/data:image/png;base64,…"`. Der Verweis ist tot, seine eigene
+Daten-URL wird nie eingesetzt, und im PNG fehlt das Bild — ohne ein Wort, denn
+geladen war es ja. Gesucht wird jetzt der **ganze Attributwert**, und die
+Daten-URL wird maskiert wie jeder andere: dass eine gerasterte URL nur Base64
+enthält, ist heute wahr und wäre morgen eine Annahme über eine fremde Funktion.
+
+**Ein Strich unter nichts.** Die Läufe ohne Text fielen aus den `<tspan>`
+heraus, aus den Unter- und Durchstreichungen nicht: ein leerer Lauf mit
+Unterstreichung ergab ein `<rect width="0">`, und ein Textprimitiv, dessen
+Läufe alle leer sind, ein `<text></text>` samt Gruppe. Gefiltert wird jetzt
+einmal, und beide Hälften lesen dasselbe Ergebnis.
+
+Und die Prüfung dazu überlebte ihre eigene Gegenprobe. Sie führte nur den
+*ganz* leeren Fall — und den fängt schon der frühe Ausstieg, nicht der Filter,
+um den es geht. Rot wird sie erst an dem Fall, der wirklich daran hängt: ein
+leerer Lauf **neben** einem mit Text.
+
+**Zwei Regeln für dieselbe Deckkraft.** `paintAttrs()` schreibt `opacity` nur,
+wenn es kleiner als 1 ist; das Bild schrieb es, sobald es überhaupt gesetzt
+war. Jedes Bild trug damit ein `opacity="1"`, das kein Rechteck trug. Nichts
+war zu sehen, und genau das ist die Sorte Unterschied, die man später für
+Absicht hält.
+
+**`default: return ''` war ein stiller Löschbefehl, zum dritten Mal.** Der
+Ausdruck über die Primitivarten fiel bei einer unbekannten Art auf eine leere
+Zeichenkette zurück — eine sechste Art wäre im SVG ersatzlos verschwunden, auf
+der Fläche *und* in der Datei, denn beide gehen durch dieselbe Funktion. Die
+Zuweisung an `never` bricht jetzt schon `tsc` ab; der Wurf darunter ist das
+Eingeständnis, dass die Zeile unerreichbar sein soll. Dieselbe Zusicherung
+steht im PDF-Weg, dessen `switch` alle fünf Fälle aufzählte und trotzdem keinen
+sechsten bemerkt hätte. Belegt ist es nicht mit einem Testfall, sondern mit dem
+Übersetzer: eine sechste Art in `ScenePrim` macht beide Stellen rot.
+
+**Und der einzige englische Satz in einer ausgelieferten Datei.** Das SVG
+schrieb `<desc>Exported from …</desc>`; PDF und PPTX legen nur den Produktnamen
+in ihre Metadaten. Wer eine `.svg` in einem Zeichenprogramm öffnet, liest den
+Satz dort — eine Oberfläche auf Deutsch und eine Datei auf Englisch sind zwei
+Sprachen für dieselbe Sache. Er heißt jetzt „Erzeugt mit …".
+
+**Was nachgemessen wurde und in Ordnung ist.** Jedes SVG beider mitgelieferter
+Decks ist wohlgeformt und trägt keinen unendlichen Wert — jede Folie, der
+Kontaktbogen und jede Seite jedes Handouts. Dasselbe gilt für neun feindselige
+Eingaben: spitze Klammern, Anführungszeichen, ein rohes `&`, eine einsame
+Ersatzstelle, die Nichtzeichen, Steuerzeichen, ein Emoji, arabischer Text und
+ein Wort aus zweitausend Buchstaben. Und die Maskierung von Alternativtext und
+Verweis hält in allen vier Richtungen, die dabei zählen: Anführungszeichen und
+spitze Klammern im Alternativtext, `&` und `'` im Pfad.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,
