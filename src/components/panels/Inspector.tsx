@@ -67,7 +67,8 @@ import {
   type FillStyle,
 } from '@/model/types';
 import { readFileAsDataUrl } from '@/lib/export/download';
-import { overflowOf } from '@/lib/overflow';
+import { liesChart } from '@/lib/chart';
+import { flussUeberlauf, overflowOf, unterDerFolienkante } from '@/lib/overflow';
 import {
   backgroundStyle,
   kartenFelder,
@@ -76,6 +77,8 @@ import {
 } from '@/lib/export/scene';
 import { selectCurrentSlide, useDeckStore, useSelectedElements } from '@/state/deckStore';
 import { useThemeVersion } from '@/hooks/useTheme';
+import { useFontsVersion } from '@/hooks/useFonts';
+import { useImageSizes } from '@/hooks/useImageSizes';
 import {
   Button,
   Divider,
@@ -156,6 +159,17 @@ function SlidePanel() {
   const slide = useDeckStore(selectCurrentSlide);
   const setSlideMeta = useDeckStore((state) => state.setSlideMeta);
   const setSlideMarkdown = useDeckStore((state) => state.setSlideMarkdown);
+  /*
+     Dieselben drei Zähler wie auf der Fläche: die Höhe des gesetzten Textes
+     hängt an der Schrift, am Erscheinungsbild und an den Bildmaßen, und keins
+     davon fasst die Folie an. Ohne sie stünde hier der Wert der Ersatzschrift.
+  */
+  const deck = useDeckStore((state) => state.deck);
+  useFontsVersion();
+  useThemeVersion();
+  useImageSizes(deck);
+  const fluss = slide ? flussUeberlauf(slide) : 0;
+  const slideUnten = slide ? unterDerFolienkante(slide) : 0;
   if (!slide) return null;
 
   return (
@@ -215,6 +229,19 @@ function SlidePanel() {
         />
         Fußzeile und Foliennummer ausblenden
       </label>
+
+      {fluss > 0 ? (
+        <p className="flex items-start gap-2 border border-ui-warn bg-ui-warn-bg px-2 py-1.5 text-ui-body text-ui-ink">
+          <Icon name="triangle-exclamation" size={14} className="mt-0.5 shrink-0 text-ui-warn" />
+          <span>
+            Der Fließtext läuft {fluss} Einheiten unter den Satzspiegel — dort steht die Fußzeile
+            {slideUnten > 0
+              ? `, und ${slideUnten} Einheiten davon liegen unter der Folienkante`
+              : ''}
+            .
+          </span>
+        </p>
+      ) : null}
 
       <Field label="Markdown" hint="Gesetzt im Satzspiegel des Layouts, in der Typo-Leiter der CI.">
         <textarea
@@ -804,6 +831,33 @@ interface KindFieldsProps {
   patch: (update: Partial<CanvasElement>, historic?: boolean) => void;
 }
 
+/**
+ * Was der Zahlenleser nicht lesen konnte — und deshalb nicht zeichnet.
+ *
+ * Eine Zeile ohne lesbare Zahl fiel wortlos heraus: die Reihe hatte einen
+ * Balken weniger, und wer nicht nachzählte, merkte es nie. Genannt wird die
+ * erste, denn eine Zahl allein sagt nicht, *welche* Zeile gemeint ist.
+ */
+function UngeleseneZeilen({ data }: { data: string }) {
+  const { ungelesen } = liesChart(data);
+  if (ungelesen.length === 0) return null;
+
+  const erste = ungelesen[0];
+  const gekuerzt = erste.length > 40 ? `${erste.slice(0, 40)}…` : erste;
+
+  return (
+    <p className="flex items-start gap-2 border border-ui-warn bg-ui-warn-bg px-2 py-1.5 text-ui-body text-ui-ink">
+      <Icon name="triangle-exclamation" size={14} className="mt-0.5 shrink-0 text-ui-warn" />
+      <span>
+        {ungelesen.length === 1
+          ? 'Eine Zeile trägt keine lesbare Zahl und wird nicht gezeichnet: '
+          : `${ungelesen.length} Zeilen tragen keine lesbare Zahl und werden nicht gezeichnet, die erste: `}
+        <span className="font-mono">„{gekuerzt}“</span>
+      </span>
+    </p>
+  );
+}
+
 function KindFields({ element, patch }: KindFieldsProps) {
   switch (element.kind) {
     case 'chart':
@@ -837,6 +891,7 @@ function KindFields({ element, patch }: KindFieldsProps) {
               onChange={(event) => patch({ data: event.target.value } as Partial<CanvasElement>)}
             />
           </Field>
+          <UngeleseneZeilen data={element.data} />
           <label className="flex items-center gap-2 text-ui-body">
             <input
               type="checkbox"

@@ -197,10 +197,20 @@ export function flowOffsetY(frame: FlowFrame, contentHeight: number): number {
  *
  * Gibt `null` zurück, wenn die Folie keinen Fließtext trägt — bei `canvas` und
  * `blank` gehört die Fläche ohnehin dem frei Gelegten.
+ *
+ * `resolveImageSize` durchzureichen ist keine Zutat, sondern die Bedingung
+ * dafür, dass hier dieselbe Höhe herauskommt wie in der Szene: ohne die Maße
+ * fällt der Setzer auf „volle Spaltenbreite, Verhältnis 0,5625" zurück.
+ * Gemessen an einem Deck mit einem 300 × 300-Logo im Fließtext sind das 762
+ * Einheiten statt 441 — der Kasten, den das Einsetzen meiden soll, wäre um
+ * ein Drittel zu hoch. Als Argument und nicht als Import, weil `lib/layout/`
+ * sonst über `images.ts → svg.ts → scene.ts` wieder bei sich selbst
+ * herauskäme.
  */
 export function flowBounds(
   layout: SlideLayout,
   markdown: string,
+  resolveImageSize?: (src: string) => { w: number; h: number } | undefined,
 ): { x: number; y: number; w: number; h: number } | null {
   const frame = flowFrame(layout);
   if (!frame || !markdown.trim()) return null;
@@ -209,6 +219,7 @@ export function flowBounds(
     scale: frame.scale,
     align: frame.align,
     baseStyle: frame.baseStyle,
+    resolveImageSize,
   });
   return { x: frame.x, y: flowOffsetY(frame, gesetzt.height), w: frame.w, h: gesetzt.height };
 }

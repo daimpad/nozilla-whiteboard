@@ -2598,6 +2598,190 @@ Seite mit; dieselbe Bauart wie das weiße Fenster nach einer fremden `.json`.
 Sie liest die Pfade jetzt wirklich — mit `parsePath()`, also mit dem Leser, der
 beim Zeichnen urteilt, und nicht mit einer nachgebauten Regel.
 
+**Eine Zahl wurde nicht gelesen, sondern freigeschnitten.** `zahlAus` warf
+alles weg, was keine Ziffer, kein Komma, kein Punkt und kein Minus war — und
+das ist etwas anderes als lesen: es macht aus *jeder* Zelle eine Zahl. Gemessen
+am fertigen SVG stand über dem Balken „13", wo in der Zelle „1e3" steht, und
+„1,2" für „1,23E+09" — die Schreibweise, in der eine Tabellenkalkulation große
+Zahlen ausgibt. Eine mit Komma getrennte Zeile („Region,12") wurde zu 0,12 ohne
+Beschriftung: aus einer eingefügten CSV-Datei ein Diagramm aus lauter Nullen.
+Und ein Bindestrich im Namen wurde zum Vorzeichen — „Nord-West 12" zeichnete
+einen Balken nach unten.
+
+Gesucht wird jetzt die Zahl, und es muss **genau eine** in der Zelle sein.
+Zierrat davor und dahinter darf weiter — ein Eurozeichen, ein Prozent, eine
+Einheit —, solange keine Ziffer darin steht; „12 - 15" ist damit keine Zahl und
+„1e3" auch nicht. Geprüft wird bis ins SVG: der Text am Balken muss der sein,
+den der Leser zurückgibt.
+
+**Und was dabei herausfiel, sagte niemand.** Eine Zeile ohne lesbare Zahl fiel
+wortlos heraus — die Reihe hatte einen Balken weniger, und wer nicht
+nachzählte, merkte es nie. Denselben Satz trägt diese Liste schon zweimal: beim
+leeren `catch` der Selbstsicherung und beim fehlenden Bild im Export. Die
+Politik stimmt — eine kaputte Zeile darf ein Diagramm nicht verhindern —, das
+Schweigen nicht. `liesChart()` gibt jetzt beides zurück, und es ist *eine*
+Rechnung mit zwei Kunden: der Zeichner nimmt `punkte`, der Inspektor
+`ungelesen` und nennt die erste betroffene Zeile beim Namen.
+
+Daran hängt eine Stelle, die keine Zusicherung in `chart.test.ts` zeigt: die
+Rechnung kann stimmen und der Inspektor sie trotzdem nicht rufen. Der
+Rauchtest tippt deshalb wirklich eine unlesbare Zeile und liest, was in der
+Leiste steht — in beide Richtungen, denn eine Warnung, die immer dasteht, ist
+keine.
+
+**`Math.max(...werte)` ist eine Argumentliste, und die ist begrenzt.** Ab rund
+130.000 Werten warf `chartScale` `RangeError: Maximum call stack size
+exceeded`. So viele Zeilen hat eine eingefügte Tabellenkalkulation nicht oft,
+aber sie kann sie haben — und die Rechnung läuft beim Zeichnen in einem
+`useMemo`, das wäre ein weißes Fenster wie beim Bogen mit den
+zusammengeschriebenen Flaggen. Gerechnet wird jetzt in einer Schleife.
+
+**Eine Zeile aus Strichen war ein stiller Löschbefehl.** `parseTable` suchte
+die Ausrichtungszeile (`---`, `:---:`, `---:`) in *jeder* Zeile und ließ sie
+fallen. Damit verschwand jede Zeile, deren Zellen alle aus Bindestrichen
+bestehen — und ein Strich ist die verbreitetste Schreibweise für „keine
+Angabe". Eine zweite Trennzeile weiter unten stellte obendrein die Ausrichtung
+aller Spalten um. In Markdown steht die Zeile aus Strichen genau einmal, unter
+der Kopfzeile; was weiter unten wie eine aussieht, ist Inhalt. Den Wert
+behalten, die Lücke zeigen — dieselbe Linie wie beim unlesbaren `nzl`-Block.
+
+**Ein Einzug, den jede Zeile trägt, wurde eine leere Spalte.** Links wird
+absichtlich nicht beschnitten, und der Grund steht weiter oben in dieser Liste:
+bei Tabulatoren und der Zwei-Leerzeichen-Schreibweise *ist* der führende
+Trenner eine leere erste Zelle. Ein Einzug, den **jede** Zeile hat, ist aber
+keiner — eine eingerückt eingefügte Tabelle bekam vorn eine Spalte, die Platz
+nimmt und nichts zeigt. Der Unterschied hängt an dem Wort „gemeinsam": der
+Fall, für den das Nicht-Beschneiden gebaut ist, hat in der ersten Zeile keinen
+Einzug, und damit ist der gemeinsame leer.
+
+**Und der Prompt versprach im selben Atemzug zu viel.** Er nannte die
+Trennzeile, ohne zu sagen, wo sie steht, und schwieg dazu, was in der Zelle mit
+der Zahl stehen darf. Ein Modell, das sich daran hält, bekäme eine Zeile, die
+nicht gezeichnet wird — und der Fehler stünde bei dem, der den Prompt befolgt
+hat. Beides steht jetzt darin.
+
+**Was nachgemessen wurde und so bleibt.** Ein Komma trennt in beiden Lesern
+nicht — es ist das deutsche Dezimalzeichen, und „1,5" muss eine Zahl bleiben;
+eine mit Komma getrennte Zeile hat deshalb weiterhin keine Beschriftung. Der
+Tabellenleser kennt das Semikolon nicht, der Diagrammleser schon: dort steht
+die Zahl hinten, und ein Semikolon in der Beschriftung kostet nur den
+Strichpunkt, während es in einer Tabellenzelle mitten im Satz vorkommt. Und die
+Trennzeile gilt auch bei `header: false` an zweiter Stelle — eine
+hereinkopierte Markdown-Tabelle trägt sie dort, ob man ihre erste Zeile als
+Kopf liest oder nicht.
+
+**Zwei Merker für dieselbe Frage, und nur einer verfiel.** `overflowOf()` legt
+sein Ergebnis in einer `WeakMap` am Element-Objekt ab — richtig, solange nur
+das Element das Maß bestimmt. Drei Dinge bestimmen es außerdem, und keins davon
+fasst das Element an: die echte Schrift (sie kommt erst nach dem ersten
+Zeichnen an), das Erscheinungsbild (andere Typo-Leiter) und eingetroffene
+Bildmaße. `announce()` in `fonts.ts` räumt bei genau diesen Anlässen den
+*Messpuffer*; der Merker des Überlaufs blieb stehen. Gemessen an einer h1 in
+einem 300 × 60-Kasten: unter nozilla 417 Einheiten Überlauf, unter dem
+Musterkunden 307 — angezeigt wurden weiter 417. In beide Richtungen: ein
+Fehlalarm, der nicht weggeht, und ein wirklicher Überlauf, der nie erscheint.
+
+Und die zweite Hälfte hätte den Fix allein wirkungslos gemacht: die `useMemo`
+in `CanvasStage`, die die Balken rechnet, hing nur an `slide.elements` — sie
+hätte gar nicht erst nachgefragt. Dieselbe Bauart wie beim Folienformat („Ein
+Effekt läuft nach dem Zeichnen"), nur an drei Zählern statt an einem.
+`SlideView` liest alle vier seit je; die Fläche daneben las einen.
+
+**Ein Bild im Fließtext eines Elements zählte nicht.** `untersteKante()` sah
+nur Textprimitive, und der Kopf daneben begründet das: Flächen, Rahmen und
+Zeichen werden aus dem Kasten heraus gezeichnet und können ihn nicht
+überlaufen. Für alles, was der *Setzer* setzt, gilt das nicht — und ein
+Markdown-Element, dessen Inhalt eine Abbildung ist, setzt gar keinen Text.
+`untersteKante()` fand nichts, gab `null` zurück, der Überlauf war 0. Gemessen
+an `![](logo.png)` in einem 400 × 80-Kasten: das Bild endet 145 Einheiten unter
+der Unterkante. Ein Bild*element* bleibt weiter außen vor — das wird
+eingepasst.
+
+Daran hing eine zweite Ungenauigkeit: gerechnet wurde **ohne** die Bildmaße,
+während die Fläche mit ihnen zeichnet. Das ist „Die Fläche maß Markdown-Bilder
+anders als der Export" zum zweiten Mal, und ein Wächter, der ein anderes Bild
+misst als das gezeichnete, meldet den Überlauf eines Bildes, das so nirgends
+steht.
+
+**Der Fließtext hatte gar keinen Wächter.** Der Überlauf gilt Elementen — und
+damit ausgerechnet dem Inhalt nicht, den jede Folie hat. Gemessen an vierzig
+Absätzen im `default`-Layout: der Satz endet 831 Einheiten unter der
+Folienkante. Auf dem Bildschirm schneidet ihn der Folienrand ab, im PDF steht
+er auf keiner Seite, und gesagt hat es nichts. Die Rechnung lag dabei fertig
+da: `flowBounds()` misst die gesetzte Höhe, weil das Einsetzen ihr ausweichen
+muss.
+
+Gemessen wird gegen den **Satzspiegel** und nicht gegen die Folienkante:
+darunter sitzt die Fußzeile, und ein Fließtext, der in sie hineinläuft, ist
+schon falsch gesetzt. Es sind aber zwei Fragen, und der Hinweis nennt beide
+getrennt — zwischen Satzspiegel und Folienkante steht der Text noch da,
+darunter steht er in keiner Ausgabe. Ein Satz, der beides gleichsetzt, ist an
+einer der zwei Stellen falsch.
+
+Und die Gegenrichtung ist hier die eigentliche Prüfung: kein Fließtext der
+mitgelieferten Decks kommt dem Satzspiegel näher als zwanzig Einheiten. Ein
+Wächter, der auf dem eigenen Material anschlägt, wird abgeschaltet und bewacht
+dann gar nichts mehr — das steht in dieser Liste schon zweimal, beim
+Kontrastwächter und beim Überlaufbalken.
+
+**`flowBounds()` maß ein anderes Bild als die Szene.** Es rief
+`typesetMarkdown()` ohne `resolveImageSize`, die Szene ruft es mit — und ohne
+die Maße fällt der Setzer auf „volle Spaltenbreite, Verhältnis 0,5625" zurück.
+Gemessen an einem 300 × 300-Logo im Fließtext: 762 Einheiten statt 441. Der
+Kasten, dem das Einsetzen ausweichen soll, war damit um ein Drittel zu hoch,
+und eine eingefügte Karte landete entsprechend zu tief oder gar auf dem
+Notplatz am unteren Satzspiegel. Durchgereicht wird der Maßgeber als
+**Argument** und nicht als Import: `lib/layout/` käme über `images.ts → svg.ts
+→ scene.ts` sonst wieder bei sich selbst heraus.
+
+**Was nachgemessen wurde und in Ordnung ist.** Der Satzspiegel jedes Layouts
+liegt in jedem der drei Folienformate innerhalb der Folie, und die Fußzeile
+wandert mit der Höhe mit. `unterDerKante()` liest nur `element.y`, und das ist
+auch bei einem gedrehten Element richtig: die Drehung geht um die Elementmitte,
+der obere Rand des gedrehten Kastens liegt nie tiefer als vorher. Ein Element,
+das nirgends mehr passt, landet am oberen Satzspiegel statt außerhalb der
+Folie. Und die Unterkante einer Tabelle wird um rund elf Einheiten zu flach
+geschätzt — die Linie unter der letzten Zeile liegt unter deren Grundlinie —,
+was innerhalb der Nachsicht bleibt und keinen echten Überlauf verdeckt.
+
+**Eine Tabellenzeile war vierzig Einheiten hoch, weil es dastand.**
+`TABLE_ROW_HEIGHT = 40` mit dem Kommentar, `a:tr h` sei für PowerPoint ohnehin
+nur eine *Mindest*höhe. Für die Zeile stimmt das — für den **Rahmen** nicht:
+dessen `cy` ist die Höhe, mit der dieses Werkzeug im Fließtext weiterstapelt.
+Gemessen am Setzer: eine einzeilige Zeile ist 34,45 hoch (13 × 1,55
+Zeilenabstand plus zweimal 13 × 0,55 Innenabstand), die Datei schrieb 40 — bei
+vier Zeilen 22 Einheiten Luft, die die Folie nicht hat. Und sobald eine Zelle
+umbricht, ist die Zeile 54,6 oder 74,75 hoch und die feste 40 zu *klein*:
+PowerPoint ließ die Zeile wachsen, der Rahmen blieb kurz, und der Absatz danach
+rückte in die Tabelle.
+
+`tabellenZeilen()` in `typeset.ts` ist jetzt die eine Rechnung mit zwei Kunden
+— dieselbe Linie wie `tableColumnWidths()` eine Funktion weiter oben, und zum
+vierten Mal in diesem Repo die Antwort auf „zwei Rechnungen für dieselbe
+Frage". Sie gibt je Zeile den Umbruch *und* die Höhe zurück: der Setzer
+zeichnet damit, der PowerPoint-Weg schreibt damit sein `a:tr h` und sein `cy`.
+Der Innenabstand steht darin und nicht mehr an beiden Enden — 0,55 senkrecht,
+0,7 waagerecht, aus der Schriftgröße gerechnet.
+
+**Und der Maßstab des Layouts fehlte auf halbem Weg.** Die Zellen kamen
+geskaliert in der Datei an (`typeScale.small.size × scale`), die Spaltenbreiten
+aber nicht: `tableShape()` kannte den Maßstab nicht und rechnete mit der
+ungeskalierten Größe. Im `split`-Layout (0,94) waren das zwei
+Spaltenaufteilungen für dieselbe Tabelle — gemessen 0,75 Einheiten Unterschied
+an der ersten Spaltenkante. Wenig, und trotzdem dieselbe Bauart: er steht jetzt
+als `size` im `TableModel`, weil `tableShape()` ihn sonst aus den Läufen raten
+müsste.
+
+**Was die Gegenprobe im Betrachter zeigt und was nicht.** LibreOffice bricht
+die Zellen **selbst** um und lässt die Zeilen wachsen: in der gerenderten Datei
+steht „Regio / n" in einer Spalte, in der die Folie „Region" auf eine Zeile
+setzt. Was man dort sieht, ist deshalb zum guten Teil die Zeilenumbruchrechnung
+des Betrachters mit *seinen* Schriften — die entscheidende Messung ist die
+deklarierte Höhe gegen die Haarlinien des Setzers, und die stimmt jetzt
+zeilenweise. Der Blick in die Datei ist trotzdem nicht umsonst: drei Seiten,
+geöffnet und angesehen, keine Zeile in einer anderen, der Absatz unter der
+Tabelle unter der Tabelle.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,

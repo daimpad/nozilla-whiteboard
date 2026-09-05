@@ -50,6 +50,16 @@ export interface TableModel {
   header: StyledRun[][];
   rows: StyledRun[][][];
   /**
+   * Die Schriftgröße der Zellen — und damit das Maß ihrer Innenabstände.
+   *
+   * Sie steht hier, weil `tableShape()` sie sonst raten müsste: der Setzer
+   * rechnet Spaltenbreite, Innenabstand und Zeilenhöhe aus `small.size × dem
+   * Maßstab des Layouts`, und der PowerPoint-Weg nahm dafür die *ungeskalierte*
+   * Größe. In einem `split`-Layout (Maßstab 0,94) waren das zwei verschiedene
+   * Spaltenaufteilungen für dieselbe Tabelle.
+   */
+  size: number;
+  /**
    * Je Spalte die Ausrichtung aus der Trennzeile (`---:` heißt rechtsbündig).
    *
    * Sie steht hier, weil die Fläche sie zeichnet: eine Zahlenspalte, die dort
@@ -246,6 +256,7 @@ export function markdownToBlocks(source: string, options: BlockOptions = {}): Bl
         out.push({
           t: 'table',
           table: {
+            size: typeScale.small.size * scale,
             header: table.header.map((cell) =>
               flattenInline(cell.tokens ?? [], zelle(true), palette.text),
             ),

@@ -646,7 +646,7 @@ class Layout {
     const style = typeScale.small;
     const size = style.size * this.scale;
     const cellPadY = size * 0.55;
-    const cellPadX = size * 0.7;
+    const cellPadX = tabellenAbstandX(size);
     const boxWidth = this.platz(indent);
     const columns = Math.max(1, token.header.length);
 
@@ -678,16 +678,25 @@ class Layout {
     this.gapBefore(base * 0.4);
     let y = this.y;
 
-    const drawRow = (cells: Tokens.TableCell[], bold: boolean) => {
-      const lineHeight = size * style.lineHeight;
-      let rowHeight = lineHeight;
+    /*
+       Umbruch und Höhe kommen aus `tabellenZeilen()` — derselben Rechnung,
+       nach der der PowerPoint-Weg seine Zeilen und seinen Rahmen bemisst. Sie
+       stand vorher nur hier, und drüben stand eine feste 40 daneben.
+    */
+    const gesetzt = tabellenZeilen(
+      [token.header, ...token.rows].map((row, zeile) =>
+        Array.from({ length: columns }, (_, index) => runsFor(row[index], zeile === 0)),
+      ),
+      spalten,
+      size,
+    );
+
+    const lineHeight = size * style.lineHeight;
+    for (const zeile of gesetzt) {
       const rowTop = y;
 
-      for (let index = 0; index < columns; index += 1) {
-        const runs = runsFor(cells[index], bold);
+      zeile.zellen.forEach((lines, index) => {
         const innen = Math.max(size, spalten[index] - cellPadX * 2);
-        const lines = wrapRuns(runs, innen);
-        rowHeight = Math.max(rowHeight, lines.length * lineHeight);
         // Die Ausrichtung steht in der Trennzeile der Tabelle — `---:` heißt
         // rechtsbündig, und genau so setzt man Zahlen.
         const richtung = token.align?.[index] ?? null;
@@ -707,9 +716,9 @@ class Layout {
             runs: lineRuns,
           });
         });
-      }
+      });
 
-      y = rowTop + rowHeight + cellPadY * 2;
+      y = rowTop + zeile.hoehe;
       this.prims.push({
         t: 'rect',
         x: this.originX + indent,
@@ -718,10 +727,7 @@ class Layout {
         h: stroke.hair,
         fill: this.palette.border,
       });
-    };
-
-    drawRow(token.header, true);
-    for (const row of token.rows) drawRow(row, false);
+    }
 
     this.y = y + base * 0.5;
   }
@@ -1133,6 +1139,56 @@ export function tableColumnWidths(
     : // Es passt nicht: umbrochen wird ohnehin, also wird der Platz nach dem
       // Bedarf verteilt — die lange Spalte bricht, die kurze nicht.
       wunsch.map((w) => luft + (Math.max(min * columns, boxWidth - luft * columns) * w) / summe);
+}
+
+/** Eine gesetzte Tabellenzeile: ihre umbrochenen Zellen und ihre Höhe. */
+export interface Tabellenzeile {
+  /** Je Spalte die umbrochenen Zeilen. */
+  readonly zellen: PositionedRun[][][];
+  /** Die volle Höhe der Zeile, Innenabstand oben und unten eingerechnet. */
+  readonly hoehe: number;
+}
+
+/**
+ * Wie hoch die Zeilen einer Tabelle bauen — und wie ihre Zellen umbrechen.
+ *
+ * **Öffentlich, weil sie zwei Kunden hat**, dieselbe Linie wie bei
+ * `tableColumnWidths()` daneben: der Setzer zeichnet damit, der
+ * PowerPoint-Weg schreibt damit sein `a:tr h` und die Höhe des Rahmens. Dort
+ * stand eine feste 40 mit dem Kommentar, `a:tr h` sei ohnehin nur eine
+ * *Mindest*höhe — das stimmt für die Zeile und nicht für den Rahmen. Gemessen
+ * an einer einzeiligen Tabelle: der Setzer baut 34,45 je Zeile, die `.pptx`
+ * schrieb 40; und sobald eine Zelle umbricht, ist die Zeile 54,6 oder 74,75
+ * hoch und die feste 40 zu *klein*. Im Fließtext legt diese Höhe fest, wo der
+ * nächste Absatz anfängt: er stand damit mitten in der Tabelle.
+ *
+ * Der Innenabstand ist aus der Schriftgröße gerechnet und steht deshalb hier,
+ * an einer Stelle — 0,55 senkrecht, 0,7 waagerecht.
+ */
+export function tabellenZeilen(
+  rows: readonly (readonly StyledRun[])[][],
+  spalten: readonly number[],
+  size: number,
+): Tabellenzeile[] {
+  const lineHeight = size * typeScale.small.lineHeight;
+  const padX = tabellenAbstandX(size);
+  const padY = size * 0.55;
+
+  return rows.map((row) => {
+    let hoch = lineHeight;
+    const zellen = spalten.map((breite, index) => {
+      const innen = Math.max(size, breite - padX * 2);
+      const lines = wrapRuns(row[index] ?? [], innen);
+      hoch = Math.max(hoch, lines.length * lineHeight);
+      return lines;
+    });
+    return { zellen, hoehe: hoch + padY * 2 };
+  });
+}
+
+/** Der waagerechte Innenabstand einer Tabellenzelle. */
+export function tabellenAbstandX(size: number): number {
+  return size * 0.7;
 }
 
 export function wrapRuns(runs: readonly StyledRun[], maxWidth: number): PositionedRun[][] {

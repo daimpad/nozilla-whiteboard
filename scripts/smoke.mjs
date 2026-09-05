@@ -1104,6 +1104,26 @@ async function main() {
     wahr(nachher.includes('>EINS<'), 'die neuen Beschriftungen stehen nicht auf der Folie');
     wahr(!nachher.includes('>Eins<'), 'die Kategorie steht nicht in Versalien');
     wahr(!nachher.includes('>2023<'), 'die alten Beschriftungen stehen noch da');
+
+    /*
+       Und was der Leser nicht lesen konnte, sagt die Leiste.
+
+       Die Rechnung dazu steht in `liesChart()` und ist in `chart.test.ts`
+       geprüft — dass der Inspektor sie *ruft*, zeigt keine Zusicherung dort.
+       Beide Richtungen, denn eine Warnung, die immer dasteht, ist keine.
+    */
+    const leiste = seite.locator('aside[aria-label="Inspektor"]');
+    wahr(
+      !(await leiste.innerText()).includes('keine lesbare Zahl'),
+      'die Leiste warnt über zwei lesbaren Zahlen',
+    );
+    await feld.fill('Eins  10\nZwei  1e3');
+    await bisWahr(
+      async () => (await leiste.innerText()).includes('1e3'),
+      'die Leiste nennt die Zeile ohne lesbare Zahl nicht',
+    );
+    // „1e3" wurde früher zu 13: alles, was keine Ziffer war, fiel weg.
+    wahr(!(await folie()).markup.includes('>13<'), 'aus „1e3" wurde eine Zahl auf der Folie');
   });
 
   await pruefe('eine Tabelle teilt ihre Spalten nach dem, was drinsteht', async () => {
@@ -1472,8 +1492,82 @@ async function main() {
       'kein Strich auf der Fläche',
     );
 
+    /*
+       Und die Zahl hängt an der Schrift, nicht nur am Kasten.
+
+       `overflowOf()` merkte sich sein Ergebnis am Element-Objekt, und das
+       Objekt ändert sich bei einem Wechsel des Erscheinungsbilds nicht: die
+       Leiste zeigte weiter den Überlauf der vorigen Typo-Leiter. Daran hingen
+       zwei Merker — der in `overflow.ts` und die `useMemo` in `CanvasStage`,
+       die nur an den Elementen hing und deshalb gar nicht erst nachfragte.
+       Gemessen in vitest: 417 gegen 307 Einheiten.
+    */
+    const balken = seite.locator('[title*="unter der Unterkante"]').first();
+    // In die Auszeichnungsschrift gestellt: nur deren Stufen belegt das
+    // andere Erscheinungsbild neu (0,9×), der Grundtext bleibt gleich groß.
+    // Ein Wechsel ohne einen Unterschied prüfte gar nichts.
+    await seite
+      .locator('aside[aria-label="Inspektor"] select')
+      .filter({ has: seite.locator('option[value="h1"]') })
+      .first()
+      .selectOption('h1');
+    const zahl = await bis(
+      async () => (await balken.getAttribute('title')) ?? null,
+      'nach der Stufe h1 steht kein Balken mehr da',
+    );
+    await seite.getByRole('button', { name: 'Deck', exact: true }).click();
+    const marke = seite
+      .locator('select')
+      .filter({ has: seite.locator('option[value="musterkunde"]') })
+      .first();
+    await marke.selectOption('musterkunde');
+    await bisWahr(
+      async () => (await balken.getAttribute('title')) !== zahl,
+      'der Balken behielt die Zahl der vorigen Typo-Leiter',
+    );
+    // Und zurück — sonst bestünde die Prüfung auch für einen Merker, der nur
+    // ein einziges Mal verfällt.
+    await marke.selectOption('nozilla');
+    await bisWahr(
+      async () => (await balken.getAttribute('title')) === zahl,
+      'der Balken kam nicht zur alten Zahl zurück',
+    );
+
+    await seite.getByRole('button', { name: 'Element', exact: true }).click();
     await seite.getByRole('button', { name: /Kasten anpassen/ }).click();
     await bisGleich(() => warnung.count(), 0, 'Warnung nach dem Anpassen des Kastens');
+  });
+
+  await pruefe('ein zu langer Fließtext meldet sich in der Leiste', async () => {
+    /*
+       Der Wächter kannte nur Elemente — und damit ausgerechnet den Inhalt
+       nicht, den jede Folie hat. Vierzig Absätze im `default`-Layout enden 831
+       Einheiten unter der Folienkante, in jeder Ausgabe, ohne ein Wort.
+
+       Hier und nicht nur in vitest, weil die Rechnung stimmen kann und die
+       Leiste sie trotzdem nicht ruft. Beide Richtungen, denn eine Warnung, die
+       immer dasteht, ist keine.
+    */
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Folie', exact: true }).click();
+    const markdown = seite.locator('aside[aria-label="Inspektor"] textarea').first();
+    const warnung = seite.getByText('unter den Satzspiegel', { exact: false });
+
+    await markdown.fill('# Eine Überschrift\n\nUnd ein Absatz darunter.');
+    await bisGleich(() => warnung.count(), 0, 'Warnung bei einem Fließtext, der passt');
+
+    const viel = Array.from({ length: 40 }, (_, i) => `Ein Absatz Nummer ${i}.`).join('\n\n');
+    await markdown.fill(viel);
+    await bisWahr(() => warnung.count(), 'keine Warnung, obwohl der Fließtext heraussteht');
+    // Die zweite Hälfte der Auskunft: unter dem Satzspiegel steht die Fußzeile,
+    // unter der Folienkante steht gar nichts mehr.
+    wahr(
+      await seite.getByText('unter der Folienkante', { exact: false }).count(),
+      'die Leiste nennt die Folienkante nicht',
+    );
+
+    await markdown.fill('# Wieder kurz');
+    await bisGleich(() => warnung.count(), 0, 'die Warnung blieb stehen');
   });
 
   console.log('\nVortrag:');

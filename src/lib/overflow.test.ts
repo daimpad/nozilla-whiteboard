@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { overflowOf } from './overflow';
+import { flussUeberlauf, overflowOf, unterDerFolienkante } from './overflow';
 import { createElement } from '@/model/factory';
-import { parseDeck } from '@/lib/markdown/deck';
+import { createEmptySlide, parseDeck } from '@/lib/markdown/deck';
+import { setActiveTheme } from '@/theme';
+import { registerThemes } from '@/themes';
 import { bundledDecks } from '@/decks';
 import { assetPresets } from '@/assets/presets';
 import type { CanvasElement } from '@/model/types';
@@ -158,5 +160,148 @@ describe('was mitgeliefert wird, läuft selbst nicht über', () => {
       });
     }
     expect(laufen).toEqual([]);
+  });
+});
+
+describe('der gemerkte Wert', () => {
+  /*
+     Die `WeakMap` hielt ihren Wert für die Lebenszeit des Element-Objekts —
+     und drei Dinge ändern das Maß, ohne das Element anzufassen: die echte
+     Schrift (sie kommt erst nach dem ersten Zeichnen an), ein anderes
+     Erscheinungsbild und eingetroffene Bildmaße. `resetMeasurementCache()`
+     räumt bei genau diesen Anlässen den Messpuffer; zwei Merker für dieselbe
+     Frage, und nur einer verfiel.
+  */
+  const ueberschrift = () =>
+    createElement('text', {
+      w: 300,
+      h: 60,
+      typeStyle: 'h1',
+      text: 'Eine Überschrift, die knapp in ihren Kasten passt.',
+    } as never) as CanvasElement;
+
+  it('verfällt, wenn ein anderes Erscheinungsbild gilt', () => {
+    registerThemes();
+    const el = ueberschrift();
+    const unterNozilla = overflowOf(el);
+
+    setActiveTheme('musterkunde');
+    try {
+      // Der Vergleich ist gegen eine frische Kopie: sie kann nichts gemerkt
+      // haben, ist also die Wahrheit. Gemessen: 417 gegen 307.
+      const richtig = overflowOf({ ...el } as CanvasElement);
+      expect(richtig).not.toBe(unterNozilla);
+      expect(overflowOf(el)).toBe(richtig);
+    } finally {
+      setActiveTheme('nozilla');
+    }
+
+    // Und wieder zurück — sonst hielte die Prüfung auch für einen Merker, der
+    // nur ein einziges Mal verfällt.
+    expect(overflowOf(el)).toBe(unterNozilla);
+  });
+
+  it('merkt sich trotzdem, was sich nicht geändert hat', () => {
+    /*
+       Die Gegenrichtung, und sie hält fest, warum der Schlüssel das Element
+       *selbst* ist: der Store legt für jede Änderung ein neues Objekt an. Wer
+       dasselbe Objekt an Ort und Stelle ändert — was keine Aktion des Stores
+       tut —, bekommt den gemerkten Wert. Ohne diese Prüfung bestünde die
+       obige auch für eine Fassung ganz ohne Merker.
+    */
+    const el = ueberschrift();
+    const vorher = overflowOf(el);
+    (el as { h: number }).h += 4000;
+    expect(overflowOf(el)).toBe(vorher);
+    expect(overflowOf({ ...el } as CanvasElement)).not.toBe(vorher);
+  });
+});
+
+describe('ein Bild im Fließtext eines Elements', () => {
+  it('zählt für den Überlauf mit', () => {
+    /*
+       `untersteKante` sah nur Textprimitive. Ein Markdown-Element, dessen
+       Inhalt eine Abbildung ist, setzt gar keinen Text: gefunden wurde nichts,
+       gemeldet wurde 0. Gemessen: das Bild endet 145 Einheiten unter der
+       Unterkante des Kastens.
+    */
+    const mitBild = createElement('markdown', {
+      w: 400,
+      h: 80,
+      markdown: '![Ein Bild](logo.png)',
+    }) as CanvasElement;
+    expect(overflowOf(mitBild)).toBeGreaterThan(100);
+  });
+
+  it('meldet nichts, wo es hineinpasst', () => {
+    // Die Gegenrichtung: derselbe Inhalt in einem Kasten, der hoch genug ist.
+    const weit = createElement('markdown', {
+      w: 400,
+      h: 400,
+      markdown: '![Ein Bild](logo.png)',
+    }) as CanvasElement;
+    expect(overflowOf(weit)).toBe(0);
+
+    // Und ein Bild*element* bleibt außen vor — das wird eingepasst.
+    expect(overflowOf(createElement('image', { w: 10, h: 10 }) as CanvasElement)).toBe(0);
+  });
+});
+
+describe('der Fließtext einer Folie', () => {
+  const folie = (markdown: string) => createEmptySlide({ markdown });
+
+  it('meldet sich, wenn er unter den Satzspiegel läuft', () => {
+    /*
+       Der Wächter kannte nur Elemente — und damit ausgerechnet den Inhalt
+       nicht, den jede Folie hat. Gemessen an vierzig Absätzen im
+       `default`-Layout: der Satz endet 831 Einheiten unter der Folienkante, in
+       jeder Ausgabe, ohne ein Wort.
+    */
+    const viel = Array.from({ length: 40 }, (_, i) => `Ein Absatz Nummer ${i}.`).join('\n\n');
+    expect(flussUeberlauf(folie(viel))).toBeGreaterThan(0);
+    expect(unterDerFolienkante(folie(viel))).toBeGreaterThan(0);
+  });
+
+  it('hält Satzspiegel und Folienkante auseinander', () => {
+    /*
+       Zwischen beiden steht der Text noch da — er läuft nur in die Fußzeile.
+       Erst darunter steht er in keiner Ausgabe, und ein Satz, der beides
+       gleichsetzt, ist an einer der zwei Stellen falsch.
+    */
+    const knapp = Array.from({ length: 16 }, (_, i) => `Absatz ${i}.`).join('\n\n');
+    expect(flussUeberlauf(folie(knapp))).toBeGreaterThan(0);
+    expect(unterDerFolienkante(folie(knapp))).toBe(0);
+  });
+
+  it('schweigt bei jeder mitgelieferten Folie', () => {
+    /*
+       Dieselbe Gegenrichtung wie bei den Elementen: ein Wächter, der auf dem
+       eigenen Material anschlägt, wird abgeschaltet und bewacht dann gar
+       nichts mehr.
+    */
+    const laufen: string[] = [];
+    for (const eintrag of bundledDecks) {
+      const deck = parseDeck(eintrag.source);
+      setActiveTheme(deck.meta.theme ?? 'nozilla');
+      try {
+        deck.slides.forEach((slide, index) => {
+          const um = flussUeberlauf(slide);
+          if (um > 0) laufen.push(`${eintrag.file} Folie ${index + 1} um ${um}`);
+        });
+      } finally {
+        setActiveTheme('nozilla');
+      }
+    }
+    expect(laufen).toEqual([]);
+  });
+
+  it('schweigt, wo es gar keinen Fließtext gibt', () => {
+    // `canvas` und `blank` geben die Fläche dem frei Gelegten; dort ist die
+    // Frage sinnlos und nicht etwa mit „nein" zu beantworten.
+    const viel = Array.from({ length: 40 }, (_, i) => `Ein Absatz Nummer ${i}.`).join('\n\n');
+    for (const layout of ['canvas', 'blank'] as const) {
+      const slide = createEmptySlide({ markdown: viel, meta: { layout } as never });
+      expect(flussUeberlauf(slide), layout).toBe(0);
+    }
   });
 });
