@@ -494,7 +494,20 @@ function buildSlideMetaBlock(slide: Slide): string | null {
 
   if (Object.keys(data).length === 0) return null;
 
-  const body = escapeCommentTerminators(dumpYaml(data)).trimEnd();
+  /*
+     Genau der eine Zeilenumbruch am Ende, nicht der Weißraum.
+
+     Hier stand `.trimEnd()`, und das nahm mit dem Umbruch auch ein
+     Leerzeichen mit, das zum *Wert* gehört. js-yaml schreibt einen langen Text
+     als gefalteten Blockskalar (`text: >-`), und dessen letzte Zeile endet dann
+     mit dem Leerzeichen, mit dem der Wert endet. Gemessen an einer Notiz aus
+     vier Sätzen, die mit einem Leerzeichen aufhört: 308 Zeichen hinein, 307
+     zurück — ein Zeichen, jedes Mal beim Sichern, ohne ein Wort.
+
+     Der Schreiber selbst ist nicht schuld: `dumpYaml → load` ist für denselben
+     Text verlustfrei. Es war das Aufräumen danach.
+  */
+  const body = escapeCommentTerminators(dumpYaml(data)).replace(/\n$/, '');
   return `<!-- ${META_TAG}\n${body}\n-->`;
 }
 
