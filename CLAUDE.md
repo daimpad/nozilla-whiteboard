@@ -2834,6 +2834,64 @@ als SVG: die kursiven Wörter lehnen, die aufrechten stehen. Was dieses Bild
 Ersatzmaßen, nicht mit denen des Browsers. Dass die Stellen stimmen, ist
 deshalb gemessen und nicht angesehen; das ist der Absatz darüber.
 
+**Der zweite Kunde einer Rechnung wird beim Reparieren vergessen.**
+`flowBounds()` bekam seinen Maßgeber für die Bildmaße, als der Fehler in
+`useClipboard` auffiel — `insertPreset()` im Store rief ihn weiter ohne. Und
+das ist der häufigere Weg: die Bausteinbibliothek gegen ein eingefügtes Bild
+aus der Zwischenablage. Ohne die Maße fällt der Setzer auf „volle
+Spaltenbreite, Verhältnis 0,5625" zurück; bei einem 300 × 300-Logo im Fließtext
+sind das 762 Einheiten statt 441, und der Kasten, dem das Einsetzen ausweichen
+soll, ist um ein Drittel zu hoch. Der Baustein landet entsprechend zu tief oder
+gleich auf dem Notplatz am unteren Satzspiegel.
+
+Gefunden hat es kein Test, sondern die Frage „wer ruft das noch" — zwei Zeilen
+`grep`. Das ist dieselbe Familie wie „Sechs Wege ersetzten das Deck, einer
+fragte", nur eine Runde später: **wer eine Rechnung um ein Argument erweitert,
+muss ihre Aufrufer zählen und nicht den einen reparieren, der gerade wehtut.**
+
+**„Alle ersetzen" ließ den Rohblock stehen — als einziger Weg.** Der Kopf von
+`withElements()` führt es unter den zehn Wegen auf, die das früher taten, und
+zählt es zu den reparierten. Es war der eine, der es weiter tat, und der Grund
+steht in der Funktion selbst: `withElements()` gilt der **offenen** Folie,
+`ersetzeImDeck()` geht durch alle. Erreichbar ist der Fehler heute nicht — ein
+Element mit Rohblock kommt als `shape` mit lauter Vorgabewerten aus dem Leser,
+und in leeren Feldern findet die Suche nichts. Die Zusage steht trotzdem an
+zwei Stellen im Klartext, und eine Zusage, die nur fast gilt, ist keine.
+
+**Vierundzwanzig von dreiundfünfzig.** Die Prüfung „fasst nichts an, was der
+Verlauf noch hält" — die Bedingung, unter der der Verlauf seine Objekte
+*teilen* darf statt sie zu klonen — führte ihre Handgriffe als getippte Liste.
+Der Store hat inzwischen dreiundfünfzig Aktionen; vier davon fassen das Deck an
+und standen nicht darin (`updateElement`, `addElements`, `ersetzeImDeck`,
+`pushHistory`). Keine hat je an Ort und Stelle geändert, es fehlte also nichts
+— aber „eine Härtungsliste, die man tippt, prüft die Hälfte" steht in dieser
+Liste schon einmal, und diesmal war es nicht die Hälfte, sondern knapp die
+Hälfte.
+
+Der Wächter über dem Wächter geht jetzt `Object.keys()` des Stores durch: jede
+Aktion muss entweder geprüft oder mit Grund ausgenommen sein, und die
+Ausnahmeliste darf nichts führen, das es nicht mehr gibt. Wer eine Aktion
+hinzufügt, muss sich entscheiden.
+
+**Und ein Netz, das es noch nicht gab: der Rundlauf durch die Datei.** Was der
+Store baut, muss die `.md` tragen können — eine Aktion, deren Ergebnis den Weg
+durch `serializeDeck → parseDeck` nicht übersteht, verliert still, und man
+sieht es erst beim nächsten Öffnen. Neunzehn Aktionen, jede einzeln, jede gegen
+das ganze Deck verglichen. Ausgenommen ist die **Folienkennung**: sie steht im
+Dateiformat nicht, sie ist ein Griff im Speicher und wird beim Lesen neu
+vergeben.
+
+**Was nachgemessen wurde und in Ordnung ist.** Alle neunzehn überstehen den
+Rundlauf. Der Merker für das Zusammenfassen verfällt an jedem ⌘Z, jedem
+geladenen Deck und jedem `setState` von selbst, weil er auf den Eintrag zeigt,
+den er abgelegt hat. `undo` klemmt den Folienindex, wenn das wiederhergestellte
+Deck kürzer ist; `goTo`, `moveSlide` und `deleteSlide` halten ihre Grenzen; die
+Auswahl wird beim Folienwechsel geleert und trägt danach keine toten Kennungen.
+`locked` gilt beim Schieben, Ausrichten, Verteilen und Ziehen und wird von
+`selectAll` gar nicht erst eingesammelt. Und `updateElements` und
+`transformElements` legen keinen Verlaufsschritt an — das tut die Geste einmal
+am Anfang, und genau deshalb ist ein Ziehen ein Schritt und nicht sechzig.
+
 ---
 
 ## Git

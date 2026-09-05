@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { canvas } from '@/theme';
 import { flowBounds, insertColumnWidth } from '@/lib/layout/slideLayout';
 import { createElement } from '@/model/factory';
 import { parseDeck, serializeDeck } from '@/lib/markdown/deck';
 import { createStarterDeck, useDeckStore } from './deckStore';
+import { bildmass, fordereBildmasse } from '@/lib/export/images';
 import type { CanvasElement } from '@/model/types';
 
 const store = () => useDeckStore.getState();
@@ -856,5 +857,302 @@ describe('der Rohblock einer unbekannten Elementart', () => {
     useDeckStore.setState({ deck, slideIndex: 0, selection: [] });
     store().setSlideMeta({ background: 'ink' });
     expect(serializeDeck(store().deck)).toContain('kind: heading');
+  });
+});
+
+/**
+ * Der Kasten, dem das Einsetzen ausweicht, muss der gesetzte sein.
+ *
+ * `flowBounds()` bekam seinen Maßgeber, als der Fehler in `useClipboard`
+ * auffiel — der zweite Kunde stand ohne. Und es ist der häufigere: die
+ * Bausteinbibliothek. Ohne die Maße fällt der Setzer auf „volle
+ * Spaltenbreite, Verhältnis 0,5625" zurück, bei einem 300 × 300-Logo also auf
+ * 762 Einheiten statt 441.
+ */
+class Bildattrappe {
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  naturalWidth = 300;
+  naturalHeight = 300;
+  crossOrigin = '';
+  decoding = '';
+  set src(_wert: string) {
+    queueMicrotask(() => this.onload?.());
+  }
+}
+
+describe('einsetzen neben einem Bild im Fließtext', () => {
+  const MIT_BILD = ['# Titel', '', '![Logo](logo.png)'].join('\n');
+
+  beforeEach(() => {
+    useDeckStore.setState({
+      deck: parseDeck(MIT_BILD),
+      slideIndex: 0,
+      selection: [],
+      past: [],
+      future: [],
+      dirty: false,
+    });
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('weicht dem Bild aus, wie es wirklich gesetzt ist', async () => {
+    vi.stubGlobal('Image', Bildattrappe);
+    fordereBildmasse(['logo.png']);
+    // Die Attrappe meldet sich in einer Mikroaufgabe.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(bildmass('logo.png')).toEqual({ w: 300, h: 300 });
+
+    const slide = store().deck.slides[0];
+    const echt = flowBounds(slide.meta.layout, slide.markdown, bildmass);
+    const geraten = flowBounds(slide.meta.layout, slide.markdown);
+    // Die Vorbedingung der Prüfung: ohne die Maße rechnet der Setzer den
+    // Kasten deutlich zu hoch. Ohne sie prüfte der Rest nichts.
+    expect(geraten!.h).toBeGreaterThan(echt!.h + 100);
+
+    store().insertPreset('badge');
+    const gelegt = elementsNow().at(-1)!;
+    // Unter dem *gesetzten* Text — und über dem, was die Vorgabe geraten
+    // hätte.
+    expect(gelegt.y).toBeGreaterThanOrEqual(echt!.y + echt!.h);
+    expect(gelegt.y).toBeLessThan(geraten!.y + geraten!.h);
+  });
+
+  it('ändert nichts, wo gar kein Bild steht', () => {
+    /*
+       Die Gegenrichtung. Ohne sie bestünde die Prüfung darüber auch für einen
+       Maßgeber, der jede Messung verschiebt: auf einer Folie ohne Bild muss
+       er folgenlos sein.
+    */
+    useDeckStore.setState({ deck: parseDeck('# Titel\n\nEin Absatz.\n') });
+    const slide = store().deck.slides[0];
+    expect(flowBounds(slide.meta.layout, slide.markdown, bildmass)).toEqual(
+      flowBounds(slide.meta.layout, slide.markdown),
+    );
+  });
+});
+
+/**
+ * Zwei Netze über den Zustand, und beide rechnen ihre Liste, statt sie zu
+ * tippen.
+ *
+ * Die Prüfung „fasst nichts an, was der Verlauf noch hält" führt vierundzwanzig
+ * Handgriffe von Hand — der Store hat dreiundfünfzig. Eine Härtungsliste, die
+ * man tippt, prüft die Hälfte; das steht in `CLAUDE.md` schon einmal.
+ */
+describe('das Netz über alle Aktionen', () => {
+  /** Aktionen, die den Verlauf nichts angehen — mit Grund. */
+  const OHNE_DECK = new Set([
+    // Dateiweg: setzt den Zustand von außen neu.
+    'loadDeck',
+    'loadMarkdown',
+    'newDeck',
+    'markSaved',
+    'meldeSicherung',
+    'zeigeHinweis',
+    // Ansicht und Auswahl — sie fassen das Deck nicht an.
+    'goTo',
+    'next',
+    'previous',
+    'advance',
+    'retreat',
+    'setMode',
+    'toggleOverview',
+    'toggleNotes',
+    'togglePrompt',
+    'toggleSearch',
+    'togglePanel',
+    'select',
+    'toggleSelect',
+    'selectAll',
+    'clearSelection',
+    'setGuides',
+    'setSnap',
+    'toggleGrid',
+    'setZoom',
+  ]);
+
+  const GEPRUEFT = new Set([
+    'setSlideMarkdown',
+    'setSlideMeta',
+    'setDeckMeta',
+    'updateElement',
+    'updateElements',
+    'transformElements',
+    'nudgeSelection',
+    'reorderSelection',
+    'alignSelection',
+    'distributeSelection',
+    'setElementTone',
+    'setRevealStep',
+    'groupSelection',
+    'ungroupSelection',
+    'duplicateSelection',
+    'insertPreset',
+    'addElement',
+    'addElements',
+    'pasteElements',
+    'deleteSelection',
+    'ersetzeImDeck',
+    'addSlide',
+    'duplicateSlide',
+    'moveSlide',
+    'deleteSlide',
+    'pushHistory',
+    'undo',
+    'redo',
+  ]);
+
+  it('kennt jede Aktion des Stores', () => {
+    /*
+       Der Wächter über dem Wächter: wer eine Aktion hinzufügt, muss sich
+       entscheiden — geprüft oder mit Grund ausgenommen. Ohne ihn wächst der
+       Store und die Liste bleibt stehen.
+    */
+    const alle = Object.entries(store())
+      .filter(([, wert]) => typeof wert === 'function')
+      .map(([name]) => name)
+      .sort();
+    const unbekannt = alle.filter((name) => !GEPRUEFT.has(name) && !OHNE_DECK.has(name));
+    expect(unbekannt).toEqual([]);
+
+    // Und die Gegenrichtung: keine Liste führt etwas, das es nicht mehr gibt.
+    const vorhanden = new Set(alle);
+    expect([...GEPRUEFT, ...OHNE_DECK].filter((name) => !vorhanden.has(name))).toEqual([]);
+  });
+
+  it('fasst auch in den übrigen Aktionen nichts an, was der Verlauf hält', () => {
+    /*
+       Dieselbe Zusicherung wie oben, für die vier Handgriffe, die die getippte
+       Liste nicht führte: `updateElement`, `addElements`, `ersetzeImDeck` und
+       `pushHistory`. Keiner von ihnen hat je an Ort und Stelle geändert — die
+       Prüfung hält fest, dass es so bleibt.
+    */
+    addShape({ x: 40, y: 40 });
+    store().selectAll();
+    const weitere: Array<[string, () => void]> = [
+      ['updateElement', () => store().updateElement(store().selection[0], { opacity: 0.4 })],
+      ['addElements', () => store().addElements([createElement('badge')])],
+      ['ersetzeImDeck', () => store().ersetzeImDeck('a', 'b')],
+      ['pushHistory', () => store().pushHistory('probe')],
+    ];
+
+    einfrieren(store().deck);
+    for (const [name, handgriff] of weitere) {
+      expect(handgriff, name).not.toThrow();
+      einfrieren(store().deck);
+    }
+  });
+});
+
+/**
+ * „Alle ersetzen" gibt den Rohblock auf wie jeder andere Weg.
+ *
+ * Der Kopf von `withElements()` führt es als einen der zehn Wege auf, die den
+ * Block früher stehen ließen — und es war der eine, der es weiter tat:
+ * `withElements()` gilt der *offenen* Folie, dieser Weg geht durch alle.
+ *
+ * Der Zustand ist **von Hand gebaut**, und das gehört dazu: aus dem Leser kommt
+ * ein Element mit Rohblock als `shape` mit lauter Vorgabewerten, und in leeren
+ * Feldern findet die Suche nichts. Erreichbar ist der Fehler heute also nicht —
+ * die Zusage steht trotzdem an zwei Stellen im Klartext, und eine Zusage, die
+ * nur fast gilt, ist keine.
+ */
+describe('der Rohblock beim Ersetzen im ganzen Deck', () => {
+  const mitRohblock = (titel: string) =>
+    ({
+      ...createElement('card', { x: 40, y: 40, title: titel }),
+      unknownRaw: { kind: 'heading', text: titel },
+    }) as CanvasElement;
+
+  const lege = (element: CanvasElement) => {
+    useDeckStore.setState((state) => ({
+      deck: {
+        ...state.deck,
+        slides: state.deck.slides.map((slide, i) =>
+          i === 0 ? { ...slide, elements: [element] } : slide,
+        ),
+      },
+      selection: [element.id],
+    }));
+  };
+
+  it('verfällt, sobald der Text wirklich ersetzt wird', () => {
+    lege(mitRohblock('Hallo'));
+    expect(store().ersetzeImDeck('Hallo', 'Servus')).toBeGreaterThan(0);
+
+    const element = store().deck.slides[0].elements[0];
+    expect(element.unknownRaw).toBeUndefined();
+    // Und an der gesicherten Datei, nicht am Modell: der alte Block darf dort
+    // nicht mehr stehen, sonst wäre die Ersetzung beim nächsten Öffnen weg.
+    const datei = serializeDeck(store().deck);
+    expect(datei).toContain('Servus');
+    expect(datei).not.toContain('kind: heading');
+  });
+
+  it('bleibt stehen, wo nichts ersetzt wurde', () => {
+    // Die Gegenrichtung: wer nicht angefasst wurde, behält seinen Block.
+    lege(mitRohblock('Hallo'));
+    expect(store().ersetzeImDeck('kommt nicht vor', 'x')).toBe(0);
+    expect(store().deck.slides[0].elements[0].unknownRaw).toBeDefined();
+  });
+});
+
+/**
+ * Und was der Store baut, muss die Datei tragen können.
+ *
+ * Eine Aktion, deren Ergebnis den Weg durch die `.md` nicht übersteht, verliert
+ * still — und man sieht es erst beim nächsten Öffnen. Verglichen wird das
+ * ganze Deck; die **Folienkennung** ist ausgenommen, weil sie im Dateiformat
+ * nicht steht: sie ist ein Griff im Speicher und wird beim Lesen neu vergeben.
+ */
+describe('der Rundlauf durch die Datei', () => {
+  const ohneFolienId = (deck: ReturnType<typeof parseDeck>) => ({
+    ...deck,
+    slides: deck.slides.map(({ id: _id, ...rest }) => rest),
+  });
+
+  const wege: Array<[string, () => void]> = [
+    ['setSlideMeta', () => store().setSlideMeta({ layout: 'split', notes: 'Notiz' })],
+    ['setDeckMeta', () => store().setDeckMeta({ title: 'Neu', theme: 'musterkunde' })],
+    ['updateElements', () => store().updateElements(store().selection, { opacity: 0.5 })],
+    ['transformElements', () => store().transformElements((el) => ({ x: el.x + 1, rotation: 30 }))],
+    ['nudgeSelection', () => store().nudgeSelection(8, 8)],
+    ['reorderSelection', () => store().reorderSelection('back')],
+    ['alignSelection', () => store().alignSelection('vcenter')],
+    ['distributeSelection', () => store().distributeSelection('h')],
+    ['setElementTone', () => store().setElementTone('signal')],
+    ['setRevealStep', () => store().setRevealStep(2, 'wipe')],
+    ['groupSelection', () => store().groupSelection()],
+    ['duplicateSelection', () => store().duplicateSelection()],
+    ['insertPreset', () => store().insertPreset('icon')],
+    ['pasteElements', () => store().pasteElements([createElement('wordmark')])],
+    ['deleteSelection', () => store().deleteSelection()],
+    ['addSlide', () => store().addSlide()],
+    ['duplicateSlide', () => store().duplicateSlide()],
+    ['ersetzeImDeck', () => store().ersetzeImDeck('A', 'Z')],
+    ['undo', () => store().undo()],
+  ];
+
+  it.each(wege)('%s übersteht Sichern und Öffnen', (_name, tun) => {
+    useDeckStore.setState({
+      deck: parseDeck('# Eins\n\nText eins.\n'),
+      slideIndex: 0,
+      selection: [],
+      past: [],
+      future: [],
+      dirty: false,
+    });
+    store().addElement(createElement('card', { x: 40, y: 40, title: 'A' }));
+    store().addElement(createElement('badge', { x: 300, y: 40, text: 'B' }));
+    store().addElement(createElement('shape', { x: 560, y: 40 }));
+    store().selectAll();
+
+    tun();
+    const gebaut = store().deck;
+    const gelesen = parseDeck(serializeDeck(gebaut));
+    expect(ohneFolienId(gelesen)).toEqual(ohneFolienId(gebaut));
   });
 });
