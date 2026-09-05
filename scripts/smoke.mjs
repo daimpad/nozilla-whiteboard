@@ -1461,6 +1461,43 @@ async function main() {
 
     const [, , gemessen] = await masse(seite);
     wahr(gemessen >= 1, `die Breite steht auf ${gemessen} statt auf mindestens 1`);
+
+    /*
+       Und dieselbe Frage an der Höhe, denn dort stand die Grenze falsch.
+
+       Das Feld führte `min={0}`, während `normalizeElement` alles außer einem
+       Verbinder auf 1 hebt: eine getippte 0 blieb im Modell stehen und kam
+       beim nächsten Öffnen als 1 zurück — weder behalten noch abgelehnt,
+       sondern still ersetzt. Genau dagegen ist die Kappung im Feld gebaut.
+
+       Hier und nicht nur in vitest, weil der Unterschied im *Argument* liegt:
+       `mindestHoehe(first.kind)` gegen eine feste Zahl sieht in jeder
+       Zusicherung über die Funktion gleich aus. Gemessen wird deshalb, was im
+       Feld steht, nachdem man eine 0 hineingeschrieben hat.
+    */
+    const hoeheFeld = seite.locator('aside[aria-label="Inspektor"] input').nth(3);
+    await hoeheFeld.fill('0');
+    await hoeheFeld.press('Enter');
+    await bisGleich(
+      () => hoeheFeld.inputValue(),
+      '1',
+      'die Karte nahm eine Höhe von 0 an, die der Leser gleich wieder auf 1 hebt',
+    );
+
+    // Die Gegenrichtung, und sie trägt die Regel: beim Verbinder *ist* die
+    // Höhe null der Normalfall — eine waagerechte Linie. Eine Grenze, die
+    // überall dieselbe ist, wäre hier zu streng.
+    await seite.getByRole('button', { name: 'Folie hinzufügen', exact: true }).click();
+    await seite.locator('aside button').filter({ hasText: 'Pfeil' }).first().click();
+    await seite.getByRole('button', { name: 'Element', exact: true }).click();
+    const verbinderHoehe = seite.locator('aside[aria-label="Inspektor"] input').nth(3);
+    await verbinderHoehe.fill('0');
+    await verbinderHoehe.press('Enter');
+    await bisGleich(
+      () => verbinderHoehe.inputValue(),
+      '0',
+      'dem Verbinder wurde die Höhe null verwehrt',
+    );
   });
 
   await pruefe('ein überlaufender Text meldet sich, ein passender nicht', async () => {
@@ -2330,6 +2367,59 @@ async function main() {
       'nichts gesichert',
     );
     wahr(gesichert.includes(ZEILE), 'der unlesbare Block fehlt in der gesicherten Datei');
+  });
+
+  await pruefe('die Warnung zum Fließtext weiß, auf welchem Blatt sie misst', async () => {
+    /*
+       Und dieselbe Warnung, wenn nicht der Text wechselt, sondern das Blatt.
+
+       Sie misst gegen den Satzspiegel, und dessen Höhe kommt aus der
+       lebendigen Bindung — `SlidePanel` abonnierte deren Zähler nicht.
+       `useDeckFolienformat()` setzt das Format in einem **Effekt**, also nach
+       dem Zeichnen: der Durchlauf, der auf den Deck-Wechsel folgt, rechnet
+       noch mit 720, und ohne Abonnement kommt kein zweiter. Gemessen an
+       vierzig Absätzen: 999 Einheiten Überlauf auf 16:9, 0 auf A4 hoch — die
+       Warnung wäre stehengeblieben und hätte einen Fehler behauptet, den es
+       nicht gibt.
+
+       **Was diese Prüfung zeigt und was nicht.** Sie zeigt, dass die Warnung
+       nach einem Blattwechsel im laufenden Fenster stimmt — den ganzen Weg
+       vom Frontmatter über die lebendige Bindung bis in die Leiste, und den
+       deckt sonst nichts ab. Sie ist **nicht** die Gegenprobe zum Abonnement:
+       ohne den Zähler bleibt sie grün, weil `bisGleich` wartet und binnen
+       Millisekunden ohnehin etwas anderes die Leiste neu zeichnet. Der
+       stehengebliebene Wert ist im Browser nicht dingfest zu machen; dass
+       jede rechnende Leiste abonniert, hält `inspector.test.ts` an der
+       Quelle fest.
+    */
+    const langerText = Array.from({ length: 30 }, (_, i) => `Ein Absatz Nummer ${i}.`).join('\n\n');
+    await seite.getByRole('button', { name: 'Folie', exact: true }).click();
+    await seite.locator('aside[aria-label="Inspektor"] textarea').first().fill(langerText);
+    await bisWahr(
+      () => seite.getByText('unter den Satzspiegel', { exact: false }).count(),
+      'auf 16:9 fehlt die Warnung zum Fließtext',
+    );
+
+    const annehmen = (dialog) => void dialog.accept();
+    seite.on('dialog', annehmen);
+    await seite.getByRole('button', { name: 'Prompt', exact: true }).click();
+    await seite
+      .getByPlaceholder('---\ntitle: …')
+      .fill(`---\ntitle: Hoch\nformat: a4-hoch\n---\n\n# Hochkant.\n\n${langerText}\n`);
+    await seite.getByRole('button', { name: 'Als Deck öffnen', exact: true }).click();
+    await bisGleich(
+      () => seite.getByText('unter den Satzspiegel', { exact: false }).count(),
+      0,
+      'die Warnung blieb auf dem hohen Blatt stehen',
+    );
+    seite.off('dialog', annehmen);
+
+    // Und zurück auf ein 16:9-Deck, damit die Prüfung daneben wieder von dort
+    // aus anfängt.
+    const zurueck = (dialog) => void dialog.accept();
+    seite.on('dialog', zurueck);
+    await seite.keyboard.press('Control+Shift+KeyN');
+    seite.off('dialog', zurueck);
   });
 
   await pruefe('ein Deck im A4-Format liegt auf einem A4-Blatt', async () => {

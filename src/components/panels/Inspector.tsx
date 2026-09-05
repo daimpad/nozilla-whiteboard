@@ -1,9 +1,23 @@
 /**
- * The right-hand inspector: slide settings, the Markdown source for the current
- * slide, and the properties of whatever is selected on the canvas.
+ * Der Inspektor rechts: die Folie, ihr Markdown und die Eigenschaften dessen,
+ * was auf der Fläche ausgewählt ist.
  *
- * Every control writes through a store action, so undo/redo and the dirty flag
- * work without the panel knowing they exist.
+ * Jedes Bedienelement schreibt über eine Store-Aktion. Damit funktionieren
+ * Verlauf und der Merker „ungesichert", ohne dass diese Leiste davon weiß.
+ *
+ * ## Woran jede Anzeige hier hängt
+ *
+ * Drei der Auskünfte sind **gerechnet** und nicht abgelesen: der Überlauf
+ * eines Elements, der Überlauf des Fließtextes und die Warnung vor einer
+ * Fläche in der Farbe des Untergrunds. Alle drei ändern sich, ohne dass die
+ * Folie angefasst wird — an der echten Schrift (sie kommt erst nach dem ersten
+ * Zeichnen an), am Erscheinungsbild, an eingetroffenen Bildmaßen und am
+ * Folienformat.
+ *
+ * Deshalb ruft **jede** Leiste, die eine dieser Rechnungen anstellt, die vier
+ * Zähler — dieselbe Bauart wie in `SlideView` und `CanvasStage`, und aus
+ * demselben Grund. `inspector.test.ts` liest die Quelle und schlägt an, wenn
+ * eine fünfte Stelle rechnet, ohne zu abonnieren.
  */
 import { useMemo, useState } from 'react';
 import {
@@ -66,6 +80,7 @@ import {
   type CanvasElement,
   type FillStyle,
 } from '@/model/types';
+import { mindestBreite, mindestHoehe, standardIcon } from '@/model/factory';
 import { readFileAsDataUrl } from '@/lib/export/download';
 import { liesChart } from '@/lib/chart';
 import { flussUeberlauf, overflowOf, unterDerFolienkante } from '@/lib/overflow';
@@ -79,6 +94,7 @@ import { selectCurrentSlide, useDeckStore, useSelectedElements } from '@/state/d
 import { useThemeVersion } from '@/hooks/useTheme';
 import { useFontsVersion } from '@/hooks/useFonts';
 import { useImageSizes } from '@/hooks/useImageSizes';
+import { useFolienformatVersion } from '@/hooks/useFolienformat';
 import {
   Button,
   Divider,
@@ -160,14 +176,23 @@ function SlidePanel() {
   const setSlideMeta = useDeckStore((state) => state.setSlideMeta);
   const setSlideMarkdown = useDeckStore((state) => state.setSlideMarkdown);
   /*
-     Dieselben drei Zähler wie auf der Fläche: die Höhe des gesetzten Textes
-     hängt an der Schrift, am Erscheinungsbild und an den Bildmaßen, und keins
-     davon fasst die Folie an. Ohne sie stünde hier der Wert der Ersatzschrift.
+     Dieselben vier Zähler wie auf der Fläche: die Höhe des gesetzten Textes
+     hängt an der Schrift, am Erscheinungsbild und an den Bildmaßen, und
+     *wogegen* sie gemessen wird, am Folienformat — keins davon fasst die Folie
+     an. Ohne sie stünde hier der Wert der Ersatzschrift.
+
+     Das Format fehlte, und der Fehler ist der aus „Ein Effekt läuft nach dem
+     Zeichnen": `useDeckFolienformat()` setzt die Bindung erst *nach* dem
+     Rendern. Der erste Durchlauf nach einem Formatwechsel rechnet also noch
+     mit dem alten Blatt, und ohne Abonnement kommt kein zweiter. Gemessen an
+     vierzig Absätzen: 999 Einheiten Überlauf auf 16:9, 0 auf A4 hoch, 814 auf
+     A4 quer — die Warnung hätte auf dem hohen Blatt weitergestanden.
   */
   const deck = useDeckStore((state) => state.deck);
   useFontsVersion();
   useThemeVersion();
   useImageSizes(deck);
+  useFolienformatVersion();
   const fluss = slide ? flussUeberlauf(slide) : 0;
   const slideUnten = slide ? unterDerFolienkante(slide) : 0;
   if (!slide) return null;
@@ -460,6 +485,25 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
   const deleteSelection = useDeckStore((state) => state.deleteSelection);
   const setRevealStep = useDeckStore((state) => state.setRevealStep);
 
+  /*
+     Dieselben vier Zähler wie in `SlidePanel` — und hier fehlten sie ganz.
+
+     `overflowOf()` verwirft seinen Merker, sobald Schrift, Erscheinungsbild
+     oder Bildmaß wechseln; diese Leiste erfuhr davon nichts und zeigte
+     weiterhin die Zahl, die beim ersten Rendern herauskam. Gemessen an einer
+     h1 in einem 300 × 60-Kasten: 281 Einheiten unter nozilla, 185 unter dem
+     Musterkunden — der Balken auf der Fläche folgte dem Wechsel, die Zahl
+     daneben nicht, und „Kasten anpassen" hätte um 281 statt um 185 vergrößert.
+
+     Dasselbe gilt der Warnung vor einer Fläche in der Farbe des Untergrunds:
+     welche Kombination sich wegmalt, entscheidet die Palette der Laufzeit.
+  */
+  const deck = useDeckStore((state) => state.deck);
+  useFontsVersion();
+  useThemeVersion();
+  useImageSizes(deck);
+  useFolienformatVersion();
+
   const ids = useMemo(() => elements.map((element) => element.id), [elements]);
   const first = elements[0];
   // Eine Gruppe liegt vor, sobald das erste ausgewählte Element eine Kennung
@@ -642,8 +686,26 @@ function ElementPanel({ elements }: { elements: CanvasElement[] }) {
       <div className="grid grid-cols-2 gap-2">
         <NumberField label="X" value={first.x} onChange={(x) => patch({ x })} />
         <NumberField label="Y" value={first.y} onChange={(y) => patch({ y })} />
-        <NumberField label="Breite" value={first.w} min={1} onChange={(w) => patch({ w })} />
-        <NumberField label="Höhe" value={first.h} min={0} onChange={(h) => patch({ h })} />
+        <NumberField
+          label="Breite"
+          value={first.w}
+          min={mindestBreite()}
+          onChange={(w) => patch({ w })}
+        />
+        {/*
+          Die Grenze kommt aus dem Leser und steht nicht daneben noch einmal.
+          Sie war hier `min={0}`, während `normalizeElement` alles außer einem
+          Verbinder auf 1 hebt: eine getippte 0 blieb im Modell stehen und kam
+          beim nächsten Öffnen als 1 zurück — weder behalten noch abgelehnt,
+          sondern still ersetzt, und genau dagegen ist die Kappung im Feld
+          gebaut.
+        */}
+        <NumberField
+          label="Höhe"
+          value={first.h}
+          min={mindestHoehe(first.kind)}
+          onChange={(h) => patch({ h })}
+        />
         {/*
           Die Wortmarke wird nie gedreht, und dann gehört auch kein Feld dafür
           hierher: der Wert stand vorher im Modell und in der `.md`, gezeichnet
@@ -1092,7 +1154,7 @@ function KindFields({ element, patch }: KindFieldsProps) {
         <>
           <IconField
             value={element.icon}
-            onChange={(icon) => patch({ icon: icon ?? 'sparkle' } as Partial<CanvasElement>)}
+            onChange={(icon) => patch({ icon: icon ?? standardIcon() } as Partial<CanvasElement>)}
           />
           <Field label="Rahmen">
             <Segmented
@@ -1274,8 +1336,22 @@ function KindFields({ element, patch }: KindFieldsProps) {
         </>
       );
 
-    default:
+    default: {
+      /*
+         Eine zwölfte Elementart bekäme hier stillschweigend gar keine Felder —
+         dieselbe Lücke, die `svg.ts` und `pdf.ts` inzwischen mit einer
+         Zuweisung an `never` schließen. Sie bricht `tsc` ab, bevor jemand die
+         Art anlegt und sich wundert, warum die Leiste leer bleibt.
+
+         Anders als dort wird hier **nicht geworfen**: das ist eine Komponente,
+         und ein Wurf im Renderpfad ist ein weißes Fenster — der Fall, gegen
+         den in diesem Repo schon einmal etwas gebaut wurde. Der Compiler ist
+         die Prüfung, das `null` ist die Notlandung.
+      */
+      const unbekannt: never = element;
+      void unbekannt;
       return null;
+    }
   }
 }
 

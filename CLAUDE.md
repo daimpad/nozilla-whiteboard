@@ -2968,6 +2968,81 @@ dem Umbau der Kopfleiste nicht mehr „oben rechts", sondern links neben der
 Folienübersicht, und die Aufzählung dessen, was der Prompt leistet, kannte
 `theme:` und `format:` noch nicht.
 
+**Die Leiste rechnete und abonnierte nicht.** Drei Auskünfte des Inspektors
+sind gerechnet und nicht abgelesen: der Überlauf eines Elements, der des
+Fließtextes und die Warnung vor einer Fläche in der Farbe des Untergrunds. Alle
+drei ändern sich, ohne dass jemand die Folie anfasst — an der echten Schrift,
+am Erscheinungsbild, an eingetroffenen Bildmaßen, und wogegen der Fließtext
+gemessen wird, am Folienformat. `SlidePanel` rief drei der vier Zähler,
+`ElementPanel` keinen einzigen.
+
+Gemessen an einer h1 in einem 300 × 60-Kasten: 281 Einheiten Überlauf unter
+nozilla, 185 unter dem Musterkunden. Der Balken auf der Fläche folgt dem
+Wechsel — `CanvasStage` abonniert —, die Zahl in der Leiste daneben nicht, und
+„Kasten anpassen" hätte um 281 statt um 185 vergrößert. Für den Fließtext
+dieselbe Rechnung am Blatt: 999 Einheiten Überlauf auf 16:9, 0 auf A4 hoch, 814
+auf A4 quer.
+
+**Was davon im Browser dingfest zu machen ist, ist weniger, als es aussieht.**
+Der Wechsel des Erscheinungsbilds und der des Formats stehen beide im Reiter
+„Deck", und der Weg dorthin hängt die Element-Leiste aus — beim Zurückkommen
+rechnet sie ohnehin neu. Bleibt der Wechsel im laufenden Fenster, etwa ein
+geladenes Deck mit anderem Blatt: dort zeichnet binnen Millisekunden ohnehin
+etwas anderes die Leiste neu, und eine Prüfung, die wartet, sieht den
+stehengebliebenen Wert nie. Zwei Anläufe im Rauchtest blieben deshalb auch ohne
+den Zähler grün — der erste ging obendrein über den Ladeweg, wo der Neustart
+die Schriften holt und deren Zähler die Leiste nebenbei neu zeichnet. Genau
+diese Falle steht in dieser Liste schon einmal.
+
+Bewacht wird die Regel deshalb an der **Quelle**, wie bei `darfErsetzen()`: wer
+eine dieser Rechnungen anstellt, ruft die vier Zähler. Und **je Komponente und
+nicht je Datei** — denn genau das war der Fehler: die Datei rief sie, nur eben
+in der anderen Leiste. Der Rauchtest prüft dafür etwas anderes, das sonst
+niemand prüft: dass die Warnung nach einem Blattwechsel im laufenden Fenster
+wirklich stimmt.
+
+**`min={0}` an der Höhe, während der Leser bei 1 kappt.** Der Kommentar an
+`NumberField` schreibt aus, warum getippte Werte im Feld gekappt werden —
+„weder behalten noch abgelehnt, sondern still ersetzt" —, und für die Breite
+stimmte die Grenze auch. Für die Höhe nicht: `normalizeElement` hebt alles
+außer einem Verbinder auf 1, das Feld ließ 0 durch, und beim nächsten Öffnen
+stand 1 da. Dieselbe Sorte Reparatur wie überall hier: `mindestHoehe(kind)` ist
+jetzt die eine Rechnung, und der Verbinder behält seine Null, denn eine
+waagerechte Linie hat keine Höhe.
+
+Die Prüfung dazu hat zwei Anläufe gebraucht, und der erste war eine Tautologie:
+sie verglich `normalizeElement` mit `mindestHoehe()` — und `normalizeElement`
+*ruft* `mindestHoehe()`. Die Gegenprobe „gib überall 0 zurück" kam grün durch,
+weil beide Seiten mitwanderten. Die Absicht steht jetzt als Zahl im Test und
+wird zweimal gehalten: gegen die gesicherte Datei und gegen die Funktion, die
+das Feld fragt. Und weil der Unterschied im *Argument* liegt —
+`mindestHoehe(first.kind)` gegen eine feste Zahl sieht in jeder Zusicherung
+über die Funktion gleich aus —, tippt der Rauchtest wirklich eine 0 in das Feld
+und liest, was danach darin steht.
+
+**Ein Vorgabewert, der beim Hinsehen falsch war.** Der Inspektor schrieb `icon
+?? 'sparkle'`, und `sparkle` führt das nozilla-Set unter seinen 554 Zeichen
+überhaupt nicht; die Fabrik nimmt `square-check`. Erreichbar war der Zweig
+nicht — ohne „Ohne" in der Auswahlliste kommt nie `undefined` an —, aber ein
+Name, der schon jetzt ins Leere zeigt, wird beim nächsten Umbau richtig
+eingebaut. `standardIcon()` steht jetzt an einer Stelle und hat vier Kunden.
+
+**Und `default: return null` war die vierte stille Lücke dieser Bauart.** Eine
+zwölfte Elementart bekäme im Inspektor gar keine Felder, so wie sie früher aus
+dem SVG ersatzlos verschwunden wäre. Die Zuweisung an `never` bricht jetzt
+`tsc` ab. Geworfen wird hier aber **nicht**, anders als in `svg.ts`: das ist
+eine Komponente, und ein Wurf im Renderpfad ist ein weißes Fenster — der Fall,
+gegen den in diesem Repo schon einmal etwas gebaut wurde. Der Compiler ist die
+Prüfung, das `null` ist die Notlandung.
+
+**Was nachgemessen wurde und in Ordnung ist.** Die sechs Ausrichten-Knöpfe sind
+auch bei einer einzelnen Auswahl nicht tot — `alignSelection` nimmt dann die
+Folie als Bezug und nicht die Auswahl. „Verteilen" ist unter drei Elementen
+gesperrt, „Gruppieren" unter zweien. Die Kartenfelder folgen
+`kartenFelder(variant)`, die CI-Felder `elementFelder(kind)`, die Typo-Stufe
+des Form-Labels erscheint nur, wenn ein Label dasteht. Und der Kopf der Datei
+war der letzte englische Kommentar im Projekt.
+
 ---
 
 ## Git

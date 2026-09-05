@@ -190,14 +190,14 @@ export function createElement<K extends ElementKind>(
         variant: 'feature',
         title: 'Titel der Karte',
         body: 'Ein Satz, der behauptet, was die Karte behauptet.',
-        icon: 'square-check',
+        icon: standardIcon(),
       };
       break;
     case 'badge':
       element = { ...base, kind: 'badge', text: 'Label' };
       break;
     case 'icon':
-      element = { ...base, kind: 'icon', icon: 'square-check', frame: 'none' };
+      element = { ...base, kind: 'icon', icon: standardIcon(), frame: 'none' };
       break;
     case 'shape':
       element = { ...base, kind: 'shape', shape: 'rectangle' };
@@ -277,6 +277,43 @@ export function duplicateElement(
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+/**
+ * Das kleinste Maß, das ein Element haben darf — und das ist nicht dasselbe
+ * wie das kleinste, das sich *ziehen* lässt.
+ *
+ * `canvas.minElementSize` (24) ist eine Größe für die Hand: darunter trifft
+ * niemand mehr einen Griff. Der Leser hier stellt eine andere Frage — was ist
+ * ein *gültiges* Maß —, und die Antwort ist 1. Ein Verbinder ist die Ausnahme:
+ * eine waagerechte Linie hat die Höhe null, und das ist keine kaputte Angabe,
+ * sondern der Normalfall.
+ *
+ * Öffentlich, weil der Inspektor dieselbe Grenze braucht. Er führte sie als
+ * `min={0}` an „Höhe" und als `min={1}` an „Breite" — die Breite stimmte, die
+ * Höhe nicht: eine getippte 0 blieb im Modell stehen und kam beim nächsten
+ * Öffnen als 1 zurück. Der Wert war damit weder behalten noch abgelehnt,
+ * sondern still ersetzt, und genau dagegen ist die Kappung im Feld gebaut.
+ */
+export function mindestHoehe(kind: ElementKind): number {
+  return kind === 'connector' ? 0 : 1;
+}
+
+export function mindestBreite(): number {
+  return 1;
+}
+
+/**
+ * Das Zeichen, das ein neues Element trägt.
+ *
+ * Stand an vier Stellen: dreimal hier als `'square-check'` und einmal im
+ * Inspektor als `icon ?? 'sparkle'` — und `sparkle` führt das nozilla-Set
+ * überhaupt nicht. Erreichbar war der Zweig nicht (ohne „Ohne" in der Liste
+ * kommt nie `undefined` an), aber ein Vorgabewert, der beim Hinsehen falsch
+ * ist, wird beim nächsten Umbau richtig eingebaut.
+ */
+export function standardIcon(): IconName {
+  return 'square-check';
+}
+
 function num(value: unknown, fallback: number): number {
   const parsed = typeof value === 'string' ? Number(value) : value;
   return typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : fallback;
@@ -344,8 +381,8 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
     kind,
     x: num(raw.x, canvas.gridSize * 8),
     y: num(raw.y, canvas.gridSize * 8),
-    w: Math.max(1, num(raw.w, size.w)),
-    h: Math.max(kind === 'connector' ? 0 : 1, num(raw.h, size.h)),
+    w: Math.max(mindestBreite(), num(raw.w, size.w)),
+    h: Math.max(mindestHoehe(kind), num(raw.h, size.h)),
     rotation: num(raw.rotation, 0),
     z: num(raw.z, index),
     ...(unknownRaw ? { unknownRaw } : {}),
@@ -408,7 +445,7 @@ export function normalizeElement(raw: unknown, index = 0): CanvasElement | null 
       return {
         ...base,
         kind: 'icon',
-        icon: optionalIcon(raw.icon) ?? 'square-check',
+        icon: optionalIcon(raw.icon) ?? standardIcon(),
         frame: oneOf(raw.frame, iconFrames, 'none'),
       };
     case 'shape':
