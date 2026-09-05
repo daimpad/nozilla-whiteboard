@@ -8,7 +8,21 @@ import {
   splitSlides,
   unescapeCommentTerminators,
 } from './deck';
-import type { Deck } from '@/model/types';
+import {
+  cardVariants,
+  chartKinds,
+  connectorKinds,
+  elementKinds,
+  fillStyles,
+  iconFrames,
+  shapeNames,
+  wordmarkVariants,
+  type CanvasElement,
+  type Deck,
+} from '@/model/types';
+import { revealAnimations, shadowNames, strokeNames, toneNames, typeScale } from '@/theme';
+import { createElement } from '@/model/factory';
+import { bundledDecks } from '@/decks';
 
 /** Slide ids are runtime-only; ignore them when comparing round trips. */
 function stable(deck: Deck) {
@@ -526,6 +540,34 @@ describe('was ein Rundlauf durch die Datei überstehen muss', () => {
     expect(slide.meta.background).toBe('paper');
   });
 
+  it('nimmt einem Wert nicht sein letztes Leerzeichen', () => {
+    /*
+       `buildSlideMetaBlock()` räumte den YAML-Rumpf mit `.trimEnd()` auf — und
+       nahm damit ein Leerzeichen mit, das zum **Wert** gehört. js-yaml
+       schreibt einen langen Text als gefalteten Blockskalar (`text: >-`), und
+       dessen letzte Zeile endet dann mit dem Leerzeichen, mit dem der Wert
+       endet. Gemessen an einer Notiz aus vier Sätzen: 308 Zeichen hinein, 307
+       zurück — ein Zeichen, bei jedem Sichern, ohne ein Wort.
+
+       Der Schreiber ist nicht schuld: `dumpYaml → load` ist für denselben Text
+       verlustfrei. Es war das Aufräumen danach.
+    */
+    const lang = 'Ein Satz mit Wörtern und Leerzeichen darin. '.repeat(4);
+    for (const notiz of ['Kurz ', lang]) {
+      const basis = parseDeck('# A');
+      const deck = {
+        ...basis,
+        slides: basis.slides.map((slide) => ({
+          ...slide,
+          meta: { ...slide.meta, notes: notiz },
+        })),
+      };
+      expect(parseDeck(serializeDeck(deck)).slides[0].meta.notes, JSON.stringify(notiz)).toBe(
+        notiz,
+      );
+    }
+  });
+
   it('behält die Einrückung eines Codeblocks in der ersten Zeile', () => {
     // `parseSlide()` nimmt vorn nur `\n+` weg, `serializeSlide()` nahm mit
     // `trim()` auch die Leerzeichen: aus einem eingerückten Codeblock wurde
@@ -578,4 +620,203 @@ describe('was das Modell aus einem halben Block macht', () => {
     expect(karte.kind === 'card' && karte.label).toBe('2');
     expect(serializeDeck(deck)).toContain('label: "2"');
   });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Das Netz: was jede Datei aushalten muss                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Drei Reihen, die es vorher nicht gab.
+ *
+ * Die Prüfungen darüber sind Einzelfälle, jeder aus einem Fehler entstanden.
+ * Was fehlte, war die Fläche: dass **jede** Datei einen Rundlauf übersteht,
+ * dass **jeder** Wert **jedes** Feldes zurückkommt, und dass eine von Hand oder
+ * von einem Sprachmodell geschriebene Datei nichts durcheinanderbringt. Der
+ * Rundlauf ist dabei kein Randfall — `serializeDeck → parseDeck` läuft bei
+ * jeder Selbstsicherung und bei jedem Wort, das der Vortragskanal
+ * hinüberschickt.
+ */
+describe('das Netz unter dem Dateiformat', () => {
+  const FEINDSELIG: Array<[string, string]> = [
+    ['leer', ''],
+    ['Querstrich im Text', '# A\n\nDavor\n\n---\n\nDanach'],
+    ['Querstrich zuerst', '---\n\n# A'],
+    ['vier Striche', '# A\n\nDavor\n\n----\n\nDanach'],
+    ['leere Folie dazwischen', '# A\n\n---\n\n---\n\n# B'],
+    ['Codeblock mit nzl', '# A\n\n```\n<!-- nzl\nlayout: title\n-->\n```\n'],
+    ['Codeblock mit Trenner', '# A\n\n```\n---\n```\n'],
+    ['eingerückter Codeblock', '    const a = 1;\n\n# Titel'],
+    ['Setext-Überschrift', 'Titel\n---\n\nText'],
+    ['Kommentar im Text', '# A\n\n<!-- ein Hinweis -->\n\nText'],
+    ['Pfeil im Text', '# A\n\nEin Pfeil --> hier'],
+    ['kaputter nzl-Block', '<!-- nzl\nlayout: title: doppelt\n-->\n\n# A'],
+    ['leerer nzl-Block', '<!-- nzl -->\n\n# A'],
+    ['unbekanntes Layout', '<!-- nzl\nlayout: gibtsnicht\n-->\n\n# A'],
+    ['Frontmatter mit Extra', '---\ntitle: T\nfremd: wert\n---\n\n# A'],
+    ['Frontmatter ohne Ende', '---\ntitle: T\n\n# A'],
+    ['Frontmatter ist eine Liste', '---\n- eins\n- zwei\n---\n\n# A'],
+    ['Format unbekannt', '---\ntitle: T\nformat: a3-quer\n---\n\n# A'],
+    ['offener Kommentar', '# A\n\n<!-- unfertig\n\n---\n\n# B'],
+    ['offener Codezaun', '# A\n\n```\ncode\n\n---\n\n# B'],
+    ['Tilde-Zaun', '# A\n\n~~~\n---\n~~~\n\n---\n\n# B'],
+    ['Windows-Zeilenenden', '# A\r\n\r\n---\r\n\r\n# B'],
+    [
+      'doppelte Element-Id',
+      '<!-- nzl\nelements:\n  - id: x\n    kind: badge\n    x: 10\n    y: 10\n  - id: x\n    kind: badge\n    x: 20\n    y: 20\n-->\n\n# A',
+    ],
+  ];
+
+  it('jede Datei kommt beim zweiten Sichern gleich wieder heraus', () => {
+    const quellen: Array<[string, string]> = [
+      ...bundledDecks.map((eintrag) => [eintrag.file, eintrag.source] as [string, string]),
+      ...FEINDSELIG,
+    ];
+    for (const [was, quelle] of quellen) {
+      const erst = parseDeck(quelle);
+      const einmal = serializeDeck(erst);
+      const zweit = parseDeck(einmal);
+      expect(serializeDeck(zweit), `${was}: die Datei wandert`).toBe(einmal);
+      expect(zweit.slides.length, `${was}: Zahl der Folien`).toBe(erst.slides.length);
+      expect(stable(zweit), `${was}: das Modell`).toEqual(stable(erst));
+    }
+  });
+
+  it('jeder Wert jedes Feldes überlebt die Datei — für jede Elementart', () => {
+    /*
+       Die Asymmetrie, um die es geht: `minimizeElement()` lässt weg, was der
+       Vorgabe entspricht, und `normalizeElement()` setzt die Vorgabe wieder
+       ein. Gehen die beiden Vorgaben auseinander, wird ein Wert stumm zu einem
+       anderen — und man sieht es erst an der Folie, die anders aussieht als
+       vor dem Sichern.
+    */
+    const FELDER: Array<[string, readonly unknown[]]> = [
+      ['tone', toneNames],
+      ['fill', fillStyles],
+      ['strokeWeight', strokeNames],
+      ['shadow', shadowNames],
+      ['typeStyle', Object.keys(typeScale)],
+      ['align', ['left', 'center', 'right']],
+      ['valign', ['top', 'middle', 'bottom']],
+      ['icon', ['rocket', 'shield']],
+      ['frame', iconFrames],
+      ['shape', shapeNames],
+      ['connector', connectorKinds],
+      ['chart', chartKinds],
+      ['fit', ['cover', 'contain']],
+      ['dashed', [true, false]],
+      ['header', [true, false]],
+      ['locked', [true, false]],
+      ['rotation', [0, 15, -15, 359.5]],
+      ['opacity', [0, 0.35, 1]],
+      ['padding', [0, 12, 64]],
+      ['reveal', revealAnimations.map((animation) => ({ step: 1, animation }))],
+      ['group', ['g1']],
+      ['name', ['Mein Name']],
+    ];
+
+    for (const kind of elementKinds) {
+      const basis = createElement(kind, { x: 40, y: 50, w: 300, h: 200 });
+      // Die Varianten gehören der Art und nicht der Liste: eine Kartenvariante
+      // an einer Wortmarke wird zu Recht auf deren Vorgabe gebracht.
+      const eigene: Array<[string, readonly unknown[]]> =
+        kind === 'card'
+          ? [['variant', cardVariants]]
+          : kind === 'wordmark'
+            ? [['variant', wordmarkVariants]]
+            : [];
+      for (const [feld, werte] of [...FELDER, ...eigene]) {
+        if (!(feld in basis)) continue;
+        for (const wert of werte) {
+          const zurueck = rundlauf({ ...basis, [feld]: wert } as CanvasElement) as unknown as
+            Record<string, unknown> | undefined;
+          expect(zurueck?.[feld], `${kind}.${feld} = ${JSON.stringify(wert)}`).toEqual(wert);
+        }
+      }
+    }
+  });
+
+  it('behält jedes Maß, auch ein krummes und ein negatives', () => {
+    for (const kind of elementKinds) {
+      for (const [x, y, w, h] of [
+        [0, 0, 1, 1],
+        [-100, -100, 40, 40],
+        [1279.5, 719.25, 12.75, 8.5],
+        [1000, 600, 4000, 3000],
+      ]) {
+        const el = createElement(kind, { x, y, w, h });
+        const zurueck = rundlauf(el);
+        expect(
+          [zurueck?.x, zurueck?.y, zurueck?.w, zurueck?.h],
+          `${kind} bei ${x}/${y}/${w}/${h}`,
+        ).toEqual([x, y, w, h]);
+      }
+    }
+  });
+
+  it('kommt mit einer von Hand geschriebenen Datei zurecht', () => {
+    /*
+       Der realistische Fall ist kein Angriff, sondern der Deck-Prompt: ein
+       Sprachmodell schreibt eine `.md`, und darin steht dann eine Zahl als
+       Wort, ein `kind`, das es nicht gibt, oder ein Element, das gar kein
+       Objekt ist. Nichts davon darf werfen, eine unendliche Zahl ergeben oder
+       die Datei beim nächsten Sichern wandern lassen.
+    */
+    const FAELLE: Array<[string, string[]]> = [
+      ['Maße als Text', ['  - kind: badge', '    x: "zehn"', '    y: "zwanzig"', '    w: "breit"']],
+      [
+        'Maße negativ',
+        ['  - kind: card', '    x: -500', '    y: -500', '    w: -50', '    h: -50'],
+      ],
+      ['Maße riesig', ['  - kind: card', '    x: 1e9', '    y: 1e9', '    w: 1e9', '    h: 1e9']],
+      ['Deckkraft daneben', ['  - kind: badge', '    x: 10', '    y: 10', '    opacity: 5']],
+      [
+        'Einblendschritt negativ',
+        [
+          '  - kind: badge',
+          '    x: 10',
+          '    y: 10',
+          '    reveal:',
+          '      step: -3',
+          '      animation: rise',
+        ],
+      ],
+      ['kind fehlt', ['  - x: 10', '    y: 10', '    text: Hallo']],
+      ['kind unbekannt', ['  - kind: heading', '    x: 10', '    y: 10', '    text: Hallo']],
+      ['Element ist null', ['  - null', '  - kind: badge', '    x: 1', '    y: 1']],
+      ['Element ist Text', ['  - "nur ein Wort"']],
+      ['Textfeld ist Zahl', ['  - kind: text', '    x: 10', '    y: 10', '    text: 42']],
+      [
+        'Textfeld ist Liste',
+        ['  - kind: text', '    x: 10', '    y: 10', '    text:', '      - a'],
+      ],
+      ['z ist Text', ['  - kind: badge', '    x: 10', '    y: 10', '    z: "oben"']],
+      ['elements ist kein Array', ['  nichts: hier']],
+    ];
+
+    for (const [was, zeilen] of FAELLE) {
+      const quelle = ['<!-- nzl', 'layout: canvas', 'elements:', ...zeilen, '-->', '', '# A'].join(
+        '\n',
+      );
+      const deck = parseDeck(quelle);
+      for (const element of deck.slides[0].elements) {
+        for (const [feld, wert] of Object.entries(element)) {
+          if (typeof wert === 'number')
+            expect(Number.isFinite(wert), `${was}: ${element.kind}.${feld}`).toBe(true);
+        }
+      }
+      const einmal = serializeDeck(deck);
+      expect(serializeDeck(parseDeck(einmal)), `${was}: die Datei wandert`).toBe(einmal);
+    }
+  });
+
+  /** Ein Element einmal durch die Datei und zurück. */
+  function rundlauf(element: CanvasElement): CanvasElement | undefined {
+    const basis = parseDeck('<!-- nzl\nlayout: canvas\n-->\n');
+    const deck: Deck = {
+      ...basis,
+      slides: basis.slides.map((slide) => ({ ...slide, elements: [element] })),
+    };
+    return parseDeck(serializeDeck(deck)).slides[0].elements[0];
+  }
 });

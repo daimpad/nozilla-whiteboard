@@ -2509,6 +2509,34 @@ ein Wort aus zweitausend Buchstaben. Und die Maskierung von Alternativtext und
 Verweis hält in allen vier Richtungen, die dabei zählen: Anführungszeichen und
 spitze Klammern im Alternativtext, `&` und `'` im Pfad.
 
+**Ein `trimEnd()` nahm einem Wert sein letztes Leerzeichen.**
+`buildSlideMetaBlock()` räumte den YAML-Rumpf auf, bevor er ihn in den
+Kommentar setzte — und nahm mit dem Zeilenumbruch auch ein Leerzeichen mit, das
+zum *Wert* gehört. js-yaml schreibt einen langen Text als gefalteten
+Blockskalar (`text: >-`), und dessen letzte Zeile endet dann mit dem
+Leerzeichen, mit dem der Wert endet. Gemessen an einer Notiz aus vier Sätzen:
+308 Zeichen hinein, 307 zurück — ein Zeichen, bei jedem Sichern, ohne ein Wort.
+Der Schreiber ist dabei nicht schuld: `dumpYaml → load` ist für denselben Text
+verlustfrei; es war das Aufräumen danach. Abgeschnitten wird jetzt genau der
+eine Umbruch.
+
+**Und sonst kam `deck.ts` sauber heraus — das ist der Befund.** Zweiundzwanzig
+feindselige Dateien, beide mitgelieferten Decks, jeder Wert jedes Feldes jeder
+der elf Elementarten, jedes Maß (krumm, negativ, riesig) und dreizehn von Hand
+geschriebene `nzl`-Blöcke: der Rundlauf ist überall ein Festpunkt, kein Modell
+wandert, keine Zahl wird unendlich, nichts wirft. Was fehlte, war nicht die
+Reparatur, sondern das Netz: die Prüfungen darüber sind Einzelfälle, jeder aus
+einem Fehler entstanden, und keiner sagte etwas über die *Fläche*.
+
+Zwei Dinge, die dabei zu lernen waren. Der Rundlauf-Sweep erreicht
+`geschuetzterFliesstext()` **nicht** — ein `---` im Fließtext kommt nur ins
+Modell, wenn es aus dem Editor stammt, und aus einer Quelle gelesen ist es
+längst ein Trenner. Das deckt die ältere Prüfung daneben ab, und die Gegenprobe
+zeigt, dass sie es tut. Und eine Gegenprobe an einer *Vorgabe* muss den Wert
+wirklich fallen lassen: `keepIfChanged(..., 16)` statt `defaultPadding[kind]`
+schreibt nur *mehr* in die Datei und ändert nichts — rot wird die Prüfung erst,
+wenn der Schreiber den Wert ganz weglässt.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,
