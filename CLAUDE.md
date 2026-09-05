@@ -2670,6 +2670,80 @@ Trennzeile gilt auch bei `header: false` an zweiter Stelle — eine
 hereinkopierte Markdown-Tabelle trägt sie dort, ob man ihre erste Zeile als
 Kopf liest oder nicht.
 
+**Zwei Merker für dieselbe Frage, und nur einer verfiel.** `overflowOf()` legt
+sein Ergebnis in einer `WeakMap` am Element-Objekt ab — richtig, solange nur
+das Element das Maß bestimmt. Drei Dinge bestimmen es außerdem, und keins davon
+fasst das Element an: die echte Schrift (sie kommt erst nach dem ersten
+Zeichnen an), das Erscheinungsbild (andere Typo-Leiter) und eingetroffene
+Bildmaße. `announce()` in `fonts.ts` räumt bei genau diesen Anlässen den
+*Messpuffer*; der Merker des Überlaufs blieb stehen. Gemessen an einer h1 in
+einem 300 × 60-Kasten: unter nozilla 417 Einheiten Überlauf, unter dem
+Musterkunden 307 — angezeigt wurden weiter 417. In beide Richtungen: ein
+Fehlalarm, der nicht weggeht, und ein wirklicher Überlauf, der nie erscheint.
+
+Und die zweite Hälfte hätte den Fix allein wirkungslos gemacht: die `useMemo`
+in `CanvasStage`, die die Balken rechnet, hing nur an `slide.elements` — sie
+hätte gar nicht erst nachgefragt. Dieselbe Bauart wie beim Folienformat („Ein
+Effekt läuft nach dem Zeichnen"), nur an drei Zählern statt an einem.
+`SlideView` liest alle vier seit je; die Fläche daneben las einen.
+
+**Ein Bild im Fließtext eines Elements zählte nicht.** `untersteKante()` sah
+nur Textprimitive, und der Kopf daneben begründet das: Flächen, Rahmen und
+Zeichen werden aus dem Kasten heraus gezeichnet und können ihn nicht
+überlaufen. Für alles, was der *Setzer* setzt, gilt das nicht — und ein
+Markdown-Element, dessen Inhalt eine Abbildung ist, setzt gar keinen Text.
+`untersteKante()` fand nichts, gab `null` zurück, der Überlauf war 0. Gemessen
+an `![](logo.png)` in einem 400 × 80-Kasten: das Bild endet 145 Einheiten unter
+der Unterkante. Ein Bild*element* bleibt weiter außen vor — das wird
+eingepasst.
+
+Daran hing eine zweite Ungenauigkeit: gerechnet wurde **ohne** die Bildmaße,
+während die Fläche mit ihnen zeichnet. Das ist „Die Fläche maß Markdown-Bilder
+anders als der Export" zum zweiten Mal, und ein Wächter, der ein anderes Bild
+misst als das gezeichnete, meldet den Überlauf eines Bildes, das so nirgends
+steht.
+
+**Der Fließtext hatte gar keinen Wächter.** Der Überlauf gilt Elementen — und
+damit ausgerechnet dem Inhalt nicht, den jede Folie hat. Gemessen an vierzig
+Absätzen im `default`-Layout: der Satz endet 831 Einheiten unter der
+Folienkante. Auf dem Bildschirm schneidet ihn der Folienrand ab, im PDF steht
+er auf keiner Seite, und gesagt hat es nichts. Die Rechnung lag dabei fertig
+da: `flowBounds()` misst die gesetzte Höhe, weil das Einsetzen ihr ausweichen
+muss.
+
+Gemessen wird gegen den **Satzspiegel** und nicht gegen die Folienkante:
+darunter sitzt die Fußzeile, und ein Fließtext, der in sie hineinläuft, ist
+schon falsch gesetzt. Es sind aber zwei Fragen, und der Hinweis nennt beide
+getrennt — zwischen Satzspiegel und Folienkante steht der Text noch da,
+darunter steht er in keiner Ausgabe. Ein Satz, der beides gleichsetzt, ist an
+einer der zwei Stellen falsch.
+
+Und die Gegenrichtung ist hier die eigentliche Prüfung: kein Fließtext der
+mitgelieferten Decks kommt dem Satzspiegel näher als zwanzig Einheiten. Ein
+Wächter, der auf dem eigenen Material anschlägt, wird abgeschaltet und bewacht
+dann gar nichts mehr — das steht in dieser Liste schon zweimal, beim
+Kontrastwächter und beim Überlaufbalken.
+
+**`flowBounds()` maß ein anderes Bild als die Szene.** Es rief
+`typesetMarkdown()` ohne `resolveImageSize`, die Szene ruft es mit — und ohne
+die Maße fällt der Setzer auf „volle Spaltenbreite, Verhältnis 0,5625" zurück.
+Gemessen an einem 300 × 300-Logo im Fließtext: 762 Einheiten statt 441. Der
+Kasten, dem das Einsetzen ausweichen soll, war damit um ein Drittel zu hoch,
+und eine eingefügte Karte landete entsprechend zu tief oder gar auf dem
+Notplatz am unteren Satzspiegel. Durchgereicht wird der Maßgeber als
+**Argument** und nicht als Import: `lib/layout/` käme über `images.ts → svg.ts
+→ scene.ts` sonst wieder bei sich selbst heraus.
+
+**Was nachgemessen wurde und in Ordnung ist.** Der Satzspiegel jedes Layouts
+liegt in jedem der drei Folienformate innerhalb der Folie, und die Fußzeile
+wandert mit der Höhe mit. `unterDerKante()` liest nur `element.y`, und das ist
+auch bei einem gedrehten Element richtig: die Drehung geht um die Elementmitte,
+der obere Rand des gedrehten Kastens liegt nie tiefer als vorher. Ein Element,
+das nirgends mehr passt, landet am oberen Satzspiegel statt außerhalb der
+Folie. Und die Unterkante einer Tabelle wird um rund elf Einheiten zu flach
+geschätzt — die Linie unter der letzten Zeile liegt unter deren Grundlinie —,
+was innerhalb der Nachsicht bleibt und keinen echten Überlauf verdeckt.
+
 **Was offen bleibt: Kursiv fällt im Export still aus.** `*kursiv*` erzeugt
 einen Lauf mit `font.italic`, SVG schreibt `font-style="italic"` und PPTX
 `i="1"` — Browser und PowerPoint schrägen dann selbst nach. Die beiden Wege,

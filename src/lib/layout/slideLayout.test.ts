@@ -7,8 +7,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { canvas, folienhoehe } from '@/theme';
-import { parseDeck } from '@/lib/markdown/deck';
-import { unterDerKante } from './slideLayout';
+import { createEmptySlide, parseDeck } from '@/lib/markdown/deck';
+import { buildSlideBackdrop } from '@/lib/export/scene';
+import { flowBounds, unterDerKante } from './slideLayout';
 
 /** Ein Deck mit einem Element je genannter Höhe, eines je Folie. */
 function deckMit(...hoehen: number[]) {
@@ -64,5 +65,56 @@ describe('was unter der Kante läge', () => {
 
   it('sagt nichts über ein Deck ohne freie Elemente', () => {
     expect(unterDerKante(parseDeck('# Nur Fließtext\n'), folienhoehe('16-9'))).toEqual([]);
+  });
+});
+
+/**
+ * Der Kasten, den der Fließtext einnimmt — gemessen an dem, was gezeichnet
+ * wird.
+ *
+ * `flowBounds()` hat einen einzigen Kunden: das Einsetzen weicht ihm aus. Läuft
+ * er auseinander mit dem, was die Szene setzt, landet Eingesetztes im Text oder
+ * unnötig weit darunter — und man sieht es nur, wenn man beide nebeneinander
+ * legt. Also nebeneinander gelegt.
+ */
+describe('der Kasten des Fließtextes', () => {
+  const bild = '# Titel\n\n![Logo](logo.png)\n\nEin Absatz danach.';
+  const masse = (src: string) => (src === 'logo.png' ? { w: 300, h: 300 } : undefined);
+
+  /** Die Unterkante dessen, was `buildSlideBackdrop` wirklich setzt. */
+  const gezeichnet = (markdown: string) => {
+    const slide = createEmptySlide({ markdown });
+    const prims = buildSlideBackdrop(slide, { resolveImageSize: masse });
+    let unten = -Infinity;
+    for (const prim of prims) {
+      if (prim.t === 'image') unten = Math.max(unten, prim.y + prim.h);
+      else if (prim.t === 'text') unten = Math.max(unten, prim.y);
+    }
+    return unten;
+  };
+
+  it('rechnet mit den Maßen der Bilder, die darin stehen', () => {
+    /*
+       Ohne sie fällt der Setzer auf „volle Spaltenbreite, Verhältnis 0,5625"
+       zurück: gemessen 762 Einheiten statt 441 — der gemiedene Kasten wäre um
+       ein Drittel zu hoch, und Eingesetztes landete entsprechend tiefer.
+    */
+    const mit = flowBounds('default', bild, masse)!;
+    const ohne = flowBounds('default', bild)!;
+    expect(mit.h).toBeLessThan(ohne.h);
+
+    // Und die Zahl, auf die es ankommt: die Unterkante muss die des
+    // Gezeichneten sein. Die letzte Zeile nennt ihre Grundlinie, deshalb ein
+    // paar Einheiten Spiel für die Unterlänge.
+    expect(mit.y + mit.h - gezeichnet(bild)).toBeGreaterThan(0);
+    expect(mit.y + mit.h - gezeichnet(bild)).toBeLessThan(20);
+  });
+
+  it('bleibt ohne Bild derselbe', () => {
+    // Die Gegenrichtung: wo kein Bild steht, ändert der Maßgeber nichts. Ohne
+    // sie bestünde die Prüfung oben auch für einen, der immer etwas anderes
+    // rechnet.
+    const schlicht = '# Titel\n\nEin Absatz danach.';
+    expect(flowBounds('default', schlicht, masse)).toEqual(flowBounds('default', schlicht));
   });
 });

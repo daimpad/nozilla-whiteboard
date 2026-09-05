@@ -32,6 +32,9 @@ import type { CanvasElement, Deck, Slide } from '@/model/types';
 import { useElementSize } from '@/hooks/useElementSize';
 import { SlideView } from './SlideView';
 import { useFolienformatVersion } from '@/hooks/useFolienformat';
+import { useFontsVersion } from '@/hooks/useFonts';
+import { useThemeVersion } from '@/hooks/useTheme';
+import { useImageSizes } from '@/hooks/useImageSizes';
 
 const ROTATE_SNAP = 15;
 
@@ -64,6 +67,17 @@ export function CanvasStage({ slide, deck, slideNumber, totalSlides }: CanvasSta
      `useThemeVersion()`, und aus genau demselben Grund.
   */
   useFolienformatVersion();
+  /*
+     Dieselben drei Zähler wie in `SlideView` — der Überlauf unten hängt an
+     ihnen. Ohne sie stünde der Balken nach dem Eintreffen der echten Schrift,
+     nach einem Wechsel des Erscheinungsbilds und nach dem Eintreffen der
+     Bildmaße weiter auf dem Wert der Ersatzschrift: `overflowOf()` verwirft
+     dann zwar seinen Merker, aber die `useMemo` hier hängt nur an den
+     Elementen und fragt gar nicht erst nach.
+  */
+  const schriften = useFontsVersion();
+  const erscheinung = useThemeVersion();
+  const bilder = useImageSizes(deck);
   const [setViewport, viewport] = useElementSize<HTMLDivElement>();
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const gestureRef = useRef<Gesture | null>(null);
@@ -100,7 +114,11 @@ export function CanvasStage({ slide, deck, slideNumber, totalSlides }: CanvasSta
       slide.elements
         .map((element) => ({ element, um: overflowOf(element) }))
         .filter((eintrag) => eintrag.um > 0),
-    [slide.elements],
+    // Die drei Zähler stehen bewusst in der Liste, obwohl der Rumpf sie nicht
+    // liest — dieselbe Bauart wie in `SlideView`: sie sind die Schlüssel, an
+    // denen der Merker verfällt.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [slide.elements, schriften, erscheinung, bilder],
   );
   const selectedElements = useMemo(
     () => slide.elements.filter((element) => selectionSet.has(element.id)),
