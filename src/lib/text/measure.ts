@@ -63,10 +63,29 @@ function context(): CanvasRenderingContext2D | null {
 const cache = new Map<string, number>();
 const CACHE_LIMIT = 20000;
 
-/** Die Breite von `text` in dieser Schrift, Laufweite eingerechnet. */
+/**
+ * Die Breite von `text` in dieser Schrift, Laufweite eingerechnet.
+ *
+ * Der Schlüssel des Puffers ist **die Schrift, mit der wirklich gemessen
+ * wurde**, und nicht ihre Rolle. Vorher stand dort
+ * `display|16|400|n|…` — also der Name der Rolle —, und der bleibt beim
+ * Wechsel des Erscheinungsbilds derselbe, während die Schrift dahinter eine
+ * andere ist. Gemessen mit einer Attrappe, deren Breite vom Stapel abhängt:
+ * unter dem fremden Erscheinungsbild kam die Breite der *vorigen* Marke
+ * zurück, für jedes Wort, das schon einmal gemessen worden war.
+ *
+ * Der Puffer wird zwar geleert, sobald Schriften ankommen — aber nur dann.
+ * Eine Marke, die dieselben Dateien anders stapelt oder eine Systemschrift
+ * nennt, fordert nichts nach, und `withTheme()` fordert grundsätzlich nichts
+ * an: es rechnet nur. Genau dort log der Puffer.
+ *
+ * Genommen wird deshalb dieselbe Zeichenkette, die auch ins Canvas geht —
+ * zwei Wahrheiten über „welche Schrift ist das" können so nicht auseinander
+ * laufen.
+ */
 export function measureText(text: string, spec: FontSpec): number {
   if (!text) return 0;
-  const key = `${spec.family}|${spec.size}|${spec.weight}|${spec.italic ? 'i' : 'n'}|${text}`;
+  const key = `${fontCssShorthand(spec)}|${text}`;
   const hit = cache.get(key);
   const base = hit ?? computeWidth(text, spec);
   if (hit === undefined) {

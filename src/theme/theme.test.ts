@@ -8,8 +8,12 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { palette, ui, uiRadius, uiShadow, RADIUS, shadow } from '@/theme';
+import { nozillaTheme, palette, ui, uiRadius, uiShadow, withTheme, RADIUS, shadow } from '@/theme';
+import { musterkunde } from '@/themes/musterkunde';
+import { Logo } from '@/components/chrome/Logo';
 
 const COMPONENT_ROOT = join(process.cwd(), 'src', 'components');
 
@@ -169,6 +173,26 @@ describe('Marke und Werkzeug sind getrennt', () => {
     // Ihr Akzent ist Schwarz, damit die einzige Farbe im Bild auf der Folie
     // sitzt.
     expect(shared).toEqual([]);
+  });
+
+  it('lässt das Zeichen des Werkzeugs nicht mit dem Deck wechseln', () => {
+    /*
+       `Logo` steht in der Kopfleiste und zeichnet die Pfade aus
+       `wordmark.generated` — also die von nozilla. Ihr Punkt stand dagegen in
+       der *lebendigen* Signalfarbe: unter einem fremden Deck bekam das Zeichen
+       des Werkzeugs den Akzent der fremden Marke. Gemessen unter dem
+       Musterkunden: #FF5A1F statt #00FF9C.
+
+       Diese Datei führt `Logo.tsx` unter denen, die Marken-Inhalt zeigen
+       dürfen — die Ausnahme gilt der *Wortmarke*, nicht ihrer Farbe. Geprüft
+       wird deshalb am gezeichneten Markup und nicht an der Ausnahmeliste.
+    */
+    const unterNozilla = renderToStaticMarkup(createElement(Logo));
+    const unterMuster = withTheme(musterkunde, () => renderToStaticMarkup(createElement(Logo)));
+
+    expect(musterkunde.palette.signal).not.toBe(nozillaTheme.palette.signal);
+    expect(unterNozilla).toContain(nozillaTheme.palette.signal);
+    expect(unterMuster).toBe(unterNozilla);
   });
 
   it('rundet die Oberfläche, aber nie die Folie', () => {

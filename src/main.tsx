@@ -3,7 +3,13 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { PresenterView } from './components/present/PresenterView';
 import { isPresenterWindow } from './lib/presenterChannel';
-import { applyThemeVariables, subscribeSurface, subscribeTheme, watchSystemSurface } from './theme';
+import {
+  applyThemeVariables,
+  subscribeFolienformat,
+  subscribeSurface,
+  subscribeTheme,
+  watchSystemSurface,
+} from './theme';
 import { installWebfonts } from './theme/fonts';
 import { registerThemes } from './themes';
 import './index.css';
@@ -31,6 +37,16 @@ subscribeTheme(() => {
 // auf die Einstellung des Betriebssystems.
 subscribeSurface(() => applyThemeVariables());
 watchSystemSurface();
+
+/*
+   Und das Blatt ebenso. `cssVariables()` schreibt `--nz-canvas-w`,
+   `--nz-canvas-h` und `--nz-grid` aus der lebendigen Bindung — die drei
+   standen ausdrücklich da, damit fremdes CSS sie ziehen kann, und niemand
+   führte sie nach. Gemessen an einem geladenen A4-Deck: die Folie war 1810
+   hoch und `--nz-canvas-h` sagte weiter 720px. Ein Wert, der sich als
+   Folienhöhe ausgibt und eine andere nennt, ist schlechter als keiner.
+*/
+subscribeFolienformat(() => applyThemeVariables());
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Root container #root is missing from index.html');

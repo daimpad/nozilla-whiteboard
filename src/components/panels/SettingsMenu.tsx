@@ -16,10 +16,10 @@
  * kam an die Erscheinung seines Arbeitsplatzes nicht mehr heran — und suchte
  * sie dort, wo Einstellungen sonst stehen. Genau dort steht sie jetzt.
  */
-import { useEffect, useRef, useState } from 'react';
 import { setSurfaceMode, surfaceModes, type SurfaceMode } from '@/theme';
 import { build, buildDate } from '@/lib/version';
 import { useSurface } from '@/hooks/useSurface';
+import { useMenu } from '@/hooks/useMenu';
 import { Icon } from '@/components/ui/Icon';
 import { cx, IconButton, SectionTitle } from '@/components/ui/controls';
 import type { ToolIconName } from '@/assets/icons';
@@ -31,36 +31,22 @@ const APPEARANCE: Record<SurfaceMode, { label: string; icon: ToolIconName }> = {
 };
 
 export function SettingsMenu() {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  /*
+     Ein Klick daneben schließt, `Escape` auch, und der Knopf sagt beides an —
+     das stand hier einmal von Hand und war das einzige der drei Menüs der
+     Kopfleiste, das die Taste kannte. Jetzt ist es eine Rechnung mit drei
+     Kunden; warum, steht in `useMenu.ts`.
+
+     `dialog` und nicht `menu`: was aufgeht, ist ein Feld mit Schaltern und
+     einer Standanzeige und keine Liste von Befehlen.
+  */
+  const menue = useMenu<HTMLDivElement>('dialog');
+  const open = menue.offen;
   const { mode, resolved } = useSurface();
 
-  // Ein Klick daneben schließt. Ohne das bliebe das Feld offen, sobald jemand
-  // weiterarbeitet — und verdeckte genau die Bibliothek, aus der er greift.
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
   return (
-    <div className="relative" ref={ref}>
-      <IconButton
-        icon="gears"
-        label="Einstellungen"
-        active={open}
-        onClick={() => setOpen((value) => !value)}
-      />
+    <div className="relative" ref={menue.huelle}>
+      <IconButton icon="gears" label="Einstellungen" {...menue.knopfProps} />
 
       {open ? (
         <div

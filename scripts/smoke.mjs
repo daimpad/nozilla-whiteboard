@@ -35,8 +35,9 @@
  * Steht schon eines bereit, sagt man es über `SMOKE_CHROMIUM`.
  */
 import { spawn } from 'node:child_process';
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 const PORT = 4173;
@@ -48,7 +49,19 @@ const URL = `http://127.0.0.1:${PORT}/`;
 
 const ergebnisse = [];
 
+/*
+   Welche Prüfung gerade läuft.
+
+   Der Sammler der Konsolenmeldungen schreibt sie mit: „Fehler in der Konsole"
+   am Ende eines Laufs nennt sonst den Satz und nicht die Stelle, und
+   neunzehnmal derselbe Satz nennt gar nichts mehr. Dieselbe Überlegung wie bei
+   den sechs Zeilen aus dem Aufrufprotokoll oben — eine Meldung, die nicht sagt,
+   wo es geschah, kostet die Zeit, die sie sparen sollte.
+*/
+let laufende = 'beim Aufbau';
+
 async function pruefe(name, fn) {
+  laufende = name;
   try {
     await fn();
     ergebnisse.push({ name, ok: true });
@@ -217,6 +230,32 @@ async function nachDemWechsel(seite) {
  * müssen: eine hängt vorher einen Fehlerhorcher ein, die andere setzt die
  * Fenstergröße — beides muss vor dem `goto` geschehen.
  */
+/**
+ * Von welcher Seite eine Meldung kommt — der Teil der Adresse hinter dem Wirt.
+ *
+ * Abgeschnitten wird die Vorschau-Adresse als Zeichenkette; `new URL(…)` geht
+ * hier nicht, weil `URL` in dieser Datei die Adresse selbst ist und den
+ * globalen Erzeuger verdeckt.
+ */
+function woher(seite) {
+  const adresse = seite.url();
+  return adresse.startsWith(URL) ? adresse.slice(URL.length) || 'index.html' : adresse;
+}
+
+/**
+ * Gleiche Zeilen zu einer mit Zähler zusammenfassen.
+ *
+ * Eine Meldung, die auf jeder von neunzehn Seiten fiel, ist ein Befund und
+ * nicht neunzehn; ausgeschrieben verdeckt sie die anderen.
+ */
+function gezaehlt(zeilen) {
+  const wieoft = new Map();
+  for (const zeile of zeilen) wieoft.set(zeile, (wieoft.get(zeile) ?? 0) + 1);
+  return [...wieoft]
+    .map(([zeile, anzahl]) => (anzahl > 1 ? `${anzahl}× ${zeile}` : zeile))
+    .join('\n');
+}
+
 async function oeffneGenerator(kontext, vorhanden) {
   const generator = vorhanden ?? (await kontext.newPage());
   await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
@@ -372,33 +411,108 @@ async function stehtAufFolie(seite, text) {
  * Deshalb eine eigene Prozessgruppe (`detached`) und ein Signal an die ganze
  * Gruppe (`-pid`).
  */
+let laufenderServer = null;
+
 async function starteVorschau() {
-  const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--host', '127.0.0.1'], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: true,
-  });
+  /*
+     Zuerst die Frage, ob der Platz überhaupt frei ist.
+
+     Der Server wurde bisher nur auf dem guten Weg abgeräumt: ein Wurf zwischen
+     zwei Prüfungen, die Notbremse nach fünf Minuten, ein `process.exit` aus
+     dem `catch` — jeder dieser Wege ließ die Prozessgruppe stehen, und
+     `detached` heißt, dass sie das Ende des Elternprozesses überlebt.
+
+     Was dann geschieht, ist nachgemessen und nicht vermutet: `vite preview`
+     bindet ohne `--strictPort` still den nächsten freien Port („Port 4173 is
+     in use, trying another one…" auf 4174), während der Rauchtest weiter
+     gegen 4173 fährt. Er misst also den *fremden* Server und räumt am Ende
+     seinen eigenen ab — der Rest bleibt und sammelt sich, einer je
+     gescheitertem Lauf.
+
+     Ebenfalls nachgemessen und **nicht** wahr: dass ein solcher Rest den
+     vorigen Stand ausliefert. `vite preview` liest jede Datei bei jeder
+     Anfrage neu; eine Änderung an `dist/index.html` kam sofort zurück. Der
+     Schaden ist deshalb nicht der veraltete Stand, sondern ein anderer: der
+     Rest kann aus einem *anderen Arbeitsverzeichnis* stammen — zwei Klone
+     desselben Repos sind die Falle, die hier schon einmal zugeschnappt ist —,
+     und dann prüft `pruefeStand()` dieses `dist/` und der Browser sieht ein
+     anderes.
+  */
+  if (await antwortet()) {
+    throw new Error(
+      `Auf ${URL} antwortet schon etwas — vermutlich der Rest eines abgebrochenen ` +
+        `Laufs. Dieser Lauf würde daran messen; bitte erst beenden.`,
+    );
+  }
+
+  const server = spawn(
+    'npx',
+    // `--strictPort`: lieber laut scheitern als leise auf einen anderen Port
+    // ausweichen, auf dem niemand nachsieht.
+    ['vite', 'preview', '--port', String(PORT), '--host', '127.0.0.1', '--strictPort'],
+    {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: true,
+    },
+  );
+  laufenderServer = server;
   server.stderr.on('data', (chunk) => process.stderr.write(chunk));
 
+  // Ein Server, der sich sofort verabschiedet, soll nicht dreißig Sekunden
+  // lang wie einer aussehen, der noch startet.
+  let gestorben = null;
+  server.on('exit', (code) => {
+    gestorben = code ?? 0;
+  });
+
   for (let versuch = 0; versuch < 60; versuch += 1) {
-    try {
-      const antwort = await fetch(URL);
-      if (antwort.ok) return server;
-    } catch {
-      // Noch nicht da.
+    if (gestorben !== null) {
+      laufenderServer = null;
+      throw new Error(`vite preview endete gleich wieder (Kennung ${gestorben}).`);
     }
+    if (await antwortet()) return server;
     await new Promise((fertig) => setTimeout(fertig, 500));
   }
-  beende(server);
   throw new Error(`vite preview antwortet nicht auf ${URL} — wurde vorher gebaut?`);
 }
 
-function beende(server) {
+/** Ob auf der Vorschau-Adresse etwas antwortet. */
+async function antwortet() {
+  try {
+    const antwort = await fetch(URL);
+    return antwort.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Den Server abräumen.
+ *
+ * Angemeldet wird das an *einer* Stelle, und zwar am Ende des Prozesses.
+ * Vorher stand der Ruf auf dem guten Weg — und die Ausgänge sind vier: der
+ * gute, ein Wurf zwischen zwei Prüfungen, die Notbremse nach fünf Minuten und
+ * ein ⌃C von Hand. Eine Liste von Stellen, an denen man aufräumen *muss*, ist
+ * eine Liste von Stellen, an denen man es vergisst; dieselbe Antwort wie bei
+ * `withElements()` und bei `darfErsetzen()`.
+ *
+ * Die beiden Signale bekommen dafür einen eigenen Horcher: ohne ihn beendet
+ * Node sich, ohne die `exit`-Horcher zu rufen.
+ */
+function beende() {
+  const server = laufenderServer;
+  if (!server) return;
+  laufenderServer = null;
   try {
     process.kill(-server.pid, 'SIGTERM');
   } catch {
     // Schon tot, oder es gab nie eine Gruppe.
   }
 }
+
+process.on('exit', beende);
+process.on('SIGINT', () => process.exit(130));
+process.on('SIGTERM', () => process.exit(143));
 
 /* -------------------------------------------------------------------------- */
 /* Die Prüfungen                                                               */
@@ -441,14 +555,24 @@ function pruefeStand() {
     throw new Error('Es gibt kein dist/ — erst `npm run build`.');
   }
   /*
+     Alles, was in `dist/` einfließt — und das ist mehr als `src/`.
+
      Die beiden Einstiegsseiten liegen weder in `src/` noch in
-     `theme.config.ts` — wer nur an `ci.html` ändert und den Bau auslässt,
+     `theme.config.ts`; wer nur an `ci.html` ändert und den Bau auslässt,
      bekäme sonst eine fröhliche grüne Zahl über den vorigen Stand. Genau die
-     Falle, gegen die diese Funktion überhaupt gebaut wurde.
+     Falle, gegen die diese Funktion überhaupt gebaut wurde — und sie kannte
+     danach vier Eingänge von acht. `tailwind.config.ts` legt die Klassen
+     fest, mit denen jede Leiste gezeichnet wird, `vite.config.ts` entscheidet,
+     was überhaupt gebündelt wird, und `public/` wird unverändert
+     hineinkopiert: dort liegen die Schriften, an denen der Setzer misst. Wer
+     eine davon anfasst und den Bau auslässt, prüft den vorigen Stand.
   */
   const geschrieben = Math.max(
     juengstes('src'),
-    ...['theme.config.ts', 'index.html', 'ci.html'].map((datei) => statSync(datei).mtimeMs),
+    juengstes('public'),
+    ...['theme.config.ts', 'index.html', 'ci.html', 'tailwind.config.ts', 'vite.config.ts'].map(
+      (datei) => statSync(datei).mtimeMs,
+    ),
   );
   if (geschrieben > gebaut) {
     throw new Error(
@@ -460,12 +584,16 @@ function pruefeStand() {
 /**
  * Was im Bauwerk liegt, muss auch geholt werden.
  *
- * jsPDF lädt `canvg` und `html2canvas` im Rumpf über einen dynamischen Import
- * nach — für `doc.svg()` und `doc.html()`, also für die beiden Wege, ein PDF
- * aus einem *Dokument* zu machen. Dieses Werkzeug macht seines aus der `Scene`
- * und ruft keinen von beiden; Rollup sah die Ausdrücke trotzdem und legte zwei
- * Lazy-Chunks an: 202 kB und 160 kB, die ausgeliefert werden und die kein
- * Browser je anfordert.
+ * jsPDF lädt `canvg`, `html2canvas` und `dompurify` im Rumpf über einen
+ * dynamischen Import nach — für `doc.svg()` und `doc.html()`, also für die
+ * beiden Wege, ein PDF aus einem *Dokument* zu machen. Dieses Werkzeug macht
+ * seines aus der `Scene` und ruft keinen von beiden; Rollup sah die Ausdrücke
+ * trotzdem und legte Lazy-Chunks an, die ausgeliefert werden und die kein
+ * Browser je anfordert: 202 kB html2canvas, 160 kB canvg, 22 kB purify.
+ *
+ * Der dritte kam später dazu: er stand ausdrücklich *nicht* hier, weil das
+ * Werkzeug ihn selbst benutzte — bis nachgezählt wurde, dass `renderMarkdown()`
+ * keinen Aufrufer mehr hat.
  *
  * Geprüft wird am **Verzeichnis** und nicht an der Konfiguration: dass ein
  * Alias dasteht, sagt nichts darüber, ob er greift — dieselbe Regel wie
@@ -473,7 +601,7 @@ function pruefeStand() {
  */
 function pruefeBauwerk() {
   const dateien = readdirSync(join('dist', 'assets'));
-  const tot = dateien.filter((name) => /html2canvas|canvg/i.test(name));
+  const tot = dateien.filter((name) => /html2canvas|canvg|purify/i.test(name));
   if (tot.length > 0) {
     throw new Error(
       `Tote Chunks im Bauwerk: ${tot.join(', ')} — der Alias in vite.config.ts greift nicht.`,
@@ -484,7 +612,7 @@ function pruefeBauwerk() {
 async function main() {
   pruefeStand();
   pruefeBauwerk();
-  const server = await starteVorschau();
+  await starteVorschau();
   const browser = await chromium.launch({
     executablePath: process.env.SMOKE_CHROMIUM || undefined,
     args: ['--no-sandbox'],
@@ -495,6 +623,35 @@ async function main() {
   });
   // Ohne diese beiden fällt jedes ⌘C und ⌘V still aus.
   await kontext.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+  /*
+     Gehorcht wird dem *Kontext* und nicht der einen Seite.
+
+     Vorher hingen die beiden Horcher an `seite`, also am Werkzeug. Der
+     CI-Generator wird neunmal in einer eigenen Seite geöffnet, die
+     Referentenansicht in einem eigenen Fenster — und beide schrieben in ein
+     Rohr, an dem niemand stand. Gemessen mit einem `console.error` im Einstieg
+     von `ci.html`: neunzehn Meldungen kamen zurück, und der Rauchtest meldete
+     neunundsechzig von neunundsechzig. Die eine Prüfung, deren ganzer Zweck es
+     ist, das Schweigen zu bewachen, war selbst still.
+
+     Der Kontext meldet jede Seite, die in ihm entsteht — auch die durch
+     `window.open` geöffnete —, und deshalb steht das Abonnement *vor* dem
+     ersten `newPage()`.
+  */
+  const fehler = [];
+  kontext.on('page', (neue) => {
+    neue.on('pageerror', (error) =>
+      fehler.push(`pageerror (${woher(neue)}, ${laufende}): ${error}`),
+    );
+    neue.on('console', (nachricht) => {
+      if (nachricht.type() === 'error')
+        fehler.push(
+          `console (${woher(nachricht.page() ?? neue)}, ${laufende}): ${nachricht.text()}`,
+        );
+    });
+  });
+
   const seite = await kontext.newPage();
 
   // Der Dateiauswahl-Dialog des Browsers lässt sich nicht fernsteuern; ohne ihn
@@ -502,12 +659,6 @@ async function main() {
   await seite.addInitScript(() => {
     delete window.showSaveFilePicker;
     delete window.showOpenFilePicker;
-  });
-
-  const fehler = [];
-  seite.on('pageerror', (error) => fehler.push(`pageerror: ${error}`));
-  seite.on('console', (nachricht) => {
-    if (nachricht.type() === 'error') fehler.push(`console: ${nachricht.text()}`);
   });
 
   await seite.goto(URL, { waitUntil: 'networkidle' });
@@ -1398,6 +1549,78 @@ async function main() {
     );
   });
 
+  await pruefe('die Übersicht zeigt jede Folie und springt hin', async () => {
+    /*
+       Neunundsechzig Handgriffe, und keiner öffnete sie.
+
+       Die Übersicht ist eine ganze Ansicht des Werkzeugs — ⌘K, eine Kachel je
+       Folie, schieben, duplizieren, löschen —, und sie hatte weder eine
+       vitest-Prüfung noch einen Griff hier. Sie hätte sich bis zum weißen
+       Fenster zerlegen lassen, ohne dass eine Zahl auch nur gezuckt hätte;
+       nachgemessen mit einem Wurf im Rumpf von `Overview.tsx`, den jede
+       andere Prüfung dieses Laufs überlebt hat.
+
+       Gefragt wird das, was die Ansicht zusagt, und nicht ihr Markup: eine
+       Kachel je Folie, jede davon eine wirklich gezeichnete Folie, ein Klick
+       führt hin, und die Schicht geht auf demselben Weg wieder zu.
+
+       Der Filmstreifen ist dabei der Maßstab — er liest dasselbe Deck durch
+       eine andere Komponente. Eine Übersicht gegen ihre eigene Kopfzeile zu
+       halten hieße, dieselbe Zahl zweimal zu lesen.
+    */
+    const streifen = seite.locator('nav[aria-label="Folien"] button[aria-current]');
+    const anzahl = await streifen.count();
+    wahr(anzahl >= 6, `nur ${anzahl} Folien im Streifen`);
+
+    // Aus dem Feld heraus, sonst gehört das ⌘K dem Textfeld.
+    await klickeLeereFolie(seite);
+    await seite.keyboard.press('Control+k');
+    const uebersicht = seite.getByRole('dialog', { name: 'Folienübersicht' });
+    await uebersicht.waitFor({ timeout: 10000 });
+
+    const kacheln = uebersicht.locator('li');
+    await bisGleich(() => kacheln.count(), anzahl, 'die Übersicht zeigt nicht jede Folie');
+    // Und sie zählt auf Deutsch: „3 slides" stand hier schon einmal.
+    gleich(
+      (await uebersicht.locator('h2 + span').innerText()).trim(),
+      `${anzahl} Folien`,
+      'die Übersicht zählt anders als der Streifen',
+    );
+
+    // Die Kacheln sind lebendige Folien und keine Platzhalter.
+    const gezeichnet = await kacheln
+      .nth(2)
+      .locator('svg')
+      .first()
+      .evaluate((el) => el.innerHTML.length);
+    wahr(gezeichnet > 1000, `die dritte Kachel zeichnet fast nichts: ${gezeichnet} Zeichen`);
+
+    await kacheln.nth(2).getByRole('button').first().click();
+    await bisWahr(async () => (await uebersicht.count()) === 0, 'die Übersicht blieb offen');
+    await bisGleich(
+      () => streifen.nth(2).getAttribute('aria-current'),
+      'true',
+      'die Übersicht sprang woandershin',
+    );
+
+    // Und der Weg zurück ohne Klick: Escape räumt die Schicht ab.
+    await seite.keyboard.press('Control+k');
+    await uebersicht.waitFor({ timeout: 10000 });
+    await seite.keyboard.press('Escape');
+    await bisWahr(
+      async () => (await uebersicht.count()) === 0,
+      'Escape schloss die Übersicht nicht',
+    );
+
+    // Für die Prüfungen danach wieder auf die erste Folie.
+    await streifen.nth(0).click();
+    await bisGleich(
+      () => streifen.nth(0).getAttribute('aria-current'),
+      'true',
+      'die erste Folie kam nicht zurück',
+    );
+  });
+
   console.log('\nErscheinungsbild und Erscheinung:');
 
   await pruefe('ein anderes Erscheinungsbild färbt die Folie um', async () => {
@@ -1974,6 +2197,43 @@ async function main() {
     );
     wahr(folien >= 2, `nur ${folien} Folie(n) in der Referentenansicht`);
 
+    /*
+       Und die Vorschau zeigt, was das Publikum sieht — samt der Nummer in der
+       Fußzeile. `buildSlideChrome()` malt sie nur, wenn eine Nummer
+       dabeisteht, und hier stand keine: gemessen am Text der beiden SVG
+       endete die Folie beim Publikum auf „1 / 6" und in der Vorschau daneben
+       auf nichts. Zwei Wege, dieselbe Folie zu zeichnen — genau das, was die
+       erste Regel dieses Projekts verbietet.
+
+       Die zweite Kachel trägt die Nummer der *nächsten* Folie: sie ist der
+       ganze Gewinn des zweiten Fensters, und eine Vorschau, die zweimal
+       dieselbe Nummer zeigt, wäre schlimmer als keine.
+    */
+    const endeVon = (fenster, nte) =>
+      fenster.evaluate(
+        (n) =>
+          [...document.querySelectorAll('svg')]
+            .filter((svg) => {
+              const box = svg.getBoundingClientRect();
+              return box.width * box.height > 40_000;
+            })
+            [n]?.textContent?.trim()
+            .slice(-8) ?? '',
+        nte,
+      );
+    const beimPublikum = await endeVon(seite, 0);
+    await bisGleich(
+      () => endeVon(referent, 0),
+      beimPublikum,
+      'die Vorschau zeigt eine andere Folie als das Publikum',
+    );
+    wahr(/\d+ \/ \d+$/.test(beimPublikum), `die Folie trägt keine Nummer: ${beimPublikum}`);
+    const naechste = await endeVon(referent, 1);
+    wahr(
+      naechste !== beimPublikum && /\d+ \/ \d+$/.test(naechste),
+      `„Als Nächstes" trägt nicht die nächste Nummer: ${naechste}`,
+    );
+
     // Und zurück: was im zweiten Fenster gedrückt wird, blättert im ersten.
     const vorher = (await seite.evaluate(FOLIE)).markup;
     await referent.keyboard.press('ArrowRight');
@@ -1984,6 +2244,49 @@ async function main() {
 
     await referent.close();
     await seite.waitForTimeout(400);
+  });
+
+  await pruefe('das Beiwerk im Vortrag nimmt keine Klicks, die ihm nicht gehören', async () => {
+    /*
+       Zwei Wege, im Vortrag etwas zu treffen, das man nicht treffen wollte.
+
+       **Was unsichtbar ist, blieb anklickbar.** Die Leisten blenden sich nach
+       2200 ms aus, und `opacity-0` nimmt einem Knopf nur die Farbe. Gemessen:
+       `pointer-events: auto` — ein Klick auf die Stelle, an der „Präsentation
+       verlassen" *war*, beendete den Vortrag. Vor Publikum, ohne dass etwas zu
+       sehen gewesen wäre. Mit einer Maus fällt das selten auf: der Zeiger
+       bringt die Leiste zurück, bevor die Hand ankommt. Ein Tippen auf dem
+       Touchpad und jede Fernbedienung bewegen ihn nicht — und genau so wird
+       hier geklickt: erst zeigen, dann warten, dann drücken, ohne zu bewegen.
+
+       **Und die Notizen sind eine Lesefläche.** Ein Klick hinein blätterte
+       gemessen von „1 / 6" auf „2 / 6"; wer dort etwas markieren will, steht
+       eine Folie weiter.
+    */
+    const verlassen = seite.getByRole('button', { name: 'Präsentation verlassen (Esc)' });
+    const kasten = await verlassen.boundingBox();
+    await seite.mouse.move(kasten.x + kasten.width / 2, kasten.y + kasten.height / 2);
+    await bisGleich(
+      () => verlassen.evaluate((el) => getComputedStyle(el).pointerEvents),
+      'none',
+      'die Leiste bleibt anklickbar, auch wenn sie nicht zu sehen ist',
+    );
+    await seite.mouse.down();
+    await seite.mouse.up();
+    wahr(await verlassen.count(), 'ein Klick auf die unsichtbare Leiste hat den Vortrag verlassen');
+
+    // Und die Notizen: aufmachen, hineinklicken, und die Folie bleibt stehen.
+    await seite.mouse.move(700, 400);
+    await seite.keyboard.press('n');
+    const notizen = seite.locator('[data-vortrag-beiwerk]').last();
+    await notizen.waitFor({ timeout: 10000 });
+    const stand = () => seite.locator('span.tabular-nums').first().innerText();
+    const vorher = await stand();
+    const nk = await notizen.boundingBox();
+    await seite.mouse.click(nk.x + nk.width / 2, nk.y + nk.height - 20);
+    await seite.waitForTimeout(300);
+    gleich(await stand(), vorher, 'ein Klick in die Notizen hat weitergeblättert');
+    await seite.keyboard.press('n');
   });
 
   await pruefe('Esc führt zurück an die Arbeit', async () => {
@@ -2761,6 +3064,23 @@ async function main() {
     gleich(flaeche, '1810', 'Höhe der Untergrundfläche');
 
     /*
+       Und die Variable auf `:root` sagt dasselbe.
+
+       `cssVariables()` schreibt `--nz-canvas-h` aus derselben lebendigen
+       Bindung; geschrieben wird sie aber nur von `applyThemeVariables()`, und
+       das hing am Erscheinungsbild und an der Erscheinung — nicht am Blatt.
+       Gemessen an genau diesem Deck: die Folie stand auf 1810 und die Variable
+       sagte weiter 720px. Sie steht ausdrücklich für fremdes CSS da; ein Wert,
+       der sich als Folienhöhe ausgibt und eine andere nennt, ist schlechter
+       als keiner.
+    */
+    const wurzelHoehe = () =>
+      seite.evaluate(() =>
+        getComputedStyle(document.documentElement).getPropertyValue('--nz-canvas-h').trim(),
+      );
+    await bisGleich(wurzelHoehe, '1810px', '--nz-canvas-h auf dem A4-Blatt');
+
+    /*
        Und jetzt der Wechsel **im laufenden Fenster**, ohne Neuladen. Das ist
        der Fall, auf den es ankommt: nach einem Neuladen werden ohnehin die
        Schriften geholt, und deren Zähler lässt jeden Merker in `SlideView`
@@ -2784,6 +3104,9 @@ async function main() {
       '720',
       'Höhe der Untergrundfläche nach dem Wechsel im laufenden Fenster',
     );
+    // Auch zurück — eine Variable, die nur in eine Richtung nachgeführt wird,
+    // ist an der Hälfte der Wechsel falsch.
+    await bisGleich(wurzelHoehe, '720px', '--nz-canvas-h nach dem Wechsel zurück auf 16:9');
 
     /*
        Zuletzt die Datei. Das Modell wusste vom Format, noch bevor es jemand
@@ -2941,6 +3264,104 @@ async function main() {
     await seite.keyboard.press('Escape');
     await seite.keyboard.press('Control+Digit1');
     await seite.waitForTimeout(500);
+  });
+
+  await pruefe('ein gescheitertes Kopieren im Prompt-Generator sagt es', async () => {
+    /*
+       Der `catch` setzte `copied` auf `false` — also auf den Wert, den es
+       ohnehin hatte. Gemessen mit einem `writeText`, das ablehnt: der Knopf
+       sagte weiter „Kopieren", es stand keine Meldung da, und die Seite
+       änderte sich um kein einziges Zeichen. Wer klickt, hat danach einen
+       leeren Zwischenspeicher und keinen Anlass, das zu ahnen.
+
+       Der Anlass ist nicht erfunden: `navigator.clipboard` gibt es nur in
+       einem sicheren Kontext — über `https` und `127.0.0.1` ja, über die
+       Adresse im Heimnetz nicht. Also genau dann, wenn jemand das Werkzeug
+       einem Kollegen zeigt.
+
+       Und in beide Richtungen: ein *geglücktes* Kopieren darf nichts sagen.
+       Eine Meldung, die immer dasteht, ist keine.
+    */
+    await seite.getByRole('button', { name: 'Prompt', exact: true }).click();
+    await seite.getByRole('dialog', { name: 'Prompt-Generator' }).waitFor({ timeout: 10000 });
+
+    const kopieren = seite.getByRole('button', { name: /^Kopier/ });
+    await kopieren.click();
+    await bisGleich(() => kopieren.innerText(), 'Kopiert', 'das Kopieren gelang nicht');
+    gleich(await seite.getByRole('alert').count(), 0, 'ein geglücktes Kopieren klagte trotzdem');
+
+    // Jetzt die Zwischenablage ablehnen lassen.
+    await seite.evaluate(() => {
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: () => Promise.reject(new Error('Sabotage: keine Erlaubnis')) },
+        configurable: true,
+      });
+    });
+    await bisGleich(() => kopieren.innerText(), 'Kopieren', 'der Knopf blieb auf „Kopiert" stehen');
+    await kopieren.click();
+    const klage = await bisWahr(
+      async () => ((await seite.getByRole('alert').count()) ? seite.getByRole('alert') : null),
+      'ein gescheitertes Kopieren blieb stumm',
+    );
+    // Der technische Satz bleibt stehen — wer einen Fehler meldet, braucht ihn.
+    const text = await klage.innerText();
+    wahr(/Kopieren gescheitert/.test(text), `die Klage nennt die Tat nicht: ${text}`);
+    wahr(/keine Erlaubnis/.test(text), `die Klage nennt den Grund nicht: ${text}`);
+
+    await seite.keyboard.press('Escape');
+    await seite.getByRole('button', { name: 'Hinweis schließen' }).click();
+  });
+
+  await pruefe('die drei Menüs der Kopfleiste gehen auch ohne Maus wieder zu', async () => {
+    /*
+       Drei Menüs, dieselbe Aufgabe, zwei davon halb gebaut. Gemessen im
+       Browser, bevor es `useMenu` gab:
+
+         Datei          offen · nach Esc: offen · aria-expanded: nichts
+         Export         offen · nach Esc: offen · aria-expanded: nichts
+         Einstellungen  offen · nach Esc: zu    · aria-expanded: nichts
+
+       Wer ein Menü mit der Tastatur öffnete, kam bei zweien von dreien nur
+       wieder heraus, indem er einen Eintrag auslöste — und keines sagte einer
+       Hilfstechnik, dass es überhaupt eines ist. Vor Augen steht dieser
+       Unterschied nie: man sieht das Feld ja aufgehen.
+
+       Geprüft wird jedes der drei einzeln und am Ergebnis: die Ansage am
+       Knopf, das Feld im Baum, und wo der Fokus danach steht.
+    */
+    for (const [name, art] of [
+      ['Datei', 'menu'],
+      ['Export', 'menu'],
+      ['Einstellungen', 'dialog'],
+    ]) {
+      const knopf = seite.getByRole('button', { name, exact: true });
+      gleich(await knopf.getAttribute('aria-haspopup'), art, `${name} sagt nicht, was aufgeht`);
+      gleich(await knopf.getAttribute('aria-expanded'), 'false', `${name} steht schon offen`);
+      /*
+         `aria-pressed` gehört einem Schalter und nicht einem Menüknopf; beide
+         zugleich widersprechen sich. `IconButton` setzt es von Haus aus, und
+         genau deshalb steht das Zahnrad mit in dieser Schleife.
+      */
+      wahr(!(await knopf.getAttribute('aria-pressed')), `${name} sagt zugleich „gedrückt"`);
+
+      await knopf.click();
+      await bisGleich(() => knopf.getAttribute('aria-expanded'), 'true', `${name} ging nicht auf`);
+      wahr(await seite.locator('.nz-panel').count(), `${name} zeigt kein Feld`);
+
+      await seite.keyboard.press('Escape');
+      await bisGleich(
+        () => knopf.getAttribute('aria-expanded'),
+        'false',
+        `${name} ließ sich mit Escape nicht schließen`,
+      );
+      // Und der Fokus kommt zurück: sonst stünde er auf `<body>`, und das
+      // nächste Tab finge wieder ganz vorn an.
+      gleich(
+        await seite.evaluate(() => document.activeElement?.getAttribute('aria-haspopup')),
+        art,
+        `${name} gab den Fokus nicht an seinen Knopf zurück`,
+      );
+    }
   });
 
   await pruefe('der CI-Generator zeichnet eine Folie in fremden Farben', async () => {
@@ -3394,9 +3815,35 @@ async function main() {
     */
     const schatten = generator.locator('#nz-ci-masse-schatten-sm');
     await bisWahr(() => schatten.inputValue(), 'das Feld für den Schattenversatz kam nicht');
-    await schatten.fill('');
+    /*
+       Geleert wird, bis es *steht* — und das ist keine Ungeduld, sondern die
+       Bauart eines gesteuerten Feldes.
+
+       `fill()` setzt den Wert und schickt danach das Ereignis. Kommt zwischen
+       diesen beiden Schritten ein Neuzeichnen, schreibt React seinen alten
+       Wert zurück, und das Ereignis meldet dann genau diesen: die Änderung
+       erreicht den Entwurf nie, und das Feld steht wieder auf 3 — für immer,
+       denn ein `fill()`, das einmal daneben ging, wiederholt sich nicht.
+
+       Nachgemessen an der Hälfte des Rennens: den Wert still setzen, dann ein
+       fremdes Feld anfassen — und das Feld stand wieder auf „3". Genau das
+       meldete die CI nach fünfzehn Sekunden Warten, während es hier auf einem
+       schnellen Rechner nie geschieht (25 von 25 Läufen, auch bei
+       zehnfacher Drosselung).
+
+       Die Zusicherung bleibt dieselbe — das Feld *muss* leer werden —, nur ist
+       der Handgriff jetzt Teil der Bedingung. Ein Feld, das sich gar nicht
+       leeren lässt, wird weiterhin rot.
+    */
+    await bisGleich(
+      async () => {
+        if ((await schatten.inputValue()) !== '') await schatten.fill('');
+        return schatten.inputValue();
+      },
+      '',
+      'das Feld ließ sich nicht leeren',
+    );
     await generator.locator('#nz-ci-masse-leiter-base').focus();
-    await bisGleich(() => schatten.inputValue(), '', 'das Feld ließ sich nicht leeren');
 
     const befund = generator.locator('p', { hasText: 'trägt keine Zahl' });
     await bisWahr(
@@ -3747,13 +4194,44 @@ async function main() {
   });
 
   await pruefe('nichts hat sich in der Konsole beschwert', async () => {
-    gleich(fehler.join('\n'), '', 'Fehler in der Konsole');
+    gleich(gezaehlt(fehler), '', 'Fehler in der Konsole');
   });
 
   await browser.close();
-  beende(server);
 
   const gescheitert = ergebnisse.filter((e) => !e.ok);
+  /*
+     Und die Zahl wird gegen die Datei gehalten, nicht gegen sich selbst.
+
+     „69 von 69 Prüfungen bestanden" stand vorher beidseitig auf
+     `ergebnisse.length` — auf dem also, was wirklich gelaufen ist. Fällt eine
+     Prüfung *heraus*, weil ein Block beim Umbauen verlorengeht oder ein
+     früher `return` darüber steht, schrumpfen beide Seiten gemeinsam und die
+     Zeile liest sich weiter tadellos. Das ist „Ein Knopf, der eine Zahl nennt
+     und eine andere tut", eine Ebene höher: die Zahl beschreibt, was geschah,
+     und nicht, was zugesagt war.
+
+     Gezählt wird deshalb im eigenen Quelltext — gelesen und nicht getippt,
+     damit keine zweite Wahrheit entsteht. Kommentare werden vorher geleert:
+     sonst zählte der Satz mit, der diese Regel erklärt.
+  */
+  // `fileURLToPath` und nicht `new URL(…)`: `URL` ist in dieser Datei die
+  // Adresse der Vorschau und verdeckt den globalen Erzeuger.
+  const quelle = readFileSync(fileURLToPath(import.meta.url), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, (treffer) => treffer.replace(/[^\n]/g, ' '))
+    .replace(/\/\/[^\n]*/g, '');
+  const angelegt = (quelle.match(/await pruefe\(/g) ?? []).length;
+  if (angelegt !== ergebnisse.length) {
+    ergebnisse.push({
+      name: 'jede angelegte Prüfung ist auch gelaufen',
+      ok: false,
+      error: new Error(
+        `${angelegt} Prüfungen stehen in der Datei, ${ergebnisse.length} sind gelaufen`,
+      ),
+    });
+    gescheitert.push(ergebnisse[ergebnisse.length - 1]);
+  }
+
   console.log(
     `\n${ergebnisse.length - gescheitert.length} von ${ergebnisse.length} Prüfungen bestanden.`,
   );

@@ -29,7 +29,7 @@
  *    falsch gesetzte Markup bleibt stehen. Deshalb der kleine Abonnenten-Satz
  *    unten, an dem die Fläche hängt.
  */
-import { fontFamily, webfont } from './runtime';
+import { webfont } from './runtime';
 import type { WebfontFace } from './brandTheme';
 import { resetMeasurementCache } from '@/lib/text/measure';
 
@@ -195,9 +195,4 @@ export function loadFaces(faces: readonly WebfontFace[]): void {
   // Dann steht die Ersatzschrift, aber wenigstens passen die Abstände zu dem,
   // was zu sehen ist — und der Lauf oben korrigiert es später noch einmal.
   window.setTimeout(() => announce(), 2000);
-}
-
-/** Der Schriftstapel einer Rolle — als Fassade, damit `@theme` nicht überall steht. */
-export function familyStack(role: keyof typeof fontFamily): string {
-  return fontFamily[role];
 }

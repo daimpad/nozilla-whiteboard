@@ -140,9 +140,22 @@ export function PresenterView() {
       */}
       <div className="grid min-h-0 flex-1 grid-rows-[3fr_2fr] gap-3">
         <div className="grid min-h-0 grid-cols-[3fr_2fr] gap-4">
-          <Vorschau slide={slide} deck={deck} titel="Jetzt" step={stand.revealStep} />
+          <Vorschau
+            slide={slide}
+            deck={deck}
+            titel="Jetzt"
+            step={stand.revealStep}
+            nummer={stand.slideIndex + 1}
+            gesamt={stand.totalSlides}
+          />
           {naechste ? (
-            <Vorschau slide={naechste} deck={deck} titel="Als Nächstes" />
+            <Vorschau
+              slide={naechste}
+              deck={deck}
+              titel="Als Nächstes"
+              nummer={stand.slideIndex + 2}
+              gesamt={stand.totalSlides}
+            />
           ) : (
             <div className="flex flex-col gap-1">
               <h2 className="text-ui-label uppercase tracking-wide text-ui-faint">Als Nächstes</h2>
@@ -188,11 +201,15 @@ function Vorschau({
   deck,
   titel,
   step,
+  nummer,
+  gesamt,
 }: {
   slide: Deck['slides'][number];
   deck: Deck;
   titel: string;
   step?: number;
+  nummer: number;
+  gesamt: number;
 }) {
   return (
     <div className="flex min-h-0 flex-col gap-1">
@@ -202,7 +219,21 @@ function Vorschau({
          (`preserveAspectRatio`) und stellt sich in ihren Platz. Ein zweites
          Verhältnis daneben stritte nur mit dem ersten.
       */}
-      <SlideView slide={slide} deck={deck} revealStep={step} className="min-h-0 flex-1" />
+      {/*
+         Mit Nummer, denn das ist der ganze Zweck dieses Fensters: zu sehen,
+         was das Publikum sieht. `buildSlideChrome()` malt die Fußzeile nur,
+         wenn eine Nummer dabeisteht — hier stand keine. Gemessen am Text der
+         beiden SVG: beim Publikum endete die Folie auf „2 / 6", in der
+         Vorschau daneben auf nichts.
+      */}
+      <SlideView
+        slide={slide}
+        deck={deck}
+        slideNumber={nummer}
+        totalSlides={gesamt}
+        revealStep={step}
+        className="min-h-0 flex-1"
+      />
     </div>
   );
 }

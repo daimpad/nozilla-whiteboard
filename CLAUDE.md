@@ -116,7 +116,8 @@ PROMPT.md                     Der Deck-Prompt, erklärt
 index.html · ci.html          Zwei Einstiege — das Werkzeug und der Generator
 public/fonts/                 WOFF2 für den Bildschirm, TTF für den Export
 scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
-          smoke.mjs           Der Rauchtest: 67 Handgriffe gegen das Bauwerk
+          ciAbgleich.mjs      Was ein Sync verlöre — die Rechnung dazu
+          smoke.mjs           Der Rauchtest: 73 Handgriffe gegen das Bauwerk
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set
               icons.ts        Das Set des gültigen Erscheinungsbilds
@@ -154,7 +155,7 @@ src/
               factory.ts      Der einzige Weg, auf dem ein Element entsteht
   lib/
     markdown/ deck.ts         Markdown ⇄ Deck (das Dateiformat)
-              render.ts       Markdown → HTML und Token (für den Bildschirm)
+              render.ts       Markdown → Token (für den Setzer)
     geometry/ path.ts         Segmente, Matrizen, Pfad-Parser (inkl. Bögen)
               shapes.ts       Die Formen der CI und der Verbinder
               snap.ts         Raster, Hilfslinien, Größenänderung, Klemmen
@@ -184,6 +185,7 @@ src/
     clipboard.ts              Was aus der Zwischenablage ein Element wird
     presenterChannel.ts       Was die beiden Vortragsfenster einander sagen
   hooks/      useKeyboardShortcuts.ts  Die Tastatur des ganzen Fensters
+              useMenu.ts      Ein Menü der Kopfleiste — auf, zu, angesagt
               useFonts.ts · useTheme.ts · useFolienformat.ts · useImageSizes.ts
                               Die Zähler, an denen ein Merker verfällt
               useClipboard.ts · usePresenterChannel.ts · useElementSize.ts
@@ -257,7 +259,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Neunundsechzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Dreiundsiebzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im
   Kopf von `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`;
   die Fassung passt nicht zur Bibliothek, deshalb
@@ -278,13 +280,9 @@ keine Zusicherung je *auf sie* geschrieben wurde.
 | Bereich | Lage |
 | --- | --- |
 | `src/ci/` unter `CiGenerator.tsx` — `ruecklauf.ts`, `pruefung.ts`, `emitter.ts`, `schritte.tsx`, `entwurf.ts`, `sitzung.ts`, `prompt.ts` | rund 4.100 Zeilen, zwei Prüfdateien; der jüngste Code des Projekts |
-| `scripts/smoke.mjs` | der Wächter über allen anderen, nie selbst Gegenstand |
-| `theme.config.ts` und `src/theme/` | die CI und die lebendigen Bindungen; `fonts.ts` ohne eigene Prüfung |
-| Kopfleiste und Dialoge — `TopBar.tsx`, `PromptStudio.tsx`, `SearchPanel.tsx`, `SettingsMenu.tsx`, `Overview.tsx`, `SlideRail.tsx` | keine eigene Prüfdatei; Runde 48 hat nur die Tastenseite angefasst |
-| `scripts/sync-ci.mjs` | woher die CI kommt |
-| `assets/presets.ts` und `AssetSidebar.tsx` | jeder Baustein ist eine Zusage über das, was auf der Folie landet |
-| Vortragsweg — `presenterChannel.ts`, `PresentView.tsx`, `PresenterView.tsx` | zwei Fenster, ein Kanal, ein Einstieg ohne Store |
-| `lib/text/measure.ts`, `lib/markdown/render.ts` | ohne eigene Prüfdatei |
+| `theme.config.ts` und `src/theme/` | die CI und die lebendigen Bindungen; `fonts.ts` ohne eigene Prüfung, `runtime.ts` und `surface.ts` nur über ihr Ergebnis |
+| `SearchPanel.tsx`, `SlideRail.tsx` | ohne eigene Prüfdatei; im Rauchtest über ihre Handgriffe |
+| `AssetSidebar.tsx` | die Bibliothek selbst; ihre Bausteine hat Runde 55 gemessen |
 
 ---
 
@@ -3490,6 +3488,343 @@ Rauchtest ist dafür da, wo eine Rechnung stimmen und die Oberfläche sie
 trotzdem nicht rufen kann. `shapeGeometry()` hat genau einen Aufrufer, und
 durch den geht jede Ausgabe — es gibt keinen zweiten Weg, der auseinanderlaufen
 könnte.
+
+**Der Wächter hörte nur auf eine von drei Seiten.** Die letzte Prüfung des
+Rauchtests heißt „nichts hat sich in der Konsole beschwert", und ihre beiden
+Horcher hingen an *einer* Seite: dem Werkzeug. Der CI-Generator wird
+neunzehnmal in einer eigenen Seite geöffnet, die Referentenansicht in einem
+eigenen Fenster — beide schrieben in ein Rohr, an dem niemand stand. Gemessen
+mit einem `console.error` im Einstieg von `ci.html`: neunzehn Meldungen, und
+der Rauchtest meldete neunundsechzig von neunundsechzig. Die eine Prüfung,
+deren ganzer Zweck das Schweigen ist, war selbst still.
+
+Abonniert wird jetzt der **Kontext**: er meldet jede Seite, die in ihm
+entsteht, auch die durch `window.open` geöffnete. Das Abonnement steht deshalb
+*vor* dem ersten `newPage()`. Und weil eine Meldung, die nicht sagt, wo sie
+fiel, die Zeit kostet, die sie sparen soll, trägt jede Zeile die Seite und die
+gerade laufende Prüfung; gleiche Zeilen werden mit Zähler zusammengefasst.
+Nachgemessen in beide Richtungen: mit Sabotage nennt sie „?referent=1" und
+„ci.html" samt Prüfung, ohne Sabotage ist auf keiner der drei Seiten ein Wort
+zu hören.
+
+**Ein abgebrochener Lauf ließ seinen Server stehen.** `beende(server)` stand
+auf dem guten Weg — und die Ausgänge sind vier: der gute, ein Wurf zwischen
+zwei Prüfungen, die Notbremse nach fünf Minuten und ein ⌃C von Hand. Weil die
+Vorschau in einer eigenen Prozessgruppe läuft (`detached`, und das aus gutem
+Grund), überlebt sie das Ende ihres Elternprozesses. Gemessen: nach einem Wurf
+in `main()` standen drei Prozesse und Port 4173 antwortete weiter.
+
+Was dann geschieht, ist ebenfalls gemessen. `vite preview` bindet ohne
+`--strictPort` still den nächsten freien Port — „Port 4173 is in use, trying
+another one…" auf 4174 —, während der Rauchtest weiter gegen 4173 fährt: er
+misst den *fremden* Server und räumt am Ende seinen eigenen ab. Ein Rest je
+gescheitertem Lauf, und jeder folgende Lauf misst den ältesten.
+
+**Nicht** wahr ist dagegen, was dabei zuerst naheliegt: dass ein solcher Rest
+den vorigen Stand ausliefert. `vite preview` liest jede Datei bei jeder Anfrage
+neu — eine Änderung an `dist/index.html` kam sofort zurück. Der Schaden ist ein
+anderer: der Rest kann aus einem *anderen Arbeitsverzeichnis* stammen, und zwei
+Klone desselben Repos sind die Falle, die hier schon einmal zugeschnappt ist.
+Dann prüft `pruefeStand()` dieses `dist/` und der Browser sieht ein anderes.
+
+Drei Hälften, und die dritte ist die wichtigste. Abgeräumt wird an **einer**
+Stelle (`process.on('exit', …)`, dazu ein Horcher je Signal, sonst laufen die
+`exit`-Horcher nicht) — eine Liste von Stellen, an denen man aufräumen *muss*,
+ist eine Liste von Stellen, an denen man es vergisst. `--strictPort` lässt den
+Server laut scheitern, statt leise auf einen Port auszuweichen, auf dem niemand
+nachsieht. Und **vor** dem Starten wird gefragt, ob der Platz frei ist: das
+macht den Fall, der bis hierher stumm war, zu einer Meldung mit Namen. Das
+Aufräumen macht ihn selten, die Frage macht ihn sichtbar.
+
+**Eine ganze Ansicht, die keine Prüfung je öffnete.** Die Übersicht — ⌘K, eine
+Kachel je Folie, schieben, duplizieren, löschen — hatte weder eine
+vitest-Prüfung noch einen Handgriff im Rauchtest. Gemessen mit einem Wurf im
+Rumpf von `Overview.tsx`, also mit einem weißen Fenster hinter ⌘K: **69 von 69
+Prüfungen bestanden**. Sie ist keine Nebensache — die Tastatur behandelt sie
+als eigene Schicht, und im Vortrag ist sie voll bedienbar.
+
+Gefragt wird, was die Ansicht zusagt, und nicht ihr Markup: eine Kachel je
+Folie, jede davon eine wirklich gezeichnete Folie, ein Klick führt hin, und
+Escape räumt die Schicht wieder ab. Der **Filmstreifen** ist dabei der Maßstab,
+weil er dasselbe Deck durch eine andere Komponente liest — eine Übersicht gegen
+ihre eigene Kopfzeile zu halten hieße, dieselbe Zahl zweimal zu lesen. Und die
+Zahl steht auf Deutsch da: „3 slides" stand hier schon einmal.
+
+Die Gegenprobe brauchte dafür zwei Sabotagen, und erst die zweite beweist
+etwas. Der Wurf nimmt die ganze Anwendung mit — es gibt keine Fehlergrenze, und
+zwölf weitere Prüfungen fielen mit —, also sagt er über die neue Zusicherung
+nur, dass sie überhaupt hinsieht. Gemessen wurde deshalb auch der stille Fall:
+`goTo(index)` zu `goTo(0)`, und genau **eine** Prüfung wurde rot, mit dem Satz
+„die Übersicht sprang woandershin".
+
+**Was nachgemessen wurde und in Ordnung ist.** Die siebzig Prüfungen tragen
+siebzig verschiedene Namen, und keine ist ohne einen Weg, rot zu werden — die
+beiden, die keine Zusicherung zu haben scheinen, hängen an `bis()`
+beziehungsweise an einem `waitFor()`, dessen Fehlschlag geworfen wird. Die
+Zahl am Ende wird gegen den eigenen Quelltext gehalten und nicht gegen sich
+selbst; was sie nicht fängt, ist ein *gelöschter* Block, denn dann sinkt auch
+die gezählte Zahl. `pruefeStand()` kennt jetzt alle acht Eingänge des Bauwerks
+— `src/`, `public/`, `theme.config.ts`, beide HTML-Einstiege, `tailwind.config`
+und `vite.config` —, und auch dort bleibt eine Grenze: eine *gelöschte* Datei
+verschiebt keine Änderungszeit.
+
+**Der Messpuffer nannte die Rolle und meinte die Schrift.** Sein Schlüssel
+war `display|16|400|n|…` — und „display" bleibt beim Wechsel des
+Erscheinungsbilds dasselbe Wort, während die Schrift dahinter eine andere ist.
+Geleert wird der Puffer nur, wenn Schriften *ankommen*; `withTheme()` fordert
+aber grundsätzlich nichts an — es rechnet nur, und genau so rechnet die
+Vorschau des CI-Generators. Eine Marke, die dieselben Dateien anders stapelt
+oder eine Systemschrift nennt, fordert ebenfalls nichts nach.
+
+Gemessen mit einer Attrappe, deren Breite vom Stapel abhängt: unter dem
+fremden Erscheinungsbild kamen die Breiten der *vorigen* Marke zurück, für
+jedes Wort, das schon einmal gemessen worden war — 50 statt 15. Der Schlüssel
+ist jetzt dieselbe Zeichenkette, die auch ins Canvas geht; zwei Wahrheiten
+über „welche Schrift ist das" können so nicht auseinanderlaufen.
+
+Unter jsdom ist der Fehler unsichtbar — das Ersatzmodell kennt die Schrift gar
+nicht —, und deshalb sah ihn keiner der Ausgabewege. `measure.test.ts` stellt
+dafür ein Canvas hin, das die Schrift *sieht*: die eine Eigenschaft, auf die
+es hier ankommt.
+
+**Eine Variable, die sich als Folienhöhe ausgab und eine andere nannte.**
+`cssVariables()` schreibt `--nz-canvas-w`, `--nz-canvas-h` und `--nz-grid` aus
+der lebendigen Bindung, und der Kommentar daneben sagt, wofür: damit fremdes
+CSS sie ziehen kann. Geschrieben werden sie von `applyThemeVariables()`, und
+das hing am Erscheinungsbild und an der Erscheinung — nicht am Blatt. Gemessen
+an einem geladenen A4-Deck: die Folie stand auf 1810 und die Variable sagte
+weiter 720px, auch nach einem Neuladen. Im Baum hat niemand sie gelesen; das
+ist keine Entlastung, sondern die Beschreibung eines Werts, der auf den
+Nächsten wartet.
+
+Geprüft wird im Browser an `:root` und in **beide** Richtungen: eine Variable,
+die nur beim Umschalten auf A4 nachgeführt wird, ist an der Hälfte der Wechsel
+falsch.
+
+**Das Zeichen des Werkzeugs nahm den Akzent des Decks an.** `Logo` in der
+Kopfleiste zeichnet die Pfade aus `wordmark.generated`, also die von nozilla —
+ihr Punkt stand aber in der *lebendigen* Signalfarbe. Damit war sie beides
+halb: ein nozilla-Schriftzug, dessen Punkt die Farbe der Marke annimmt, deren
+Deck gerade offen ist. Gemessen unter dem Musterkunden: #FF5A1F statt #00FF9C.
+
+`theme.test.ts` führt `Logo.tsx` unter den Dateien, die Marken-Inhalt zeigen
+dürfen — und die Ausnahme gilt der **Wortmarke**, nicht ihrer Farbe. Genau
+deshalb schlug nichts an. Geprüft wird jetzt am gezeichneten Markup: das
+Zeichen muss unter jedem Erscheinungsbild dasselbe sein.
+
+**Und `familyStack()` gab es zweimal.** Einmal in `theme/index.ts`, einmal in
+`fonts.ts`, wortgleich — die zweite hatte keinen einzigen Aufrufer. Zwei
+Rechnungen für dieselbe Frage, von denen eine tot ist, sind trotzdem zwei: die
+tote ist die, die der Nächste findet und benutzt.
+
+**Was nachgemessen wurde und in Ordnung ist.** Der `console.warn` in
+`embedFaces()` sieht aus wie die bekannte Stille — ist aber keine: ein Schnitt,
+dessen Datei nicht ankommt, wird längst gemeldet, nur an anderer Stelle.
+`glyphCoverFor()` lädt für jeden verlangten Schnitt die Umrisse und sammelt in
+`nichtGeladen`, was fehlt; der PDF-Weg bekommt genau diese Deckung. Die
+Meldung ist damit schon draußen, bevor `embedFaces()` überhaupt anfängt.
+
+Ebenso in Ordnung: die Erscheinung des Werkzeugs hört auf den Systemwechsel,
+`registerTheme()` weckt die Auswahlliste auch bei einem bloßen Zuwachs, und
+die Referentenansicht setzt Erscheinungsbild *und* Blatt aus dem Deck, das
+über den Kanal kommt — sie hat keinen Store, der das für sie täte. Der
+CI-Generator liest `canvas` ohne den Formatzähler, und das ist richtig: dort
+gibt es kein Deck und damit kein zweites Blatt.
+
+**Ein `fill()` ist ein Handgriff und keine Bedingung.** Es setzt den Wert und
+schickt danach das Ereignis — und in einem gesteuerten React-Feld ist zwischen
+diesen beiden Schritten Platz für ein Neuzeichnen. Kommt eines, schreibt React
+seinen alten Wert zurück, das Ereignis meldet dann genau diesen, die Änderung
+erreicht den Zustand nie, und das Feld steht wieder auf seinem alten Wert —
+für immer, denn ein `fill()`, das einmal daneben ging, wiederholt sich nicht.
+
+Der Rauchtest wartete darauf, dass das Feld leer *wird* (der Fix einer früheren
+Runde), und lief in der CI fünfzehn Sekunden gegen eine „3". Nachgestellt wurde
+die Hälfte des Rennens: den Wert still setzen, dann ein fremdes Feld
+anfassen — das Feld stand wieder auf „3". Auf diesem Rechner geschieht es nie,
+auch nicht bei zehnfacher Drosselung: 25 von 25 Läufen leerten es in
+höchstens 325 ms. Der Handgriff ist deshalb jetzt **Teil** der Bedingung: es
+wird geleert, bis es steht. Die Zusicherung bleibt dieselbe — ein Feld, das
+sich gar nicht leeren lässt, wird weiterhin rot.
+
+Und die Regel dahinter ist allgemeiner als dieses Feld: **eine Zusicherung
+darf warten, ein Handgriff muss sich wiederholen dürfen.** Wer nur wartet,
+prüft am Ende, ob ein einzelner Versuch zufällig in eine ruhige Lücke fiel.
+
+**Zwei tote Ausgänge, und sie schleppten eine Bibliothek mit.** `render.ts`
+hieß im Kopf „Markdown → HTML, für das, was auf dem Bildschirm steht", und
+zwei Zeilen weiter stand, die Ausgabewege benutzten das Modul *nicht*. Beides
+zusammen beschrieb etwas, das es nicht mehr gab: die Fläche zeichnet über
+dieselbe Zeichenstrecke wie der SVG-Export. Nachgezählt hatten
+`renderMarkdown()` und `markdownToPlainText()` **keinen einzigen Aufrufer** —
+gerufen werden nur `lexMarkdown()` und `lexInline()`.
+
+Gekostet hat das mehr als zwei Funktionen. `renderMarkdown()` reinigte mit
+DOMPurify, und weil dieser Import *statisch* war, lag die Bibliothek im
+Hauptbündel; daneben legte Rollup den Lazy-Chunk an, den jsPDF für
+`doc.html()` anfordert. In `vite.config.ts` stand ausdrücklich, `dompurify`
+gehöre **nicht** zu den ausgeschalteten Wegen — „dieses Werkzeug benutzt es
+selbst". Der Satz stimmte einmal und war zuletzt eine Begründung für Ballast:
+Hauptbündel 528.974 → 498.997 Bytes, dazu 22 kB Chunk und seine Quellkarte.
+Der Bauwerk-Wächter des Rauchtests kennt jetzt alle drei Namen.
+
+**Ein Unterstrich mitten im Wort ist keine Auszeichnung.** `stripInline()`
+räumt die Auszeichnungen aus einem Folientitel — und nahm `_` überall weg. Aus
+„Der user_id-Fehler" wurde „Der userid-Fehler", im Filmstreifen, in der
+Übersicht, in der Referentenansicht und im Exportmenü. Die Regel dagegen ist
+nicht erfunden: CommonMark zeichnet mit `_` innerhalb eines Wortes nicht aus,
+und genau deshalb kann man `snake_case` schreiben. Der Stern darf weiter
+überall weichen — `a*b*c` **ist** eine Auszeichnung. Gehalten wird die Regel
+gegen den Leser, der sie umsetzt: derselbe Titel geht durch `lexInline()` und
+muss dort ein einziges Text-Token sein.
+
+**Die Bausteine hielten das Raster nicht, das sie verlangen.** `computeSnap()`
+und `resizeRect()` rasten jedes gezogene Element auf `canvas.gridSize` ein,
+und der Deck-Prompt verlangt dasselbe vom Sprachmodell — von siebenundvierzig
+Bausteinen lagen **siebenunddreißig Maße** daneben. Sichtbar wird das beim
+ersten Anfassen: der Kasten springt aufs Raster, sobald jemand einen Griff
+berührt. Dieselbe Falle wie bei `insertColumnWidth()`, eine Ebene höher.
+Gerundet wird **nach oben**: ein Kasten, der wächst, kann keinen Überlauf
+erzeugen, und `overflow.test.ts` bleibt grün.
+
+**Eine Prüfung, die alles prüfte außer dem Ergebnis.** `sync-ci.mjs --check`
+las die Quelle, hielt sie gegen die CI-Regeln und meldete „Prüfung
+bestanden" — über die *erzeugten Dateien* im Repo sagte es kein Wort. Sie
+entstanden erst hinter `if (CHECK_ONLY) exit(0)`, also nach dem Ausgang.
+
+Gemessen, und zwar an mir selbst: in diesem Rechner lagen zwei Klone des
+CI-Repos. Der ältere (7. August) brachte 37 Kern-Zeichen mit, der Stand der
+Quelle (21. August) führt 92 — und `--check` war grün. Ein Sync hätte
+**fünfundfünfzig Zeichen aus dem Werkzeug genommen**, auf jeder Folie, die
+eines davon benutzt. Genau die Falle, die weiter oben unter „Ein veralteter
+Checkout sieht aus wie ein aktueller" steht; sie schnappt wieder zu, wenn
+niemand fragt.
+
+Drei Dinge hängen daran. Die Dateien entstehen jetzt **vor** jeder
+Verzweigung, `--check` vergleicht sie mit dem, was auf der Platte liegt, und
+nennt bei einer Abweichung die Zahl *und* die Namen. Ein Lauf, der Einträge
+verlöre, **schreibt nicht** — er zeigt sie und verlangt `--auch-entfernen`;
+dieselbe Linie wie `darfErsetzen()` im Werkzeug. Und geschrieben wird nur, was
+sich wirklich ändert: vorher wurden alle drei Dateien bei jedem Lauf neu
+geschrieben, und eine echte Änderung stand zwischen zwei Neuschreibungen, die
+keine waren.
+
+Prüfbar ist davon nur, was nicht im Skript steht: ein Skript läuft von oben
+nach unten und beendet den Prozess. Die drei Fragen — welche Einträge stehen
+darin, welche verschwänden, und ist jede Zahl eine Zahl — stehen deshalb in
+`scripts/ciAbgleich.mjs`, mit zwei Kunden. Die dritte ist der alte Bekannte:
+`<rect width="8">` ohne `x` ergibt `+undefined`, und `x: NaN` in einer
+erzeugten Datei übersetzt, besteht Prettier und zeichnet still falsch.
+
+**Was nachgemessen wurde und in Ordnung ist.** Kein Baustein setzt eine
+Angabe, die seine Art nicht liest — dieselbe Frage wie im Inspektor, gestellt
+an `elementFelder()`. Keiner nennt ein Zeichen, das das Set nicht führt; keine
+Kennung ist doppelt, keine Gruppe leer. Gegen den *wirklichen* Stand der
+Quelle sind alle drei erzeugten Dateien zeichengleich mit dem, was ein Lauf
+schreiben würde — das Werkzeug hinkt nicht, es konnte es nur nicht wissen. Und
+die Wortmarke liest `sync-ci.mjs` strenger als `wordmark.ts`: exakte Hexwerte,
+kein `style="fill:…"`, kein geerbtes `fill` vom `<g>`. Das ist keine Lücke,
+sondern eine andere Frage — hier steht *ein* bekanntes Logo, dort steht die
+Datei, die jemand hochlädt —, und wenn es klemmt, klemmt es laut.
+
+**Drei Menüs, dieselbe Aufgabe, zwei davon halb gebaut.** Die Kopfleiste
+führt Datei, Export und Einstellungen, und jedes brachte seinen eigenen
+Aufklapp-Satz mit. Gemessen im Browser:
+
+```
+Datei          offen · nach Esc: offen · aria-expanded: nichts
+Export         offen · nach Esc: offen · aria-expanded: nichts
+Einstellungen  offen · nach Esc: zu    · aria-expanded: nichts
+```
+
+Zwei von dreien ließen sich mit der Tastatur nicht wieder schließen — wer
+eines öffnete, kam nur wieder heraus, indem er einen Eintrag auslöste. Und
+keines sagte einer Hilfstechnik, dass es überhaupt ein Menü ist: kein
+`aria-haspopup`, kein `aria-expanded`. Das Zahnrad trug stattdessen
+`aria-pressed`, die Ansage eines *Schalters* — beides zugleich widerspricht
+sich. Vor Augen steht dieser Unterschied nie; man sieht das Feld ja aufgehen.
+
+`useMenu()` ist jetzt die eine Rechnung mit drei Kunden. Eine Liste von
+Stellen, an denen man an `Escape` denken *muss*, ist eine Liste von Stellen,
+an denen man es vergisst — dieselbe Antwort wie bei `withElements()` und
+`darfErsetzen()`.
+
+Zwei Kleinigkeiten hängen daran. Der **Fokus kommt zurück**: wer sonst mit
+`Escape` schließt, steht auf `<body>`, und das nächste `Tab` fängt wieder ganz
+vorn an. Und **`Escape` gehört dem Obersten**: `useKeyboardShortcuts` räumt mit
+derselben Taste die Schichten des Werkzeugs ab, also endet das Ereignis im
+Menü — sonst schlösse ein `Escape` das Menü *und* gäbe die Auswahl auf der
+Folie frei, und von den beiden hat niemand das zweite gemeint.
+
+**Ein gescheitertes Kopieren sagte nichts.** Der `catch` im Prompt-Generator
+setzte `copied` auf `false` — also auf den Wert, den es ohnehin hatte.
+Gemessen mit einem `writeText`, das ablehnt: der Knopf sagt weiter „Kopieren",
+es steht keine Meldung da, und die Seite ändert sich um kein einziges Zeichen.
+Wer klickt, hat danach einen leeren Zwischenspeicher und keinen Anlass, das zu
+ahnen — und der ganze Zweck dieser Seite ist, dass dieser Text den Rechner
+verlässt.
+
+Der Anlass ist nicht erfunden: `navigator.clipboard` gibt es nur in einem
+sicheren Kontext. Über `https` und über `127.0.0.1` ist es da, über die
+Adresse im Heimnetz nicht — also genau dann, wenn jemand das Werkzeug einem
+Kollegen zeigt. Gemeldet wird es über den Hinweis im Store, dieselbe Stelle
+wie beim gescheiterten Export und beim gescheiterten Sichern; das ist der
+vierte Setzer auf demselben Kanal.
+
+**Eine zweite Wahrheit über die Auflösung des PNG.** Der Hinweis unter dem
+Menüeintrag rechnete `canvas.width * 2`, während der Rasterweg mit `SCHAERFE`
+rechnet. Beide standen auf 2, und genau das ist die Falle: wer die Konstante
+einmal auf 3 setzt, bekommt einen Hinweis, der etwas anderes verspricht als
+die Datei hält. Dieselbe Sorte wie die `24`, die neben ihrer eigenen Vorgabe
+stand.
+
+**Was nachgemessen wurde und in Ordnung ist.** Die Suche zählt und ersetzt
+dieselbe Frage: `searchDeck()`, `zaehleFunde()` und `ersetzeImDeck()` schneiden
+alle drei den Rand ab und vergleichen alle drei ohne Rücksicht auf Groß und
+Klein — der Knopf „Alle 4" ersetzt wirklich vier. `MenuItem` wird mit `href`
+zu einem echten Verweis, damit der CI-Generator sich auch mit der mittleren
+Maustaste öffnen lässt. Und der Filmstreifen rechnet seine Kacheln aus der
+Höhe des Streifens, seit ein hochkantes Blatt sie unten abschnitt.
+
+**Was unsichtbar ist, blieb anklickbar.** Die Leisten der Vortragsansicht
+blenden sich nach 2200 ms aus — mit `opacity-0`, und das nimmt einem Knopf nur
+die Farbe. Gemessen im Browser: `opacity: 0`, `pointer-events: auto`, und ein
+Klick auf die Stelle, an der „Präsentation verlassen" *war*, beendet den
+Vortrag. Vor Publikum, ohne dass irgendetwas zu sehen wäre.
+
+Mit einer Maus fällt das selten auf, und das ist der Grund, warum es so lange
+stand: der Zeiger bringt die Leiste zurück, bevor die Hand ankommt. Ein Tippen
+auf dem Touchpad und jede Fernbedienung bewegen ihn nicht. Genau so wird jetzt
+geprüft — erst zeigen, dann warten, dann drücken, **ohne zu bewegen**; ein
+`mouse.click()` täte es nicht, denn das bewegt den Zeiger und zeigt die Leiste
+damit vorher wieder an.
+
+**Und die Notizen sind eine Lesefläche.** Der Klick auf die Folie blättert
+weiter, und ausgenommen war nur, was in einem `<button>` steckt. Die Notizen
+stecken in keinem: ein Klick hinein blätterte gemessen von „1 / 6" auf
+„2 / 6". Wer dort etwas markieren will, steht danach eine Folie weiter — auf
+dem Bildschirm, den das Publikum sieht. Ausgenommen ist jetzt das ganze
+Beiwerk und nicht nur der Knopf.
+
+**Die Referentenansicht zeigte eine andere Folie als das Publikum.**
+`buildSlideChrome()` malt die Nummer in der Fußzeile nur, wenn eine
+dabeisteht — die Vorschau des zweiten Fensters gab keine mit. Gemessen am Text
+der beiden SVG: beim Publikum endete die Folie auf „2 / 6", in der Vorschau
+daneben auf nichts. Das ist genau das, was die erste Regel dieses Projekts
+verbietet, nur nicht zwischen zwei Ausgaben, sondern zwischen zwei Fenstern —
+und der ganze Zweck des zweiten ist zu sehen, was im ersten steht.
+
+Die zweite Kachel trägt dabei die Nummer der *nächsten* Folie. Eine Vorschau,
+die zweimal dieselbe zeigt, wäre schlimmer als keine.
+
+**Was nachgemessen wurde und in Ordnung ist.** Der Kanal überträgt das Deck
+bei jeder Änderung und den Stand bei jeder Bewegung; das `hallo` einer später
+geöffneten Referentenansicht wird beantwortet, und ihr `pagehide` meldet sich
+ab. Die Vortragsansicht rechnet ihren Maßstab aus der lebendigen Bindung und
+hängt am Formatzähler. `endlicherSchritt()` bringt die Unendlichkeit über den
+Kanal, ohne dass auf der anderen Seite eine Vergleichsfalle entsteht. Und das
+zweite Fenster hat weiterhin keinen Store — es liest sein Deck aus dem Kanal
+und setzt Erscheinungsbild und Blatt selbst.
 
 ---
 

@@ -393,11 +393,26 @@ export function slideTitle(slide: Slide, index: number): string {
   return `Folie ${index + 1}`;
 }
 
+/**
+ * Die Auszeichnungen aus einem Titel nehmen.
+ *
+ * Der Unterstrich hat dabei eine eigene Regel, und sie ist nicht erfunden:
+ * CommonMark zeichnet mit `_` **nicht innerhalb eines Wortes** aus, damit
+ * `user_id` und `snake_case` schreibbar bleiben. Die vorige Fassung nahm ihn
+ * überall weg — aus „Der user_id-Fehler" wurde im Filmstreifen, in der
+ * Übersicht, in der Referentenansicht und im Exportmenü „Der userid-Fehler".
+ * Der Stern darf dagegen weiter überall weichen: `a*b*c` **ist** in CommonMark
+ * eine Auszeichnung.
+ */
 function stripInline(input: string): string {
-  return input
-    .replace(/!\[[^\]]*]\([^)]*\)/g, '')
-    .replace(/\[([^\]]*)]\([^)]*\)/g, '$1')
-    .replace(/==([^=]+)==/g, '$1')
-    .replace(/[*_`~]/g, '')
-    .trim();
+  return (
+    input
+      .replace(/!\[[^\]]*]\([^)]*\)/g, '')
+      .replace(/\[([^\]]*)]\([^)]*\)/g, '$1')
+      .replace(/==([^=]+)==/g, '$1')
+      .replace(/[*`~]/g, '')
+      // Ein `_` fällt nur, wenn auf einer Seite kein Wortzeichen steht.
+      .replace(/(?<![\p{L}\p{N}])_|_(?![\p{L}\p{N}])/gu, '')
+      .trim()
+  );
 }

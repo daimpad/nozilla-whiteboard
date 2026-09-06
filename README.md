@@ -506,7 +506,8 @@ PROMPT.md                     Der Deck-Prompt, erklärt
 index.html · ci.html          Zwei Einstiege — das Werkzeug und der Generator
 public/fonts/                 WOFF2 für den Bildschirm, TTF für den Export
 scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
-          smoke.mjs           Der Rauchtest: 67 Handgriffe gegen das Bauwerk
+          ciAbgleich.mjs      Was ein Sync verlöre — die Rechnung dazu
+          smoke.mjs           Der Rauchtest: 73 Handgriffe gegen das Bauwerk
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set (554 Icons)
               icons.ts        Das Set des gültigen Erscheinungsbilds
@@ -534,7 +535,7 @@ src/
               factory.ts      Der einzige Weg, auf dem ein Element entsteht
   lib/
     markdown/ deck.ts         Markdown ⇄ Deck (das Dateiformat)
-              render.ts       Markdown → HTML und Token (für den Bildschirm)
+              render.ts       Markdown → Token (für den Setzer)
     geometry/ path.ts         Segmente, Matrizen, Pfad-Parser (inkl. Bögen)
               shapes.ts       CI-Formen und Verbinder
               snap.ts         Raster, Hilfslinien, Größenänderung
@@ -759,7 +760,7 @@ CI-Konformität aller 554 Icons.
 
 Das prüft alles, was das Werkzeug **herstellt**. Ob man es **bedienen** kann,
 prüft `npm run test:ui`: Playwright klickt gegen `vite preview`, also gegen
-das gebaute Verzeichnis. Neunundsechzig Handgriffe, jeder für einen Fehler,
+das gebaute Verzeichnis. Dreiundsiebzig Handgriffe, jeder für einen Fehler,
 der einmal durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
 ihrem Kasten, eine Vorschau schwarz auf dunkelgrau. Beides läuft bei jedem
 Pull Request.

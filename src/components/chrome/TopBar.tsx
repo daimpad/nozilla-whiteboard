@@ -2,7 +2,7 @@
  * Die Kopfleiste: wer das Deck ist, die Wege zur Datei, das Export-Menü, was
  * die Fläche zeigt, und der Sprung in den Vortrag.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { darfErsetzen, grund, oeffneDeck, sichereDeck } from '@/state/persistence';
 import { brand, canvas as canvasTokens } from '@/theme';
 import { bundledDecks } from '@/decks';
@@ -29,6 +29,14 @@ import type { ToolIconName } from '@/assets/icons';
 import { Logo } from '@/components/chrome/Logo';
 import { SettingsMenu } from '@/components/panels/SettingsMenu';
 import { useFolienformatVersion } from '@/hooks/useFolienformat';
+import { useMenu } from '@/hooks/useMenu';
+/*
+   Die Auflösung des PNG stand hier als `× 2` im Klartext — eine zweite
+   Wahrheit über dieselbe Zahl. Beide stimmten, und genau das ist das Problem:
+   wer `SCHAERFE` einmal auf 3 setzt, bekommt einen Hinweis, der etwas anderes
+   verspricht als die Datei hält.
+*/
+import { SCHAERFE } from '@/lib/export/raster';
 
 export function TopBar() {
   const deck = useDeckStore((state) => state.deck);
@@ -213,20 +221,11 @@ export function TopBar() {
 function DateiMenu({ onSave }: { onSave: () => void }) {
   const newDeck = useDeckStore((state) => state.newDeck);
   const loadMarkdown = useDeckStore((state) => state.loadMarkdown);
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const zu = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', zu);
-    return () => document.removeEventListener('mousedown', zu);
-  }, [open]);
+  const menue = useMenu<HTMLDivElement>();
+  const { offen: open, schliessen } = menue;
 
   const dann = (tu: () => void) => () => {
-    setOpen(false);
+    schliessen();
     tu();
   };
 
@@ -239,8 +238,8 @@ function DateiMenu({ onSave }: { onSave: () => void }) {
   };
 
   return (
-    <div className="relative" ref={ref}>
-      <Button icon="file-lines" active={open} onClick={() => setOpen((value) => !value)}>
+    <div className="relative" ref={menue.huelle}>
+      <Button icon="file-lines" {...menue.knopfProps}>
         Datei
       </Button>
       {open ? (
@@ -294,7 +293,7 @@ function DateiMenu({ onSave }: { onSave: () => void }) {
               label="Eigenes Design erstellen"
               hint="Eigene Seite, eigener Tab"
               href="./ci.html"
-              onClick={() => setOpen(false)}
+              onClick={schliessen}
             />
           </div>
         </div>
@@ -313,7 +312,8 @@ function ExportMenu({
   const deck = useDeckStore((state) => state.deck);
   const slideIndex = useDeckStore((state) => state.slideIndex);
   const zeigeHinweis = useDeckStore((state) => state.zeigeHinweis);
-  const [open, setOpen] = useState(false);
+  const menue = useMenu<HTMLDivElement>();
+  const { offen: open, schliessen } = menue;
   // Wie die Schrift in die Datei kommt. Eine Entscheidung pro Export, kein
   // Deck-Zustand — sie hängt am Ziel (Bildschirm, Druckerei), nicht am Inhalt.
   const [textMode, setTextMode] = useState<TextMode>('embedded');
@@ -328,7 +328,6 @@ function ExportMenu({
      `useThemeVersion()`, und aus genau demselben Grund.
   */
   useFolienformatVersion();
-  const ref = useRef<HTMLDivElement | null>(null);
 
   /*
      Der Hinweis unter einem PDF-Eintrag nennt beide Entscheidungen, die ihn
@@ -343,15 +342,6 @@ function ExportMenu({
       : `${seitenformatLabels[seite]}, ${schrift}`;
   };
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [open]);
-
   /*
      Ein gescheiterter Export sagte nichts.
 
@@ -364,7 +354,7 @@ function ExportMenu({
      die Antwort „doch nicht".
   */
   const run = async (label: string, task: () => Promise<unknown>) => {
-    setOpen(false);
+    schliessen();
     // Der nächste Versuch räumt den vorigen Hinweis weg — sonst stünde nach
     // einem geglückten Export noch die Klage über den davor.
     zeigeHinweis(null);
@@ -382,7 +372,7 @@ function ExportMenu({
   };
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative" ref={menue.huelle}>
       {/*
         Beschriftet und nicht nur ein Zeichen: „Datei" steht daneben und trägt
         sein Wort, und ein nacktes Symbol dazwischen liest sich wie eine
@@ -390,12 +380,7 @@ function ExportMenu({
         mit diesem Text heißt genauso wie einer mit diesem `label`, und der
         Rauchtest greift ihn zehnmal darüber.
       */}
-      <Button
-        icon="share"
-        active={open}
-        disabled={Boolean(busy)}
-        onClick={() => setOpen((value) => !value)}
-      >
+      <Button icon="share" disabled={Boolean(busy)} {...menue.knopfProps}>
         Export
       </Button>
       {open ? (
@@ -422,7 +407,7 @@ function ExportMenu({
           <MenuItem
             icon="image"
             label="PNG — diese Folie"
-            hint={`${canvasTokens.width * 2}×${canvasTokens.height * 2}, zum Verschicken`}
+            hint={`${canvasTokens.width * SCHAERFE}×${canvasTokens.height * SCHAERFE}, zum Verschicken`}
             onClick={() => run('Rastere PNG', () => exportPng(deck, { slideIndex }))}
           />
           <MenuItem
