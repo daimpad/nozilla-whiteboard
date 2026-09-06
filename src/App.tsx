@@ -23,6 +23,7 @@ import { AssetSidebar } from '@/components/panels/AssetSidebar';
 import { Inspector } from '@/components/panels/Inspector';
 import { PromptStudio } from '@/components/panels/PromptStudio';
 import { SearchPanel } from '@/components/panels/SearchPanel';
+import { PruefPanel } from '@/components/panels/PruefPanel';
 import { Overview } from '@/components/chrome/Overview';
 import { TopBar } from '@/components/chrome/TopBar';
 import { SessionWarning } from '@/components/chrome/SessionWarning';
@@ -88,6 +89,7 @@ export default function App() {
   const overviewOpen = useDeckStore((state) => state.overviewOpen);
   const promptOpen = useDeckStore((state) => state.promptOpen);
   const searchOpen = useDeckStore((state) => state.searchOpen);
+  const pruefungOpen = useDeckStore((state) => state.pruefungOpen);
   const panels = useDeckStore((state) => state.panels);
   const deck = useDeckStore((state) => state.deck);
   const slide = useDeckStore(selectCurrentSlide);
@@ -252,6 +254,7 @@ export default function App() {
       {overviewOpen ? <Overview /> : null}
       {promptOpen ? <PromptStudio /> : null}
       {searchOpen ? <SearchPanel /> : null}
+      {pruefungOpen ? <PruefPanel /> : null}
 
       <div
         className={cx(

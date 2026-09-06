@@ -59,6 +59,7 @@ export function useKeyboardShortcuts(): void {
 
       if (event.key === 'Escape') {
         if (store.searchOpen) store.toggleSearch(false);
+        else if (store.pruefungOpen) store.togglePruefung(false);
         else if (store.promptOpen) store.togglePrompt(false);
         else if (store.overviewOpen) store.toggleOverview(false);
         else if (store.mode === 'present') store.setMode('edit');
@@ -191,7 +192,8 @@ export function useKeyboardShortcuts(): void {
          hinter dem Prompt-Dialog eine Folie an, ein `p` startete hinter der
          Übersicht den Vortrag.
       */
-      const zugedeckt = store.searchOpen || store.promptOpen || store.overviewOpen;
+      const zugedeckt =
+        store.searchOpen || store.pruefungOpen || store.promptOpen || store.overviewOpen;
 
       /* -------------------------------------------------------- blättern */
 

@@ -14,6 +14,8 @@
  * eine Marke nennt „Papier" vielleicht „Weiß".
  */
 
+import type { CanvasElement } from '@/model/types';
+
 /** Ein Anzeigename, oder der Wert selbst, wenn keiner eingetragen ist. */
 export function labelOf(table: Record<string, string>, value: string): string {
   return table[value] ?? value;
@@ -242,3 +244,54 @@ export const typeStyleLabels: Record<string, string> = {
   code: 'Code',
   codeInline: 'Code im Satz',
 };
+
+/**
+ * Wie ein Element heißt, wenn es niemand sieht.
+ *
+ * Diese Zeichenkette steht vor keinem Auge: sie ist die Ansage, die eine
+ * Hilfstechnik vorliest, wenn der Tabstopp auf dem Element steht. Genau
+ * deshalb war sie falsch, ohne dass es jemandem auffiel — dieselbe Bauart wie
+ * „Resize nw" an acht Griffen.
+ *
+ * Der `default`-Zweig gab **drei** Arten den Namen einer vierten: Wortmarke,
+ * Diagramm und Tabelle hießen alle „Markdown-Block". Der `switch` zählt jetzt
+ * alle elf auf, und die Zuweisung an `never` bricht `tsc` ab, sobald eine
+ * zwölfte dazukommt — sonst hieße die auch so.
+ *
+ * Sie wohnt hier und nicht mehr an der Fläche, weil sie einen zweiten Kunden
+ * bekommen hat: die Prüfliste nennt damit das Element, um das es geht. Eine
+ * Rechnung unter `lib/` darf nicht aus einer Komponente importieren — dieselbe
+ * Naht, die `lib/prompt/zaun.ts` gezogen hat.
+ */
+export function elementLabel(element: CanvasElement): string {
+  if (element.name) return element.name;
+  switch (element.kind) {
+    case 'text':
+      return element.text.slice(0, 40) || 'Text';
+    case 'markdown':
+      return element.markdown.slice(0, 40) || labelOf(kindLabels, 'markdown');
+    case 'card':
+      return element.title || labelOf(kindLabels, 'card');
+    case 'badge':
+      return element.text || labelOf(kindLabels, 'badge');
+    case 'icon':
+      return `${labelOf(kindLabels, 'icon')} ${element.icon}`;
+    case 'shape':
+      return element.label || labelOf(shapeLabels, element.shape);
+    case 'connector':
+      return element.label || labelOf(connectorLabels, element.connector);
+    case 'image':
+      return element.alt || labelOf(kindLabels, 'image');
+    case 'wordmark':
+      return labelOf(kindLabels, 'wordmark');
+    case 'chart':
+      return element.label || labelOf(kindLabels, 'chart');
+    case 'table':
+      return element.label || labelOf(kindLabels, 'table');
+    default: {
+      const unbekannt: never = element;
+      void unbekannt;
+      return labelOf(kindLabels, 'shape');
+    }
+  }
+}

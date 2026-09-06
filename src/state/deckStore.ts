@@ -85,6 +85,13 @@ export interface EditorState {
   promptOpen: boolean;
   searchOpen: boolean;
   /**
+   * Ob die Prüfliste offen steht.
+   *
+   * Gehört zum Arbeitsplatz und nicht zum Deck — sie ändert nichts, sie sagt
+   * nur, was schon dasteht.
+   */
+  pruefungOpen: boolean;
+  /**
    * Welche Leisten offen stehen. Gehört dem Arbeitsplatz und nicht dem Deck —
    * siehe `state/workspace.ts`, dort steht auch, wo es gemerkt wird.
    */
@@ -125,6 +132,7 @@ export interface EditorState {
   toggleNotes: (open?: boolean) => void;
   togglePrompt: (open?: boolean) => void;
   toggleSearch: (open?: boolean) => void;
+  togglePruefung: (open?: boolean) => void;
   togglePanel: (name: PanelName, open?: boolean) => void;
 
   addSlide: (at?: number, patch?: Partial<Slide>) => void;
@@ -420,6 +428,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
     notesOpen: false,
     promptOpen: false,
     searchOpen: false,
+    pruefungOpen: false,
     panels: readPanels(),
 
     selection: [],
@@ -546,6 +555,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
     togglePrompt: (open) => set((state) => ({ promptOpen: open ?? !state.promptOpen })),
 
     toggleSearch: (open) => set((state) => ({ searchOpen: open ?? !state.searchOpen })),
+    togglePruefung: (open) => set((state) => ({ pruefungOpen: open ?? !state.pruefungOpen })),
 
     togglePanel: (name, open) =>
       set((state) => {
