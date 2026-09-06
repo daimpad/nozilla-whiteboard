@@ -117,7 +117,7 @@ index.html · ci.html          Zwei Einstiege — das Werkzeug und der Generator
 public/fonts/                 WOFF2 für den Bildschirm, TTF für den Export
 scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
           ciAbgleich.mjs      Was ein Sync verlöre — die Rechnung dazu
-          smoke.mjs           Der Rauchtest: 70 Handgriffe gegen das Bauwerk
+          smoke.mjs           Der Rauchtest: 72 Handgriffe gegen das Bauwerk
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set
               icons.ts        Das Set des gültigen Erscheinungsbilds
@@ -185,6 +185,7 @@ src/
     clipboard.ts              Was aus der Zwischenablage ein Element wird
     presenterChannel.ts       Was die beiden Vortragsfenster einander sagen
   hooks/      useKeyboardShortcuts.ts  Die Tastatur des ganzen Fensters
+              useMenu.ts      Ein Menü der Kopfleiste — auf, zu, angesagt
               useFonts.ts · useTheme.ts · useFolienformat.ts · useImageSizes.ts
                               Die Zähler, an denen ein Merker verfällt
               useClipboard.ts · usePresenterChannel.ts · useElementSize.ts
@@ -258,7 +259,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Siebzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Zweiundsiebzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im
   Kopf von `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`;
   die Fassung passt nicht zur Bibliothek, deshalb
@@ -280,7 +281,7 @@ keine Zusicherung je *auf sie* geschrieben wurde.
 | --- | --- |
 | `src/ci/` unter `CiGenerator.tsx` — `ruecklauf.ts`, `pruefung.ts`, `emitter.ts`, `schritte.tsx`, `entwurf.ts`, `sitzung.ts`, `prompt.ts` | rund 4.100 Zeilen, zwei Prüfdateien; der jüngste Code des Projekts |
 | `theme.config.ts` und `src/theme/` | die CI und die lebendigen Bindungen; `fonts.ts` ohne eigene Prüfung, `runtime.ts` und `surface.ts` nur über ihr Ergebnis |
-| Kopfleiste und Dialoge — `TopBar.tsx`, `PromptStudio.tsx`, `SearchPanel.tsx`, `SettingsMenu.tsx`, `SlideRail.tsx` | keine eigene Prüfdatei; Runde 48 hat nur die Tastenseite angefasst, Runde 53 die Übersicht |
+| `SearchPanel.tsx`, `SlideRail.tsx` | ohne eigene Prüfdatei; im Rauchtest über ihre Handgriffe |
 | `AssetSidebar.tsx` | die Bibliothek selbst; ihre Bausteine hat Runde 55 gemessen |
 | Vortragsweg — `presenterChannel.ts`, `PresentView.tsx`, `PresenterView.tsx` | zwei Fenster, ein Kanal, ein Einstieg ohne Store |
 
@@ -3726,6 +3727,65 @@ die Wortmarke liest `sync-ci.mjs` strenger als `wordmark.ts`: exakte Hexwerte,
 kein `style="fill:…"`, kein geerbtes `fill` vom `<g>`. Das ist keine Lücke,
 sondern eine andere Frage — hier steht *ein* bekanntes Logo, dort steht die
 Datei, die jemand hochlädt —, und wenn es klemmt, klemmt es laut.
+
+**Drei Menüs, dieselbe Aufgabe, zwei davon halb gebaut.** Die Kopfleiste
+führt Datei, Export und Einstellungen, und jedes brachte seinen eigenen
+Aufklapp-Satz mit. Gemessen im Browser:
+
+```
+Datei          offen · nach Esc: offen · aria-expanded: nichts
+Export         offen · nach Esc: offen · aria-expanded: nichts
+Einstellungen  offen · nach Esc: zu    · aria-expanded: nichts
+```
+
+Zwei von dreien ließen sich mit der Tastatur nicht wieder schließen — wer
+eines öffnete, kam nur wieder heraus, indem er einen Eintrag auslöste. Und
+keines sagte einer Hilfstechnik, dass es überhaupt ein Menü ist: kein
+`aria-haspopup`, kein `aria-expanded`. Das Zahnrad trug stattdessen
+`aria-pressed`, die Ansage eines *Schalters* — beides zugleich widerspricht
+sich. Vor Augen steht dieser Unterschied nie; man sieht das Feld ja aufgehen.
+
+`useMenu()` ist jetzt die eine Rechnung mit drei Kunden. Eine Liste von
+Stellen, an denen man an `Escape` denken *muss*, ist eine Liste von Stellen,
+an denen man es vergisst — dieselbe Antwort wie bei `withElements()` und
+`darfErsetzen()`.
+
+Zwei Kleinigkeiten hängen daran. Der **Fokus kommt zurück**: wer sonst mit
+`Escape` schließt, steht auf `<body>`, und das nächste `Tab` fängt wieder ganz
+vorn an. Und **`Escape` gehört dem Obersten**: `useKeyboardShortcuts` räumt mit
+derselben Taste die Schichten des Werkzeugs ab, also endet das Ereignis im
+Menü — sonst schlösse ein `Escape` das Menü *und* gäbe die Auswahl auf der
+Folie frei, und von den beiden hat niemand das zweite gemeint.
+
+**Ein gescheitertes Kopieren sagte nichts.** Der `catch` im Prompt-Generator
+setzte `copied` auf `false` — also auf den Wert, den es ohnehin hatte.
+Gemessen mit einem `writeText`, das ablehnt: der Knopf sagt weiter „Kopieren",
+es steht keine Meldung da, und die Seite ändert sich um kein einziges Zeichen.
+Wer klickt, hat danach einen leeren Zwischenspeicher und keinen Anlass, das zu
+ahnen — und der ganze Zweck dieser Seite ist, dass dieser Text den Rechner
+verlässt.
+
+Der Anlass ist nicht erfunden: `navigator.clipboard` gibt es nur in einem
+sicheren Kontext. Über `https` und über `127.0.0.1` ist es da, über die
+Adresse im Heimnetz nicht — also genau dann, wenn jemand das Werkzeug einem
+Kollegen zeigt. Gemeldet wird es über den Hinweis im Store, dieselbe Stelle
+wie beim gescheiterten Export und beim gescheiterten Sichern; das ist der
+vierte Setzer auf demselben Kanal.
+
+**Eine zweite Wahrheit über die Auflösung des PNG.** Der Hinweis unter dem
+Menüeintrag rechnete `canvas.width * 2`, während der Rasterweg mit `SCHAERFE`
+rechnet. Beide standen auf 2, und genau das ist die Falle: wer die Konstante
+einmal auf 3 setzt, bekommt einen Hinweis, der etwas anderes verspricht als
+die Datei hält. Dieselbe Sorte wie die `24`, die neben ihrer eigenen Vorgabe
+stand.
+
+**Was nachgemessen wurde und in Ordnung ist.** Die Suche zählt und ersetzt
+dieselbe Frage: `searchDeck()`, `zaehleFunde()` und `ersetzeImDeck()` schneiden
+alle drei den Rand ab und vergleichen alle drei ohne Rücksicht auf Groß und
+Klein — der Knopf „Alle 4" ersetzt wirklich vier. `MenuItem` wird mit `href`
+zu einem echten Verweis, damit der CI-Generator sich auch mit der mittleren
+Maustaste öffnen lässt. Und der Filmstreifen rechnet seine Kacheln aus der
+Höhe des Streifens, seit ein hochkantes Blatt sie unten abschnitt.
 
 ---
 

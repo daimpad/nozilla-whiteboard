@@ -3186,6 +3186,104 @@ async function main() {
     await seite.waitForTimeout(500);
   });
 
+  await pruefe('ein gescheitertes Kopieren im Prompt-Generator sagt es', async () => {
+    /*
+       Der `catch` setzte `copied` auf `false` — also auf den Wert, den es
+       ohnehin hatte. Gemessen mit einem `writeText`, das ablehnt: der Knopf
+       sagte weiter „Kopieren", es stand keine Meldung da, und die Seite
+       änderte sich um kein einziges Zeichen. Wer klickt, hat danach einen
+       leeren Zwischenspeicher und keinen Anlass, das zu ahnen.
+
+       Der Anlass ist nicht erfunden: `navigator.clipboard` gibt es nur in
+       einem sicheren Kontext — über `https` und `127.0.0.1` ja, über die
+       Adresse im Heimnetz nicht. Also genau dann, wenn jemand das Werkzeug
+       einem Kollegen zeigt.
+
+       Und in beide Richtungen: ein *geglücktes* Kopieren darf nichts sagen.
+       Eine Meldung, die immer dasteht, ist keine.
+    */
+    await seite.getByRole('button', { name: 'Prompt', exact: true }).click();
+    await seite.getByRole('dialog', { name: 'Prompt-Generator' }).waitFor({ timeout: 10000 });
+
+    const kopieren = seite.getByRole('button', { name: /^Kopier/ });
+    await kopieren.click();
+    await bisGleich(() => kopieren.innerText(), 'Kopiert', 'das Kopieren gelang nicht');
+    gleich(await seite.getByRole('alert').count(), 0, 'ein geglücktes Kopieren klagte trotzdem');
+
+    // Jetzt die Zwischenablage ablehnen lassen.
+    await seite.evaluate(() => {
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: () => Promise.reject(new Error('Sabotage: keine Erlaubnis')) },
+        configurable: true,
+      });
+    });
+    await bisGleich(() => kopieren.innerText(), 'Kopieren', 'der Knopf blieb auf „Kopiert" stehen');
+    await kopieren.click();
+    const klage = await bisWahr(
+      async () => ((await seite.getByRole('alert').count()) ? seite.getByRole('alert') : null),
+      'ein gescheitertes Kopieren blieb stumm',
+    );
+    // Der technische Satz bleibt stehen — wer einen Fehler meldet, braucht ihn.
+    const text = await klage.innerText();
+    wahr(/Kopieren gescheitert/.test(text), `die Klage nennt die Tat nicht: ${text}`);
+    wahr(/keine Erlaubnis/.test(text), `die Klage nennt den Grund nicht: ${text}`);
+
+    await seite.keyboard.press('Escape');
+    await seite.getByRole('button', { name: 'Hinweis schließen' }).click();
+  });
+
+  await pruefe('die drei Menüs der Kopfleiste gehen auch ohne Maus wieder zu', async () => {
+    /*
+       Drei Menüs, dieselbe Aufgabe, zwei davon halb gebaut. Gemessen im
+       Browser, bevor es `useMenu` gab:
+
+         Datei          offen · nach Esc: offen · aria-expanded: nichts
+         Export         offen · nach Esc: offen · aria-expanded: nichts
+         Einstellungen  offen · nach Esc: zu    · aria-expanded: nichts
+
+       Wer ein Menü mit der Tastatur öffnete, kam bei zweien von dreien nur
+       wieder heraus, indem er einen Eintrag auslöste — und keines sagte einer
+       Hilfstechnik, dass es überhaupt eines ist. Vor Augen steht dieser
+       Unterschied nie: man sieht das Feld ja aufgehen.
+
+       Geprüft wird jedes der drei einzeln und am Ergebnis: die Ansage am
+       Knopf, das Feld im Baum, und wo der Fokus danach steht.
+    */
+    for (const [name, art] of [
+      ['Datei', 'menu'],
+      ['Export', 'menu'],
+      ['Einstellungen', 'dialog'],
+    ]) {
+      const knopf = seite.getByRole('button', { name, exact: true });
+      gleich(await knopf.getAttribute('aria-haspopup'), art, `${name} sagt nicht, was aufgeht`);
+      gleich(await knopf.getAttribute('aria-expanded'), 'false', `${name} steht schon offen`);
+      /*
+         `aria-pressed` gehört einem Schalter und nicht einem Menüknopf; beide
+         zugleich widersprechen sich. `IconButton` setzt es von Haus aus, und
+         genau deshalb steht das Zahnrad mit in dieser Schleife.
+      */
+      wahr(!(await knopf.getAttribute('aria-pressed')), `${name} sagt zugleich „gedrückt"`);
+
+      await knopf.click();
+      await bisGleich(() => knopf.getAttribute('aria-expanded'), 'true', `${name} ging nicht auf`);
+      wahr(await seite.locator('.nz-panel').count(), `${name} zeigt kein Feld`);
+
+      await seite.keyboard.press('Escape');
+      await bisGleich(
+        () => knopf.getAttribute('aria-expanded'),
+        'false',
+        `${name} ließ sich mit Escape nicht schließen`,
+      );
+      // Und der Fokus kommt zurück: sonst stünde er auf `<body>`, und das
+      // nächste Tab finge wieder ganz vorn an.
+      gleich(
+        await seite.evaluate(() => document.activeElement?.getAttribute('aria-haspopup')),
+        art,
+        `${name} gab den Fokus nicht an seinen Knopf zurück`,
+      );
+    }
+  });
+
   await pruefe('der CI-Generator zeichnet eine Folie in fremden Farben', async () => {
     /*
        Die zweite Seite ist ein eigener Einstieg — `rollupOptions.input`

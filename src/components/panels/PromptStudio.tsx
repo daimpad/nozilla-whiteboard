@@ -20,12 +20,13 @@ import {
 import { ohneCodezaun } from '@/lib/prompt/zaun';
 import { parseDeck } from '@/lib/markdown/deck';
 import { useDeckStore } from '@/state/deckStore';
-import { darfErsetzen } from '@/state/persistence';
+import { darfErsetzen, grund } from '@/state/persistence';
 import { Button, Field, IconButton, Select, cx } from '@/components/ui/controls';
 
 export function PromptStudio() {
   const close = useDeckStore((state) => state.togglePrompt);
   const loadMarkdown = useDeckStore((state) => state.loadMarkdown);
+  const zeigeHinweis = useDeckStore((state) => state.zeigeHinweis);
 
   const [brief, setBrief] = useState<DeckBrief>(emptyBrief);
   const [withExample, setWithExample] = useState(true);
@@ -37,13 +38,34 @@ export function PromptStudio() {
   const set = <K extends keyof DeckBrief>(key: K, value: DeckBrief[K]) =>
     setBrief((current) => ({ ...current, [key]: value }));
 
+  /*
+     Ein gescheitertes Kopieren sagte nichts.
+
+     Der `catch` setzte `copied` auf `false` — also auf den Wert, den es
+     ohnehin schon hatte. Gemessen im Browser, mit einem `writeText`, das
+     ablehnt: der Knopf sagt weiter „Kopieren", es steht keine Meldung da, und
+     die Seite ändert sich um kein einziges Zeichen. Wer klickt, hat danach
+     einen leeren Zwischenspeicher und keinen Anlass, das zu ahnen.
+
+     Der Anlass ist nicht erfunden: `navigator.clipboard` gibt es nur in einem
+     sicheren Kontext. Über `https` und über `127.0.0.1` ist es da, über die
+     Adresse im Heimnetz — also genau dann, wenn jemand das Werkzeug einem
+     Kollegen zeigt — nicht.
+
+     Gesagt wird es über den Hinweis im Store und nicht neben dem Knopf:
+     dieselbe Stelle, an der auch ein gescheiterter Export und ein
+     gescheitertes Sichern landen. Und der technische Satz bleibt stehen — wer
+     einen Fehler meldet, braucht ihn.
+  */
   const copy = async () => {
+    zeigeHinweis(null);
     try {
       await navigator.clipboard.writeText(prompt);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
-    } catch {
+    } catch (error) {
       setCopied(false);
+      zeigeHinweis(`Kopieren gescheitert. ${grund(error)}`);
     }
   };
 
