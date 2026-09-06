@@ -2197,6 +2197,43 @@ async function main() {
     );
     wahr(folien >= 2, `nur ${folien} Folie(n) in der Referentenansicht`);
 
+    /*
+       Und die Vorschau zeigt, was das Publikum sieht — samt der Nummer in der
+       Fußzeile. `buildSlideChrome()` malt sie nur, wenn eine Nummer
+       dabeisteht, und hier stand keine: gemessen am Text der beiden SVG
+       endete die Folie beim Publikum auf „1 / 6" und in der Vorschau daneben
+       auf nichts. Zwei Wege, dieselbe Folie zu zeichnen — genau das, was die
+       erste Regel dieses Projekts verbietet.
+
+       Die zweite Kachel trägt die Nummer der *nächsten* Folie: sie ist der
+       ganze Gewinn des zweiten Fensters, und eine Vorschau, die zweimal
+       dieselbe Nummer zeigt, wäre schlimmer als keine.
+    */
+    const endeVon = (fenster, nte) =>
+      fenster.evaluate(
+        (n) =>
+          [...document.querySelectorAll('svg')]
+            .filter((svg) => {
+              const box = svg.getBoundingClientRect();
+              return box.width * box.height > 40_000;
+            })
+            [n]?.textContent?.trim()
+            .slice(-8) ?? '',
+        nte,
+      );
+    const beimPublikum = await endeVon(seite, 0);
+    await bisGleich(
+      () => endeVon(referent, 0),
+      beimPublikum,
+      'die Vorschau zeigt eine andere Folie als das Publikum',
+    );
+    wahr(/\d+ \/ \d+$/.test(beimPublikum), `die Folie trägt keine Nummer: ${beimPublikum}`);
+    const naechste = await endeVon(referent, 1);
+    wahr(
+      naechste !== beimPublikum && /\d+ \/ \d+$/.test(naechste),
+      `„Als Nächstes" trägt nicht die nächste Nummer: ${naechste}`,
+    );
+
     // Und zurück: was im zweiten Fenster gedrückt wird, blättert im ersten.
     const vorher = (await seite.evaluate(FOLIE)).markup;
     await referent.keyboard.press('ArrowRight');
@@ -2207,6 +2244,49 @@ async function main() {
 
     await referent.close();
     await seite.waitForTimeout(400);
+  });
+
+  await pruefe('das Beiwerk im Vortrag nimmt keine Klicks, die ihm nicht gehören', async () => {
+    /*
+       Zwei Wege, im Vortrag etwas zu treffen, das man nicht treffen wollte.
+
+       **Was unsichtbar ist, blieb anklickbar.** Die Leisten blenden sich nach
+       2200 ms aus, und `opacity-0` nimmt einem Knopf nur die Farbe. Gemessen:
+       `pointer-events: auto` — ein Klick auf die Stelle, an der „Präsentation
+       verlassen" *war*, beendete den Vortrag. Vor Publikum, ohne dass etwas zu
+       sehen gewesen wäre. Mit einer Maus fällt das selten auf: der Zeiger
+       bringt die Leiste zurück, bevor die Hand ankommt. Ein Tippen auf dem
+       Touchpad und jede Fernbedienung bewegen ihn nicht — und genau so wird
+       hier geklickt: erst zeigen, dann warten, dann drücken, ohne zu bewegen.
+
+       **Und die Notizen sind eine Lesefläche.** Ein Klick hinein blätterte
+       gemessen von „1 / 6" auf „2 / 6"; wer dort etwas markieren will, steht
+       eine Folie weiter.
+    */
+    const verlassen = seite.getByRole('button', { name: 'Präsentation verlassen (Esc)' });
+    const kasten = await verlassen.boundingBox();
+    await seite.mouse.move(kasten.x + kasten.width / 2, kasten.y + kasten.height / 2);
+    await bisGleich(
+      () => verlassen.evaluate((el) => getComputedStyle(el).pointerEvents),
+      'none',
+      'die Leiste bleibt anklickbar, auch wenn sie nicht zu sehen ist',
+    );
+    await seite.mouse.down();
+    await seite.mouse.up();
+    wahr(await verlassen.count(), 'ein Klick auf die unsichtbare Leiste hat den Vortrag verlassen');
+
+    // Und die Notizen: aufmachen, hineinklicken, und die Folie bleibt stehen.
+    await seite.mouse.move(700, 400);
+    await seite.keyboard.press('n');
+    const notizen = seite.locator('[data-vortrag-beiwerk]').last();
+    await notizen.waitFor({ timeout: 10000 });
+    const stand = () => seite.locator('span.tabular-nums').first().innerText();
+    const vorher = await stand();
+    const nk = await notizen.boundingBox();
+    await seite.mouse.click(nk.x + nk.width / 2, nk.y + nk.height - 20);
+    await seite.waitForTimeout(300);
+    gleich(await stand(), vorher, 'ein Klick in die Notizen hat weitergeblättert');
+    await seite.keyboard.press('n');
   });
 
   await pruefe('Esc führt zurück an die Arbeit', async () => {

@@ -42,6 +42,20 @@ export function PresentView() {
   const [setViewport, viewport] = useElementSize<HTMLDivElement>();
   const referent = usePresenterChannel();
   const [chromeVisible, setChromeVisible] = useState(true);
+  /*
+     Was unsichtbar ist, nimmt keine Klicks.
+
+     Die Leisten blenden sich nach 2200 ms aus — mit `opacity-0`, und das
+     nimmt einem Knopf nur die Farbe, nicht seinen Klickbereich. Gemessen im
+     Browser: `opacity: 0`, `pointer-events: auto`, und ein Klick auf die
+     Stelle, an der „Präsentation verlassen" *war*, beendet den Vortrag. Vor
+     Publikum, ohne dass irgendetwas zu sehen wäre.
+
+     Der Zeiger bringt die Leiste zurück, bevor die Maus ankommt — mit einer
+     Maus. Ein Tippen auf dem Touchpad und jede Fernbedienung bewegen ihn
+     nicht.
+  */
+  const chromeKlickbar = chromeVisible ? 'pointer-events-auto' : 'pointer-events-none';
   const hideTimer = useRef<number | undefined>(undefined);
 
   const showChrome = useCallback(() => {
@@ -72,7 +86,14 @@ export function PresentView() {
       onPointerMove={showChrome}
       onClick={(event) => {
         // Ein Klick auf die Folie blättert weiter, einer auf einen Knopf nicht.
-        if ((event.target as HTMLElement).closest('button')) return;
+        /*
+           Ein Klick auf die Folie blättert weiter, einer auf das Beiwerk
+           nicht. „Beiwerk" ist dabei mehr als ein Knopf: die Notizen sind
+           eine *Lesefläche* für den Vortragenden, und ein Klick hinein
+           blätterte gemessen von „1 / 6" auf „2 / 6" — wer dort etwas
+           markieren will, steht eine Folie weiter.
+        */
+        if ((event.target as HTMLElement).closest('button, [data-vortrag-beiwerk]')) return;
         advance();
       }}
     >
@@ -105,7 +126,13 @@ export function PresentView() {
           chromeVisible ? 'opacity-100' : 'opacity-0',
         )}
       >
-        <div className="pointer-events-auto flex items-center gap-1 rounded-md bg-ui-surface/95 px-2 py-1 shadow-ui-xl">
+        <div
+          data-vortrag-beiwerk
+          className={cx(
+            'flex items-center gap-1 rounded-md bg-ui-surface/95 px-2 py-1 shadow-ui-xl',
+            chromeKlickbar,
+          )}
+        >
           <IconButton icon="arrow-left" label="Zurück" onClick={retreat} />
           <span className="min-w-16 text-center tabular-nums text-[12px] text-ui-muted">
             {slideIndex + 1} / {deck.slides.length}
@@ -114,7 +141,13 @@ export function PresentView() {
           <IconButton icon="arrow-right" label="Weiter" onClick={advance} />
         </div>
 
-        <div className="pointer-events-auto flex items-center gap-1 rounded-md bg-ui-surface/95 px-2 py-1 shadow-ui-xl">
+        <div
+          data-vortrag-beiwerk
+          className={cx(
+            'flex items-center gap-1 rounded-md bg-ui-surface/95 px-2 py-1 shadow-ui-xl',
+            chromeKlickbar,
+          )}
+        >
           <IconButton
             icon="list-check"
             label="Notizen für den Vortrag (N)"
@@ -142,7 +175,10 @@ export function PresentView() {
 
       {/* ------------------------------------------------------------- notes */}
       {notesOpen ? (
-        <aside className="pointer-events-auto absolute right-4 top-4 w-80 rounded-lg bg-ui-surface p-3 shadow-ui-xl">
+        <aside
+          data-vortrag-beiwerk
+          className="pointer-events-auto absolute right-4 top-4 w-80 rounded-lg bg-ui-surface p-3 shadow-ui-xl"
+        >
           <h3 className="mb-1 text-ui-label font-bold uppercase tracking-wide text-ui-faint">
             Notizen · {slideTitle(slide, slideIndex)}
           </h3>

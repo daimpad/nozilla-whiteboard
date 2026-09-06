@@ -117,7 +117,7 @@ index.html · ci.html          Zwei Einstiege — das Werkzeug und der Generator
 public/fonts/                 WOFF2 für den Bildschirm, TTF für den Export
 scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
           ciAbgleich.mjs      Was ein Sync verlöre — die Rechnung dazu
-          smoke.mjs           Der Rauchtest: 72 Handgriffe gegen das Bauwerk
+          smoke.mjs           Der Rauchtest: 73 Handgriffe gegen das Bauwerk
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set
               icons.ts        Das Set des gültigen Erscheinungsbilds
@@ -259,7 +259,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Zweiundsiebzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Dreiundsiebzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im
   Kopf von `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`;
   die Fassung passt nicht zur Bibliothek, deshalb
@@ -283,7 +283,6 @@ keine Zusicherung je *auf sie* geschrieben wurde.
 | `theme.config.ts` und `src/theme/` | die CI und die lebendigen Bindungen; `fonts.ts` ohne eigene Prüfung, `runtime.ts` und `surface.ts` nur über ihr Ergebnis |
 | `SearchPanel.tsx`, `SlideRail.tsx` | ohne eigene Prüfdatei; im Rauchtest über ihre Handgriffe |
 | `AssetSidebar.tsx` | die Bibliothek selbst; ihre Bausteine hat Runde 55 gemessen |
-| Vortragsweg — `presenterChannel.ts`, `PresentView.tsx`, `PresenterView.tsx` | zwei Fenster, ein Kanal, ein Einstieg ohne Store |
 
 ---
 
@@ -3786,6 +3785,46 @@ Klein — der Knopf „Alle 4" ersetzt wirklich vier. `MenuItem` wird mit `href`
 zu einem echten Verweis, damit der CI-Generator sich auch mit der mittleren
 Maustaste öffnen lässt. Und der Filmstreifen rechnet seine Kacheln aus der
 Höhe des Streifens, seit ein hochkantes Blatt sie unten abschnitt.
+
+**Was unsichtbar ist, blieb anklickbar.** Die Leisten der Vortragsansicht
+blenden sich nach 2200 ms aus — mit `opacity-0`, und das nimmt einem Knopf nur
+die Farbe. Gemessen im Browser: `opacity: 0`, `pointer-events: auto`, und ein
+Klick auf die Stelle, an der „Präsentation verlassen" *war*, beendet den
+Vortrag. Vor Publikum, ohne dass irgendetwas zu sehen wäre.
+
+Mit einer Maus fällt das selten auf, und das ist der Grund, warum es so lange
+stand: der Zeiger bringt die Leiste zurück, bevor die Hand ankommt. Ein Tippen
+auf dem Touchpad und jede Fernbedienung bewegen ihn nicht. Genau so wird jetzt
+geprüft — erst zeigen, dann warten, dann drücken, **ohne zu bewegen**; ein
+`mouse.click()` täte es nicht, denn das bewegt den Zeiger und zeigt die Leiste
+damit vorher wieder an.
+
+**Und die Notizen sind eine Lesefläche.** Der Klick auf die Folie blättert
+weiter, und ausgenommen war nur, was in einem `<button>` steckt. Die Notizen
+stecken in keinem: ein Klick hinein blätterte gemessen von „1 / 6" auf
+„2 / 6". Wer dort etwas markieren will, steht danach eine Folie weiter — auf
+dem Bildschirm, den das Publikum sieht. Ausgenommen ist jetzt das ganze
+Beiwerk und nicht nur der Knopf.
+
+**Die Referentenansicht zeigte eine andere Folie als das Publikum.**
+`buildSlideChrome()` malt die Nummer in der Fußzeile nur, wenn eine
+dabeisteht — die Vorschau des zweiten Fensters gab keine mit. Gemessen am Text
+der beiden SVG: beim Publikum endete die Folie auf „2 / 6", in der Vorschau
+daneben auf nichts. Das ist genau das, was die erste Regel dieses Projekts
+verbietet, nur nicht zwischen zwei Ausgaben, sondern zwischen zwei Fenstern —
+und der ganze Zweck des zweiten ist zu sehen, was im ersten steht.
+
+Die zweite Kachel trägt dabei die Nummer der *nächsten* Folie. Eine Vorschau,
+die zweimal dieselbe zeigt, wäre schlimmer als keine.
+
+**Was nachgemessen wurde und in Ordnung ist.** Der Kanal überträgt das Deck
+bei jeder Änderung und den Stand bei jeder Bewegung; das `hallo` einer später
+geöffneten Referentenansicht wird beantwortet, und ihr `pagehide` meldet sich
+ab. Die Vortragsansicht rechnet ihren Maßstab aus der lebendigen Bindung und
+hängt am Formatzähler. `endlicherSchritt()` bringt die Unendlichkeit über den
+Kanal, ohne dass auf der anderen Seite eine Vergleichsfalle entsteht. Und das
+zweite Fenster hat weiterhin keinen Store — es liest sein Deck aus dem Kanal
+und setzt Erscheinungsbild und Blatt selbst.
 
 ---
 
