@@ -3633,9 +3633,35 @@ async function main() {
     */
     const schatten = generator.locator('#nz-ci-masse-schatten-sm');
     await bisWahr(() => schatten.inputValue(), 'das Feld für den Schattenversatz kam nicht');
-    await schatten.fill('');
+    /*
+       Geleert wird, bis es *steht* — und das ist keine Ungeduld, sondern die
+       Bauart eines gesteuerten Feldes.
+
+       `fill()` setzt den Wert und schickt danach das Ereignis. Kommt zwischen
+       diesen beiden Schritten ein Neuzeichnen, schreibt React seinen alten
+       Wert zurück, und das Ereignis meldet dann genau diesen: die Änderung
+       erreicht den Entwurf nie, und das Feld steht wieder auf 3 — für immer,
+       denn ein `fill()`, das einmal daneben ging, wiederholt sich nicht.
+
+       Nachgemessen an der Hälfte des Rennens: den Wert still setzen, dann ein
+       fremdes Feld anfassen — und das Feld stand wieder auf „3". Genau das
+       meldete die CI nach fünfzehn Sekunden Warten, während es hier auf einem
+       schnellen Rechner nie geschieht (25 von 25 Läufen, auch bei
+       zehnfacher Drosselung).
+
+       Die Zusicherung bleibt dieselbe — das Feld *muss* leer werden —, nur ist
+       der Handgriff jetzt Teil der Bedingung. Ein Feld, das sich gar nicht
+       leeren lässt, wird weiterhin rot.
+    */
+    await bisGleich(
+      async () => {
+        if ((await schatten.inputValue()) !== '') await schatten.fill('');
+        return schatten.inputValue();
+      },
+      '',
+      'das Feld ließ sich nicht leeren',
+    );
     await generator.locator('#nz-ci-masse-leiter-base').focus();
-    await bisGleich(() => schatten.inputValue(), '', 'das Feld ließ sich nicht leeren');
 
     const befund = generator.locator('p', { hasText: 'trägt keine Zahl' });
     await bisWahr(

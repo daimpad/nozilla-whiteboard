@@ -3632,6 +3632,26 @@ die Referentenansicht setzt Erscheinungsbild *und* Blatt aus dem Deck, das
 CI-Generator liest `canvas` ohne den Formatzähler, und das ist richtig: dort
 gibt es kein Deck und damit kein zweites Blatt.
 
+**Ein `fill()` ist ein Handgriff und keine Bedingung.** Es setzt den Wert und
+schickt danach das Ereignis — und in einem gesteuerten React-Feld ist zwischen
+diesen beiden Schritten Platz für ein Neuzeichnen. Kommt eines, schreibt React
+seinen alten Wert zurück, das Ereignis meldet dann genau diesen, die Änderung
+erreicht den Zustand nie, und das Feld steht wieder auf seinem alten Wert —
+für immer, denn ein `fill()`, das einmal daneben ging, wiederholt sich nicht.
+
+Der Rauchtest wartete darauf, dass das Feld leer *wird* (der Fix einer früheren
+Runde), und lief in der CI fünfzehn Sekunden gegen eine „3". Nachgestellt wurde
+die Hälfte des Rennens: den Wert still setzen, dann ein fremdes Feld
+anfassen — das Feld stand wieder auf „3". Auf diesem Rechner geschieht es nie,
+auch nicht bei zehnfacher Drosselung: 25 von 25 Läufen leerten es in
+höchstens 325 ms. Der Handgriff ist deshalb jetzt **Teil** der Bedingung: es
+wird geleert, bis es steht. Die Zusicherung bleibt dieselbe — ein Feld, das
+sich gar nicht leeren lässt, wird weiterhin rot.
+
+Und die Regel dahinter ist allgemeiner als dieses Feld: **eine Zusicherung
+darf warten, ein Handgriff muss sich wiederholen dürfen.** Wer nur wartet,
+prüft am Ende, ob ein einzelner Versuch zufällig in eine ruhige Lücke fiel.
+
 ---
 
 ## Git
