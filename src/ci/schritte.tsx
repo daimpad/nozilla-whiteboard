@@ -51,6 +51,7 @@ import { zeichenwahl } from './entwurf';
 import { SCHLUESSELREGEL } from './emitter';
 import { Abschnitt, Farbfeld, Textfeld, Wahlfeld, Zahlenfeld } from './felder';
 import {
+  LEITERTEXT,
   PALETTENTEXT,
   SCHATTENTEXT,
   SCHRIFTTEXT,
@@ -341,16 +342,27 @@ export function MasseSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aendere
       titel="Maße"
       hinweis="Die Leiter der Marke. Zeilenhöhe, Schnitt und Versalien bleiben die der Hierarchie — wer sie ändern muss, ändert sie in der erzeugten Datei."
     >
+      {/*
+         Die Leiter ist keine Reihe von Wünschen, sondern eine Hierarchie —
+         und was jede Stufe trägt, steht in `LEITERTEXT`. Der Prompt gab diese
+         Sätze längst an das Sprachmodell weiter; im Formular standen acht
+         Felder namens `xl4` bis `xs` und sonst nichts. Sechs der sieben
+         Texttabellen hatten zwei Kunden, diese eine nur den Prompt: erklärt
+         war es der Maschine und nicht dem Menschen, der dieselben acht Zahlen
+         von Hand setzt.
+      */}
       <p className="text-[11px] font-medium text-ui-muted">Größenleiter</p>
       {textStufen.map((stufe) => (
-        <Zahlenfeld
-          key={stufe}
-          label={stufe}
-          anker={massAnker('leiter', stufe)}
-          einheit="px"
-          wert={entwurf.textScale[stufe]}
-          auf={(wert) => aendere({ textScale: { ...entwurf.textScale, [stufe]: wert } })}
-        />
+        <div key={stufe}>
+          <Zahlenfeld
+            label={stufe}
+            anker={massAnker('leiter', stufe)}
+            einheit="px"
+            wert={entwurf.textScale[stufe]}
+            auf={(wert) => aendere({ textScale: { ...entwurf.textScale, [stufe]: wert } })}
+          />
+          <p className="ml-26 text-[11px] leading-snug text-ui-faint">{LEITERTEXT[stufe]}</p>
+        </div>
       ))}
 
       <p className="pt-2 text-[11px] font-medium text-ui-muted">Stufen außerhalb der Leiter</p>

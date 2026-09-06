@@ -257,7 +257,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Siebenundsechzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Neunundsechzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im
   Kopf von `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`;
   die Fassung passt nicht zur Bibliothek, deshalb
@@ -284,8 +284,7 @@ keine Zusicherung je *auf sie* geschrieben wurde.
 | `scripts/sync-ci.mjs` | woher die CI kommt |
 | `assets/presets.ts` und `AssetSidebar.tsx` | jeder Baustein ist eine Zusage über das, was auf der Folie landet |
 | Vortragsweg — `presenterChannel.ts`, `PresentView.tsx`, `PresenterView.tsx` | zwei Fenster, ein Kanal, ein Einstieg ohne Store |
-| `lib/geometry/shapes.ts` | alles, was keine Ikone ist, wird von hier gezeichnet — **gar keine Prüfdatei** |
-| `lib/text/measure.ts`, `lib/markdown/render.ts` | ebenfalls ohne eigene Prüfdatei |
+| `lib/text/measure.ts`, `lib/markdown/render.ts` | ohne eigene Prüfdatei |
 
 ---
 
@@ -3387,6 +3386,110 @@ dieselbe Naht, die `lib/prompt/zaun.ts` gezogen hat. Es steht jetzt in
 war die dreiundfünfzigste Aktion des Stores, und `deckStore.test.ts` wurde
 sofort rot: jede Aktion muss geprüft oder mit Grund ausgenommen sein. Genau
 dafür ist er im dreiundvierzigsten Durchgang gebaut worden.
+
+**Eine Erklärung, die nur die Maschine bekam.** Der Kopf von `ci/texte.ts`
+schreibt die Regel aus: die Sätze sind das *Lastenheft* für das Sprachmodell
+**und** die Beschriftung im Formular, und sie stehen deshalb an einer Stelle.
+Sechs der sieben Tabellen hatten auch wirklich beide Kunden. `LEITERTEXT`
+hatte nur den Prompt: dem Modell stand erklärt da, dass `xl4` der Folientitel
+ist und `sm` die Bildunterschrift — im Formular standen acht Zahlenfelder
+namens `xl4` bis `xs` und sonst nichts. Und die Leiter ist die eine Gruppe, in
+der man ohne diese Auskunft nicht entscheiden kann: sie ist keine Reihe von
+Wünschen, sondern eine Hierarchie.
+
+**Eine Buchführung, die die Gruppe nannte und nicht die Rolle.** `zusammen()`
+verbuchte beim Laden einer `.nzci.json` je *Gruppe*: fünfzehn gute Farben und
+eine Zahl in `palette.ink` kamen als „angekommen" durch, die Tinte stand
+danach auf nozillas Schwarz, und gemeldet wurde nichts. Die Prüfliste kann
+davon nichts sagen — `#000000` ist eine gültige Farbe.
+
+Das Lehrreiche daran ist nicht der Fehler, sondern wo er stand: **zwei
+Kommentare in zwei Dateien beschrieben genau diesen Fall als erledigt.** Der
+Kopf von `verworfen` nennt ihn wörtlich („eine `.nzci.json`, in der
+`palette.ink` eine Zahl trägt"), und der Ladeweg in `CiGenerator.tsx` sagt
+daneben, eine Rolle mit falschem Typ werde „genannt statt stumm ersetzt".
+Gebucht wurde trotzdem die Gruppe. Ein Kommentar ist keine Prüfung.
+
+Gemeldet wird jetzt `palette.ink`, und die Gruppe kommt nur dann selbst auf
+eine Liste, wenn keine einzelne Rolle etwas gesagt hat — sonst stünde derselbe
+Fehler zweimal da.
+
+**Und der Rundlauf des eigenen Formats beklagte sich selbst.** `wortmarke` ist
+im leeren Entwurf `null`, und `null` in der Datei wurde als „nicht zu lesen"
+verbucht: wer einen Entwurf ohne Wortmarke sicherte und wieder lud — also
+jeder, der auf halbem Weg aufhört —, bekam „ein Feld trug etwas, das dieses
+Formular nicht lesen kann: wortmarke". Ein `null` ist keine Panne, sondern die
+Auskunft „es gibt noch keine". Zum vierten Mal in dieser Liste: ein Wächter,
+der auf dem eigenen Material anschlägt, wird beim zweiten Mal überlesen.
+
+**Der Wächter war von dem Satz zufriedenzustellen, der ihn erklärt.** Die
+erste Fassung der neuen Prüfung suchte `LEITERTEXT` im Quelltext von
+`schritte.tsx` — und die Gegenprobe blieb grün, obwohl Feld *und* Import
+entfernt waren: der Kommentar über dem Feld nennt den Namen. Genau dieser
+Fehler steht in dieser Liste schon einmal, beim Wächter über `darfErsetzen()`,
+samt seiner Lösung: Kommentare **leeren**, nicht entfernen.
+
+Zweimal derselbe Fallstrick in einem Durchgang, denn auch die Sabotage selbst
+irrte sich zuerst: ein `s.replace()` in Python schreibt die Datei klaglos
+unverändert, wenn das Muster nicht passt. Eine Sabotage ohne Zusicherung, dass
+sie gegriffen hat, prüft den vorigen Stand — das steht hier schon unter „Ein
+abgebrochener Befehl kann seine Sabotage überleben".
+
+**Was nachgemessen wurde und in Ordnung ist.** Jede der fünfzehn Angaben des
+Entwurfs hat ein Feld im Formular, und kein Feld schreibt in etwas, das der
+Entwurf nicht führt — die Klasse „eine wirksame Angabe ohne einen Weg dorthin"
+ist hier leer. Alle sieben Texttabellen sind volle `Record`s über ihre Union,
+die Vollständigkeit hält also der Compiler. `Zahlenfeld` kappt bewusst nicht:
+im Deck-Inspektor ist Kappen richtig, weil `normalizeElement` beim Lesen
+kappt, hier ist Melden richtig, weil die Prüfliste urteilt, bevor die Datei
+entsteht. Und `pruefung.ts` und `emitter.ts` sind über `generator.test.ts`
+dicht geprüft — bis hin zu der erzeugten Datei, die wirklich ausgeführt wird.
+
+**Der Fuß der Sprechblase stand außerhalb seines Elements.** `shapes.ts` hatte
+nie eine Prüfdatei — mitgenommen wurde die Datei über die Ausgabewege, und die
+fragen nach dem Bild und nicht nach dem Kasten. Genau dort lag der Fehler: der
+Fuß saß mit einer harten `24` von der linken Kante, und zwar in **beiden**
+Zweigen seiner Klemme (`min(max(24, …), max(24, …))`). Bei schmalen Formen
+gewann damit der Abstand über den Kasten.
+
+Gemessen bei 24 Einheiten Breite — also genau bei `minElementSize`, dem
+kleinsten Maß, auf das man eine Form überhaupt ziehen kann: der Fuß lief bis
+x = 27,8 und stand 3,8 Einheiten draußen. Betroffen war jede Sprechblase bis
+28 Einheiten Breite, in jeder Ausgabe. Auf der Folie sieht so etwas in Ordnung
+aus; der Auswahlrahmen, der Klickbereich und die Überlaufrechnung folgen dem
+Kasten und wissen nichts davon.
+
+Der Abstand gibt jetzt nach, wenn der Kasten ihn nicht trägt. **Ab 58
+Einheiten ist das Ergebnis Zeichen für Zeichen dasselbe wie vorher** — gemessen
+und nicht geschätzt: der erste Kommentar dazu behauptete „ab 29", und die
+Nachrechnung sagte 58. Die mitgelieferte Sprechblase ist 232 breit, der
+Baustein 280; im ausgelieferten Material ändert sich nichts.
+
+**Und zweimal derselbe stille Löschbefehl, zum vierten und fünften Mal.**
+`shapeGeometry` fiel bei einer unbekannten Form auf ein Rechteck zurück, und
+`connectorGeometry` bei einer unbekannten Art auf die schlichte Linie — beide
+lautlos, in jeder Ausgabe. Beide tragen jetzt die Zuweisung an `never`, also
+denselben Riegel wie `svg.ts`, `pdf.ts` und der Inspektor. **Geworfen wird
+nicht:** diese Rechnung läuft im Zeichenpfad, und ein Wurf dort ist ein weißes
+Fenster. Der Compiler ist die Prüfung, das Rechteck die Notlandung.
+
+Beim Verbinder steht der Riegel **vorn** und nicht hinten: die vier Arten
+werden in einem `if`-Zug abgearbeitet, und ohne `switch` narrowt TypeScript am
+Ende nicht auf `never`. Der erste Versuch stand hinten und übersetzte nicht —
+ein Fall, in dem der Compiler die Stelle selbst nennt.
+
+**Was nachgemessen wurde und in Ordnung ist.** Alle elf Formen füllen ihren
+Kasten in dreiundsechzig Maßverhältnissen exakt aus und laufen nirgends
+hinaus — von 1 × 1 bis 1000 × 400. `closed` stimmt bei jeder mit dem, was der
+Pfad wirklich trägt; der Eckwinkel bleibt vier Teilpfade und die Klammer ein
+offener Zug. Die Pfeilspitze sitzt genau am Ende der Linie, und die Linie wird
+unter jeder Spitze zurückgezogen — beim Doppelpfeil an beiden Enden.
+
+Ein Handgriff im Browser kam **nicht** dazu, und das ist eine Entscheidung: der
+Rauchtest ist dafür da, wo eine Rechnung stimmen und die Oberfläche sie
+trotzdem nicht rufen kann. `shapeGeometry()` hat genau einen Aufrufer, und
+durch den geht jede Ausgabe — es gibt keinen zweiten Weg, der auseinanderlaufen
+könnte.
 
 ---
 

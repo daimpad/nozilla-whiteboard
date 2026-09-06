@@ -3317,6 +3317,32 @@ async function main() {
     await generator.close();
   });
 
+  await pruefe('die Größenleiter sagt, was jede Stufe trägt', async () => {
+    /*
+       Sechs der sieben Texttabellen aus `texte.ts` hatten zwei Kunden — das
+       Formular und den Prompt. `LEITERTEXT` hatte nur den Prompt: dem
+       Sprachmodell stand erklärt da, was `xl4` trägt, und der Mensch, der
+       dieselben acht Zahlen von Hand setzt, sah acht Felder namens `xl4` bis
+       `xs` und sonst nichts.
+
+       Hier und nicht nur in vitest, weil der Wächter daneben die *Quelle*
+       liest: dass der Name dasteht, heißt nicht, dass der Satz auf dem
+       Bildschirm ankommt.
+    */
+    const generator = await oeffneGenerator(kontext);
+    await zumSchritt(generator, 'Maße');
+    const bereich = generator.locator('[role="tabpanel"]');
+    await bisWahr(
+      () => bereich.getByText('Der Folientitel.', { exact: true }).count(),
+      'die Größenleiter erklärt ihre oberste Stufe nicht',
+    );
+    await bisWahr(
+      () => bereich.getByText('Das Kleinste, das noch gelesen werden soll.').count(),
+      'die Größenleiter erklärt ihre unterste Stufe nicht',
+    );
+    await generator.close();
+  });
+
   await pruefe('ein Befund führt zu seinem Feld', async () => {
     /*
        „Zu Schritt 3" führte in den Schritt und dort vor sechzehn Farbfelder;

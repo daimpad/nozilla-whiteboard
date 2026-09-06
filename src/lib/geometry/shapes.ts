@@ -59,7 +59,27 @@ export function shapeGeometry(shape: ShapeName, w: number, h: number): ShapeGeom
       // Sprechblase mit scharfem Fuß — kein Radius, keine weiche Spitze.
       const bodyH = Math.max(H * 0.78, H - 32);
       const tailW = Math.min(W * 0.16, 40);
-      const tailX = Math.min(Math.max(24, W * 0.14), Math.max(24, W - tailW - 24));
+      /*
+         Der Abstand des Fußes zur linken Kante — und er gilt nur, solange die
+         Form ihn hergibt.
+
+         Vorher stand er zweimal als harte `24` da, in beiden Zweigen einer
+         Klemme: `min(max(24, …), max(24, …))`. Bei schmalen Formen gewann
+         damit der Abstand über den Kasten. Gemessen: bei 24 Einheiten Breite —
+         also genau bei `minElementSize`, dem kleinsten Maß, auf das man eine
+         Form überhaupt ziehen kann — lief der Fuß bis x = 27,8 und stand damit
+         3,8 Einheiten *außerhalb* seines Elements. Bis 28 Einheiten Breite
+         betraf das jede Sprechblase, in jeder Ausgabe; der Auswahlrahmen, der
+         Klickbereich und die Überlaufrechnung folgen dem Kasten und wussten
+         nichts davon.
+
+         Jetzt gibt der Abstand nach, wenn der Kasten ihn nicht trägt. Ab 58
+         Einheiten Breite ist das Ergebnis Zeichen für Zeichen dasselbe wie
+         vorher — nachgemessen und nicht geschätzt; darunter rückt der Fuß
+         nach innen, weil er sonst über die Kante stünde.
+      */
+      const abstand = Math.min(24, (W - tailW) / 2);
+      const tailX = Math.min(Math.max(abstand, W * 0.14), W - tailW - abstand);
       return {
         segs: polySegs(
           [0, 0, W, 0, W, bodyH, tailX + tailW, bodyH, tailX, H, tailX, bodyH, 0, bodyH],
@@ -133,8 +153,22 @@ export function shapeGeometry(shape: ShapeName, w: number, h: number): ShapeGeom
       };
     }
 
-    default:
+    default: {
+      /*
+         Die elf Fälle darüber sind die volle Union; diese Zeile ist deshalb
+         unerreichbar, und die Zuweisung an `never` hält sie es. Ohne sie wäre
+         eine zwölfte Form ein Rechteck — auf der Fläche, im SVG, im PDF und in
+         der PPTX, ohne ein Wort. Denselben stillen Löschbefehl gab es hier
+         schon dreimal, zuletzt im Inspektor.
+
+         Geworfen wird trotzdem nicht: diese Rechnung läuft im Zeichenpfad,
+         und ein Wurf dort ist ein weißes Fenster. Der Compiler ist die
+         Prüfung, das Rechteck die Notlandung.
+      */
+      const unbekannt: never = shape;
+      void unbekannt;
       return { segs: polySegs([0, 0, W, 0, W, H, 0, H], true), closed: true };
+    }
   }
 }
 
@@ -168,6 +202,17 @@ export function connectorGeometry(
   h: number,
   strokeWidth: number,
 ): ConnectorGeometry {
+  /*
+     Dasselbe für den Verbinder, nur vorn statt hinten: die vier Arten stehen
+     unten in einem `if`-Zug ohne `switch`, und eine fünfte fiele stumm auf die
+     schlichte Linie zurück. Hier oben hält `never` sie auf — `tsc` bricht ab,
+     statt eine Art zu zeichnen, die niemand gemeint hat.
+  */
+  if (kind !== 'line' && kind !== 'arrow' && kind !== 'double-arrow' && kind !== 'elbow') {
+    const unbekannt: never = kind;
+    void unbekannt;
+  }
+
   const W = Math.max(1, w);
   const H = h;
   const headLen = Math.max(12, strokeWidth * 4);
