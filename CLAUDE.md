@@ -284,8 +284,7 @@ keine Zusicherung je *auf sie* geschrieben wurde.
 | `scripts/sync-ci.mjs` | woher die CI kommt |
 | `assets/presets.ts` und `AssetSidebar.tsx` | jeder Baustein ist eine Zusage über das, was auf der Folie landet |
 | Vortragsweg — `presenterChannel.ts`, `PresentView.tsx`, `PresenterView.tsx` | zwei Fenster, ein Kanal, ein Einstieg ohne Store |
-| `lib/geometry/shapes.ts` | alles, was keine Ikone ist, wird von hier gezeichnet — **gar keine Prüfdatei** |
-| `lib/text/measure.ts`, `lib/markdown/render.ts` | ebenfalls ohne eigene Prüfdatei |
+| `lib/text/measure.ts`, `lib/markdown/render.ts` | ohne eigene Prüfdatei |
 
 ---
 
@@ -3445,6 +3444,52 @@ im Deck-Inspektor ist Kappen richtig, weil `normalizeElement` beim Lesen
 kappt, hier ist Melden richtig, weil die Prüfliste urteilt, bevor die Datei
 entsteht. Und `pruefung.ts` und `emitter.ts` sind über `generator.test.ts`
 dicht geprüft — bis hin zu der erzeugten Datei, die wirklich ausgeführt wird.
+
+**Der Fuß der Sprechblase stand außerhalb seines Elements.** `shapes.ts` hatte
+nie eine Prüfdatei — mitgenommen wurde die Datei über die Ausgabewege, und die
+fragen nach dem Bild und nicht nach dem Kasten. Genau dort lag der Fehler: der
+Fuß saß mit einer harten `24` von der linken Kante, und zwar in **beiden**
+Zweigen seiner Klemme (`min(max(24, …), max(24, …))`). Bei schmalen Formen
+gewann damit der Abstand über den Kasten.
+
+Gemessen bei 24 Einheiten Breite — also genau bei `minElementSize`, dem
+kleinsten Maß, auf das man eine Form überhaupt ziehen kann: der Fuß lief bis
+x = 27,8 und stand 3,8 Einheiten draußen. Betroffen war jede Sprechblase bis
+28 Einheiten Breite, in jeder Ausgabe. Auf der Folie sieht so etwas in Ordnung
+aus; der Auswahlrahmen, der Klickbereich und die Überlaufrechnung folgen dem
+Kasten und wissen nichts davon.
+
+Der Abstand gibt jetzt nach, wenn der Kasten ihn nicht trägt. **Ab 58
+Einheiten ist das Ergebnis Zeichen für Zeichen dasselbe wie vorher** — gemessen
+und nicht geschätzt: der erste Kommentar dazu behauptete „ab 29", und die
+Nachrechnung sagte 58. Die mitgelieferte Sprechblase ist 232 breit, der
+Baustein 280; im ausgelieferten Material ändert sich nichts.
+
+**Und zweimal derselbe stille Löschbefehl, zum vierten und fünften Mal.**
+`shapeGeometry` fiel bei einer unbekannten Form auf ein Rechteck zurück, und
+`connectorGeometry` bei einer unbekannten Art auf die schlichte Linie — beide
+lautlos, in jeder Ausgabe. Beide tragen jetzt die Zuweisung an `never`, also
+denselben Riegel wie `svg.ts`, `pdf.ts` und der Inspektor. **Geworfen wird
+nicht:** diese Rechnung läuft im Zeichenpfad, und ein Wurf dort ist ein weißes
+Fenster. Der Compiler ist die Prüfung, das Rechteck die Notlandung.
+
+Beim Verbinder steht der Riegel **vorn** und nicht hinten: die vier Arten
+werden in einem `if`-Zug abgearbeitet, und ohne `switch` narrowt TypeScript am
+Ende nicht auf `never`. Der erste Versuch stand hinten und übersetzte nicht —
+ein Fall, in dem der Compiler die Stelle selbst nennt.
+
+**Was nachgemessen wurde und in Ordnung ist.** Alle elf Formen füllen ihren
+Kasten in dreiundsechzig Maßverhältnissen exakt aus und laufen nirgends
+hinaus — von 1 × 1 bis 1000 × 400. `closed` stimmt bei jeder mit dem, was der
+Pfad wirklich trägt; der Eckwinkel bleibt vier Teilpfade und die Klammer ein
+offener Zug. Die Pfeilspitze sitzt genau am Ende der Linie, und die Linie wird
+unter jeder Spitze zurückgezogen — beim Doppelpfeil an beiden Enden.
+
+Ein Handgriff im Browser kam **nicht** dazu, und das ist eine Entscheidung: der
+Rauchtest ist dafür da, wo eine Rechnung stimmen und die Oberfläche sie
+trotzdem nicht rufen kann. `shapeGeometry()` hat genau einen Aufrufer, und
+durch den geht jede Ausgabe — es gibt keinen zweiten Weg, der auseinanderlaufen
+könnte.
 
 ---
 
