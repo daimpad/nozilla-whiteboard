@@ -278,12 +278,12 @@ keine Zusicherung je *auf sie* geschrieben wurde.
 | Bereich | Lage |
 | --- | --- |
 | `src/ci/` unter `CiGenerator.tsx` — `ruecklauf.ts`, `pruefung.ts`, `emitter.ts`, `schritte.tsx`, `entwurf.ts`, `sitzung.ts`, `prompt.ts` | rund 4.100 Zeilen, zwei Prüfdateien; der jüngste Code des Projekts |
-| `theme.config.ts` und `src/theme/` | die CI und die lebendigen Bindungen; `fonts.ts` ohne eigene Prüfung |
+| `theme.config.ts` und `src/theme/` | die CI und die lebendigen Bindungen; `fonts.ts` ohne eigene Prüfung, `runtime.ts` und `surface.ts` nur über ihr Ergebnis |
 | Kopfleiste und Dialoge — `TopBar.tsx`, `PromptStudio.tsx`, `SearchPanel.tsx`, `SettingsMenu.tsx`, `SlideRail.tsx` | keine eigene Prüfdatei; Runde 48 hat nur die Tastenseite angefasst, Runde 53 die Übersicht |
 | `scripts/sync-ci.mjs` | woher die CI kommt |
 | `assets/presets.ts` und `AssetSidebar.tsx` | jeder Baustein ist eine Zusage über das, was auf der Folie landet |
 | Vortragsweg — `presenterChannel.ts`, `PresentView.tsx`, `PresenterView.tsx` | zwei Fenster, ein Kanal, ein Einstieg ohne Store |
-| `lib/text/measure.ts`, `lib/markdown/render.ts` | ohne eigene Prüfdatei |
+| `lib/markdown/render.ts` | ohne eigene Prüfdatei |
 
 ---
 
@@ -3568,6 +3568,69 @@ die gezählte Zahl. `pruefeStand()` kennt jetzt alle acht Eingänge des Bauwerks
 — `src/`, `public/`, `theme.config.ts`, beide HTML-Einstiege, `tailwind.config`
 und `vite.config` —, und auch dort bleibt eine Grenze: eine *gelöschte* Datei
 verschiebt keine Änderungszeit.
+
+**Der Messpuffer nannte die Rolle und meinte die Schrift.** Sein Schlüssel
+war `display|16|400|n|…` — und „display" bleibt beim Wechsel des
+Erscheinungsbilds dasselbe Wort, während die Schrift dahinter eine andere ist.
+Geleert wird der Puffer nur, wenn Schriften *ankommen*; `withTheme()` fordert
+aber grundsätzlich nichts an — es rechnet nur, und genau so rechnet die
+Vorschau des CI-Generators. Eine Marke, die dieselben Dateien anders stapelt
+oder eine Systemschrift nennt, fordert ebenfalls nichts nach.
+
+Gemessen mit einer Attrappe, deren Breite vom Stapel abhängt: unter dem
+fremden Erscheinungsbild kamen die Breiten der *vorigen* Marke zurück, für
+jedes Wort, das schon einmal gemessen worden war — 50 statt 15. Der Schlüssel
+ist jetzt dieselbe Zeichenkette, die auch ins Canvas geht; zwei Wahrheiten
+über „welche Schrift ist das" können so nicht auseinanderlaufen.
+
+Unter jsdom ist der Fehler unsichtbar — das Ersatzmodell kennt die Schrift gar
+nicht —, und deshalb sah ihn keiner der Ausgabewege. `measure.test.ts` stellt
+dafür ein Canvas hin, das die Schrift *sieht*: die eine Eigenschaft, auf die
+es hier ankommt.
+
+**Eine Variable, die sich als Folienhöhe ausgab und eine andere nannte.**
+`cssVariables()` schreibt `--nz-canvas-w`, `--nz-canvas-h` und `--nz-grid` aus
+der lebendigen Bindung, und der Kommentar daneben sagt, wofür: damit fremdes
+CSS sie ziehen kann. Geschrieben werden sie von `applyThemeVariables()`, und
+das hing am Erscheinungsbild und an der Erscheinung — nicht am Blatt. Gemessen
+an einem geladenen A4-Deck: die Folie stand auf 1810 und die Variable sagte
+weiter 720px, auch nach einem Neuladen. Im Baum hat niemand sie gelesen; das
+ist keine Entlastung, sondern die Beschreibung eines Werts, der auf den
+Nächsten wartet.
+
+Geprüft wird im Browser an `:root` und in **beide** Richtungen: eine Variable,
+die nur beim Umschalten auf A4 nachgeführt wird, ist an der Hälfte der Wechsel
+falsch.
+
+**Das Zeichen des Werkzeugs nahm den Akzent des Decks an.** `Logo` in der
+Kopfleiste zeichnet die Pfade aus `wordmark.generated`, also die von nozilla —
+ihr Punkt stand aber in der *lebendigen* Signalfarbe. Damit war sie beides
+halb: ein nozilla-Schriftzug, dessen Punkt die Farbe der Marke annimmt, deren
+Deck gerade offen ist. Gemessen unter dem Musterkunden: #FF5A1F statt #00FF9C.
+
+`theme.test.ts` führt `Logo.tsx` unter den Dateien, die Marken-Inhalt zeigen
+dürfen — und die Ausnahme gilt der **Wortmarke**, nicht ihrer Farbe. Genau
+deshalb schlug nichts an. Geprüft wird jetzt am gezeichneten Markup: das
+Zeichen muss unter jedem Erscheinungsbild dasselbe sein.
+
+**Und `familyStack()` gab es zweimal.** Einmal in `theme/index.ts`, einmal in
+`fonts.ts`, wortgleich — die zweite hatte keinen einzigen Aufrufer. Zwei
+Rechnungen für dieselbe Frage, von denen eine tot ist, sind trotzdem zwei: die
+tote ist die, die der Nächste findet und benutzt.
+
+**Was nachgemessen wurde und in Ordnung ist.** Der `console.warn` in
+`embedFaces()` sieht aus wie die bekannte Stille — ist aber keine: ein Schnitt,
+dessen Datei nicht ankommt, wird längst gemeldet, nur an anderer Stelle.
+`glyphCoverFor()` lädt für jeden verlangten Schnitt die Umrisse und sammelt in
+`nichtGeladen`, was fehlt; der PDF-Weg bekommt genau diese Deckung. Die
+Meldung ist damit schon draußen, bevor `embedFaces()` überhaupt anfängt.
+
+Ebenso in Ordnung: die Erscheinung des Werkzeugs hört auf den Systemwechsel,
+`registerTheme()` weckt die Auswahlliste auch bei einem bloßen Zuwachs, und
+die Referentenansicht setzt Erscheinungsbild *und* Blatt aus dem Deck, das
+über den Kanal kommt — sie hat keinen Store, der das für sie täte. Der
+CI-Generator liest `canvas` ohne den Formatzähler, und das ist richtig: dort
+gibt es kein Deck und damit kein zweites Blatt.
 
 ---
 

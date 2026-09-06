@@ -2980,6 +2980,23 @@ async function main() {
     gleich(flaeche, '1810', 'Höhe der Untergrundfläche');
 
     /*
+       Und die Variable auf `:root` sagt dasselbe.
+
+       `cssVariables()` schreibt `--nz-canvas-h` aus derselben lebendigen
+       Bindung; geschrieben wird sie aber nur von `applyThemeVariables()`, und
+       das hing am Erscheinungsbild und an der Erscheinung — nicht am Blatt.
+       Gemessen an genau diesem Deck: die Folie stand auf 1810 und die Variable
+       sagte weiter 720px. Sie steht ausdrücklich für fremdes CSS da; ein Wert,
+       der sich als Folienhöhe ausgibt und eine andere nennt, ist schlechter
+       als keiner.
+    */
+    const wurzelHoehe = () =>
+      seite.evaluate(() =>
+        getComputedStyle(document.documentElement).getPropertyValue('--nz-canvas-h').trim(),
+      );
+    await bisGleich(wurzelHoehe, '1810px', '--nz-canvas-h auf dem A4-Blatt');
+
+    /*
        Und jetzt der Wechsel **im laufenden Fenster**, ohne Neuladen. Das ist
        der Fall, auf den es ankommt: nach einem Neuladen werden ohnehin die
        Schriften geholt, und deren Zähler lässt jeden Merker in `SlideView`
@@ -3003,6 +3020,9 @@ async function main() {
       '720',
       'Höhe der Untergrundfläche nach dem Wechsel im laufenden Fenster',
     );
+    // Auch zurück — eine Variable, die nur in eine Richtung nachgeführt wird,
+    // ist an der Hälfte der Wechsel falsch.
+    await bisGleich(wurzelHoehe, '720px', '--nz-canvas-h nach dem Wechsel zurück auf 16:9');
 
     /*
        Zuletzt die Datei. Das Modell wusste vom Format, noch bevor es jemand
