@@ -345,6 +345,25 @@ bleibt; `⌘1`, `⌘2` und `⌘3` tun dasselbe. Die Folie wächst von allein mit
 sie sich selbst misst. Was offen steht, bleibt im Browser und steht in keiner
 Datei: es gehört dem Arbeitsplatz, nicht dem Deck.
 
+**Die Prüfliste** — der Haken in der Kopfleiste, neben der Lupe. Sie sammelt
+ein, was das Werkzeug ohnehin rechnet, und zwar für das *ganze* Deck: Text,
+der aus seinem Kasten läuft; Fließtext unter der Folienkante; ein Element, das
+außerhalb der Folie liegt und das kein Klick mehr trifft; eine Fläche in genau
+der Farbe ihres Untergrunds; eine Diagrammzeile ohne lesbare Zahl; ein Bild
+ohne Quelle oder ohne Alternativtext; ein `nzl`-Block, der sich nicht lesen
+ließ.
+
+Drei Ränge, und der mittlere ist der teure: **nicht zu sehen** heißt, in
+keiner Ausgabe steht es; **läuft, ist aber falsch** heißt, es kommt anders
+heraus, als es aussieht; **zu wissen** ist der Rest. Ein Klick auf einen
+Befund springt auf die Folie und wählt das Element aus.
+
+Was dort *nicht* steht: ein totes Bild — „noch nicht geladen" und „kommt nie"
+sehen von hier gleich aus, und der Export sagt es ohnehin, wenn wirklich eine
+Datei entsteht. Und der Kontrast einer Farbe auf ihrem Untergrund: das ist
+eine Eigenschaft des Erscheinungsbilds, und der CI-Generator fragt danach an
+der Stelle, an der jemand die Farben wählt.
+
 **Suchen mit `⌘F`** oder über den Lupenknopf in der Kopfleiste — über den
 Fließtext, die Notizen und jedes Textfeld jedes Elements, quer durchs ganze
 Deck. Ein Treffer nennt die Folie und den
@@ -539,6 +558,7 @@ src/
     prompt/   buildPrompt.ts  Der Prompt, aus dem laufenden Schema gebaut
     chart.ts · table.ts       Zahlen und Zellen lesen (kein eigener Zeichner)
     overflow.ts               Was über seinen Kasten hinausläuft
+    deckPruefung.ts           Alle Warnungen des Decks auf einer Liste
     search.ts                 Suchen und ersetzen über das ganze Deck
     labels.ts                 Die deutschen Beschriftungen des Dateiformats
     contrast.ts               Ob eine Farbe auf einer anderen lesbar ist

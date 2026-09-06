@@ -568,6 +568,66 @@ async function main() {
     gleich(treffer.join(', '), '', 'Überlauf im mitgelieferten Deck');
   });
 
+  await pruefe(
+    'die Prüfliste schweigt zum mitgelieferten Deck und meldet einen Fehler',
+    async () => {
+      /*
+       Zwei Richtungen, und die erste ist die wichtigere: das
+       Willkommens-Deck darf keinen Befund tragen. Ein Wächter, der auf dem
+       eigenen Material anschlägt, wird beim ersten Öffnen als Rauschen
+       abgetan — und schweigt dann auch dort, wo es zählt.
+
+       Hier und nicht in vitest, weil es dort kein Canvas gibt: drei der
+       Rechnungen dahinter messen gegen die echte Schrift, und wo eine Zeile
+       umbricht, entscheidet die. Die Prüfung läuft deshalb, solange das Deck
+       noch unberührt dasteht.
+    */
+      await seite.getByRole('button', { name: 'Prüfliste', exact: true }).click();
+      const liste = seite.locator('h2', { hasText: 'Prüfliste' }).locator('../..');
+      await bisWahr(
+        () => liste.getByText('Nichts zu beanstanden').count(),
+        'die Prüfliste hatte am mitgelieferten Deck etwas auszusetzen',
+      );
+
+      // Und die Gegenrichtung: ein Bild aus der Bibliothek hat noch keine
+      // Quelle, also bleibt es leer — das muss dastehen.
+      await seite.keyboard.press('Escape');
+      await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
+      await seite.locator('aside button').filter({ hasText: 'Bild' }).first().click();
+      await seite.getByRole('button', { name: 'Prüfliste', exact: true }).click();
+      const befund = liste.locator('button', { hasText: 'noch keine Quelle' }).first();
+      await bisWahr(() => befund.count(), 'die Prüfliste meldete das Bild ohne Quelle nicht');
+
+      /*
+       Ein Klick springt auf die Folie *und* wählt das Element aus. Ohne das
+       zweite führt ein Befund auf eine Folie mit zehn Elementen, und das
+       gemeinte sucht man von Hand. Geprüft wird am Auswahlrahmen und nicht am
+       Store: die Rechnung kann stimmen und die Leiste sie trotzdem nicht
+       rufen.
+    */
+      await seite.keyboard.press('Escape');
+      await klickeLeereFolie(seite);
+      await bisGleich(
+        () => seite.locator('[data-handle]').count(),
+        0,
+        'Griffe vor dem Sprung aus der Prüfliste',
+      );
+      await seite.getByRole('button', { name: 'Prüfliste', exact: true }).click();
+      await befund.click();
+      try {
+        await bisWahr(
+          () => seite.locator('[data-handle]').count(),
+          'der Sprung aus der Prüfliste hat das Element nicht ausgewählt',
+        );
+      } finally {
+        // Bleibt die Schicht offen, deckt sie jede folgende Prüfung zu, und
+        // aus einem roten Handgriff werden vier. Der erste ist der, um den es
+        // geht.
+        await seite.keyboard.press('Escape');
+      }
+    },
+  );
+
   await pruefe('die Zeichenbibliothek zeigt gezeichnete Kacheln', async () => {
     // Die Kacheln waren einmal leer, weil das letzte Primitiv gestrichen wurde.
     await seite.getByRole('button', { name: 'Zeichen', exact: true }).click();

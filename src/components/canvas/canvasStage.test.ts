@@ -7,10 +7,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { canvas } from '@/theme';
-import { connectorLabels, kindLabels, labelOf, shapeLabels } from '@/lib/labels';
+import { connectorLabels, elementLabel, kindLabels, labelOf, shapeLabels } from '@/lib/labels';
 import { elementKinds } from '@/model/types';
 import { createElement } from '@/model/factory';
-import { elementLabel } from './CanvasStage';
 
 describe('die Ansage eines Elements', () => {
   /*

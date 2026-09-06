@@ -176,6 +176,7 @@ src/
               zaun.ts         Einen Codezaun abnehmen — zwei Leser, eine Regel
     chart.ts table.ts         Zahlen und Zellen lesen (kein eigener Zeichner)
     overflow.ts               Was über seinen Kasten hinausläuft
+    deckPruefung.ts           Alle Warnungen des Decks auf einer Liste
     search.ts                 Suchen und ersetzen über das ganze Deck
     labels.ts                 Die deutschen Beschriftungen des Dateiformats
     contrast.ts               Ob eine Farbe auf einer anderen lesbar ist
@@ -3340,6 +3341,52 @@ Reihenfolge ab, in der sie liegen, und gibt danach die Auswahl frei. `⌘S`,
 `⌘O`, `⌘⇧N`, `⌘K`, `⌘F` und die drei Leisten wirken auch aus einem Textfeld
 heraus, alles andere nicht. Und `⌘N` bleibt dem Browser: der `!mod`-Schalter,
 der bei `g` und `p` fehlte, stand bei `n` von Anfang an.
+
+**Acht Warnungen, und keine davon war zu sehen.** Überlauf am Element und am
+Fließtext, Fließtext unter der Folienkante, eine Fläche in der Farbe ihres
+Untergrunds, unlesbare Diagrammzeilen, ein Bild ohne Quelle, eines ohne
+Alternativtext, ein unlesbarer `nzl`-Block — alle acht waren richtig gerechnet
+und standen im Inspektor. Also dort, wo man sie nur sieht, wenn zufällig das
+richtige Element auf der richtigen Folie ausgewählt ist. Wer ein Deck von
+dreißig Folien übergibt, hat keine davon gesehen.
+
+Das ist „die Politik stimmt, das Schweigen nicht" eine Stufe höher: nicht ein
+`catch`, der schweigt, sondern eine Auskunft, die zwar dasteht, aber an einem
+Ort, den niemand aufsucht. `lib/deckPruefung.ts` sammelt sie ein und rechnet
+**nichts** dazu — jede Zeile ruft die Funktion, die es ohnehin gibt.
+
+Die Ränge sind die des CI-Generators, und aus demselben Grund: „nicht zu
+sehen", „läuft, ist aber falsch", „zu wissen". Der mittlere ist der teure.
+
+**Der Knopf trägt keine Zahl, und das ist gemessen.** `pruefeDeck()` kostet
+3,4 ms für die sechs Folien der Willkommensmappe und 9 ms für dreißig — es
+setzt jedes Element neu. Eine Zahl am Knopf hinge an `deck`, und `deck` ist
+bei jedem Anschlag in einem Textfeld ein neues Objekt. Neun Millisekunden je
+Anschlag sind die Sorte Trägheit, die niemand einem Knopf zuschreibt, den er
+nie drückt. Die Liste selbst rechnet nur, solange sie offen steht — und dann
+tippt niemand auf der Fläche.
+
+**Die Abnahme war die Gegenrichtung.** Beide mitgelieferten Decks kommen ohne
+einen einzigen Befund heraus, in vitest *und* im Browser mit den echten
+Schriften. Das ist keine Zugabe, sondern die Bedingung: ein Wächter, der auf
+dem eigenen Material anschlägt, wird beim ersten Öffnen als Rauschen abgetan
+und schweigt dann auch dort, wo es zählt — dieselbe Lehre wie beim
+Kontrastwächter, beim Überlaufbalken und bei der Unterscheidbarkeit zweier
+Farben. Und die Gegenprobe dazu ist ebenso nötig: eine Sabotage, die
+`pruefeDeck()` leer zurückgeben lässt, macht neun Zusicherungen rot und lässt
+die drei „bleibt still" grün. Eine Prüfung nur auf Stille bestünde auch ein
+Sieb, das nichts kann.
+
+**`elementLabel()` ist umgezogen.** Es wohnte an der Fläche und hat einen
+zweiten Kunden bekommen: die Prüfliste nennt damit das Element, um das es
+geht. Eine Rechnung unter `lib/` darf nicht aus einer Komponente importieren —
+dieselbe Naht, die `lib/prompt/zaun.ts` gezogen hat. Es steht jetzt in
+`lib/labels.ts`, wo die deutschen Beschriftungen wohnen.
+
+**Und der Wächter über dem Wächter hat sich bezahlt gemacht.** `togglePruefung`
+war die dreiundfünfzigste Aktion des Stores, und `deckStore.test.ts` wurde
+sofort rot: jede Aktion muss geprüft oder mit Grund ausgenommen sein. Genau
+dafür ist er im dreiundvierzigsten Durchgang gebaut worden.
 
 ---
 

@@ -13,7 +13,7 @@
  */
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { canvas as canvasTokens, motion, ui } from '@/theme';
-import { connectorLabels, handleLabels, kindLabels, labelOf, shapeLabels } from '@/lib/labels';
+import { elementLabel, handleLabels, labelOf } from '@/lib/labels';
 import {
   computeSnap,
   normalizeRect,
@@ -697,52 +697,6 @@ function handleStyle(
   const x = handle.includes('w') ? -half : handle.includes('e') ? w - half : w / 2 - half;
   const y = handle.startsWith('n') ? -half : handle.startsWith('s') ? h - half : h / 2 - half;
   return { left: x, top: y, cursor: HANDLE_CURSORS[handle] };
-}
-
-/**
- * Wie ein Element heißt, wenn es niemand sieht.
- *
- * Diese Zeichenkette steht vor keinem Auge: sie ist die Ansage, die eine
- * Hilfstechnik vorliest, wenn der Tabstopp auf dem Element steht. Genau
- * deshalb war sie falsch, ohne dass es jemandem auffiel — dieselbe Bauart wie
- * „Resize nw" an acht Griffen.
- *
- * Der `default`-Zweig gab **drei** Arten den Namen einer vierten: Wortmarke,
- * Diagramm und Tabelle hießen alle „Markdown-Block". Der `switch` zählt jetzt
- * alle elf auf, und die Zuweisung an `never` bricht `tsc` ab, sobald eine
- * zwölfte dazukommt — sonst hieße die auch so.
- */
-export function elementLabel(element: CanvasElement): string {
-  if (element.name) return element.name;
-  switch (element.kind) {
-    case 'text':
-      return element.text.slice(0, 40) || 'Text';
-    case 'markdown':
-      return element.markdown.slice(0, 40) || labelOf(kindLabels, 'markdown');
-    case 'card':
-      return element.title || labelOf(kindLabels, 'card');
-    case 'badge':
-      return element.text || labelOf(kindLabels, 'badge');
-    case 'icon':
-      return `${labelOf(kindLabels, 'icon')} ${element.icon}`;
-    case 'shape':
-      return element.label || labelOf(shapeLabels, element.shape);
-    case 'connector':
-      return element.label || labelOf(connectorLabels, element.connector);
-    case 'image':
-      return element.alt || labelOf(kindLabels, 'image');
-    case 'wordmark':
-      return labelOf(kindLabels, 'wordmark');
-    case 'chart':
-      return element.label || labelOf(kindLabels, 'chart');
-    case 'table':
-      return element.label || labelOf(kindLabels, 'table');
-    default: {
-      const unbekannt: never = element;
-      void unbekannt;
-      return labelOf(kindLabels, 'shape');
-    }
-  }
 }
 
 function normalizeAngle(degrees: number): number {
