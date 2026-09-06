@@ -185,7 +185,28 @@ export function zusammen(gelesen: Partial<CiEntwurf>): Zusammengelegt {
     return wert;
   };
 
-  /** Eine Gruppe gleichartiger Werte, Rolle für Rolle geprüft. */
+  /**
+   * Eine Gruppe gleichartiger Werte, Rolle für Rolle geprüft — und Rolle für
+   * Rolle verbucht.
+   *
+   * **Gebucht wurde vorher die Gruppe.** Eine `.nzci.json` mit fünfzehn guten
+   * Farben und einer Zahl in `palette.ink` kam damit als „angekommen" durch:
+   * die Tinte stand danach auf nozillas Schwarz, gemeldet wurde nichts, und
+   * die Prüfliste kann davon nichts sagen, weil `#000000` eine gültige Farbe
+   * ist. Genau dieser Fall steht im Kopf von `verworfen` und in `handhabe
+   * Entwurf laden` als erledigt beschrieben — er war es nicht.
+   *
+   * Ob eine Rolle lesbar war, entscheidet der Rundlauf: `lies()` gibt bei
+   * einem unbrauchbaren Wert die Vorbelegung zurück, also ist ein Wert genau
+   * dann lesbar, wenn er sich selbst zurückgibt. Damit zählt auch eine Farbe,
+   * die zufällig nozillas Wert trägt, als angekommen — sonst hieße „dieselbe
+   * Farbe wie nozilla" plötzlich „unlesbar".
+   *
+   * Was hier **nicht** gemeldet wird: eine Rolle, die es gar nicht gibt
+   * (`palette.pink`). Sie kommt aus einer neueren Fassung oder aus einem
+   * Tippfehler, hat kein Ziel im Formular — und „steht jetzt auf der
+   * Vorbelegung" wäre über sie eine falsche Auskunft.
+   */
   const gruppe = <T>(
     name: string,
     vorgabe: Record<string, T>,
@@ -193,26 +214,29 @@ export function zusammen(gelesen: Partial<CiEntwurf>): Zusammengelegt {
     lies: (roh: unknown, ersatz: T) => T,
   ): Record<string, T> => {
     const gegeben = (wert && typeof wert === 'object' ? wert : {}) as Record<string, unknown>;
-    let angekommen = false;
+    const lesbar = (rolle: string) => lies(gegeben[rolle], vorgabe[rolle]) === gegeben[rolle];
+
     const aus = Object.fromEntries(
-      Object.entries(vorgabe).map(([rolle, ersatz]) => {
-        const gelesen = lies(gegeben[rolle], ersatz);
-        if (rolle in gegeben && gelesen !== ersatz) angekommen = true;
-        return [rolle, gelesen];
-      }),
+      Object.entries(vorgabe).map(([rolle, ersatz]) => [rolle, lies(gegeben[rolle], ersatz)]),
     );
-    /*
-       Ein Wert, der zufällig gleich der Vorbelegung ist, zählt trotzdem als
-       angekommen — sonst hieße „dieselbe Farbe wie nozilla" plötzlich
-       „unlesbar". Gefragt wird deshalb zusätzlich, ob überhaupt eine
-       *bekannte* Rolle mit passendem Typ dastand.
-    */
-    if (!angekommen) {
-      angekommen = Object.keys(vorgabe).some(
-        (rolle) => rolle in gegeben && lies(gegeben[rolle], vorgabe[rolle]) === gegeben[rolle],
-      );
+
+    let angekommen = false;
+    let benannt = false;
+    for (const rolle of Object.keys(vorgabe)) {
+      if (!(rolle in gegeben)) continue;
+      if (lesbar(rolle)) angekommen = true;
+      else {
+        verworfen.push(`${name}.${rolle}`);
+        benannt = true;
+      }
     }
-    buche(name, angekommen);
+
+    /*
+       Die Gruppe selbst kommt nur dann auf eine der beiden Listen, wenn keine
+       einzelne Rolle etwas gesagt hat. Sonst stünde derselbe Fehler zweimal
+       da: einmal als `palette.ink` und einmal als `palette`.
+    */
+    if (angekommen || !benannt) buche(name, angekommen);
     return aus;
   };
 
@@ -231,7 +255,16 @@ export function zusammen(gelesen: Partial<CiEntwurf>): Zusammengelegt {
     ? (roh.webfontFaces as unknown[])
     : leer.webfontFaces;
 
-  buche('wortmarke', wortmarke !== null);
+  /*
+     Eine Wortmarke, die in der Datei ausdrücklich `null` ist, ist kein
+     unlesbarer Wert, sondern die ehrliche Auskunft „es gibt noch keine".
+     Gebucht wurde sie trotzdem als verworfen: wer einen Entwurf ohne
+     Wortmarke sicherte und wieder lud — also jeder, der auf halbem Weg
+     aufhört —, bekam „ein Feld trug etwas, das dieses Formular nicht lesen
+     kann: wortmarke". Ein Wächter, der auf dem eigenen Rundlauf anschlägt,
+     wird beim zweiten Mal überlesen.
+  */
+  if (roh.wortmarke !== null) buche('wortmarke', wortmarke !== null);
   buche('webfontFaces', Array.isArray(roh.webfontFaces));
   buche('auszeichnungEnger', typeof roh.auszeichnungEnger === 'number');
   buche('zeichen', roh.zeichen === 'ohne-signatur' || roh.zeichen === 'nozilla');
