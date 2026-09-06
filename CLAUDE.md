@@ -116,7 +116,7 @@ PROMPT.md                     Der Deck-Prompt, erklärt
 index.html · ci.html          Zwei Einstiege — das Werkzeug und der Generator
 public/fonts/                 WOFF2 für den Bildschirm, TTF für den Export
 scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
-          smoke.mjs           Der Rauchtest: 67 Handgriffe gegen das Bauwerk
+          smoke.mjs           Der Rauchtest: 70 Handgriffe gegen das Bauwerk
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set
               icons.ts        Das Set des gültigen Erscheinungsbilds
@@ -257,7 +257,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Neunundsechzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Siebzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im
   Kopf von `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`;
   die Fassung passt nicht zur Bibliothek, deshalb
@@ -278,9 +278,8 @@ keine Zusicherung je *auf sie* geschrieben wurde.
 | Bereich | Lage |
 | --- | --- |
 | `src/ci/` unter `CiGenerator.tsx` — `ruecklauf.ts`, `pruefung.ts`, `emitter.ts`, `schritte.tsx`, `entwurf.ts`, `sitzung.ts`, `prompt.ts` | rund 4.100 Zeilen, zwei Prüfdateien; der jüngste Code des Projekts |
-| `scripts/smoke.mjs` | der Wächter über allen anderen, nie selbst Gegenstand |
 | `theme.config.ts` und `src/theme/` | die CI und die lebendigen Bindungen; `fonts.ts` ohne eigene Prüfung |
-| Kopfleiste und Dialoge — `TopBar.tsx`, `PromptStudio.tsx`, `SearchPanel.tsx`, `SettingsMenu.tsx`, `Overview.tsx`, `SlideRail.tsx` | keine eigene Prüfdatei; Runde 48 hat nur die Tastenseite angefasst |
+| Kopfleiste und Dialoge — `TopBar.tsx`, `PromptStudio.tsx`, `SearchPanel.tsx`, `SettingsMenu.tsx`, `SlideRail.tsx` | keine eigene Prüfdatei; Runde 48 hat nur die Tastenseite angefasst, Runde 53 die Übersicht |
 | `scripts/sync-ci.mjs` | woher die CI kommt |
 | `assets/presets.ts` und `AssetSidebar.tsx` | jeder Baustein ist eine Zusage über das, was auf der Folie landet |
 | Vortragsweg — `presenterChannel.ts`, `PresentView.tsx`, `PresenterView.tsx` | zwei Fenster, ein Kanal, ein Einstieg ohne Store |
@@ -3490,6 +3489,85 @@ Rauchtest ist dafür da, wo eine Rechnung stimmen und die Oberfläche sie
 trotzdem nicht rufen kann. `shapeGeometry()` hat genau einen Aufrufer, und
 durch den geht jede Ausgabe — es gibt keinen zweiten Weg, der auseinanderlaufen
 könnte.
+
+**Der Wächter hörte nur auf eine von drei Seiten.** Die letzte Prüfung des
+Rauchtests heißt „nichts hat sich in der Konsole beschwert", und ihre beiden
+Horcher hingen an *einer* Seite: dem Werkzeug. Der CI-Generator wird
+neunzehnmal in einer eigenen Seite geöffnet, die Referentenansicht in einem
+eigenen Fenster — beide schrieben in ein Rohr, an dem niemand stand. Gemessen
+mit einem `console.error` im Einstieg von `ci.html`: neunzehn Meldungen, und
+der Rauchtest meldete neunundsechzig von neunundsechzig. Die eine Prüfung,
+deren ganzer Zweck das Schweigen ist, war selbst still.
+
+Abonniert wird jetzt der **Kontext**: er meldet jede Seite, die in ihm
+entsteht, auch die durch `window.open` geöffnete. Das Abonnement steht deshalb
+*vor* dem ersten `newPage()`. Und weil eine Meldung, die nicht sagt, wo sie
+fiel, die Zeit kostet, die sie sparen soll, trägt jede Zeile die Seite und die
+gerade laufende Prüfung; gleiche Zeilen werden mit Zähler zusammengefasst.
+Nachgemessen in beide Richtungen: mit Sabotage nennt sie „?referent=1" und
+„ci.html" samt Prüfung, ohne Sabotage ist auf keiner der drei Seiten ein Wort
+zu hören.
+
+**Ein abgebrochener Lauf ließ seinen Server stehen.** `beende(server)` stand
+auf dem guten Weg — und die Ausgänge sind vier: der gute, ein Wurf zwischen
+zwei Prüfungen, die Notbremse nach fünf Minuten und ein ⌃C von Hand. Weil die
+Vorschau in einer eigenen Prozessgruppe läuft (`detached`, und das aus gutem
+Grund), überlebt sie das Ende ihres Elternprozesses. Gemessen: nach einem Wurf
+in `main()` standen drei Prozesse und Port 4173 antwortete weiter.
+
+Was dann geschieht, ist ebenfalls gemessen. `vite preview` bindet ohne
+`--strictPort` still den nächsten freien Port — „Port 4173 is in use, trying
+another one…" auf 4174 —, während der Rauchtest weiter gegen 4173 fährt: er
+misst den *fremden* Server und räumt am Ende seinen eigenen ab. Ein Rest je
+gescheitertem Lauf, und jeder folgende Lauf misst den ältesten.
+
+**Nicht** wahr ist dagegen, was dabei zuerst naheliegt: dass ein solcher Rest
+den vorigen Stand ausliefert. `vite preview` liest jede Datei bei jeder Anfrage
+neu — eine Änderung an `dist/index.html` kam sofort zurück. Der Schaden ist ein
+anderer: der Rest kann aus einem *anderen Arbeitsverzeichnis* stammen, und zwei
+Klone desselben Repos sind die Falle, die hier schon einmal zugeschnappt ist.
+Dann prüft `pruefeStand()` dieses `dist/` und der Browser sieht ein anderes.
+
+Drei Hälften, und die dritte ist die wichtigste. Abgeräumt wird an **einer**
+Stelle (`process.on('exit', …)`, dazu ein Horcher je Signal, sonst laufen die
+`exit`-Horcher nicht) — eine Liste von Stellen, an denen man aufräumen *muss*,
+ist eine Liste von Stellen, an denen man es vergisst. `--strictPort` lässt den
+Server laut scheitern, statt leise auf einen Port auszuweichen, auf dem niemand
+nachsieht. Und **vor** dem Starten wird gefragt, ob der Platz frei ist: das
+macht den Fall, der bis hierher stumm war, zu einer Meldung mit Namen. Das
+Aufräumen macht ihn selten, die Frage macht ihn sichtbar.
+
+**Eine ganze Ansicht, die keine Prüfung je öffnete.** Die Übersicht — ⌘K, eine
+Kachel je Folie, schieben, duplizieren, löschen — hatte weder eine
+vitest-Prüfung noch einen Handgriff im Rauchtest. Gemessen mit einem Wurf im
+Rumpf von `Overview.tsx`, also mit einem weißen Fenster hinter ⌘K: **69 von 69
+Prüfungen bestanden**. Sie ist keine Nebensache — die Tastatur behandelt sie
+als eigene Schicht, und im Vortrag ist sie voll bedienbar.
+
+Gefragt wird, was die Ansicht zusagt, und nicht ihr Markup: eine Kachel je
+Folie, jede davon eine wirklich gezeichnete Folie, ein Klick führt hin, und
+Escape räumt die Schicht wieder ab. Der **Filmstreifen** ist dabei der Maßstab,
+weil er dasselbe Deck durch eine andere Komponente liest — eine Übersicht gegen
+ihre eigene Kopfzeile zu halten hieße, dieselbe Zahl zweimal zu lesen. Und die
+Zahl steht auf Deutsch da: „3 slides" stand hier schon einmal.
+
+Die Gegenprobe brauchte dafür zwei Sabotagen, und erst die zweite beweist
+etwas. Der Wurf nimmt die ganze Anwendung mit — es gibt keine Fehlergrenze, und
+zwölf weitere Prüfungen fielen mit —, also sagt er über die neue Zusicherung
+nur, dass sie überhaupt hinsieht. Gemessen wurde deshalb auch der stille Fall:
+`goTo(index)` zu `goTo(0)`, und genau **eine** Prüfung wurde rot, mit dem Satz
+„die Übersicht sprang woandershin".
+
+**Was nachgemessen wurde und in Ordnung ist.** Die siebzig Prüfungen tragen
+siebzig verschiedene Namen, und keine ist ohne einen Weg, rot zu werden — die
+beiden, die keine Zusicherung zu haben scheinen, hängen an `bis()`
+beziehungsweise an einem `waitFor()`, dessen Fehlschlag geworfen wird. Die
+Zahl am Ende wird gegen den eigenen Quelltext gehalten und nicht gegen sich
+selbst; was sie nicht fängt, ist ein *gelöschter* Block, denn dann sinkt auch
+die gezählte Zahl. `pruefeStand()` kennt jetzt alle acht Eingänge des Bauwerks
+— `src/`, `public/`, `theme.config.ts`, beide HTML-Einstiege, `tailwind.config`
+und `vite.config` —, und auch dort bleibt eine Grenze: eine *gelöschte* Datei
+verschiebt keine Änderungszeit.
 
 ---
 

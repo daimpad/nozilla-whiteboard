@@ -35,8 +35,9 @@
  * Steht schon eines bereit, sagt man es über `SMOKE_CHROMIUM`.
  */
 import { spawn } from 'node:child_process';
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 const PORT = 4173;
@@ -48,7 +49,19 @@ const URL = `http://127.0.0.1:${PORT}/`;
 
 const ergebnisse = [];
 
+/*
+   Welche Prüfung gerade läuft.
+
+   Der Sammler der Konsolenmeldungen schreibt sie mit: „Fehler in der Konsole"
+   am Ende eines Laufs nennt sonst den Satz und nicht die Stelle, und
+   neunzehnmal derselbe Satz nennt gar nichts mehr. Dieselbe Überlegung wie bei
+   den sechs Zeilen aus dem Aufrufprotokoll oben — eine Meldung, die nicht sagt,
+   wo es geschah, kostet die Zeit, die sie sparen sollte.
+*/
+let laufende = 'beim Aufbau';
+
 async function pruefe(name, fn) {
+  laufende = name;
   try {
     await fn();
     ergebnisse.push({ name, ok: true });
@@ -217,6 +230,32 @@ async function nachDemWechsel(seite) {
  * müssen: eine hängt vorher einen Fehlerhorcher ein, die andere setzt die
  * Fenstergröße — beides muss vor dem `goto` geschehen.
  */
+/**
+ * Von welcher Seite eine Meldung kommt — der Teil der Adresse hinter dem Wirt.
+ *
+ * Abgeschnitten wird die Vorschau-Adresse als Zeichenkette; `new URL(…)` geht
+ * hier nicht, weil `URL` in dieser Datei die Adresse selbst ist und den
+ * globalen Erzeuger verdeckt.
+ */
+function woher(seite) {
+  const adresse = seite.url();
+  return adresse.startsWith(URL) ? adresse.slice(URL.length) || 'index.html' : adresse;
+}
+
+/**
+ * Gleiche Zeilen zu einer mit Zähler zusammenfassen.
+ *
+ * Eine Meldung, die auf jeder von neunzehn Seiten fiel, ist ein Befund und
+ * nicht neunzehn; ausgeschrieben verdeckt sie die anderen.
+ */
+function gezaehlt(zeilen) {
+  const wieoft = new Map();
+  for (const zeile of zeilen) wieoft.set(zeile, (wieoft.get(zeile) ?? 0) + 1);
+  return [...wieoft]
+    .map(([zeile, anzahl]) => (anzahl > 1 ? `${anzahl}× ${zeile}` : zeile))
+    .join('\n');
+}
+
 async function oeffneGenerator(kontext, vorhanden) {
   const generator = vorhanden ?? (await kontext.newPage());
   await generator.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
@@ -372,33 +411,108 @@ async function stehtAufFolie(seite, text) {
  * Deshalb eine eigene Prozessgruppe (`detached`) und ein Signal an die ganze
  * Gruppe (`-pid`).
  */
+let laufenderServer = null;
+
 async function starteVorschau() {
-  const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--host', '127.0.0.1'], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: true,
-  });
+  /*
+     Zuerst die Frage, ob der Platz überhaupt frei ist.
+
+     Der Server wurde bisher nur auf dem guten Weg abgeräumt: ein Wurf zwischen
+     zwei Prüfungen, die Notbremse nach fünf Minuten, ein `process.exit` aus
+     dem `catch` — jeder dieser Wege ließ die Prozessgruppe stehen, und
+     `detached` heißt, dass sie das Ende des Elternprozesses überlebt.
+
+     Was dann geschieht, ist nachgemessen und nicht vermutet: `vite preview`
+     bindet ohne `--strictPort` still den nächsten freien Port („Port 4173 is
+     in use, trying another one…" auf 4174), während der Rauchtest weiter
+     gegen 4173 fährt. Er misst also den *fremden* Server und räumt am Ende
+     seinen eigenen ab — der Rest bleibt und sammelt sich, einer je
+     gescheitertem Lauf.
+
+     Ebenfalls nachgemessen und **nicht** wahr: dass ein solcher Rest den
+     vorigen Stand ausliefert. `vite preview` liest jede Datei bei jeder
+     Anfrage neu; eine Änderung an `dist/index.html` kam sofort zurück. Der
+     Schaden ist deshalb nicht der veraltete Stand, sondern ein anderer: der
+     Rest kann aus einem *anderen Arbeitsverzeichnis* stammen — zwei Klone
+     desselben Repos sind die Falle, die hier schon einmal zugeschnappt ist —,
+     und dann prüft `pruefeStand()` dieses `dist/` und der Browser sieht ein
+     anderes.
+  */
+  if (await antwortet()) {
+    throw new Error(
+      `Auf ${URL} antwortet schon etwas — vermutlich der Rest eines abgebrochenen ` +
+        `Laufs. Dieser Lauf würde daran messen; bitte erst beenden.`,
+    );
+  }
+
+  const server = spawn(
+    'npx',
+    // `--strictPort`: lieber laut scheitern als leise auf einen anderen Port
+    // ausweichen, auf dem niemand nachsieht.
+    ['vite', 'preview', '--port', String(PORT), '--host', '127.0.0.1', '--strictPort'],
+    {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: true,
+    },
+  );
+  laufenderServer = server;
   server.stderr.on('data', (chunk) => process.stderr.write(chunk));
 
+  // Ein Server, der sich sofort verabschiedet, soll nicht dreißig Sekunden
+  // lang wie einer aussehen, der noch startet.
+  let gestorben = null;
+  server.on('exit', (code) => {
+    gestorben = code ?? 0;
+  });
+
   for (let versuch = 0; versuch < 60; versuch += 1) {
-    try {
-      const antwort = await fetch(URL);
-      if (antwort.ok) return server;
-    } catch {
-      // Noch nicht da.
+    if (gestorben !== null) {
+      laufenderServer = null;
+      throw new Error(`vite preview endete gleich wieder (Kennung ${gestorben}).`);
     }
+    if (await antwortet()) return server;
     await new Promise((fertig) => setTimeout(fertig, 500));
   }
-  beende(server);
   throw new Error(`vite preview antwortet nicht auf ${URL} — wurde vorher gebaut?`);
 }
 
-function beende(server) {
+/** Ob auf der Vorschau-Adresse etwas antwortet. */
+async function antwortet() {
+  try {
+    const antwort = await fetch(URL);
+    return antwort.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Den Server abräumen.
+ *
+ * Angemeldet wird das an *einer* Stelle, und zwar am Ende des Prozesses.
+ * Vorher stand der Ruf auf dem guten Weg — und die Ausgänge sind vier: der
+ * gute, ein Wurf zwischen zwei Prüfungen, die Notbremse nach fünf Minuten und
+ * ein ⌃C von Hand. Eine Liste von Stellen, an denen man aufräumen *muss*, ist
+ * eine Liste von Stellen, an denen man es vergisst; dieselbe Antwort wie bei
+ * `withElements()` und bei `darfErsetzen()`.
+ *
+ * Die beiden Signale bekommen dafür einen eigenen Horcher: ohne ihn beendet
+ * Node sich, ohne die `exit`-Horcher zu rufen.
+ */
+function beende() {
+  const server = laufenderServer;
+  if (!server) return;
+  laufenderServer = null;
   try {
     process.kill(-server.pid, 'SIGTERM');
   } catch {
     // Schon tot, oder es gab nie eine Gruppe.
   }
 }
+
+process.on('exit', beende);
+process.on('SIGINT', () => process.exit(130));
+process.on('SIGTERM', () => process.exit(143));
 
 /* -------------------------------------------------------------------------- */
 /* Die Prüfungen                                                               */
@@ -441,14 +555,24 @@ function pruefeStand() {
     throw new Error('Es gibt kein dist/ — erst `npm run build`.');
   }
   /*
+     Alles, was in `dist/` einfließt — und das ist mehr als `src/`.
+
      Die beiden Einstiegsseiten liegen weder in `src/` noch in
-     `theme.config.ts` — wer nur an `ci.html` ändert und den Bau auslässt,
+     `theme.config.ts`; wer nur an `ci.html` ändert und den Bau auslässt,
      bekäme sonst eine fröhliche grüne Zahl über den vorigen Stand. Genau die
-     Falle, gegen die diese Funktion überhaupt gebaut wurde.
+     Falle, gegen die diese Funktion überhaupt gebaut wurde — und sie kannte
+     danach vier Eingänge von acht. `tailwind.config.ts` legt die Klassen
+     fest, mit denen jede Leiste gezeichnet wird, `vite.config.ts` entscheidet,
+     was überhaupt gebündelt wird, und `public/` wird unverändert
+     hineinkopiert: dort liegen die Schriften, an denen der Setzer misst. Wer
+     eine davon anfasst und den Bau auslässt, prüft den vorigen Stand.
   */
   const geschrieben = Math.max(
     juengstes('src'),
-    ...['theme.config.ts', 'index.html', 'ci.html'].map((datei) => statSync(datei).mtimeMs),
+    juengstes('public'),
+    ...['theme.config.ts', 'index.html', 'ci.html', 'tailwind.config.ts', 'vite.config.ts'].map(
+      (datei) => statSync(datei).mtimeMs,
+    ),
   );
   if (geschrieben > gebaut) {
     throw new Error(
@@ -484,7 +608,7 @@ function pruefeBauwerk() {
 async function main() {
   pruefeStand();
   pruefeBauwerk();
-  const server = await starteVorschau();
+  await starteVorschau();
   const browser = await chromium.launch({
     executablePath: process.env.SMOKE_CHROMIUM || undefined,
     args: ['--no-sandbox'],
@@ -495,6 +619,35 @@ async function main() {
   });
   // Ohne diese beiden fällt jedes ⌘C und ⌘V still aus.
   await kontext.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+  /*
+     Gehorcht wird dem *Kontext* und nicht der einen Seite.
+
+     Vorher hingen die beiden Horcher an `seite`, also am Werkzeug. Der
+     CI-Generator wird neunmal in einer eigenen Seite geöffnet, die
+     Referentenansicht in einem eigenen Fenster — und beide schrieben in ein
+     Rohr, an dem niemand stand. Gemessen mit einem `console.error` im Einstieg
+     von `ci.html`: neunzehn Meldungen kamen zurück, und der Rauchtest meldete
+     neunundsechzig von neunundsechzig. Die eine Prüfung, deren ganzer Zweck es
+     ist, das Schweigen zu bewachen, war selbst still.
+
+     Der Kontext meldet jede Seite, die in ihm entsteht — auch die durch
+     `window.open` geöffnete —, und deshalb steht das Abonnement *vor* dem
+     ersten `newPage()`.
+  */
+  const fehler = [];
+  kontext.on('page', (neue) => {
+    neue.on('pageerror', (error) =>
+      fehler.push(`pageerror (${woher(neue)}, ${laufende}): ${error}`),
+    );
+    neue.on('console', (nachricht) => {
+      if (nachricht.type() === 'error')
+        fehler.push(
+          `console (${woher(nachricht.page() ?? neue)}, ${laufende}): ${nachricht.text()}`,
+        );
+    });
+  });
+
   const seite = await kontext.newPage();
 
   // Der Dateiauswahl-Dialog des Browsers lässt sich nicht fernsteuern; ohne ihn
@@ -502,12 +655,6 @@ async function main() {
   await seite.addInitScript(() => {
     delete window.showSaveFilePicker;
     delete window.showOpenFilePicker;
-  });
-
-  const fehler = [];
-  seite.on('pageerror', (error) => fehler.push(`pageerror: ${error}`));
-  seite.on('console', (nachricht) => {
-    if (nachricht.type() === 'error') fehler.push(`console: ${nachricht.text()}`);
   });
 
   await seite.goto(URL, { waitUntil: 'networkidle' });
@@ -1395,6 +1542,78 @@ async function main() {
     wahr(
       await seite.locator('aside[aria-label="Inspektor"]').count(),
       'der Inspektor kam nicht zurück',
+    );
+  });
+
+  await pruefe('die Übersicht zeigt jede Folie und springt hin', async () => {
+    /*
+       Neunundsechzig Handgriffe, und keiner öffnete sie.
+
+       Die Übersicht ist eine ganze Ansicht des Werkzeugs — ⌘K, eine Kachel je
+       Folie, schieben, duplizieren, löschen —, und sie hatte weder eine
+       vitest-Prüfung noch einen Griff hier. Sie hätte sich bis zum weißen
+       Fenster zerlegen lassen, ohne dass eine Zahl auch nur gezuckt hätte;
+       nachgemessen mit einem Wurf im Rumpf von `Overview.tsx`, den jede
+       andere Prüfung dieses Laufs überlebt hat.
+
+       Gefragt wird das, was die Ansicht zusagt, und nicht ihr Markup: eine
+       Kachel je Folie, jede davon eine wirklich gezeichnete Folie, ein Klick
+       führt hin, und die Schicht geht auf demselben Weg wieder zu.
+
+       Der Filmstreifen ist dabei der Maßstab — er liest dasselbe Deck durch
+       eine andere Komponente. Eine Übersicht gegen ihre eigene Kopfzeile zu
+       halten hieße, dieselbe Zahl zweimal zu lesen.
+    */
+    const streifen = seite.locator('nav[aria-label="Folien"] button[aria-current]');
+    const anzahl = await streifen.count();
+    wahr(anzahl >= 6, `nur ${anzahl} Folien im Streifen`);
+
+    // Aus dem Feld heraus, sonst gehört das ⌘K dem Textfeld.
+    await klickeLeereFolie(seite);
+    await seite.keyboard.press('Control+k');
+    const uebersicht = seite.getByRole('dialog', { name: 'Folienübersicht' });
+    await uebersicht.waitFor({ timeout: 10000 });
+
+    const kacheln = uebersicht.locator('li');
+    await bisGleich(() => kacheln.count(), anzahl, 'die Übersicht zeigt nicht jede Folie');
+    // Und sie zählt auf Deutsch: „3 slides" stand hier schon einmal.
+    gleich(
+      (await uebersicht.locator('h2 + span').innerText()).trim(),
+      `${anzahl} Folien`,
+      'die Übersicht zählt anders als der Streifen',
+    );
+
+    // Die Kacheln sind lebendige Folien und keine Platzhalter.
+    const gezeichnet = await kacheln
+      .nth(2)
+      .locator('svg')
+      .first()
+      .evaluate((el) => el.innerHTML.length);
+    wahr(gezeichnet > 1000, `die dritte Kachel zeichnet fast nichts: ${gezeichnet} Zeichen`);
+
+    await kacheln.nth(2).getByRole('button').first().click();
+    await bisWahr(async () => (await uebersicht.count()) === 0, 'die Übersicht blieb offen');
+    await bisGleich(
+      () => streifen.nth(2).getAttribute('aria-current'),
+      'true',
+      'die Übersicht sprang woandershin',
+    );
+
+    // Und der Weg zurück ohne Klick: Escape räumt die Schicht ab.
+    await seite.keyboard.press('Control+k');
+    await uebersicht.waitFor({ timeout: 10000 });
+    await seite.keyboard.press('Escape');
+    await bisWahr(
+      async () => (await uebersicht.count()) === 0,
+      'Escape schloss die Übersicht nicht',
+    );
+
+    // Für die Prüfungen danach wieder auf die erste Folie.
+    await streifen.nth(0).click();
+    await bisGleich(
+      () => streifen.nth(0).getAttribute('aria-current'),
+      'true',
+      'die erste Folie kam nicht zurück',
     );
   });
 
@@ -3747,13 +3966,44 @@ async function main() {
   });
 
   await pruefe('nichts hat sich in der Konsole beschwert', async () => {
-    gleich(fehler.join('\n'), '', 'Fehler in der Konsole');
+    gleich(gezaehlt(fehler), '', 'Fehler in der Konsole');
   });
 
   await browser.close();
-  beende(server);
 
   const gescheitert = ergebnisse.filter((e) => !e.ok);
+  /*
+     Und die Zahl wird gegen die Datei gehalten, nicht gegen sich selbst.
+
+     „69 von 69 Prüfungen bestanden" stand vorher beidseitig auf
+     `ergebnisse.length` — auf dem also, was wirklich gelaufen ist. Fällt eine
+     Prüfung *heraus*, weil ein Block beim Umbauen verlorengeht oder ein
+     früher `return` darüber steht, schrumpfen beide Seiten gemeinsam und die
+     Zeile liest sich weiter tadellos. Das ist „Ein Knopf, der eine Zahl nennt
+     und eine andere tut", eine Ebene höher: die Zahl beschreibt, was geschah,
+     und nicht, was zugesagt war.
+
+     Gezählt wird deshalb im eigenen Quelltext — gelesen und nicht getippt,
+     damit keine zweite Wahrheit entsteht. Kommentare werden vorher geleert:
+     sonst zählte der Satz mit, der diese Regel erklärt.
+  */
+  // `fileURLToPath` und nicht `new URL(…)`: `URL` ist in dieser Datei die
+  // Adresse der Vorschau und verdeckt den globalen Erzeuger.
+  const quelle = readFileSync(fileURLToPath(import.meta.url), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, (treffer) => treffer.replace(/[^\n]/g, ' '))
+    .replace(/\/\/[^\n]*/g, '');
+  const angelegt = (quelle.match(/await pruefe\(/g) ?? []).length;
+  if (angelegt !== ergebnisse.length) {
+    ergebnisse.push({
+      name: 'jede angelegte Prüfung ist auch gelaufen',
+      ok: false,
+      error: new Error(
+        `${angelegt} Prüfungen stehen in der Datei, ${ergebnisse.length} sind gelaufen`,
+      ),
+    });
+    gescheitert.push(ergebnisse[ergebnisse.length - 1]);
+  }
+
   console.log(
     `\n${ergebnisse.length - gescheitert.length} von ${ergebnisse.length} Prüfungen bestanden.`,
   );
