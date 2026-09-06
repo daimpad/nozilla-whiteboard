@@ -30,9 +30,24 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { krummeZahlen, schluesselAus, verlust } from './ciAbgleich.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CHECK_ONLY = process.argv.includes('--check');
+/*
+   Ein Lauf, der Einträge *verliert*, muss danach gefragt werden.
+
+   Gemessen, und zwar an mir selbst: in diesem Rechner lagen zwei Klone des
+   CI-Repos, und der ältere brachte 37 Kern-Zeichen mit, wo der Stand der
+   Quelle 92 führt. Ein Sync hätte 55 Zeichen aus dem Werkzeug genommen — und
+   `--check` sagte einen Atemzug vorher „Prüfung bestanden". Genau die Falle,
+   die in CLAUDE.md unter „Ein veralteter Checkout sieht aus wie ein
+   aktueller" steht; sie schnappt wieder zu, wenn niemand fragt.
+
+   Dieselbe Linie wie bei `darfErsetzen()` im Werkzeug: wer etwas wegnimmt,
+   wird gefragt.
+*/
+const AUCH_ENTFERNEN = process.argv.includes('--auch-entfernen');
 const CI_ROOT =
   process.argv.slice(2).find((arg) => !arg.startsWith('--')) ??
   process.env.NOZILLA_CI ??
@@ -344,6 +359,15 @@ function parseGeometry(name, markup, sink = problems) {
   }
 
   if (prims.length === 0) sink.push(`Geometrie leer: ${name}`);
+  /*
+     Und jede Zahl muss eine sein. `<rect width="8">` ohne `x` ergibt
+     `+undefined`, also `NaN`; die erzeugte Datei trüge dann `x: NaN`,
+     übersetzte, bestünde Prettier und zeichnete von da an still falsch.
+     Denselben Fehler gab es im CI-Generator schon einmal — dort hieß er
+     „`NaN` ist ein gültiger Bezeichner".
+  */
+  const krumm = krummeZahlen(prims);
+  if (krumm.length > 0) sink.push(`Keine Zahl in ${name}: ${krumm.join(', ')}`);
   return prims;
 }
 
@@ -469,21 +493,21 @@ if (!existsSync(coreDir)) {
     for (const line of coreSkipped) note(`   · ${line}`);
   }
 }
-
 /* -------------------------------------------------------------------------- */
-/* 4 · Schreiben                                                               */
+/* 5 · Schreiben — und vorher sagen, was dabei verschwände                     */
 /* -------------------------------------------------------------------------- */
 
-if (problems.length > 0) {
-  console.error(`\n✗ ${problems.length} CI-Verstoß/Verstöße\n`);
-  for (const problem of problems) console.error(`  - ${problem}`);
-  process.exit(1);
-}
+/*
+   Die drei Dateien entstehen *vor* jeder Verzweigung.
 
-if (CHECK_ONLY) {
-  console.log('\n✓ Prüfung bestanden (nichts geschrieben)');
-  process.exit(0);
-}
+   Vorher wurden sie erst hinter `if (CHECK_ONLY) exit(0)` gebaut, und damit
+   prüfte `--check` etwas anderes, als ein Lauf schreibt: es las die Quelle,
+   hielt sie gegen die CI-Regeln und meldete „Prüfung bestanden" — über die
+   erzeugten Dateien im Repo sagte es kein Wort. Gemessen an diesem Stand:
+   `iconsCore.generated.ts` führte 92 Zeichen, der Checkout brachte 37 mit, und
+   `--check` war grün. Eine Prüfung, die nicht prüft, was ihr Name verspricht,
+   ist schlimmer als keine.
+*/
 
 const sortedCategories = [...categories.keys()].sort();
 const header = `/**
@@ -529,9 +553,7 @@ const footer = `
 export type GeneratedIconName = keyof typeof generatedIcons;
 `;
 
-writeFileSync(
-  join(ROOT, 'src', 'assets', 'wordmark.generated.ts'),
-  `/**
+const wortmarkeInhalt = `/**
  * GENERIERT — nicht von Hand bearbeiten.
  * Quelle: https://github.com/daimpad/nozilla-ci · project/assets/nozilla-logo.svg
  * Neu bauen: node scripts/sync-ci.mjs
@@ -540,23 +562,17 @@ writeFileSync(
  * verzerrt und trägt nie einen Schatten — siehe CI, Abschnitt „Logo".
  */
 export const wordmark = {
-  viewBox: [${viewBox.join(', ')}] as const,
+  viewBox: [${viewBox?.join(', ')}] as const,
   /** Die Buchstaben. Nimmt die Tintenfarbe der Fläche an. */
   letters: ${JSON.stringify(inkPath?.d ?? '')},
   /** Der Punkt am Wortende. Immer Signal-Grün. */
   period: ${JSON.stringify(signalPath?.d ?? '')},
 } as const;
-`,
-);
-note('→ src/assets/wordmark.generated.ts');
+`;
 
-const outFile = join(ROOT, 'src', 'assets', 'icons.generated.ts');
-writeFileSync(outFile, header + body + footer);
-note(`→ src/assets/icons.generated.ts (${((header + body + footer).length / 1024).toFixed(0)} kB)`);
-
-if (coreEntries.length > 0) {
-  const coreCategories = [...new Set(coreEntries.map((entry) => entry.category))].sort();
-  const coreFile = `/**
+const kernInhalt =
+  coreEntries.length > 0
+    ? `/**
  * GENERIERT — nicht von Hand bearbeiten.
  *
  * Quelle:  https://github.com/daimpad/nozilla-ci  ·  project/assets/icon-*.svg
@@ -569,7 +585,11 @@ if (coreEntries.length > 0) {
  */
 import type { IconPrim } from './iconTypes';
 
-export const coreIconCategories = ${JSON.stringify(coreCategories, null, 2).replace(/"/g, "'")} as const;
+export const coreIconCategories = ${JSON.stringify(
+        [...new Set(coreEntries.map((entry) => entry.category))].sort(),
+        null,
+        2,
+      ).replace(/"/g, "'")} as const;
 
 export const coreIcons = {
 ${coreEntries
@@ -588,9 +608,97 @@ ${coreEntries
 >;
 
 export type CoreIconName = keyof typeof coreIcons;
-`;
-  writeFileSync(join(ROOT, 'src', 'assets', 'iconsCore.generated.ts'), coreFile);
-  note(`→ src/assets/iconsCore.generated.ts (${(coreFile.length / 1024).toFixed(0)} kB)`);
+`
+    : null;
+
+/**
+ * Was geschrieben würde, und was dabei verschwände.
+ *
+ * `verlust` bekommt beide Stände als Text und nennt die Schlüssel, die es nur
+ * noch im alten gibt. Die Wortmarke steht nicht in der Liste: sie hat keine
+ * Schlüssel, sondern zwei Pfade.
+ */
+const ziele = [
+  { pfad: join(ROOT, 'src', 'assets', 'wordmark.generated.ts'), inhalt: wortmarkeInhalt },
+  { pfad: join(ROOT, 'src', 'assets', 'icons.generated.ts'), inhalt: header + body + footer },
+  ...(kernInhalt
+    ? [{ pfad: join(ROOT, 'src', 'assets', 'iconsCore.generated.ts'), inhalt: kernInhalt }]
+    : []),
+];
+
+for (const ziel of ziele) {
+  ziel.alt = existsSync(ziel.pfad) ? readFileSync(ziel.pfad, 'utf8') : null;
+  ziel.gleich = ziel.alt === ziel.inhalt;
+  ziel.fehlend = ziel.alt ? verlust(ziel.alt, ziel.inhalt) : [];
+  ziel.name = ziel.pfad.slice(ROOT.length + 1);
+}
+
+if (problems.length > 0) {
+  console.error(`\n✗ ${problems.length} CI-Verstoß/Verstöße\n`);
+  for (const problem of problems) console.error(`  - ${problem}`);
+  process.exit(1);
+}
+
+/** Die Zeile über einen Verlust — sie nennt die Zahl *und* die Namen. */
+function verlustzeile(ziel) {
+  const gezeigt = ziel.fehlend.slice(0, 8).join(', ');
+  const rest = ziel.fehlend.length > 8 ? ` … (${ziel.fehlend.length - 8} weitere)` : '';
+  return `${ziel.fehlend.length} Einträge fielen weg: ${gezeigt}${rest}`;
+}
+
+console.log('\nAbgleich');
+for (const ziel of ziele) {
+  if (ziel.alt === null) note(`${ziel.name}: gibt es noch nicht`);
+  else if (ziel.gleich) note(`${ziel.name}: unverändert`);
+  else {
+    const alt = schluesselAus(ziel.alt).length;
+    const neu = schluesselAus(ziel.inhalt).length;
+    note(`${ziel.name}: weicht ab${alt || neu ? ` (${alt} → ${neu} Einträge)` : ''}`);
+    if (ziel.fehlend.length > 0) note(`   · ${verlustzeile(ziel)}`);
+  }
+}
+
+const abweichend = ziele.filter((ziel) => !ziel.gleich);
+const verlierend = ziele.filter((ziel) => ziel.fehlend.length > 0);
+
+if (CHECK_ONLY) {
+  if (abweichend.length === 0) {
+    console.log('\n✓ Prüfung bestanden — die erzeugten Dateien sind der Stand der Quelle');
+    process.exit(0);
+  }
+  console.error(
+    `\n✗ ${abweichend.length} erzeugte Datei(en) sind nicht der Stand der Quelle.\n` +
+      `  Entweder ist der Checkout des CI-Repos veraltet, oder hier fehlt ein Lauf:\n` +
+      `  node scripts/sync-ci.mjs ${CI_ROOT}`,
+  );
+  process.exit(1);
+}
+
+/*
+   Und geschrieben wird nicht über einen Verlust hinweg.
+
+   Ein Sync, der Zeichen wegnimmt, ist kein Fehler — Zeichen dürfen entfallen.
+   Er ist nur nichts, was nebenbei geschieht: die Namen stehen oben, und wer
+   sie gelesen hat, sagt es mit `--auch-entfernen` noch einmal.
+*/
+if (verlierend.length > 0 && !AUCH_ENTFERNEN) {
+  console.error(
+    `\n✗ Dieser Lauf nähme Einträge aus dem Werkzeug:\n` +
+      verlierend.map((ziel) => `  - ${ziel.name}: ${verlustzeile(ziel)}`).join('\n') +
+      `\n\n  Ist das gewollt, dann noch einmal mit --auch-entfernen.` +
+      `\n  Ist es das nicht, hinkt der Checkout des CI-Repos hinterher.`,
+  );
+  process.exit(1);
+}
+
+console.log('\nSchreiben');
+for (const ziel of ziele) {
+  if (ziel.gleich) {
+    note(`${ziel.name}: unverändert`);
+    continue;
+  }
+  writeFileSync(ziel.pfad, ziel.inhalt);
+  note(`→ ${ziel.name} (${(ziel.inhalt.length / 1024).toFixed(0)} kB)`);
 }
 
 console.log('\n✓ CI-Sync abgeschlossen');

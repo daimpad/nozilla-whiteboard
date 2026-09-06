@@ -506,6 +506,7 @@ PROMPT.md                     Der Deck-Prompt, erklärt
 index.html · ci.html          Zwei Einstiege — das Werkzeug und der Generator
 public/fonts/                 WOFF2 für den Bildschirm, TTF für den Export
 scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
+          ciAbgleich.mjs      Was ein Sync verlöre — die Rechnung dazu
           smoke.mjs           Der Rauchtest: 70 Handgriffe gegen das Bauwerk
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set (554 Icons)
@@ -534,7 +535,7 @@ src/
               factory.ts      Der einzige Weg, auf dem ein Element entsteht
   lib/
     markdown/ deck.ts         Markdown ⇄ Deck (das Dateiformat)
-              render.ts       Markdown → HTML und Token (für den Bildschirm)
+              render.ts       Markdown → Token (für den Setzer)
     geometry/ path.ts         Segmente, Matrizen, Pfad-Parser (inkl. Bögen)
               shapes.ts       CI-Formen und Verbinder
               snap.ts         Raster, Hilfslinien, Größenänderung

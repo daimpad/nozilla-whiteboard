@@ -58,12 +58,18 @@ export default defineConfig({
          ausgeliefert werden und die kein Browser je anfordert. Warum ein
          leeres Modul und kein `external`, steht im Kopf von `jspdfOhne.ts`.
 
-         Nicht dabei ist `dompurify`: das lädt jsPDF aus demselben Rumpf nach,
-         dieses Werkzeug benutzt es aber selbst — `lib/markdown/render.ts`
-         reinigt damit das eingebettete HTML.
+         `dompurify` ist der dritte im Bunde — und stand hier lange ausdrücklich
+         *nicht*, mit der Begründung, dieses Werkzeug benutze es selbst:
+         `lib/markdown/render.ts` reinige damit das eingebettete HTML. Der Satz
+         stimmte einmal. Nachgezählt hatte `renderMarkdown()` keinen einzigen
+         Aufrufer mehr — die Fläche zeichnet längst über dieselbe
+         Zeichenstrecke wie der SVG-Export, es gibt kein HTML, das jemand
+         einsetzt. Gekostet hat der tote Weg 22 kB als eigenen Lazy-Chunk und
+         30 kB im Hauptbündel, weil der Import dort statisch stand.
       */
       canvg: fileURLToPath(new URL('./src/lib/export/jspdfOhne.ts', import.meta.url)),
       html2canvas: fileURLToPath(new URL('./src/lib/export/jspdfOhne.ts', import.meta.url)),
+      dompurify: fileURLToPath(new URL('./src/lib/export/jspdfOhne.ts', import.meta.url)),
     },
   },
   server: {
@@ -96,7 +102,12 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    /*
+       Auch die Skripte. `scripts/ciAbgleich.mjs` trägt die Rechnung, die einen
+       CI-Sync vor sich selbst schützt — sie hat zwei Kunden, das Skript und
+       ihre Prüfung, und ohne diese Zeile liefe die zweite nie mit.
+    */
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'scripts/**/*.test.mjs'],
     setupFiles: ['./src/test/setup.ts'],
   },
 });

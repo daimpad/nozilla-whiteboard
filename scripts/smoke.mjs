@@ -584,12 +584,16 @@ function pruefeStand() {
 /**
  * Was im Bauwerk liegt, muss auch geholt werden.
  *
- * jsPDF lädt `canvg` und `html2canvas` im Rumpf über einen dynamischen Import
- * nach — für `doc.svg()` und `doc.html()`, also für die beiden Wege, ein PDF
- * aus einem *Dokument* zu machen. Dieses Werkzeug macht seines aus der `Scene`
- * und ruft keinen von beiden; Rollup sah die Ausdrücke trotzdem und legte zwei
- * Lazy-Chunks an: 202 kB und 160 kB, die ausgeliefert werden und die kein
- * Browser je anfordert.
+ * jsPDF lädt `canvg`, `html2canvas` und `dompurify` im Rumpf über einen
+ * dynamischen Import nach — für `doc.svg()` und `doc.html()`, also für die
+ * beiden Wege, ein PDF aus einem *Dokument* zu machen. Dieses Werkzeug macht
+ * seines aus der `Scene` und ruft keinen von beiden; Rollup sah die Ausdrücke
+ * trotzdem und legte Lazy-Chunks an, die ausgeliefert werden und die kein
+ * Browser je anfordert: 202 kB html2canvas, 160 kB canvg, 22 kB purify.
+ *
+ * Der dritte kam später dazu: er stand ausdrücklich *nicht* hier, weil das
+ * Werkzeug ihn selbst benutzte — bis nachgezählt wurde, dass `renderMarkdown()`
+ * keinen Aufrufer mehr hat.
  *
  * Geprüft wird am **Verzeichnis** und nicht an der Konfiguration: dass ein
  * Alias dasteht, sagt nichts darüber, ob er greift — dieselbe Regel wie
@@ -597,7 +601,7 @@ function pruefeStand() {
  */
 function pruefeBauwerk() {
   const dateien = readdirSync(join('dist', 'assets'));
-  const tot = dateien.filter((name) => /html2canvas|canvg/i.test(name));
+  const tot = dateien.filter((name) => /html2canvas|canvg|purify/i.test(name));
   if (tot.length > 0) {
     throw new Error(
       `Tote Chunks im Bauwerk: ${tot.join(', ')} — der Alias in vite.config.ts greift nicht.`,

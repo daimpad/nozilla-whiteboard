@@ -116,6 +116,7 @@ PROMPT.md                     Der Deck-Prompt, erklärt
 index.html · ci.html          Zwei Einstiege — das Werkzeug und der Generator
 public/fonts/                 WOFF2 für den Bildschirm, TTF für den Export
 scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
+          ciAbgleich.mjs      Was ein Sync verlöre — die Rechnung dazu
           smoke.mjs           Der Rauchtest: 70 Handgriffe gegen das Bauwerk
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set
@@ -154,7 +155,7 @@ src/
               factory.ts      Der einzige Weg, auf dem ein Element entsteht
   lib/
     markdown/ deck.ts         Markdown ⇄ Deck (das Dateiformat)
-              render.ts       Markdown → HTML und Token (für den Bildschirm)
+              render.ts       Markdown → Token (für den Setzer)
     geometry/ path.ts         Segmente, Matrizen, Pfad-Parser (inkl. Bögen)
               shapes.ts       Die Formen der CI und der Verbinder
               snap.ts         Raster, Hilfslinien, Größenänderung, Klemmen
@@ -280,10 +281,8 @@ keine Zusicherung je *auf sie* geschrieben wurde.
 | `src/ci/` unter `CiGenerator.tsx` — `ruecklauf.ts`, `pruefung.ts`, `emitter.ts`, `schritte.tsx`, `entwurf.ts`, `sitzung.ts`, `prompt.ts` | rund 4.100 Zeilen, zwei Prüfdateien; der jüngste Code des Projekts |
 | `theme.config.ts` und `src/theme/` | die CI und die lebendigen Bindungen; `fonts.ts` ohne eigene Prüfung, `runtime.ts` und `surface.ts` nur über ihr Ergebnis |
 | Kopfleiste und Dialoge — `TopBar.tsx`, `PromptStudio.tsx`, `SearchPanel.tsx`, `SettingsMenu.tsx`, `SlideRail.tsx` | keine eigene Prüfdatei; Runde 48 hat nur die Tastenseite angefasst, Runde 53 die Übersicht |
-| `scripts/sync-ci.mjs` | woher die CI kommt |
-| `assets/presets.ts` und `AssetSidebar.tsx` | jeder Baustein ist eine Zusage über das, was auf der Folie landet |
+| `AssetSidebar.tsx` | die Bibliothek selbst; ihre Bausteine hat Runde 55 gemessen |
 | Vortragsweg — `presenterChannel.ts`, `PresentView.tsx`, `PresenterView.tsx` | zwei Fenster, ein Kanal, ein Einstieg ohne Store |
-| `lib/markdown/render.ts` | ohne eigene Prüfdatei |
 
 ---
 
@@ -3651,6 +3650,82 @@ sich gar nicht leeren lässt, wird weiterhin rot.
 Und die Regel dahinter ist allgemeiner als dieses Feld: **eine Zusicherung
 darf warten, ein Handgriff muss sich wiederholen dürfen.** Wer nur wartet,
 prüft am Ende, ob ein einzelner Versuch zufällig in eine ruhige Lücke fiel.
+
+**Zwei tote Ausgänge, und sie schleppten eine Bibliothek mit.** `render.ts`
+hieß im Kopf „Markdown → HTML, für das, was auf dem Bildschirm steht", und
+zwei Zeilen weiter stand, die Ausgabewege benutzten das Modul *nicht*. Beides
+zusammen beschrieb etwas, das es nicht mehr gab: die Fläche zeichnet über
+dieselbe Zeichenstrecke wie der SVG-Export. Nachgezählt hatten
+`renderMarkdown()` und `markdownToPlainText()` **keinen einzigen Aufrufer** —
+gerufen werden nur `lexMarkdown()` und `lexInline()`.
+
+Gekostet hat das mehr als zwei Funktionen. `renderMarkdown()` reinigte mit
+DOMPurify, und weil dieser Import *statisch* war, lag die Bibliothek im
+Hauptbündel; daneben legte Rollup den Lazy-Chunk an, den jsPDF für
+`doc.html()` anfordert. In `vite.config.ts` stand ausdrücklich, `dompurify`
+gehöre **nicht** zu den ausgeschalteten Wegen — „dieses Werkzeug benutzt es
+selbst". Der Satz stimmte einmal und war zuletzt eine Begründung für Ballast:
+Hauptbündel 528.974 → 498.997 Bytes, dazu 22 kB Chunk und seine Quellkarte.
+Der Bauwerk-Wächter des Rauchtests kennt jetzt alle drei Namen.
+
+**Ein Unterstrich mitten im Wort ist keine Auszeichnung.** `stripInline()`
+räumt die Auszeichnungen aus einem Folientitel — und nahm `_` überall weg. Aus
+„Der user_id-Fehler" wurde „Der userid-Fehler", im Filmstreifen, in der
+Übersicht, in der Referentenansicht und im Exportmenü. Die Regel dagegen ist
+nicht erfunden: CommonMark zeichnet mit `_` innerhalb eines Wortes nicht aus,
+und genau deshalb kann man `snake_case` schreiben. Der Stern darf weiter
+überall weichen — `a*b*c` **ist** eine Auszeichnung. Gehalten wird die Regel
+gegen den Leser, der sie umsetzt: derselbe Titel geht durch `lexInline()` und
+muss dort ein einziges Text-Token sein.
+
+**Die Bausteine hielten das Raster nicht, das sie verlangen.** `computeSnap()`
+und `resizeRect()` rasten jedes gezogene Element auf `canvas.gridSize` ein,
+und der Deck-Prompt verlangt dasselbe vom Sprachmodell — von siebenundvierzig
+Bausteinen lagen **siebenunddreißig Maße** daneben. Sichtbar wird das beim
+ersten Anfassen: der Kasten springt aufs Raster, sobald jemand einen Griff
+berührt. Dieselbe Falle wie bei `insertColumnWidth()`, eine Ebene höher.
+Gerundet wird **nach oben**: ein Kasten, der wächst, kann keinen Überlauf
+erzeugen, und `overflow.test.ts` bleibt grün.
+
+**Eine Prüfung, die alles prüfte außer dem Ergebnis.** `sync-ci.mjs --check`
+las die Quelle, hielt sie gegen die CI-Regeln und meldete „Prüfung
+bestanden" — über die *erzeugten Dateien* im Repo sagte es kein Wort. Sie
+entstanden erst hinter `if (CHECK_ONLY) exit(0)`, also nach dem Ausgang.
+
+Gemessen, und zwar an mir selbst: in diesem Rechner lagen zwei Klone des
+CI-Repos. Der ältere (7. August) brachte 37 Kern-Zeichen mit, der Stand der
+Quelle (21. August) führt 92 — und `--check` war grün. Ein Sync hätte
+**fünfundfünfzig Zeichen aus dem Werkzeug genommen**, auf jeder Folie, die
+eines davon benutzt. Genau die Falle, die weiter oben unter „Ein veralteter
+Checkout sieht aus wie ein aktueller" steht; sie schnappt wieder zu, wenn
+niemand fragt.
+
+Drei Dinge hängen daran. Die Dateien entstehen jetzt **vor** jeder
+Verzweigung, `--check` vergleicht sie mit dem, was auf der Platte liegt, und
+nennt bei einer Abweichung die Zahl *und* die Namen. Ein Lauf, der Einträge
+verlöre, **schreibt nicht** — er zeigt sie und verlangt `--auch-entfernen`;
+dieselbe Linie wie `darfErsetzen()` im Werkzeug. Und geschrieben wird nur, was
+sich wirklich ändert: vorher wurden alle drei Dateien bei jedem Lauf neu
+geschrieben, und eine echte Änderung stand zwischen zwei Neuschreibungen, die
+keine waren.
+
+Prüfbar ist davon nur, was nicht im Skript steht: ein Skript läuft von oben
+nach unten und beendet den Prozess. Die drei Fragen — welche Einträge stehen
+darin, welche verschwänden, und ist jede Zahl eine Zahl — stehen deshalb in
+`scripts/ciAbgleich.mjs`, mit zwei Kunden. Die dritte ist der alte Bekannte:
+`<rect width="8">` ohne `x` ergibt `+undefined`, und `x: NaN` in einer
+erzeugten Datei übersetzt, besteht Prettier und zeichnet still falsch.
+
+**Was nachgemessen wurde und in Ordnung ist.** Kein Baustein setzt eine
+Angabe, die seine Art nicht liest — dieselbe Frage wie im Inspektor, gestellt
+an `elementFelder()`. Keiner nennt ein Zeichen, das das Set nicht führt; keine
+Kennung ist doppelt, keine Gruppe leer. Gegen den *wirklichen* Stand der
+Quelle sind alle drei erzeugten Dateien zeichengleich mit dem, was ein Lauf
+schreiben würde — das Werkzeug hinkt nicht, es konnte es nur nicht wissen. Und
+die Wortmarke liest `sync-ci.mjs` strenger als `wordmark.ts`: exakte Hexwerte,
+kein `style="fill:…"`, kein geerbtes `fill` vom `<g>`. Das ist keine Lücke,
+sondern eine andere Frage — hier steht *ein* bekanntes Logo, dort steht die
+Datei, die jemand hochlädt —, und wenn es klemmt, klemmt es laut.
 
 ---
 
