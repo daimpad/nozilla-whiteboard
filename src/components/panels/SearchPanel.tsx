@@ -13,6 +13,7 @@ import { searchDeck, zaehleFunde, type Treffer } from '@/lib/search';
 import { slideTitle } from '@/model/types';
 import { zaehle } from '@/lib/labels';
 import { useDeckStore } from '@/state/deckStore';
+import { useFokusZurueck } from '@/hooks/useFokusZurueck';
 import { Button, IconButton, cx } from '@/components/ui/controls';
 
 /** „1 Folie" und „4 Folien" — Deutsch zählt anders als eine Zeichenkette. */
@@ -30,6 +31,10 @@ export function SearchPanel() {
   /** Was das letzte Ersetzen bewirkt hat — sonst sieht man nur, dass die Liste leer wird. */
   const [bilanz, setBilanz] = useState<string | null>(null);
   const feld = useRef<HTMLInputElement>(null);
+
+  // Der Fokus kommt beim Schließen dorthin zurück, wo er herkam. Ohne das
+  // steht er auf `<body>`, und das nächste `Tab` fängt ganz vorn an.
+  useFokusZurueck();
 
   useEffect(() => {
     feld.current?.focus();
@@ -62,7 +67,11 @@ export function SearchPanel() {
   };
 
   return (
-    <div className="absolute right-3 top-3 z-popover w-[26rem] animate-pop-in">
+    <div
+      className="absolute right-3 top-3 z-popover w-[26rem] animate-pop-in"
+      role="dialog"
+      aria-label="Suchen und Ersetzen"
+    >
       <div className="nz-panel overflow-hidden shadow-ui-xl">
         <div className="flex items-center gap-2 border-b border-ui px-3 py-2">
           <input
@@ -99,7 +108,15 @@ export function SearchPanel() {
           <Button
             icon="check"
             onClick={ersetzen}
-            disabled={treffer.length === 0}
+            /*
+               Gesperrt wird an derselben Zahl, die auf dem Knopf steht. Vorher
+               stand hier `treffer.length` — die Länge der *Liste*, und die
+               zählt eine Zeile je Feld. Solange beide Rechnungen dieselbe
+               Frage stellen, sind sie zugleich null; taten sie es einmal
+               nicht, stand hier ein gesperrter Knopf mit der Aufschrift
+               „Alle 1".
+            */
+            disabled={funde === 0}
             title="Ersetzt jeden Fund im ganzen Deck — Groß und Klein bleiben unbeachtet."
           >
             {funde > 0 ? `Alle ${funde}` : 'Alle'}

@@ -73,7 +73,23 @@ export function zaehleFunde(deck: Deck, frage: string): number {
 }
 
 export function searchDeck(deck: Deck, frage: string): Treffer[] {
-  const gesucht = frage.trim().toLocaleLowerCase('de-DE');
+  /*
+     Die Frage geht *ungefaltet* hinein, und das ist keine Nachlässigkeit,
+     sondern die Reparatur eines Fehlers. Hier stand ein
+     `toLocaleLowerCase('de-DE')` — und `fundstellen()` faltet selbst, aber nur
+     dann, wenn das Falten die Länge nicht ändert; sonst vergleicht es genau.
+     Eine vorgefaltete Frage traf in diesem zweiten Zweig auf den *Original*text
+     und fand nichts.
+
+     Gemessen: „Straße" in „Ein Wort mit İ und Straße" ergab in der Liste 0
+     Treffer, im Zähler 1 — die Leiste sagte „Nichts gefunden." und daneben
+     „Alle 1". Der ganze Unterschied ist ein einziges Zeichen im *Text*
+     (U+0130 İ, das einzige im BMP, das beim Kleinschreiben wächst); die Frage
+     selbst ist ein gewöhnliches deutsches Wort. `zaehleFunde()` und
+     `ersetzeImDeck()` reichen die Frage seit je roh hinein — es waren drei
+     Kunden derselben Rechnung, und einer stellte die Frage anders.
+  */
+  const gesucht = frage.trim();
   if (gesucht.length < 2) return [];
 
   const out: Treffer[] = [];

@@ -59,7 +59,11 @@ export function PruefPanel() {
   };
 
   return (
-    <div className="absolute right-3 top-3 z-popover w-[26rem] animate-pop-in">
+    <div
+      className="absolute right-3 top-3 z-popover w-[26rem] animate-pop-in"
+      role="dialog"
+      aria-label="Prüfliste des Decks"
+    >
       <div className="nz-panel overflow-hidden shadow-ui-xl">
         <div className="flex items-center gap-2 border-b border-ui px-3 py-2">
           <h2 className="flex-1 text-ui-title font-semibold">Prüfliste</h2>

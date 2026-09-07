@@ -117,7 +117,7 @@ index.html · ci.html          Zwei Einstiege — das Werkzeug und der Generator
 public/fonts/                 WOFF2 für den Bildschirm, TTF für den Export
 scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
           ciAbgleich.mjs      Was ein Sync verlöre — die Rechnung dazu
-          smoke.mjs           Der Rauchtest: 74 Handgriffe gegen das Bauwerk
+          smoke.mjs           Der Rauchtest: 77 Handgriffe gegen das Bauwerk
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set
               icons.ts        Das Set des gültigen Erscheinungsbilds
@@ -189,6 +189,7 @@ src/
               useFonts.ts · useTheme.ts · useFolienformat.ts · useImageSizes.ts
                               Die Zähler, an denen ein Merker verfällt
               useClipboard.ts · usePresenterChannel.ts · useElementSize.ts
+              useFokusZurueck.ts  Eine Schicht gibt den Fokus zurück, wenn sie zugeht
               useSurface.ts · useDeckTheme.ts
   state/      deckStore.ts    Zustand, Aktionen, Verlauf
               persistence.ts  Öffnen, Sichern, Selbstsicherung, darfErsetzen()
@@ -259,7 +260,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Vierundsiebzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Siebenundsiebzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im
   Kopf von `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`;
   die Fassung passt nicht zur Bibliothek, deshalb
@@ -281,7 +282,6 @@ keine Zusicherung je *auf sie* geschrieben wurde.
 | --- | --- |
 | `src/ci/` unter `CiGenerator.tsx` — `ruecklauf.ts`, `pruefung.ts`, `emitter.ts`, `schritte.tsx`, `entwurf.ts`, `sitzung.ts`, `prompt.ts` | rund 4.100 Zeilen, zwei Prüfdateien; der jüngste Code des Projekts |
 | `theme.config.ts` und `src/theme/` | die CI und die lebendigen Bindungen; `fonts.ts` ohne eigene Prüfung, `runtime.ts` und `surface.ts` nur über ihr Ergebnis |
-| `SearchPanel.tsx`, `SlideRail.tsx` | ohne eigene Prüfdatei; im Rauchtest über ihre Handgriffe |
 
 ---
 
@@ -3871,6 +3871,95 @@ am Ende wieder zurück; scheitert dazwischen eine Zusicherung, stand die Leiste
 für den Rest des Laufs auf den Zeichen, und die nächste Prüfung fand ihren
 Baustein nicht. Ein Fehlschlag soll seine eigene Zeile melden und keine fremde
 — zurückgeschaltet wird deshalb im `finally`.
+
+**Ein Zeichen im Text, und die Suche ging blind — der Zähler daneben nicht.**
+`fundstellen()` faltet Groß und Klein selbst, aber nur, solange das Falten die
+Länge nicht ändert; sonst vergleicht es genau, und der Kopf daneben schreibt
+aus, warum („lieber ein Treffer weniger als ein Schnitt an der falschen
+Stelle"). `searchDeck()` reichte die Frage **vorgefaltet** hinein und traf in
+diesem zweiten Zweig auf den Originaltext. `zaehleFunde()` und
+`ersetzeImDeck()` reichen sie seit je roh hinein: drei Kunden derselben
+Rechnung, und einer stellte die Frage anders.
+
+Gemessen: „Straße" in „Ein Wort mit İ und Straße" ergab in der Liste **0**
+Treffer und im Zähler **1**. Die Leiste sagte damit „Nichts gefunden." und
+trug daneben einen Knopf „Alle 1" — und der war gesperrt, denn gesperrt wurde
+an der *Liste* und beschriftet aus dem *Zähler*. Zwei Zahlen für dieselbe
+Frage, an einem Knopf.
+
+Der Auslöser ist ein einziges Zeichen, und zwar im **Text** und nicht in der
+Frage: `U+0130 İ` ist das einzige im BMP, das beim Kleinschreiben wächst —
+nachgezählt und nicht geglaubt. Ein Deck, das „İstanbul" erwähnt, macht damit
+jedes gewöhnliche deutsche Wort im selben Feld unauffindbar.
+
+Geprüft wird als **Regel** und nicht am Einzelfall: für jedes Wort des
+Prüfdecks müssen Liste und Zähler sich einig sein, *ob* es etwas gibt. Und der
+Knopf hängt jetzt an derselben Zahl, die auf ihm steht.
+
+**„nozilla Whiteboard 1" hieß jede Kachel des Filmstreifens.** Der Name eines
+Knopfes wird aus seinem Inhalt gerechnet, wenn keiner dasteht — und der Inhalt
+ist hier eine gezeichnete Folie. Übrig blieb der Alternativtext der Wortmarke
+aus der Fußzeile plus die Nummer. Welche Folie das ist, stand im `title`, und
+den bekommt eine Hilfstechnik nicht, sobald der Inhalt einen Namen hergibt.
+
+Die **Übersicht** ist der Beleg, dass es anders geht: sie zeichnet dieselben
+Folien und heißt „nozilla Whiteboard 1 Folien, die sich wie ein Whiteboard
+benehmen." — dort steht der Titel als *sichtbarer* Text im Knopf. Zwei
+Ansichten desselben Decks, eine benennt es und eine nicht, und vor Augen steht
+der Unterschied nie. Das ist dieselbe Sorte wie „Resize nw" an acht Griffen
+und „Drei Arten sagten den Namen einer vierten an".
+
+Gefragt wird in der Prüfung über `getByRole(..., { name })`, also über den
+Namen im **Barrierebaum**: dass ein `aria-label` im Markup steht, sagt noch
+nicht, dass es der Name ist.
+
+**Zwei von vier Schichten sagten nicht, was sie sind.** Übersicht und
+Prompt-Generator tragen `role="dialog"` samt Namen; die Suche und die
+Prüfliste trugen gar nichts — gemessen `role=null`, `aria-label=null`.
+Dieselbe Sorte wie die Menüs der Kopfleiste, denen `aria-haspopup` fehlte.
+
+**Und zwei von vier gaben den Fokus nicht zurück.** Gemessen an allen vieren:
+
+```
+Übersicht (⌘K)     offen: BODY                     nach Esc: BODY
+Prüfliste          offen: BUTTON [Prüfliste]       nach Esc: BUTTON [Prüfliste]
+Prompt-Generator   offen: TEXTAREA                 nach Esc: BODY
+Suche (⌘F)         offen: INPUT [Im Deck suchen]   nach Esc: BODY
+```
+
+Die beiden unteren nehmen den Fokus und geben ihn nicht zurück; die beiden
+oberen nehmen ihn gar nicht erst. Das nächste `Tab` fängt danach ganz vorn an
+— bei einem Fenster mit vier Leisten sind das zwei Dutzend Anschläge zurück an
+die Stelle, an der man war. Die Zusage steht seit den Menüs der Kopfleiste im
+Kopf von `useMenu()`; sie galt nur für Menüs.
+
+`useFokusZurueck()` ist deshalb ein Haken mit **zwei** Kunden und nicht eine
+Zeile in der Datei, die gerade wehtut — „wer eine Rechnung um einen Kunden
+erweitert, muss ihre Aufrufer zählen" steht in dieser Liste schon einmal.
+Zurückgegeben wird nur an ein Element, das es noch gibt (`isConnected`): ein
+Knopf, der die Schicht geöffnet hat und dabei selbst verschwunden ist, bekäme
+sonst einen Fokus, den niemand sieht.
+
+Geöffnet wird in der Prüfung über den **Knopf** und nicht über ⌘F: nur dann
+gibt es eine Stelle, an die der Fokus zurückkann, und genau die ist die Frage.
+
+**Und der Aufräumer fragte mit dem Merkmal, das gerade geprüft wird.** Der
+Wächter über den Rollen räumt seine Schichten im `finally` ab — die Lehre der
+Zeichen-Palette, eine Runde alt. Die erste Fassung sah dabei erst nach, ob ein
+`[role="dialog"]` dasteht, also mit genau dem Attribut, das die Gegenprobe
+entfernt: unter Sabotage zählte sie null offene Schichten, drückte nichts, und
+die Suche blieb offen. Die nächste Prüfung klickte deren Knopf, klappte sie
+damit zu und meldete „die Suche ging über den Knopf nicht auf" — eine geliehene
+Meldung über einen Fehler, der woanders liegt. Gedrückt wird jetzt ohne zu
+fragen: vier Escapes, einer je Rang. Ein Escape zu viel kostet die Auswahl auf
+der Folie und sonst nichts.
+
+**Was nachgemessen wurde und in Ordnung ist.** Der Filmstreifen rechnet seine
+Kacheln aus der Höhe des Streifens und hängt am Formatzähler; die Kachel der
+offenen Folie trägt `aria-current` und scrollt sich ins Bild. Die Suche zählt,
+sperrt und ersetzt jetzt an einer Zahl, und der Rundlauf „suchen → ersetzen →
+⌘Z" bleibt ein Verlaufsschritt. Die Prüfliste nimmt den Fokus gar nicht erst,
+gibt also auch keinen verloren.
 
 ---
 

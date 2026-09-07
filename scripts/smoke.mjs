@@ -368,6 +368,38 @@ async function masse(seite) {
  * Folie an, stand danach auf einer leeren und suchte dort einen Text, den sie
  * auf der vorigen geschrieben hatte.
  */
+/**
+ * Einen Text als Muster nehmen, ohne dass seine Zeichen mitreden.
+ *
+ * Ein Folientitel trägt Punkte und Klammern; ungeschützt in ein `RegExp`
+ * gesetzt wäre der Punkt „irgendein Zeichen", und die Prüfung ginge auch dann
+ * durch, wenn der Name nur *ähnlich* ist.
+ */
+/**
+ * Jede Schicht schließen — vier Escapes, einer je Rang.
+ *
+ * `useKeyboardShortcuts` räumt mit `Escape` genau *eine* Schicht ab, in der
+ * Reihenfolge Suche, Prüfliste, Prompt, Übersicht. Wer sicher sein will, dass
+ * keine mehr steht, drückt so oft, wie es Ränge gibt; ein Escape zu viel
+ * kostet nur die Auswahl auf der Folie.
+ *
+ * Gedrückt wird **ohne zu fragen**, und das ist der Punkt. Die erste Fassung
+ * sah erst nach, ob ein `[role="dialog"]` dasteht — also mit genau dem
+ * Attribut, das eine Gegenprobe eine Zeile weiter oben entfernt. Unter
+ * Sabotage zählte sie null offene Schichten, drückte nichts, und die Suche
+ * blieb offen: die nächste Prüfung klickte deren Knopf, klappte sie damit zu
+ * und meldete „die Suche ging über den Knopf nicht auf". Ein Aufräumer, der
+ * mit dem Merkmal fragt, das gerade geprüft wird, räumt genau dann nicht auf,
+ * wenn es darauf ankommt.
+ */
+async function schliesseSchichten(seite) {
+  for (let i = 0; i < 4; i += 1) await seite.keyboard.press('Escape');
+}
+
+function escapeRe(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 async function klickeLeereFolie(seite) {
   const kasten = await seite.locator('.nz-stage').boundingBox();
   await seite.mouse.click(kasten.x + kasten.width * 0.9, kasten.y + kasten.height * 0.9);
@@ -1022,6 +1054,133 @@ async function main() {
     await bisWahr(
       async () => (await streifen.count()) > vorher,
       'die Leertaste hat den Knopf nicht gedrückt, sondern weitergeblättert',
+    );
+  });
+
+  await pruefe('eine Kachel des Filmstreifens sagt, welche Folie sie ist', async () => {
+    /*
+       Gemessen im Barrierebaum: jede Kachel hieß „nozilla Whiteboard 1",
+       „nozilla Whiteboard 2" … — der Alternativtext der Wortmarke aus der
+       Fußzeile plus die Nummer. Welche Folie das ist, stand nur im `title`,
+       und den liest eine Hilfstechnik nicht, sobald der Inhalt einen Namen
+       hergibt. Vor Augen steht dieser Unterschied nie; man sieht das Bild ja.
+
+       Gefragt wird über `getByRole(..., { name })`, also über den **Namen im
+       Barrierebaum** und nicht über ein Attribut: dass ein `aria-label`
+       dasteht, sagt noch nicht, dass es der Name ist.
+
+       Und die Übersicht ist der Maßstab, nicht der zweite Blick auf dieselbe
+       Rechnung: sie zeichnet dieselben Folien durch eine andere Komponente
+       und trägt den Titel als sichtbaren Text.
+    */
+    const titel = await seite
+      .locator('nav[aria-label="Folien"] button[draggable]')
+      .first()
+      .getAttribute('title');
+    wahr(titel && titel.length > 4, `die Kachel trug keinen Kurzhinweis: ${titel}`);
+    // „1. Der Titel" — die Nummer davor gehört dem Hinweis, nicht dem Namen.
+    const nurTitel = titel.replace(/^\d+\.\s*/, '');
+
+    await bisWahr(
+      () =>
+        seite.getByRole('button', { name: new RegExp(`Folie 1: .*${escapeRe(nurTitel)}`) }).count(),
+      `keine Kachel heißt nach ihrer Folie — der Name war „${titel}"`,
+    );
+
+    // Und die Übersicht sagt denselben Titel, über einen anderen Weg.
+    await seite.keyboard.press('Meta+k');
+    try {
+      await bisWahr(
+        () => seite.locator('[role="dialog"][aria-label="Folienübersicht"]').count(),
+        'die Übersicht ging nicht auf',
+      );
+      await bisWahr(
+        () => seite.getByRole('button', { name: new RegExp(escapeRe(nurTitel)) }).count(),
+        'die Übersicht nennt ihre Folie nicht beim Titel',
+      );
+    } finally {
+      await schliesseSchichten(seite);
+    }
+  });
+
+  await pruefe('eine Schicht sagt, was sie ist', async () => {
+    /*
+       Vier Schichten liegen über der Fläche, und zwei sagten es an: die
+       Übersicht und der Prompt-Generator trugen `role="dialog"` samt Namen,
+       die Suche und die Prüfliste gar nichts. Gemessen an der Suche:
+       `role=null`, `aria-label=null`. Das ist dieselbe Sorte wie die Menüs
+       der Kopfleiste, denen `aria-haspopup` fehlte — vor Augen steht es nie,
+       man sieht das Feld ja aufgehen.
+    */
+    const schichten = [
+      ['Meta+f', 'Suchen und Ersetzen'],
+      ['Meta+k', 'Folienübersicht'],
+    ];
+    /*
+       Das `finally` ist hier kein Beiwerk. In der Gegenprobe scheiterte diese
+       Prüfung mitten in der Schleife und ließ die Suche offen; die nächste
+       klickte deren Knopf, schloss sie damit und meldete „die Suche ging über
+       den Knopf nicht auf" — eine geliehene Meldung über einen Fehler, der
+       woanders liegt. Genau diese Falle steht seit der Zeichen-Palette in
+       dieser Datei; sie war eine Prüfung weiter noch einmal aufgestellt.
+    */
+    try {
+      for (const [taste, name] of schichten) {
+        await seite.keyboard.press(taste);
+        await bisWahr(
+          () => seite.locator(`[role="dialog"][aria-label="${name}"]`).count(),
+          `die Schicht „${name}" sagt nicht, was sie ist`,
+        );
+        await seite.keyboard.press('Escape');
+        await bisGleich(
+          () => seite.locator(`[role="dialog"][aria-label="${name}"]`).count(),
+          0,
+          `die Schicht „${name}" ging nicht wieder zu`,
+        );
+      }
+
+      await seite.getByRole('button', { name: 'Prüfliste', exact: true }).click();
+      await bisWahr(
+        () => seite.locator('[role="dialog"][aria-label="Prüfliste des Decks"]').count(),
+        'die Prüfliste sagt nicht, was sie ist',
+      );
+    } finally {
+      await schliesseSchichten(seite);
+    }
+  });
+
+  await pruefe('eine Schicht gibt den Fokus zurück, wenn sie zugeht', async () => {
+    /*
+       Gemessen: nach `Escape` stand der Fokus auf `<body>` — bei der Suche
+       und beim Prompt-Generator. Das nächste `Tab` fängt damit ganz vorn an,
+       und bei einem Fenster mit vier Leisten sind das zwei Dutzend Anschläge
+       zurück an die Stelle, an der man war. Dieselbe Zusage steht seit den
+       Menüs der Kopfleiste im Kopf von `useMenu()`.
+
+       Geöffnet wird hier über den *Knopf* und nicht über ⌘F: nur dann gibt es
+       eine Stelle, an die der Fokus zurückkann, und genau die ist die Frage.
+    */
+    // Von einem bekannten Stand aus: eine offene Schicht machte aus dem Klick
+    // auf den Knopf ein Zuklappen, und die Meldung hieße dann etwas anderes,
+    // als hier gefragt ist.
+    await schliesseSchichten(seite);
+    const suchknopf = seite.getByRole('button', { name: 'Suchen und Ersetzen (⌘F)', exact: true });
+    await suchknopf.click();
+    await bisWahr(
+      () => seite.locator('[aria-label="Im Deck suchen"]').count(),
+      'die Suche ging über den Knopf nicht auf',
+    );
+    gleich(
+      await seite.evaluate(() => document.activeElement?.getAttribute('aria-label')),
+      'Im Deck suchen',
+      'die Suche nahm den Fokus nicht ins Feld',
+    );
+
+    await seite.keyboard.press('Escape');
+    await bisGleich(
+      () => seite.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? 'nichts'),
+      'Suchen und Ersetzen (⌘F)',
+      'der Fokus kam nach dem Schließen nicht an seinen Knopf zurück',
     );
   });
 
