@@ -117,7 +117,7 @@ index.html · ci.html          Zwei Einstiege — das Werkzeug und der Generator
 public/fonts/                 WOFF2 für den Bildschirm, TTF für den Export
 scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
           ciAbgleich.mjs      Was ein Sync verlöre — die Rechnung dazu
-          smoke.mjs           Der Rauchtest: 73 Handgriffe gegen das Bauwerk
+          smoke.mjs           Der Rauchtest: 74 Handgriffe gegen das Bauwerk
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set
               icons.ts        Das Set des gültigen Erscheinungsbilds
@@ -259,7 +259,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Dreiundsiebzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Vierundsiebzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im
   Kopf von `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`;
   die Fassung passt nicht zur Bibliothek, deshalb
@@ -282,7 +282,6 @@ keine Zusicherung je *auf sie* geschrieben wurde.
 | `src/ci/` unter `CiGenerator.tsx` — `ruecklauf.ts`, `pruefung.ts`, `emitter.ts`, `schritte.tsx`, `entwurf.ts`, `sitzung.ts`, `prompt.ts` | rund 4.100 Zeilen, zwei Prüfdateien; der jüngste Code des Projekts |
 | `theme.config.ts` und `src/theme/` | die CI und die lebendigen Bindungen; `fonts.ts` ohne eigene Prüfung, `runtime.ts` und `surface.ts` nur über ihr Ergebnis |
 | `SearchPanel.tsx`, `SlideRail.tsx` | ohne eigene Prüfdatei; im Rauchtest über ihre Handgriffe |
-| `AssetSidebar.tsx` | die Bibliothek selbst; ihre Bausteine hat Runde 55 gemessen |
 
 ---
 
@@ -3825,6 +3824,53 @@ hängt am Formatzähler. `endlicherSchritt()` bringt die Unendlichkeit über den
 Kanal, ohne dass auf der anderen Seite eine Vergleichsfalle entsteht. Und das
 zweite Fenster hat weiterhin keinen Store — es liest sein Deck aus dem Kanal
 und setzt Erscheinungsbild und Blatt selbst.
+
+**Fünfhundertvierundfünfzig Zeichen waren fünfhundertvierundfünfzig
+Tabstopps.** Die Bausteinbibliothek ist die erste Spalte des Fensters, und im
+Reiter „Zeichen" steht jedes Zeichen des Sets als eigener Knopf. Gemessen im
+Browser: vom Suchfeld bis aus der Leiste heraus **558 mal Tab**. Wer ohne Maus
+arbeitet, kam an die Fläche, den Filmstreifen und den Inspektor nur, indem er
+durch das ganze Set lief.
+
+Dieselbe Sorte wie die acht Reiter des CI-Generators, nur zweistellig größer —
+und dieselbe Antwort: ein rollender Tabstopp und ←/→/↑/↓/Home/End. Nach `Tab`
+wird ausdrücklich nicht gegriffen; das steht in dieser Liste schon zweimal.
+Nachgemessen sind es jetzt **5 mal Tab**.
+
+Wie viele Zeichen in einer Zeile stehen, wird dabei am **Ergebnis** gemessen
+und nicht danebengeschrieben: `grid-cols-6` steht als Klasse da, und eine
+zweite Sechs im Code liefe früher oder später davon weg. `spalten()` zählt die
+Knöpfe der ersten Reihe an ihrem `offsetTop`.
+
+**Und die Tonreihe darüber tat bei der Hälfte nichts.** Gemessen am Markup:
+bei **dreiundzwanzig der siebenundvierzig** Bausteine ändert ein anderer Ton
+kein einziges Zeichen — jeder Text, jede Tabelle, jeder Verbinder, jede Form
+mit Kontur, beide Wortmarken. Der Grund ist derselbe, den `elementFelder()`
+für den Inspektor nennt: ohne eigene Fläche erbt ein Element Tinte und Linie
+vom Untergrund. Die Kacheln zeigen das auch ehrlich — sie sehen bei jedem Ton
+gleich aus. Nur stand nirgends, warum, und ein Bedienelement, das bei der
+Hälfte nichts tut und dazu schweigt, ist die Sorte, an der man an sich selbst
+zweifelt.
+
+Umgefärbt wird nichts und weggenommen auch nichts: der Ton wird weiter
+mitgeschrieben, denn er wird lebendig, sobald jemand dem Baustein eine Füllung
+gibt. Dazugekommen ist der Satz, der sagt, wofür er gilt.
+
+Geprüft wird er in **beide** Richtungen, und die zweite ist die eigentliche:
+die Regel „der Ton greift genau dann, wenn der Baustein eine Fläche malt" wird
+am gezeichneten Markup gehalten und nicht an `elementFelder()` — die Rechnung
+kann stimmen und der Zeichner etwas anderes tun. Und der Hinweis darf keine
+Art nennen, bei der der Ton sehr wohl etwas tut: `presets.test.ts` liest den
+Satz aus der Quelle und hält jedes darin genannte Wort dagegen. Ein Hinweis,
+der eine Art falsch benennt, wäre schlimmer als keiner — dieselbe Frage wie
+beim Untergrund `paper`, der das Weiß malt.
+
+**Und die Gegenprobe machte zwei Prüfungen rot, von denen eine nichts damit zu
+tun hatte.** Die neue Rauchtest-Prüfung schaltet die Leiste auf „Zeichen" und
+am Ende wieder zurück; scheitert dazwischen eine Zusicherung, stand die Leiste
+für den Rest des Laufs auf den Zeichen, und die nächste Prüfung fand ihren
+Baustein nicht. Ein Fehlschlag soll seine eigene Zeile melden und keine fremde
+— zurückgeschaltet wird deshalb im `finally`.
 
 ---
 

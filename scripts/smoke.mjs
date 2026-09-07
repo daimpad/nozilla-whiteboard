@@ -796,6 +796,72 @@ async function main() {
     await seite.getByRole('button', { name: 'Bausteine', exact: true }).click();
   });
 
+  await pruefe('die Zeichen-Palette ist ein Tabstopp, nicht fünfhundert', async () => {
+    /*
+       Fünfhundertvierundfünfzig Zeichen waren fünfhundertvierundfünfzig
+       Tabstopps. Gemessen im Browser: vom Suchfeld der Bibliothek bis aus der
+       Leiste heraus **558 mal Tab** — und die Bibliothek ist die erste Spalte
+       des Fensters. Wer ohne Maus arbeitet, kam an die Fläche, den
+       Filmstreifen und den Inspektor nur, indem er durch das ganze Set lief.
+
+       Dieselbe Sorte wie die acht Reiter des CI-Generators, nur zweistellig
+       größer — und dieselbe Antwort: ein rollender Tabstopp und die Pfeile.
+       Nach `Tab` wird ausdrücklich nicht gegriffen.
+    */
+    await seite.getByRole('button', { name: 'Zeichen', exact: true }).click();
+    await bisWahr(() => seite.locator('[data-zeichen]').count(), 'die Palette blieb leer');
+    /*
+       Zurück auf die Bausteine geht es im `finally`. Scheitert eine
+       Zusicherung hier, stünde die Leiste sonst für den Rest des Laufs auf
+       den Zeichen — die Gegenprobe machte damit zwei Prüfungen rot, und die
+       zweite hatte mit der Sache nichts zu tun. Ein Fehlschlag soll seine
+       eigene Zeile melden und keine fremde.
+    */
+    try {
+      const inDerLeiste = () =>
+        seite.evaluate(() =>
+          Boolean(document.activeElement?.closest('aside[aria-label="Bausteinbibliothek"]')),
+        );
+
+      await seite.getByLabel('Bibliothek durchsuchen').focus();
+      let schritte = 0;
+      for (; schritte < 40; schritte += 1) {
+        await seite.keyboard.press('Tab');
+        if (!(await inDerLeiste())) break;
+      }
+      wahr(schritte < 10, `vom Suchfeld aus der Leiste heraus: ${schritte} mal Tab`);
+
+      // Und innen bewegen die Pfeile. Die Zeile ist dabei mehr als ein Schritt:
+      // ↓ muss über eine ganze Reihe gehen, sonst wäre es ein zweites →.
+      const zeichen = () =>
+        seite.evaluate(() => document.activeElement?.getAttribute('data-zeichen'));
+      await seite.evaluate(() => document.querySelector('[data-zeichen][tabindex="0"]')?.focus());
+      const erst = await zeichen();
+      wahr(erst, 'die Palette hat keinen Tabstopp');
+
+      await seite.keyboard.press('ArrowRight');
+      const rechts = await zeichen();
+      wahr(rechts && rechts !== erst, `→ bewegte nichts: ${erst} → ${rechts}`);
+
+      await seite.keyboard.press('ArrowDown');
+      const runter = await zeichen();
+      const namen = await seite.evaluate(() =>
+        [...document.querySelectorAll('[data-zeichen]')].map((el) =>
+          el.getAttribute('data-zeichen'),
+        ),
+      );
+      wahr(
+        namen.indexOf(runter) - namen.indexOf(rechts) > 1,
+        `↓ ging nur einen Schritt: ${rechts} → ${runter}`,
+      );
+
+      await seite.keyboard.press('End');
+      gleich(await zeichen(), namen[namen.length - 1], 'End sprang nicht ans Ende');
+    } finally {
+      await seite.getByRole('button', { name: 'Bausteine', exact: true }).click();
+    }
+  });
+
   await pruefe('ein Baustein landet an der Einsetzlinie', async () => {
     await seite.getByRole('button', { name: 'Folie hinzufügen (N)', exact: true }).click();
     await seite.locator('aside button').filter({ hasText: 'Karte' }).first().click();
