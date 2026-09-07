@@ -108,6 +108,29 @@ export function AssetSidebar() {
             />
           ))}
         </div>
+
+        {/*
+           Und darunter steht, wofür er gilt.
+
+           Gemessen am Markup: bei **dreiundzwanzig der siebenundvierzig**
+           Bausteine ändert ein anderer Ton kein einziges Zeichen — bei jedem
+           Text, jeder Tabelle, jedem Verbinder, jeder Form mit Kontur und
+           beiden Wortmarken. Der Grund ist derselbe, den `elementFelder()`
+           für den Inspektor nennt: ohne eigene Fläche erbt ein Element Tinte
+           und Linie vom Untergrund. Die Kacheln zeigen das auch ehrlich — sie
+           sehen bei jedem Ton gleich aus. Nur stand nirgends, warum, und ein
+           Bedienelement, das bei der Hälfte nichts tut und dazu schweigt, ist
+           die Sorte, an der man an sich selbst zweifelt.
+
+           Die Kennung trägt der Absatz für `presets.test.ts`: die Prüfung
+           liest den Satz und hält jede darin genannte Art gegen das, was der
+           Ton wirklich bewegt. Ein Hinweis, der eine Art nennt, bei der der
+           Ton sehr wohl etwas tut, wäre schlimmer als keiner.
+        */}
+        <p data-hinweis="ton" className="mt-1.5 text-[11px] leading-snug text-ui-faint">
+          Gilt für Bausteine mit eigener Fläche. Text, Tabelle, Verbinder und die Wortmarke nehmen
+          Tinte und Linie vom Untergrund der Folie.
+        </p>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto pb-6">
@@ -263,6 +286,71 @@ function IconPalette({ tone, matches }: { tone: ToneName; matches: IconName[] | 
   const groups = useMemo(() => iconsByCategory(), [skin]);
   const visible = matches ? new Set(matches) : null;
 
+  /*
+     Fünfhundertvierundfünfzig Zeichen sind fünfhundertvierundfünfzig
+     Tabstopps.
+
+     Gemessen im Browser: vom Suchfeld der Bibliothek bis aus der Leiste
+     heraus waren es **558 mal Tab** — und die Bibliothek ist die erste Spalte
+     des Fensters. Wer ohne Maus arbeitet, kam an die Fläche, den Filmstreifen
+     und den Inspektor nur, indem er durch das ganze Zeichen-Set lief.
+     Dieselbe Sorte wie die acht Reiter des CI-Generators, nur zweistellig
+     größer.
+
+     Die Palette ist deshalb **ein** Tabstopp, und innen bewegt man sich mit
+     den Pfeilen — die Belegung, die ein Raster aus Knöpfen ohnehin mitbringt.
+     Nach **Tab** wird ausdrücklich nicht gegriffen: wer die Taste abfängt,
+     mit der man weiterkommt, sperrt den Benutzer dort ein, wo er gerade
+     steht. Das steht in diesem Repo schon zweimal.
+
+     Wie viele Zeichen in einer Zeile stehen, wird am **Ergebnis** gemessen
+     und nicht danebengeschrieben: `grid-cols-6` steht als Klasse da, und eine
+     zweite Sechs im Code liefe früher oder später davon weg.
+  */
+  const sichtbare = groups.flatMap((group) =>
+    visible ? group.names.filter((name) => visible.has(name)) : group.names,
+  );
+  const [aktiv, setAktiv] = useState<IconName | null>(null);
+  const tabstopp = aktiv && sichtbare.includes(aktiv) ? aktiv : (sichtbare[0] ?? null);
+
+  const spalten = (feld: HTMLElement): number => {
+    const reihe = feld.parentElement?.children;
+    if (!reihe) return 1;
+    const oben = (reihe[0] as HTMLElement).offsetTop;
+    let anzahl = 0;
+    for (const kind of reihe) {
+      if ((kind as HTMLElement).offsetTop !== oben) break;
+      anzahl += 1;
+    }
+    return Math.max(1, anzahl);
+  };
+
+  const bewege = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const ziel = event.target as HTMLElement;
+    const jetzt = sichtbare.indexOf(ziel.dataset.zeichen ?? '');
+    if (jetzt < 0) return;
+
+    const schritt = {
+      ArrowRight: 1,
+      ArrowLeft: -1,
+      ArrowDown: spalten(ziel),
+      ArrowUp: -spalten(ziel),
+    }[event.key];
+
+    let neu: number | undefined;
+    if (schritt !== undefined) neu = jetzt + schritt;
+    else if (event.key === 'Home') neu = 0;
+    else if (event.key === 'End') neu = sichtbare.length - 1;
+    if (neu === undefined) return;
+
+    event.preventDefault();
+    const name = sichtbare[Math.min(Math.max(neu, 0), sichtbare.length - 1)];
+    setAktiv(name);
+    event.currentTarget
+      .querySelector<HTMLButtonElement>(`[data-zeichen="${CSS.escape(name)}"]`)
+      ?.focus();
+  };
+
   const add = (name: IconName, frame: IconFrame) => {
     insertPreset('icon', {
       icon: name,
@@ -275,10 +363,11 @@ function IconPalette({ tone, matches }: { tone: ToneName; matches: IconName[] | 
   };
 
   return (
-    <>
+    <div onKeyDown={bewege}>
       <div className="px-3 pt-3">
         <p className="text-[11px] leading-snug text-ui-faint">
-          Klick setzt das nackte Zeichen, ⇧-Klick eine getönte Kachel.
+          Klick setzt das nackte Zeichen, ⇧-Klick eine getönte Kachel. Mit den Pfeiltasten geht es
+          durch die Zeichen.
         </p>
       </div>
       {groups.map((group) => {
@@ -294,6 +383,9 @@ function IconPalette({ tone, matches }: { tone: ToneName; matches: IconName[] | 
                   type="button"
                   title={name}
                   aria-label={`Zeichen ${name} einsetzen`}
+                  data-zeichen={name}
+                  tabIndex={name === tabstopp ? 0 : -1}
+                  onFocus={() => setAktiv(name)}
                   onClick={(event) => add(name, event.shiftKey ? 'box' : 'none')}
                   className={cx(
                     'flex aspect-square items-center justify-center rounded-sm border border-transparent',
@@ -308,6 +400,6 @@ function IconPalette({ tone, matches }: { tone: ToneName; matches: IconName[] | 
           </section>
         );
       })}
-    </>
+    </div>
   );
 }

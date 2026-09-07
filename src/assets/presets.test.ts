@@ -7,13 +7,16 @@
  * der jede Kachel anklickt. Geprüft wird, was man dem fertigen Element erst
  * ansieht, wenn man es anfasst — und das ist etwas anderes.
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { assetPresets, presetGroupLabels, presetGroups } from './presets';
 import { isIconName } from './icons';
 import { createElement } from '@/model/factory';
-import { elementFelder } from '@/lib/export/scene';
-import { canvas } from '@/theme';
-import type { CanvasElement } from '@/model/types';
+import { buildElementPrims, elementFelder } from '@/lib/export/scene';
+import { primsToSvgMarkup } from '@/lib/export/svg';
+import { canvas, toneNames } from '@/theme';
+import type { CanvasElement, ElementKind } from '@/model/types';
 
 /** Das Element, das aus einem Baustein wirklich entsteht. */
 function ausBaustein(preset: (typeof assetPresets)[number]): CanvasElement {
@@ -89,6 +92,75 @@ describe('die Bausteine', () => {
       .map((preset) => ({ id: preset.id, icon: (preset.patch as { icon?: string }).icon }))
       .filter((eintrag) => eintrag.icon !== undefined && !isIconName(eintrag.icon));
     expect(unbekannt).toEqual([]);
+  });
+
+  it('nehmen den Ton genau dann an, wenn sie eine Fläche malen', () => {
+    /*
+       Die Tonreihe steht über der Bibliothek und gilt für jede Kachel — bei
+       dreiundzwanzig der siebenundvierzig Bausteine bewegt sie nichts.
+       Gemessen wird das am **Markup** und nicht an `elementFelder()`: die
+       Rechnung kann stimmen und der Zeichner etwas anderes tun, und genau
+       darum ging es beim Innenabstand schon einmal.
+
+       Die Zusage des Hinweises ist damit eine Regel und kein Einzelfall: der
+       Ton greift, wenn der Baustein eine eigene Fläche malt, und sonst nicht.
+    */
+    const falsch: string[] = [];
+    for (const preset of assetPresets) {
+      const basis = ausBaustein(preset);
+      const bilder = new Set(
+        toneNames.map((tone) => primsToSvgMarkup(buildElementPrims({ ...basis, tone }))),
+      );
+      const wirkt = bilder.size > 1;
+      if (wirkt !== elementFelder(basis).ton) {
+        falsch.push(`${preset.id}: Markup ${wirkt ? 'ändert sich' : 'bleibt gleich'}`);
+      }
+    }
+    expect(falsch).toEqual([]);
+
+    // Und beide Seiten müssen besetzt sein: eine Regel, die alles oder nichts
+    // bejaht, sagt über den Hinweis nichts.
+    const ohne = assetPresets.filter((preset) => !elementFelder(ausBaustein(preset)).ton);
+    expect(ohne.length).toBeGreaterThan(0);
+    expect(ohne.length).toBeLessThan(assetPresets.length);
+  });
+
+  it('werden in der Leiste von keinem Hinweis falsch benannt', () => {
+    /*
+       Der Hinweis unter der Tonreihe nennt Arten beim Namen. Nennt er eine,
+       bei der der Ton sehr wohl etwas tut, ist er schlimmer als keiner — das
+       ist dieselbe Frage wie beim Untergrund `paper`, der das Weiß malt: wer
+       eine Sache benennt, muss auch die meinen.
+    */
+    const quelle = readFileSync(
+      join(process.cwd(), 'src', 'components', 'panels', 'AssetSidebar.tsx'),
+      'utf8',
+    );
+    const hinweis = quelle.match(/data-hinweis="ton"[^>]*>([\s\S]*?)<\/p>/)?.[1];
+    expect(hinweis).toBeTruthy();
+
+    const woerter: Partial<Record<ElementKind, string>> = {
+      text: 'Text',
+      markdown: 'Markdown',
+      card: 'Karte',
+      badge: 'Abzeichen',
+      icon: 'Zeichen',
+      shape: 'Form',
+      connector: 'Verbinder',
+      image: 'Bild',
+      wordmark: 'Wortmarke',
+      chart: 'Diagramm',
+      table: 'Tabelle',
+    };
+    const gelogen: string[] = [];
+    for (const [kind, wort] of Object.entries(woerter) as [ElementKind, string][]) {
+      if (!hinweis?.includes(wort)) continue;
+      const mitTon = assetPresets
+        .filter((preset) => preset.kind === kind)
+        .filter((preset) => elementFelder(ausBaustein(preset)).ton);
+      if (mitTon.length > 0) gelogen.push(`${wort}: ${mitTon.map((p) => p.id).join(', ')}`);
+    }
+    expect(gelogen).toEqual([]);
   });
 
   it('tragen eindeutige Kennungen und eine bekannte Gruppe', () => {
