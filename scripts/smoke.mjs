@@ -3871,6 +3871,48 @@ async function main() {
     const generator = await oeffneGenerator(kontext);
 
     await zumSchritt(generator, 'Schrift');
+
+    /*
+       Erst der Apostroph, und zwar am **CSS-Parser** und nicht am erzeugten
+       Text: `font-family: 'O'Neill'` schließt die Zeichenkette am zweiten
+       Zeichen, der Schnitt verliert seinen Namen und wird nie geladen — sein
+       Text steht danach in der Ersatzschrift, ohne dass jemand einen Fehler
+       sieht. Eine Prüfung am erzeugten Text hätte den Fehler bestätigt statt
+       ihn zu finden.
+
+       Die **Zahl** der Regeln ist dabei nicht der Befund, und das ist selbst
+       eine Messung: bei drei Regeln fraß der Fehler die beiden dahinter (1
+       von 3), bei den neun echten Schnitten keine (9 von 9) — das nächste
+       Apostroph schließt die offene Zeichenkette wieder. Sie steht trotzdem
+       da, denn sie bewacht die andere Hälfte; verlassen muss man sich auf den
+       Namen.
+    */
+    const erste = generator.locator('input[aria-label="Familie des 1. Schnitts"]');
+    const schnitte = await generator.locator('input[aria-label^="Familie des"]').count();
+    await erste.fill("O'Neill Display");
+    await bisGleich(
+      () =>
+        generator.evaluate(() => {
+          const stil = document.getElementById('nz-ci-entwurf-fonts');
+          return stil?.sheet?.cssRules.length ?? -1;
+        }),
+      schnitte,
+      'ein Apostroph im Schriftnamen hat Regeln aus dem Blatt geworfen',
+    );
+    gleich(
+      await generator.evaluate(() => {
+        const stil = document.getElementById('nz-ci-entwurf-fonts');
+        const wert = stil?.sheet?.cssRules[0]?.style?.getPropertyValue('font-family') ?? '';
+        // Das CSSOM gibt die Zeichenkette kanonisch zurück — der maskierte
+        // Apostroph steht dann in doppelten Anführungszeichen. Verglichen wird
+        // der Name, nicht die Schreibweise, in der der Browser ihn notiert.
+        return wert.replace(/^["']|["']$/g, '');
+      }),
+      "O'Neill Display",
+      'der Name kam im Blatt nicht an',
+    );
+    await erste.fill('Zilla Slab');
+
     const familie = generator.locator('input[aria-label="Familie des 1. Schnitts"]');
     await familie.click();
     await generator.keyboard.press('End');
