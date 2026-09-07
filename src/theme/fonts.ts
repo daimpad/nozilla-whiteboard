@@ -35,6 +35,43 @@ import { resetMeasurementCache } from '@/lib/text/measure';
 
 const STYLE_ID = 'nz-webfonts';
 
+/**
+ * Einen blanken Namen in eine CSS-Zeichenkette setzen.
+ *
+ * Hier stand `'${face.family}'`, und ein Apostroph im Namen schließt damit die
+ * Zeichenkette am zweiten Zeichen. Was das kostet, ist in Chromium gemessen —
+ * und es ist nicht das, was man zuerst annimmt:
+ *
+ *   drei Regeln, Apostroph nur im Namen      1 von 3 · Namen [""]
+ *   drei Regeln, Apostroph in Name und Datei 3 von 3 · Namen ["", "Zwei", …]
+ *   die neun echten Schnitte, Name kaputt    9 von 9 · Namen ["", "Zilla Slab", …]
+ *
+ * Sicher ist nur die eine Hälfte: **der Schnitt selbst verliert seinen Namen**
+ * und wird damit nie geladen — sein Text steht danach in der Ersatzschrift,
+ * ohne dass jemand einen Fehler sieht. Wie weit der Schaden darüber
+ * hinausreicht, hängt daran, wo das nächste Apostroph steht: es schließt die
+ * offene Zeichenkette wieder, und der Parser fängt sich an der nächsten
+ * Klammer. Bei drei Regeln fraß der Fehler die beiden dahinter, bei neun
+ * keine.
+ *
+ * Erreichbar ist das über den CI-Generator, in dem Familienname *und*
+ * Dateiname von Hand getippt werden. „O'Neill", „Peignot d'Or" — das ist keine
+ * ausgedachte Schreibweise, sondern eine Schriftfamilie mit einem Namen.
+ *
+ * Escapiert werden der Rückstrich und das Apostroph; Steuerzeichen und
+ * Zeilenumbrüche fallen weg, denn eine rohe Zeile in einer CSS-Zeichenkette ist
+ * ein Parse-Fehler und kein Zeichen.
+ */
+export function cssZeichenkette(text: string): string {
+  return (
+    text
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001f\u007f]/g, '')
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /* Signal: „die Schriften sind da"                                             */
 /* -------------------------------------------------------------------------- */
@@ -86,8 +123,8 @@ export function fontFaceRules(
   return faces
     .map(
       (face) => `@font-face {
-  font-family: '${face.family}';
-  src: url('${prefix}/${face.file}') format('${webfont.format}');
+  font-family: '${cssZeichenkette(face.family)}';
+  src: url('${cssZeichenkette(`${prefix}/${face.file}`)}') format('${webfont.format}');
   font-weight: ${face.weight};
   font-style: ${face.style};
   font-display: swap;
@@ -134,8 +171,21 @@ export function setzeSchriftregeln(id: string, regeln: string): void {
  * das ist der Sinn der Trennung.
  */
 export function installWebfonts(base = import.meta.env.BASE_URL ?? '/'): void {
-  if (!webfont.enabled) return;
   if (typeof document === 'undefined') return;
+
+  /*
+     Eine Marke *ohne* Webfonts räumt die der vorigen weg — und das war der
+     eine Weg, auf dem die Zusage zwei Absätze weiter oben nicht galt. Hier
+     stand `if (!webfont.enabled) return;` vor jedem Griff ans Dokument:
+     gemessen blieben nach dem Wechsel auf ein Erscheinungsbild mit
+     `enabled: false` **1484 Zeichen** `@font-face` der vorigen Marke im Kopf
+     stehen. Wer eine Systemschrift wählt, bekam sie also nur, wo die Namen
+     sich nicht überschneiden — und wo doch, die Datei der fremden Marke.
+  */
+  if (!webfont.enabled) {
+    document.getElementById(STYLE_ID)?.remove();
+    return;
+  }
 
   const regeln = fontFaceRules(webfont.faces, base);
   const vorhanden = document.getElementById(STYLE_ID);
@@ -182,7 +232,7 @@ export function loadFaces(faces: readonly WebfontFace[]): void {
     document.fonts
       // Die Größe ist beliebig, aber Pflicht: `load()` erwartet eine
       // vollständige CSS-`font`-Kurzschreibweise.
-      .load(`${face.style} ${face.weight} 16px '${face.family}'`)
+      .load(`${face.style} ${face.weight} 16px '${cssZeichenkette(face.family)}'`)
       .catch(() => []),
   );
 

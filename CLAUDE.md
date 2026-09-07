@@ -128,6 +128,7 @@ src/
               folienformat.ts Auf welchem Blatt dieses Deck liegt (ebenso)
               surface.ts      Hell oder dunkel — die Erscheinung des Werkzeugs
               fonts.ts        Die Schnitte anfordern und den Zähler hochzählen
+                              (`cssZeichenkette` — ein Name ist keine CSS-Syntax)
               wordmark.ts     Eine Wortmarke aus einem SVG lesen
               index.ts        Die Fassade: Inhalt aus der Laufzeit,
                               Werkzeug aus der Konfiguration
@@ -282,7 +283,7 @@ keine Zusicherung je *auf sie* geschrieben wurde.
 | Bereich | Lage |
 | --- | --- |
 | `src/ci/` — `Anfang.tsx`, `felder.tsx`, `CiGenerator.tsx` | die Bedienflächen des Generators; Rechnungen und Probefolien sind geprüft |
-| `theme.config.ts` und `src/theme/` | die CI und die lebendigen Bindungen; `fonts.ts` ohne eigene Prüfung, `runtime.ts` und `surface.ts` nur über ihr Ergebnis |
+| `theme.config.ts` und `src/theme/` | `index.ts` und `wordmark.ts` ohne eigene Prüfdatei; die übrigen sind gegengeprüft |
 
 ---
 
@@ -4022,6 +4023,64 @@ Deck: ohne geladene Webfonts stehen die Wörter dicht beieinander, weil die
 Stellen mit den Ersatzmaßen gerechnet und mit der Vorgabeschrift gezeichnet
 werden. Dieselbe Enge steht auf den unveränderten Folien — das ist die
 Gegenprobe, die den Verdacht erledigt.
+
+**Ein Apostroph im Schriftnamen, und der Schnitt lud nie.** `fontFaceRules()`
+setzte `font-family: '${face.family}'` — und ein Apostroph schließt die
+Zeichenkette am zweiten Zeichen. Erreichbar ist das über den CI-Generator, in
+dem Familienname *und* Dateiname von Hand getippt werden; „O'Neill", „Peignot
+d'Or" sind keine ausgedachten Schreibweisen, sondern Schriften mit einem Namen.
+
+Was es kostet, ist in Chromium gemessen — und nicht das, was man zuerst
+annimmt:
+
+```
+drei Regeln, Apostroph nur im Namen        1 von 3 · Namen [""]
+drei Regeln, Apostroph in Name und Datei   3 von 3 · Namen ["", "Zwei", "Drei"]
+die neun echten Schnitte, Name kaputt      9 von 9 · Namen ["", "Zilla Slab", …]
+```
+
+Sicher ist nur die eine Hälfte: **der Schnitt selbst verliert seinen Namen**
+und wird damit nie geladen — sein Text steht danach in der Ersatzschrift, ohne
+dass jemand einen Fehler sieht. Wie weit es darüber hinausreicht, hängt daran,
+wo das nächste Apostroph steht: es schließt die offene Zeichenkette wieder, und
+der Parser fängt sich an der nächsten Klammer.
+
+Die erste Fassung dieses Absatzes behauptete „nimmt jeden Schnitt mit, der
+hinter ihm deklariert ist" — gemessen an drei Regeln und verallgemeinert. Die
+Gegenprobe im Rauchtest widerlegte es: dort blieb die *Zahl* grün, und rot
+wurde der Name. Eine Zahl aus einem Fall ist keine Regel.
+
+`cssZeichenkette()` hat deshalb zwei Kunden — die Regel *und* das
+`document.fonts.load()` daneben, das denselben Namen in eine
+`font`-Kurzschreibweise setzt. Steuerzeichen fallen weg statt escapiert zu
+werden: eine rohe Zeile in einer CSS-Zeichenkette ist ein Parse-Fehler und kein
+Zeichen.
+
+Geprüft wird am **CSS-Parser** und nicht am erzeugten Text — im Rauchtest über
+`styleSheet.cssRules`, also über das, was der Browser wirklich angenommen hat.
+Eine Prüfung am Text hätte den Fehler bestätigt statt ihn zu finden.
+
+**Und eine Marke ohne Webfonts ließ die der vorigen stehen.** Der Kopf von
+`installWebfonts()` schreibt aus, dass die alten Regeln *ersetzt* und nicht
+ergänzt werden — „sonst blieben die Schnitte des vorigen Erscheinungsbilds im
+Dokument stehen und der Setzer könnte sie treffen". Genau das tat der eine Weg,
+der vor jedem Griff ans Dokument aussteigt: `if (!webfont.enabled) return;`.
+Gemessen blieben nach dem Wechsel auf ein Erscheinungsbild mit `enabled: false`
+**1484 Zeichen** `@font-face` der vorigen Marke im Kopf. Wer eine Systemschrift
+wählt, bekam sie nur dort, wo die Namen sich nicht überschneiden — und wo doch,
+die Datei der fremden Marke. Eine Zusage, die einen Ausgang nicht kennt, ist
+keine.
+
+**Was nachgemessen wurde und in Ordnung ist.** Keine Modulkonstante greift eine
+lebendige Bindung ab: vier Verdächtige, alle harmlos — `layoutDescriptions`
+trägt `canvas` als *Schlüssel*, `typeStyleOptions` liest die Schlüssel der
+Leiter, `faceName` ist eine Funktionsreferenz, und `elementDefaults` ist
+strukturell und steht nicht im `BrandTheme`. Der Rundlauf über zwei Marken ist
+ein Festpunkt: nozilla → Musterkunde → nozilla ergibt Zeichen für Zeichen
+dasselbe Markup wie am Anfang, und die mittlere Fassung unterscheidet sich.
+`fontFaceRules()` hängt die Dateien unter den `BASE_URL` der Seite, und
+`installWebfonts()` schreibt nicht noch einmal, wenn sich nichts geändert hat —
+der Riegel gegen die elftausend Umläufe hält.
 
 ---
 
