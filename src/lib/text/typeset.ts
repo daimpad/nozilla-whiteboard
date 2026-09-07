@@ -167,6 +167,29 @@ export interface TypesetOptions {
 
 const HEADING_STYLES: TypeStyleName[] = ['h1', 'h1', 'h2', 'h3', 'h4', 'h4', 'h4'];
 
+/**
+ * Wie viel kleiner Code im Satz steht als der Satz, in dem er steht.
+ *
+ * Hier stand eine `0.94`. Die CI führt für genau diese Frage einen eigenen
+ * Leiterschritt — `codeInline`, im Kopf von `theme.config.ts` als „knapp unter
+ * dem Fließtext" beschrieben, und im CI-Generator ein eigenes Feld mit eigener
+ * Erklärung. Gelesen hat ihn hier niemand: bei nozilla nennt die CI 15 und der
+ * Setzer zeichnete 15,04. Vier Hundertstel sind nichts; eine erfundene Zahl
+ * neben einem Wert, der dieselbe Frage beantwortet, ist etwas.
+ *
+ * Gerechnet und nicht festgeschrieben, weil der Faktor auch *innerhalb* einer
+ * Überschrift gelten muss: eine feste 15 in einer h1 wäre ein Fremdkörper, und
+ * die CI meint mit „knapp unter" ein Verhältnis. Am Fließtext kommt damit genau
+ * der Wert heraus, den die CI nennt.
+ *
+ * Die Bindung wird bei jedem Ruf gelesen und nicht auf Modulebene abgegriffen —
+ * das ist die Regel aus `runtime.ts`, und ein `const` hier fröre die Leiter von
+ * nozilla ein.
+ */
+function codeInlineFaktor(): number {
+  return typeScale.codeInline.size / typeScale.body.size;
+}
+
 export function typesetMarkdown(source: string, options: TypesetOptions): TypesetResult {
   const layout = new Layout(options);
   layout.blocks(lexMarkdown(source ?? ''), 0);
@@ -937,7 +960,7 @@ export function flattenInline(
           const codeSpec: FontSpec = {
             ...spec,
             family: 'mono',
-            size: spec.size * 0.94,
+            size: spec.size * codeInlineFaktor(),
             tracking: 0,
           };
           out.push({

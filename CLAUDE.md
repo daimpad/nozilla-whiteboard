@@ -146,7 +146,8 @@ src/
               farbwert.ts     rgb(), Kurzform, fehlende Raute → #RRGGBB
               pruefung.ts     Jede Regel, die eine Designdatei bestehen muss
               emitter.ts      Entwurf → src/themes/<id>.ts
-              probedeck.ts    Die Folie, an der ein Entwurf beurteilt wird
+              probedeck.ts    Die Folien, an denen ein Entwurf beurteilt wird —
+                              und `STUMME_ROLLEN`: was keine zeigen kann
               Vorschau.tsx    Eine echte Folie, über die echte Zeichenstrecke
   decks/      index.ts        Die mitgelieferten Decks
               welcome.md      nozilla — jedes Layout, jede Elementart
@@ -280,7 +281,7 @@ keine Zusicherung je *auf sie* geschrieben wurde.
 
 | Bereich | Lage |
 | --- | --- |
-| `src/ci/` unter `CiGenerator.tsx` — `ruecklauf.ts`, `pruefung.ts`, `emitter.ts`, `schritte.tsx`, `entwurf.ts`, `sitzung.ts`, `prompt.ts` | rund 4.100 Zeilen, zwei Prüfdateien; der jüngste Code des Projekts |
+| `src/ci/` — `Anfang.tsx`, `felder.tsx`, `CiGenerator.tsx` | die Bedienflächen des Generators; Rechnungen und Probefolien sind geprüft |
 | `theme.config.ts` und `src/theme/` | die CI und die lebendigen Bindungen; `fonts.ts` ohne eigene Prüfung, `runtime.ts` und `surface.ts` nur über ihr Ergebnis |
 
 ---
@@ -3960,6 +3961,67 @@ offenen Folie trägt `aria-current` und scrollt sich ins Bild. Die Suche zählt,
 sperrt und ersetzt jetzt an einer Zahl, und der Rundlauf „suchen → ersetzen →
 ⌘Z" bleibt ein Verlaufsschritt. Die Prüfliste nimmt den Fokus gar nicht erst,
 gibt also auch keinen verloren.
+
+**Neunzehn von siebenunddreißig Rollen bewegten die Vorschau nicht.** Der Kopf
+von `probedeck.ts` versprach „vier Folien, die zusammen **jede Rolle einmal
+zeigen**". Gemessen wurde das, indem jede einstellbare Rolle eines Entwurfs
+*einzeln* verstellt und das erzeugte Markup verglichen wurde — nicht, indem
+die Farbwerte im Markup gesucht wurden: `paperAlt` trägt bei nozilla denselben
+Wert wie `paper`, und eine Suche nach der Zeichenkette hätte es als „gezeigt"
+gemeldet.
+
+Darunter war ausgerechnet die **Kampagnengröße**, und die Folie, auf der sie
+fehlte, war mit „Die Kampagnengröße" überschrieben. `#` ist in Markdown h1
+(`HEADING_STYLES` hört bei h1 auf), und kein Layout nimmt `display` oder
+`headline` als Grundstil: beide sind nur über ein von Hand gelegtes
+Textelement erreichbar. Die Folie zeigte 68 und hieß nach 140.
+
+Zwei Folien mehr, und es sind noch **acht**: zwei Textelemente in den beiden
+Kampagnengrößen, dazu eine Folie auf hellem Papier mit den vier Strichstärken,
+den vier Schattenstufen, einem Pixelzeichen (nur dort steht die tiefe
+Signalstufe) und einem Codeblock (nur auf diesem Untergrund steht die zweite
+Papierstufe).
+
+**Und die acht, die übrig bleiben, kann eine Folie nicht malen.** Sieben sind
+Farben, die in diesem Werkzeug kein Zeichner liest: `signalStrong`, `ink700`
+und `ink600` gehen in die Themenpalette einer `.pptx` (accent2, accent5 samt
+folHlink, accent6), `paperDeep` malt die Fläche *neben* der Folie, und
+`ink900`, `warn`, `danger` und `info` landen in **keiner** Ausgabe. Sie stehen
+trotzdem im Formular, denn sie stehen in der CI und die erzeugte Designdatei
+trägt sie weiter — aber sie stehen dort jetzt mit dem Satz daneben, warum man
+nichts sieht. Ein Bedienelement, das bei acht Feldern nichts bewegt und dazu
+schweigt, ist die Sorte, an der man an sich selbst zweifelt.
+
+`STUMME_ROLLEN` ist die Liste, und `probedeck.test.ts` hält sie in **beide**
+Richtungen: keine stumme Rolle darf fehlen, und keine genannte darf das Bild in
+Wahrheit bewegen. Ohne die zweite Hälfte bliebe der Satz stehen, wenn eine
+Folie dazukommt, die die Rolle zeigt — und behauptete weiter, man sähe nichts.
+
+**Eine Stufe der CI, die der Fließtext nicht nimmt.** `codeInline` ist ein
+eigener Leiterschritt, im Kopf von `theme.config.ts` als „knapp unter dem
+Fließtext" beschrieben und im CI-Generator ein eigenes Feld mit eigener
+Erklärung. Der Setzer rechnete an dieser Stelle `size * 0.94` — eine erfundene
+Zahl neben einem Wert, der dieselbe Frage beantwortet. Bei nozilla nennt die CI
+15 und gezeichnet wurden 15,04.
+
+Gerechnet wird jetzt `codeInline.size / body.size`, und zwar **als Verhältnis
+und nicht als feste Größe**: eine 15 innerhalb einer h1 wäre ein Fremdkörper,
+und „knapp unter" meint ein Verhältnis. Am Fließtext kommt damit genau der Wert
+heraus, den die CI nennt. Erreichbar war die Stufe vorher nur über ein
+Textelement mit `typeStyle: codeInline` — der Weg, für den sie *benannt* ist,
+ging daran vorbei.
+
+**Und das Bild zeigte, was keine Zusicherung zeigte.** Die vier Quadrate der
+Schattenreihe standen als `fill: flat, tone: white` auf hellem Papier: zu sehen
+war nur ihr Schatten, nicht das Quadrat, an dem er hängt. Die Messung sagte
+„die Schattenstufen bewegen das Bild" und hatte recht — sie bewegten es an
+einer Form, die man nicht sieht. Sie tragen jetzt eine Kontur.
+
+Beim Hinsehen ist außerdem ein Fehler *im Betrachter* aufgefallen und keiner im
+Deck: ohne geladene Webfonts stehen die Wörter dicht beieinander, weil die
+Stellen mit den Ersatzmaßen gerechnet und mit der Vorgabeschrift gezeichnet
+werden. Dieselbe Enge steht auf den unveränderten Folien — das ist die
+Gegenprobe, die den Verdacht erledigt.
 
 ---
 
