@@ -49,6 +49,7 @@ import {
 } from './entwurf';
 import { zeichenwahl } from './entwurf';
 import { SCHLUESSELREGEL } from './emitter';
+import { STUMME_ROLLEN } from './probedeck';
 import { Abschnitt, Farbfeld, Textfeld, Wahlfeld, Zahlenfeld } from './felder';
 import {
   LEITERTEXT,
@@ -178,7 +179,16 @@ export function FarbeSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aendere
           label={rolle}
           anker={ankerFuer('Farbe', rolle)}
           wert={entwurf.palette[rolle]}
-          hinweis={PALETTENTEXT[rolle]}
+          /*
+             Und dahinter der Satz, warum man am Bild nichts sieht. Acht der
+             siebenunddreißig Rollen kann eine Folie nicht malen — gemessen,
+             indem jede einzeln verstellt und das Markup verglichen wurde.
+             Ohne diesen Zusatz stellt man eine Farbe ein, blättert vier
+             Probefolien durch und weiß nicht, ob sie angekommen ist.
+          */
+          hinweis={[PALETTENTEXT[rolle], STUMME_ROLLEN[`palette.${rolle}`]]
+            .filter(Boolean)
+            .join(' ')}
           auf={(wert) => aendere({ palette: { ...entwurf.palette, [rolle]: wert } })}
         />
       ))}

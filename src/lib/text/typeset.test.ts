@@ -490,3 +490,33 @@ describe('was die gemeldete Breite meint', () => {
     expect(rand('```\nx\n```', 600).gemeldet).toBeCloseTo(600, 6);
   });
 });
+
+describe('Code im Satz', () => {
+  /*
+     Die CI führt für „Code im Fließtext" einen eigenen Leiterschritt —
+     `codeInline`, im Formular des CI-Generators ein eigenes Feld mit eigener
+     Erklärung. Gelesen hat ihn hier lange niemand: an dieser Stelle stand
+     eine `0.94`, und bei nozilla nennt die CI 15, während der Setzer 15,04
+     zeichnete. Vier Hundertstel sind nichts; eine erfundene Zahl neben einem
+     Wert, der dieselbe Frage beantwortet, ist etwas.
+  */
+  it('nimmt am Fließtext genau die Stufe, die die CI dafür nennt', () => {
+    const prims = typesetMarkdown('Ein `codeInline` im Satz.', { width: 800, baseStyle: 'body' });
+    const code = textPrims(prims.prims)
+      .flatMap((prim) => prim.runs)
+      .find((run) => run.plate);
+    expect(code).toBeTruthy();
+    expect(code?.font.size).toBeCloseTo(typeScale.codeInline.size, 6);
+  });
+
+  it('bleibt innerhalb einer Überschrift ein Verhältnis und keine feste Größe', () => {
+    // Eine feste 15 in einer h1 wäre ein Fremdkörper; die CI meint mit „knapp
+    // unter dem Fließtext" ein Verhältnis, und das muss überall gelten.
+    const prims = typesetMarkdown('# Ein `Code` im Titel', { width: 900, baseStyle: 'body' });
+    const code = textPrims(prims.prims)
+      .flatMap((prim) => prim.runs)
+      .find((run) => run.plate);
+    const erwartet = typeScale.h1.size * (typeScale.codeInline.size / typeScale.body.size);
+    expect(code?.font.size).toBeCloseTo(erwartet, 6);
+  });
+});
