@@ -129,7 +129,8 @@ src/
               surface.ts      Hell oder dunkel — die Erscheinung des Werkzeugs
               fonts.ts        Die Schnitte anfordern und den Zähler hochzählen
                               (`cssZeichenkette` — ein Name ist keine CSS-Syntax)
-              wordmark.ts     Eine Wortmarke aus einem SVG lesen
+              wordmark.ts     Eine Wortmarke aus einem SVG lesen — und sagen,
+                              was daran ungelesen bleibt
               index.ts        Die Fassade: Inhalt aus der Laufzeit,
                               Werkzeug aus der Konfiguration
   themes/     index.ts        Hier kommen die eigenen Erscheinungsbilder an
@@ -280,10 +281,11 @@ nächste Runde nicht raten muss. „Ohne eigene Prüfdatei" heißt dabei nicht
 ungeprüft: die meisten werden über die Ausgabewege mitgenommen. Es heißt, dass
 keine Zusicherung je *auf sie* geschrieben wurde.
 
-| Bereich | Lage |
-| --- | --- |
-| `src/ci/` — `Anfang.tsx`, `felder.tsx`, `CiGenerator.tsx` | die Bedienflächen des Generators; Rechnungen und Probefolien sind geprüft |
-| `theme.config.ts` und `src/theme/` | `index.ts` und `wordmark.ts` ohne eigene Prüfdatei; die übrigen sind gegengeprüft |
+Zurzeit steht nichts mehr darauf. Das ist keine Zusage, dass nichts mehr zu
+finden wäre — es heißt, dass jede Datei dieses Projekts mindestens einmal
+gegen ihr *Ergebnis* gemessen wurde und nicht gegen ihren Erzeuger. Wer die
+nächste Runde beginnt, sucht sich die Stelle also nicht mehr aus einer Lücke,
+sondern aus einem Verdacht.
 
 ---
 
@@ -4081,6 +4083,117 @@ dasselbe Markup wie am Anfang, und die mittlere Fassung unterscheidet sich.
 `fontFaceRules()` hängt die Dateien unter den `BASE_URL` der Seite, und
 `installWebfonts()` schreibt nicht noch einmal, wenn sich nichts geändert hat —
 der Riegel gegen die elftausend Umläufe hält.
+
+**Ein Beschnittpfad wurde zur Wortmarke.** `readPaths()` kannte `<svg>`, `<g>`
+und `<path>` — und sonst nichts. Illustrator schreibt für eine beschnittene
+Auswahl `<defs><clipPath id="SVGID_1_"><path …/></clipPath></defs>`, und dieser
+Pfad kam als vollwertiger zurück. Trug er eine Füllung, landete er in derselben
+Farbe wie die Buchstaben: gemessen wurde aus einem Schriftzug
+`"M0 0 H200 V48 H0 Z M0 10 H150 V38 H0 Z"` — ein schwarzer Balken über der
+ganzen viewBox, unter dem die Marke verschwindet. Trug er keine, war es ein
+Fehlalarm der Prüfliste („ein Pfad ohne Füllfarbe"), und auch der ist einer zu
+viel. `readPaths()` führt jetzt einen Zähler für die Rahmen, die **nichts
+zeichnen** — dieselbe Buchführung wie beim Vererben der Füllung, nur
+andersherum.
+
+**Und zwei Pfade zusammenzufassen verschob den zweiten.** Ein `m` am Anfang
+eines eigenen `<path>` ist nach der Spezifikation absolut („If a relative
+moveto appears as the first element of the path, then it is treated as a pair
+of absolute coordinates"); hinter einem anderen Teilpfad ist dasselbe `m`
+relativ zu dessen Endpunkt. Gemessen an `M0 0 h10` und `m50 50 h10`:
+zusammengefügt beginnt der zweite bei (60, 50) statt bei (50, 50). Bei einem
+Schriftzug aus einem Pfad je Buchstabe wandert damit jeder Buchstabe weiter als
+der davor. Gehoben wird nur der **führende** Befehl; die impliziten Linien
+dahinter sind auch im Original relativ.
+
+**Was der Leser nicht kann, sagt er jetzt.** Zwei Angaben fielen wortlos
+heraus. Eine Transformation an einem `<g>` — Inkscape schreibt sie an jede
+Ebene — wird nicht angewandt: gemessen wurde aus
+`<g transform="translate(0,-1004.36)">` ein Schriftzug bei y 1014…1042 in einer
+48 Einheiten hohen viewBox, also 966 Einheiten unter der Unterkante seines
+eigenen Kastens und außerhalb jeder Folie. Und jede Form, die kein `<path>`
+ist, sieht der Leser gar nicht — ein `<circle>` als Punkt am Wortende ist die
+naheliegendste Schreibweise überhaupt, und die Prüfliste sagte dazu „erlaubt:
+nicht jede Marke hat einen Punkt am Wortende".
+
+Gerechnet wird beides **nicht**: eine Transformation anzuwenden hieße, die
+Matrixrechnung aus `path.ts` ein zweites Mal aufzustellen, und eine Ellipse in
+Kubiken zu wandeln ein zweites `shapes.ts` — zwei Wege für dieselbe Frage, was
+die erste Regel dieses Projekts verbietet. Genannt gehört es trotzdem, und zwar
+im Rang „fehler": eine Marke, die zur Hälfte fehlt oder neben ihrem Kasten
+steht, ist keine.
+
+**Eine Rechnung zu prüfen ist nicht dasselbe, wie ihren Kunden zu prüfen.** Die
+erste Fassung dieser Runde prüfte `ungeleseneAngaben()` gründlich — und die
+Gegenprobe entschärfte die Zeile in `pruefeWortmarke()`, die sie ruft: alle
+neunundfünfzig Prüfungen des Generators blieben grün. Geprüft wird jetzt am
+**Befund**, den die Prüfliste ausgibt, in beide Richtungen.
+
+**Die Fassade reichte ein eingefrorenes nozilla unter denselben Namen heraus.**
+`theme` — der Sammel-Export von `theme.config.ts` — stand in den Re-Exports von
+`src/theme/index.ts`, also neben den lebendigen Bindungen und mit denselben
+Feldnamen. Gemessen unter dem Musterkunden im selben Lauf: `palette.signal` ist
+#FF5A1F, `theme.palette.signal` #00FF9C. Einen Aufrufer hatte er nicht — und
+genau so ist die tote zweite Fassung von `familyStack()` schon einmal
+aufgefallen: die tote ist die, die der Nächste findet und benutzt.
+
+**Und `--nz-shadow-*` blieb bei nozilla, während `--nz-color-*` mitwechselte.**
+`cssVariables()` reichte `shadow` aus der Konfiguration durch — eine Tabelle,
+die beim Laden aus nozillas Tinte und Signal zusammengesetzt wird. Gemessen
+unter dem Musterkunden, dessen Tinte #1A1614 ist: `--nz-shadow-sm` blieb
+„3px 3px 0 0 #000000". Gelesen hat die Variablen bis heute niemand; das ist
+keine Entlastung, sondern die Beschreibung eines Werts, der auf den Nächsten
+wartet — dieselbe Bauart wie die Folienhöhe, die einmal auf 720px stehen blieb.
+Die Tailwind-Klassen bleiben bauzeitlich: sie gehören der Oberfläche, und die
+wechselt mit Absicht nicht mit.
+
+**Zwei Zeilen der Änderungsliste hießen „sm".** `sm` und `lg` stehen in der
+Größenleiter *und* bei den Schattenversätzen, und beide Gruppen laufen unter
+„Maße". Gemessen an zwei Entwürfen, die alle vier ändern: vier Zeilen mit den
+Namen `["sm", "lg", "sm", "lg"]` — zweimal derselbe React-Schlüssel, und für
+den Leser zweimal derselbe Wegweiser auf zwei verschiedene Felder. Genau diese
+Mehrdeutigkeit hat `massAnker()` schon einmal gekostet; sie galt nur dort
+nicht.
+
+Daran hing eine zweite Stelle: die Zeile hätte „Schattenversatz sm" gesagt und
+die Überschrift darüber „Schattenversätze". `MASSGRUPPE` führt jetzt beide
+Formen an einer Stelle, und das Formular **liest** sie, statt sie danebenzu-
+schreiben.
+
+**Die gemerkte Sitzung wurde stumm ausgewertet.** `liesEntwurf()` gab
+`zusammen(gelesen).entwurf` zurück und warf den Bericht weg — für den
+Sitzungsweg fiel damit genau die Auskunft heraus, die der Dateiweg zwanzig
+Zeilen weiter anzeigt. Gemessen an einer Sitzung mit `palette.ink: 42`:
+`verworfen` meldet `['markenname', 'palette.ink']`, der Benutzer bekam davon
+kein Wort, und die Tinte stand auf nozillas Schwarz — ein gültiger Wert, über
+den die Prüfliste nichts sagen kann. Der zweite Kunde derselben Rechnung, beim
+Reparieren übersehen; der Satz steht jetzt einmal da und hat drei Rufer.
+
+**„Entwurf laden" war der einzige Weg der Kopfleiste ohne Tastatur.**
+`class="hidden"` ist `display: none`, und damit ist das Feld aus dem Baum:
+gemessen trug die Leiste drei erreichbare Knöpfe, und „Entwurf laden" war ein
+nacktes `<label>` mit `tabindex=null` und `role=null`. Ein `sr-only` bleibt
+gezeichnet, also fokussierbar, und das `<label>` gibt ihm seinen Namen — eine
+Klasse geändert, kein zweites Bedienelement.
+
+**Eine Quittung, die den Wert überlebt, den sie erklärt.** „Übernommen: aus
+„rgba(17, 17, 17, 0.05)" gerechnet — die Deckkraft fiel dabei weg" hing nur am
+Tippen im Textfeld. Der Farbwähler unmittelbar daneben schreibt denselben Wert,
+ohne davon zu wissen: gemessen stand der Satz Zeichen für Zeichen weiter unter
+#123456, einer Farbe, die nie korrigiert wurde. Die Quittung gehört an den
+Wert, nicht ans Feld.
+
+**Und jede der sechzehn Farbbeschriftungen nannte ihre Rolle zweimal.**
+Gemessen hieß das `<label>` von `signal` „signal signal", das von `ink` „ink
+ink"; der ganze sichtbare Text eines Kastens lautete „ink inkrgb(…)". Die
+Aufrufstelle gibt als `label` denselben Schlüssel mit, den `rolle` trägt.
+
+Daran hing ein Fund, den erst der Rauchtest zeigte: `farbfeldId()` suchte das
+Feld mit `startsWith(`${name} `)` — **das Leerzeichen dahinter brauchte das
+zweite Wort**. Ein Sucher, der sich auf einen Fehler stützt, wird rot, sobald
+ihn jemand behebt; und genau umgekehrt wäre es richtig. Verglichen wird jetzt
+genau, was hier ohnehin nötig ist: `signal` ist der Anfang von `signalStrong`,
+`signalSoft` und `signalDeep`.
 
 ---
 

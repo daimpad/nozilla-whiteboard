@@ -60,7 +60,7 @@ export {
 } from './surface';
 export type { Surface, SurfaceMode } from './surface';
 
-export { readPaths, readViewBox, wordmarkFromSvg } from './wordmark';
+export { readPaths, readViewBox, ungeleseneAngaben, wordmarkFromSvg } from './wordmark';
 export type { Wordmark } from './wordmark';
 
 // Ein Icon-Set ist eine Belegung des Erscheinungsbilds wie die Palette. Der
@@ -126,7 +126,21 @@ export {
   slideLayouts,
   forbiddenWords,
   MAX_MARKERS_PER_PARAGRAPH,
-  theme,
+  /*
+     `theme` und `Theme` standen hier und sind heraus.
+
+     Der Sammel-Export von `theme.config.ts` trägt dieselben Namen wie die
+     lebendigen Bindungen — nur eingefroren auf nozilla. Gemessen unter dem
+     Musterkunden im selben Lauf: `palette.signal` ist #FF5A1F,
+     `theme.palette.signal` #00FF9C; `typeScale.h1.size` ist 61 gegen 68. Wer
+     ihn aus *dieser* Datei zieht, holt sich die Falle, gegen die die ganze
+     Fassade gebaut ist, unter einem Namen, der wie die Laufzeit aussieht.
+
+     Aufrufer hatte er keinen — und genau so ist die tote Fassung von
+     `familyStack()` schon einmal aufgefallen: die tote ist die, die der
+     Nächste findet und benutzt. Wer nozillas Werte wirklich als Wert braucht,
+     nimmt `nozillaTheme`; dieser Name sagt, dass es nur nozilla ist.
+  */
 } from '@theme';
 
 export type {
@@ -137,13 +151,11 @@ export type {
   SlideTransition,
   RevealAnimation,
   SlideLayout,
-  Theme,
 } from '@theme';
 
 import {
   motion,
   RADIUS,
-  shadow,
   space,
   uiRadius,
   type ShadowName,
@@ -153,7 +165,15 @@ import {
 } from '@theme';
 // Wechselnde Werte: aus der Laufzeit, nicht aus der Konfiguration. Die
 // Helfer unten und `cssVariables()` lesen sie bei jedem Aufruf neu.
-import { color, elementTones, fontFamily, shadowOffset, stroke, typeScale } from './runtime';
+import {
+  color,
+  elementTones,
+  fontFamily,
+  palette,
+  shadowOffset,
+  stroke,
+  typeScale,
+} from './runtime';
 /*
    Und das Folienmaß ebenso. Es steht zwar in der CI und ist strukturell — was
    hier wechselt, ist nicht die Marke, sondern das Blatt, auf dem *dieses Deck*
@@ -256,7 +276,34 @@ export function cssVariables(): Record<string, string> {
   for (const [key, value] of Object.entries(space)) {
     vars[`--nz-space-${key}`] = `${value}px`;
   }
-  for (const [key, value] of Object.entries(shadow)) {
+  /*
+     Gerechnet, nicht durchgereicht.
+
+     Hier stand `Object.entries(shadow)` — eine Tabelle, die `theme.config.ts`
+     beim Laden aus nozillas `palette.ink`, `palette.signal` und `shadowOffset`
+     zusammensetzt. Gemessen unter dem Musterkunden, dessen Tinte #1A1614 und
+     dessen Signal #FF5A1F ist: `--nz-shadow-sm` blieb „3px 3px 0 0 #000000"
+     und `--nz-shadow-signal` „6px 6px 0 0 #00FF9C". Die Farbvariablen daneben
+     wechseln mit, diese fünf nicht — dieselbe Bauart wie die Folienhöhe, die
+     einmal auf 720px stehen blieb, während die Folie 1810 hoch war.
+
+     Gelesen hat sie bis heute niemand; `src/index.css` zieht nur `--nz-ui-*`
+     und `--nz-font-*`. Das ist keine Entlastung, sondern die Beschreibung
+     eines Werts, der auf den Nächsten wartet — und der Kopf dieser Funktion
+     sagt, wofür er dasteht: „damit fremdes CSS sie ziehen kann".
+
+     Die Tailwind-Klassen bleiben bauzeitlich und damit bei nozilla; sie
+     gehören der Oberfläche, und die wechselt mit Absicht nicht mit.
+  */
+  const schatten: Record<string, string> = {
+    none: 'none',
+    sm: `${shadowOffset.sm}px ${shadowOffset.sm}px 0 0 ${palette.ink}`,
+    md: `${shadowOffset.md}px ${shadowOffset.md}px 0 0 ${palette.ink}`,
+    lg: `${shadowOffset.lg}px ${shadowOffset.lg}px 0 0 ${palette.ink}`,
+    signal: `${shadowOffset.md}px ${shadowOffset.md}px 0 0 ${palette.signal}`,
+    focus: `0 0 0 3px ${palette.signalStrong}`,
+  };
+  for (const [key, value] of Object.entries(schatten)) {
     vars[`--nz-shadow-${kebab(key)}`] = value;
   }
   for (const [key, value] of Object.entries(motion.duration)) {

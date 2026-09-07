@@ -49,6 +49,7 @@ import {
 } from './entwurf';
 import { zeichenwahl } from './entwurf';
 import { SCHLUESSELREGEL } from './emitter';
+import { MASSGRUPPE } from './pruefung';
 import { STUMME_ROLLEN } from './probedeck';
 import { Abschnitt, Farbfeld, Textfeld, Wahlfeld, Zahlenfeld } from './felder';
 import {
@@ -361,7 +362,7 @@ export function MasseSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aendere
          war es der Maschine und nicht dem Menschen, der dieselben acht Zahlen
          von Hand setzt.
       */}
-      <p className="text-[11px] font-medium text-ui-muted">Größenleiter</p>
+      <p className="text-[11px] font-medium text-ui-muted">{MASSGRUPPE.leiter.ueberschrift}</p>
       {textStufen.map((stufe) => (
         <div key={stufe}>
           <Zahlenfeld
@@ -375,7 +376,7 @@ export function MasseSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aendere
         </div>
       ))}
 
-      <p className="pt-2 text-[11px] font-medium text-ui-muted">Stufen außerhalb der Leiter</p>
+      <p className="pt-2 text-[11px] font-medium text-ui-muted">{MASSGRUPPE.sonder.ueberschrift}</p>
       {sonderstufen.map((stufe) => (
         <div key={stufe}>
           <Zahlenfeld
@@ -389,7 +390,9 @@ export function MasseSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aendere
         </div>
       ))}
 
-      <p className="pt-2 text-[11px] font-medium text-ui-muted">Laufweite der Auszeichnung</p>
+      <p className="pt-2 text-[11px] font-medium text-ui-muted">
+        {MASSGRUPPE.laufweite.ueberschrift}
+      </p>
       <Zahlenfeld
         label="enger um"
         anker={massAnker('laufweite', 'Laufweite der Auszeichnung')}
@@ -403,7 +406,7 @@ export function MasseSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aendere
         Laufweite der Hierarchie stehen.
       </p>
 
-      <p className="pt-2 text-[11px] font-medium text-ui-muted">Strichstärken</p>
+      <p className="pt-2 text-[11px] font-medium text-ui-muted">{MASSGRUPPE.strich.ueberschrift}</p>
       {strichRollen.map((rolle) => (
         <div key={rolle}>
           <Zahlenfeld
@@ -418,7 +421,9 @@ export function MasseSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aendere
         </div>
       ))}
 
-      <p className="pt-2 text-[11px] font-medium text-ui-muted">Schattenversätze</p>
+      <p className="pt-2 text-[11px] font-medium text-ui-muted">
+        {MASSGRUPPE.schatten.ueberschrift}
+      </p>
       {schattenRollen.map((rolle) => (
         <div key={rolle}>
           <Zahlenfeld

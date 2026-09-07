@@ -31,6 +31,7 @@ import {
   type Ruecklauf,
   type Ruecklaufrang,
 } from './ruecklauf';
+import { MASSGRUPPE } from './pruefung';
 import type { CiEntwurf } from './entwurf';
 
 const RANGTEXT: Record<Ruecklaufrang, { titel: string; klasse: string }> = {
@@ -298,9 +299,18 @@ function Aenderungsliste({ aenderungen }: { aenderungen: Aenderung[] }) {
               {aenderungen
                 .filter((eintrag) => eintrag.feld === feld)
                 .map((eintrag) => (
-                  <tr key={`${feld}-${eintrag.name}`} className="align-top">
+                  <tr
+                    // Die Gruppe gehört in den Schlüssel *und* in die Zeile:
+                    // `sm` steht in der Größenleiter und bei den
+                    // Schattenversätzen, und ohne sie hießen zwei Zeilen gleich
+                    // und trügen denselben React-Schlüssel.
+                    key={`${feld}-${eintrag.gruppe ?? ''}-${eintrag.name}`}
+                    className="align-top"
+                  >
                     <td className="w-28 truncate py-0.5 pr-2 font-mono text-ui-muted">
-                      {eintrag.name}
+                      {eintrag.gruppe && eintrag.gruppe !== 'laufweite'
+                        ? `${MASSGRUPPE[eintrag.gruppe].eine} ${eintrag.name}`
+                        : eintrag.name}
                     </td>
                     <td className="w-24 truncate py-0.5 pr-1 font-mono text-ui-faint line-through">
                       {eintrag.war}

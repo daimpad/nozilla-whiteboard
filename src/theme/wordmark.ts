@@ -76,6 +76,11 @@ function fillOf(tag: string): string {
 }
 
 /**
+ * Die Rahmen, die nichts zeichnen: was darin steht, ist eine Vorlage.
+ */
+const STUMME_RAHMEN = ['defs', 'clipPath', 'mask', 'symbol', 'pattern', 'marker'] as const;
+
+/**
  * Die Pfade einer SVG-Datei mit ihrer Füllfarbe, in ihrer Reihenfolge.
  *
  * Die Füllfarbe wird **geerbt**, und das ist keine Gründlichkeit ohne Anlass.
@@ -95,16 +100,37 @@ export function readPaths(svg: string): Array<{ d: string; fill: string }> {
   const paths: Array<{ d: string; fill: string }> = [];
   /* Die Füllfarben der offenen Vorfahren, von außen nach innen. */
   const inherited: string[] = [];
+  /*
+     Wie tief wir gerade in einem Rahmen stehen, der **nichts zeichnet**.
 
-  for (const match of svg.matchAll(/<(\/?)(svg|g|path)\b([^>]*)>/g)) {
+     `<defs>`, `<clipPath>`, `<mask>`, `<symbol>`, `<pattern>` und `<marker>`
+     tragen Pfade, die niemand sieht — sie sind Vorlagen. Die vorige Fassung
+     sammelte sie mit ein, und der Fehler ist nicht theoretisch: Illustrator
+     schreibt für eine beschnittene Auswahl
+     `<defs><clipPath id="SVGID_1_"><path d="M0 0 H200 V48 H0 Z"/></clipPath></defs>`,
+     und wenn dieser Pfad eine Füllung trägt, kommt er in derselben Farbe wie
+     die Buchstaben zurück. Gemessen: aus einem Schriftzug wurde
+     `"M0 0 H200 V48 H0 Z M0 10 H150 V38 H0 Z"` — ein schwarzer Balken über der
+     ganzen viewBox, unter dem die Marke verschwindet. Trägt er keine Füllung,
+     ist es nur ein Fehlalarm der Prüfliste („ein Pfad ohne Füllfarbe"), und
+     auch der ist einer zu viel.
+  */
+  let stumm = 0;
+
+  for (const match of svg.matchAll(
+    new RegExp(`<(\\/?)(svg|g|path|${STUMME_RAHMEN.join('|')})\\b([^>]*)>`, 'g'),
+  )) {
     const [tag, closing, name, rest] = match;
+    const istStummerRahmen = (STUMME_RAHMEN as readonly string[]).includes(name);
 
     if (closing) {
       if (name !== 'path') inherited.pop();
+      if (istStummerRahmen) stumm -= 1;
       continue;
     }
 
     if (name === 'path') {
+      if (stumm > 0) continue;
       const d = /\sd=["']([^"']+)["']/.exec(tag)?.[1];
       if (!d) continue;
       const own = fillOf(tag);
@@ -114,10 +140,41 @@ export function readPaths(svg: string): Array<{ d: string; fill: string }> {
     }
 
     // Ein selbstschließendes `<g/>` macht keinen Rahmen auf.
-    if (!rest.trimEnd().endsWith('/')) inherited.push(fillOf(tag));
+    if (rest.trimEnd().endsWith('/')) continue;
+    inherited.push(fillOf(tag));
+    if (istStummerRahmen) stumm += 1;
   }
 
   return paths;
+}
+
+/**
+ * Zählt, was in der Datei steht und dieser Leser nicht mitnimmt.
+ *
+ * Zwei Angaben, und beide fallen sonst wortlos heraus: eine Transformation an
+ * einem `<g>` oder `<path>` (Inkscape schreibt sie an jede Ebene, Illustrator
+ * und Figma an jede gedrehte Gruppe) und jede Form, die kein `<path>` ist —
+ * ein `<circle>` als Punkt am Wortende ist die naheliegendste Schreibweise
+ * überhaupt.
+ *
+ * Gerechnet wird beides **nicht**. Eine Transformation anzuwenden hieße, die
+ * Matrixrechnung aus `path.ts` ein zweites Mal aufzustellen, und eine Ellipse
+ * in Kubiken zu wandeln, ein zweites `shapes.ts`. Beides wäre ein zweiter Weg
+ * für dieselbe Frage — genau das, was die erste Regel dieses Projekts
+ * verbietet. Gesagt gehört es trotzdem: `pruefeWortmarke()` liest diese Zahlen
+ * und macht daraus einen Befund.
+ */
+export function ungeleseneAngaben(svg: string): { transformationen: number; formen: number } {
+  const ohneStumme = svg.replace(
+    new RegExp(`<(${STUMME_RAHMEN.join('|')})\\b[\\s\\S]*?<\\/\\1>`, 'g'),
+    '',
+  );
+  return {
+    transformationen: (ohneStumme.match(/<(?:g|path)\b[^>]*\stransform=["']/g) ?? []).length,
+    formen: (
+      ohneStumme.match(/<(?:rect|circle|ellipse|line|polyline|polygon|use|text|image)\b/g) ?? []
+    ).length,
+  };
 }
 
 export function wordmarkFromSvg(
@@ -136,10 +193,25 @@ export function wordmarkFromSvg(
   const paths = readPaths(svg);
 
   const sameColour = (a: string, b: string) => a.toUpperCase() === b.toUpperCase();
+  /*
+     Beim Zusammenfassen fängt jeder Pfad nach dem ersten **absolut** an.
+
+     Ein `m` am Anfang eines eigenen `<path>` ist nach der SVG-Spezifikation
+     absolut („If a relative moveto (m) appears as the first element of the
+     path, then it is treated as a pair of absolute coordinates"). Hinter einem
+     anderen Teilpfad ist dasselbe `m` relativ zu dessen Endpunkt — die beiden
+     sind nicht dasselbe. Gemessen an zwei Pfaden `M0 0 h10` und `m50 50 h10`:
+     zusammengefügt beginnt der zweite bei (60, 50) statt bei (50, 50), also um
+     die Länge des ersten verschoben. Bei einem Schriftzug aus einem Pfad je
+     Buchstabe wandert damit jeder Buchstabe weiter als der davor.
+
+     Gehoben wird nur der **führende** Befehl: die impliziten Linien dahinter
+     sind auch im Original relativ zum neuen Punkt und bleiben es.
+  */
   const join = (colour: string) =>
     paths
       .filter((path) => sameColour(path.fill, colour))
-      .map((path) => path.d)
+      .map((path, index) => (index === 0 ? path.d : path.d.replace(/^m/, 'M')))
       .join(' ');
 
   const letters = join(colours.letters);

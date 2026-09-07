@@ -173,13 +173,26 @@ export function Farbfeld({
      und kein Wort dazu. Danach sieht es keine Prüfung mehr: `#111111` ist ein
      gültiger Wert.
   */
-  const [korrigiert, setKorrigiert] = useState<string | null>(null);
+  /*
+     Die Quittung gehört an den Wert, den sie erklärt — nicht an das Feld.
+
+     Gemerkt wird deshalb der korrigierte Wert mit: steht im Feld inzwischen
+     ein anderer, ist der Satz nicht mehr wahr und verschwindet. Vorher hing er
+     nur am Tippen im Textfeld, und der Farbwähler unmittelbar daneben schreibt
+     denselben Wert, ohne davon zu wissen. Gemessen an `rgba(17, 17, 17, 0.05)`:
+     Feld verlassen → „#111111" und der Satz „die Deckkraft fiel dabei weg";
+     dann den Wähler auf #123456 gestellt → Feld „#123456", und derselbe Satz
+     stand Zeichen für Zeichen weiter darunter, über einer Farbe, die nie
+     korrigiert wurde.
+  */
+  const [korrigiert, setKorrigiert] = useState<{ wie: string; fuer: string } | null>(null);
   const raeumeAuf = () => {
     const korrektur = normalisiereFarbe(wert);
     if (!korrektur || korrektur.wert === wert) return;
     auf(korrektur.wert);
-    setKorrigiert(korrektur.wie);
+    setKorrigiert({ wie: korrektur.wie, fuer: korrektur.wert });
   };
+  const quittung = korrigiert && korrigiert.fuer === wert ? korrigiert.wie : null;
 
   return (
     <div className="flex items-start gap-2">
@@ -200,7 +213,16 @@ export function Farbfeld({
       )}
       <div className="min-w-0 flex-1">
         <label htmlFor={id} className="block text-[11px] font-medium text-ui-muted">
-          {label} <span className="font-mono text-ui-faint">{rolle}</span>
+          {/*
+             Der Rollenname steht einmal da. Die Aufrufstelle im Schritt „Farbe"
+             gibt als `label` denselben Schlüssel mit, den auch `rolle` trägt —
+             gemessen hieß jedes der sechzehn Felder „signal signal", „ink ink",
+             und der ganze sichtbare Text eines Kastens lautete „ink inkrgb(…)".
+             Der zweite Platz bleibt für den Fall, dass eine Aufrufstelle einen
+             anderen, sprechenden Namen mitgibt.
+          */}
+          {label}
+          {label === rolle ? null : <span className="ml-1 font-mono text-ui-faint">{rolle}</span>}
         </label>
         <div className="mt-1 flex items-center gap-2">
           <input
@@ -222,8 +244,8 @@ export function Farbfeld({
           />
           <span className="truncate font-mono text-[11px] text-ui-faint">rgb({kanal})</span>
         </div>
-        {korrigiert ? (
-          <p className="mt-1 text-[11px] leading-snug text-ui-ink">Übernommen: {korrigiert}.</p>
+        {quittung ? (
+          <p className="mt-1 text-[11px] leading-snug text-ui-ink">Übernommen: {quittung}.</p>
         ) : null}
         {hinweis ? <p className="mt-1 text-[11px] leading-snug text-ui-faint">{hinweis}</p> : null}
       </div>

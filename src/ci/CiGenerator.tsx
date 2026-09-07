@@ -72,27 +72,44 @@ import { PROBEFOLIEN, Vorschau } from './Vorschau';
  * Antwort, nicht die Frage; das Modul lebt so lange wie die Seite, und öfter
  * als einmal je Seitenaufruf ist die Frage ohnehin nicht gemeint.
  */
-let ersteAntwort: CiEntwurf | null = null;
+let ersteAntwort: { entwurf: CiEntwurf; verworfen: string[] } | null = null;
 
-function ersterEntwurf(): CiEntwurf {
+function ersterEntwurf(): { entwurf: CiEntwurf; verworfen: string[] } {
   if (ersteAntwort) return ersteAntwort;
   const gemerkt = liesEntwurf();
   const fortsetzen =
     gemerkt !== null &&
-    traegtArbeit(gemerkt) &&
+    traegtArbeit(gemerkt.entwurf) &&
     window.confirm(
-      `Den Entwurf „${gemerkt.label.trim() || gemerkt.id.trim() || 'ohne Namen'}" von vorhin fortsetzen?`,
+      `Den Entwurf „${gemerkt.entwurf.label.trim() || gemerkt.entwurf.id.trim() || 'ohne Namen'}" von vorhin fortsetzen?`,
     );
   if (!fortsetzen) vergissEntwurf();
-  ersteAntwort = fortsetzen ? gemerkt : leererEntwurf();
+  /*
+     Und was beim Lesen nicht zu gebrauchen war, kommt mit. Der Dateiweg sagt
+     es seit je; der Sitzungsweg warf den Bericht weg und stellte die Rolle
+     stumm auf die Vorbelegung.
+  */
+  ersteAntwort =
+    fortsetzen && gemerkt
+      ? { entwurf: gemerkt.entwurf, verworfen: gemerkt.verworfen }
+      : { entwurf: leererEntwurf(), verworfen: [] };
   return ersteAntwort;
 }
 
+/** Der Satz zu einem Bericht — an zwei Stellen derselbe. */
+function verworfenSatz(woher: string, verworfen: readonly string[]): string | null {
+  if (!verworfen.length) return null;
+  const eins = verworfen.length === 1;
+  return `${woher} ${eins ? 'Ein Feld trug' : `${verworfen.length} Felder trugen`} etwas, das dieses Formular nicht lesen kann, und ${eins ? 'steht' : 'stehen'} jetzt auf der Vorbelegung: ${verworfen.join(', ')}.`;
+}
+
 export function CiGenerator() {
-  const [entwurf, setEntwurf] = useState<CiEntwurf>(ersterEntwurf);
+  const [entwurf, setEntwurf] = useState<CiEntwurf>(() => ersterEntwurf().entwurf);
   const [schritt, setSchritt] = useState(0);
   const [blatt, setBlatt] = useState(0);
-  const [hinweis, setHinweis] = useState<string | null>(null);
+  const [hinweis, setHinweis] = useState<string | null>(() =>
+    verworfenSatz('Der Entwurf von vorhin ist zurück.', ersterEntwurf().verworfen),
+  );
   /*
      Ein fortgesetzter Entwurf ist von der ersten Sekunde an angefasst.
 
@@ -373,11 +390,7 @@ export function CiGenerator() {
          landete sonst auf nozillas Wert — die Prüfliste kann davon nichts
          sagen, denn `#000000` ist eine gültige Farbe.
       */
-      setHinweis(
-        verworfen.length
-          ? `„${datei.name}" ist angekommen. ${verworfen.length === 1 ? 'Ein Feld trug' : `${verworfen.length} Felder trugen`} etwas, das dieses Formular nicht lesen kann, und ${verworfen.length === 1 ? 'steht' : 'stehen'} jetzt auf der Vorbelegung: ${verworfen.join(', ')}.`
-          : null,
-      );
+      setHinweis(verworfenSatz(`„${datei.name}" ist angekommen.`, verworfen));
       gehe(1);
     } catch (fehler) {
       setHinweis(`„${datei.name}" ist kein gesicherter Entwurf: ${String(fehler)}`);
@@ -418,12 +431,26 @@ export function CiGenerator() {
           >
             Entwurf sichern
           </Button>
-          <label className="cursor-pointer rounded-sm px-3 py-1.5 text-ui-body font-medium text-ui-muted hover:bg-ui-sunken hover:text-ui-ink">
+          {/*
+             `sr-only` und nicht `hidden`, und das ist der ganze Unterschied
+             zwischen einem Bedienelement und einem Bild davon.
+
+             `display: none` nimmt das Feld aus dem Baum: gemessen trug die
+             Kopfleiste drei erreichbare Knöpfe, und „Entwurf laden" war ein
+             nacktes `<label>` mit `tabindex=null` und `role=null` — der einzige
+             Weg der Leiste, den man ohne Maus nicht erreicht. Ein `sr-only`
+             bleibt gezeichnet, also fokussierbar, und das umschließende
+             `<label>` gibt ihm seinen Namen.
+
+             Die Fokusmarke gehört dann ans Label: das Feld selbst liegt einen
+             Pixel groß in der Ecke, und ein Rahmen darum wäre nicht zu sehen.
+          */}
+          <label className="cursor-pointer rounded-sm px-3 py-1.5 text-ui-body font-medium text-ui-muted hover:bg-ui-sunken hover:text-ui-ink focus-within:outline focus-within:outline-2 focus-within:outline-ui-accent">
             Entwurf laden
             <input
               type="file"
               accept=".json,application/json"
-              className="hidden"
+              className="sr-only"
               onChange={(event) => void ladeEntwurf(event.currentTarget)}
             />
           </label>

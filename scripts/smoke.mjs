@@ -293,11 +293,19 @@ function reiter(seite, titel) {
  *
  * Die Felder tragen `useId()`-Kennungen, also nichts Vorhersagbares. Gesucht
  * wird deshalb über die Beschriftung, die die Rolle beim Namen nennt.
+ *
+ * Verglichen wird **genau** und nicht mit `startsWith(`${name} `)`. Die alte
+ * Fassung brauchte das Leerzeichen dahinter — und damit ein zweites Wort, das
+ * es nur gab, weil jede Beschriftung ihre Rolle doppelt nannte („signal
+ * signal"). Ein Sucher, der sich auf einen Fehler stützt, wird rot, sobald ihn
+ * jemand behebt; und genau umgekehrt wäre es richtig. Genau zu vergleichen ist
+ * hier obendrein nötig: `signal` ist der Anfang von `signalStrong`,
+ * `signalSoft` und `signalDeep`.
  */
 async function farbfeldId(seite, rolle) {
   return seite.evaluate((name) => {
-    const label = [...document.querySelectorAll('label')].find((element) =>
-      element.textContent?.trim().startsWith(`${name} `),
+    const label = [...document.querySelectorAll('label')].find(
+      (element) => element.textContent?.trim() === name,
     );
     if (!label) throw new Error(`kein Feld für die Rolle ${name}`);
     return label.htmlFor;
