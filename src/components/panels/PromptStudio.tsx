@@ -20,10 +20,15 @@ import {
 import { ohneCodezaun } from '@/lib/prompt/zaun';
 import { parseDeck } from '@/lib/markdown/deck';
 import { useDeckStore } from '@/state/deckStore';
+import { useFokusZurueck } from '@/hooks/useFokusZurueck';
 import { darfErsetzen, grund } from '@/state/persistence';
 import { Button, Field, IconButton, Select, cx } from '@/components/ui/controls';
 
 export function PromptStudio() {
+  // Zweiter Kunde von `useFokusZurueck()`: auch hier landete der Fokus nach
+  // dem Schließen auf `<body>`. Wer eine Rechnung um einen Kunden erweitert,
+  // zählt ihre Aufrufer, statt den einen zu reparieren, der gerade wehtut.
+  useFokusZurueck();
   const close = useDeckStore((state) => state.togglePrompt);
   const loadMarkdown = useDeckStore((state) => state.loadMarkdown);
   const zeigeHinweis = useDeckStore((state) => state.zeigeHinweis);

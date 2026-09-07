@@ -189,3 +189,77 @@ describe('die Beschriftung eines Verbinders', () => {
     expect(elementTexts(createElement('connector', {}))).toEqual([]);
   });
 });
+
+/* -------------------------------------------------------------------------- */
+
+describe('die drei Kunden von fundstellen()', () => {
+  /*
+     `searchDeck()` zeigt die Liste, `zaehleFunde()` beschriftet den Knopf,
+     `ersetzeImDeck()` tut es — alle drei fragen dieselbe Rechnung, und einer
+     stellte die Frage anders: `searchDeck()` faltete sie vorher klein.
+
+     `fundstellen()` faltet selbst, aber nur, solange das Falten die Länge
+     nicht ändert; sonst vergleicht es genau. Eine vorgefaltete Frage traf in
+     diesem zweiten Zweig auf den Originaltext — und fand nichts.
+  */
+  const MIT_I = 'Ein Wort mit İ und Straße';
+
+  it('ist genau ein Zeichen im BMP, an dem das hängt', () => {
+    /*
+       Die Behauptung des Kommentars, gemessen statt geglaubt: U+0130 İ ist
+       das einzige Zeichen unter 0x10000, das beim Kleinschreiben länger wird.
+       Der Fall ist damit schmal — und keiner, den man sich ausdenkt: er
+       braucht kein türkisches Suchwort, sondern nur ein türkisches Wort
+       irgendwo im *Text*.
+    */
+    const waechst: string[] = [];
+    for (let cp = 0; cp <= 0xffff; cp += 1) {
+      const zeichen = String.fromCodePoint(cp);
+      if (zeichen.toLocaleLowerCase('de-DE').length !== zeichen.length) waechst.push(zeichen);
+    }
+    expect(waechst).toEqual(['İ']);
+  });
+
+  it('gibt auf dieselbe Frage dieselbe Antwort', () => {
+    const deck = parseDeck(`# ${MIT_I}\n`);
+    // Die Liste zählt Felder, der Zähler Vorkommen — gleich sind sie nur
+    // darin, *ob* etwas da ist. Genau das ist die Frage, an der die Leiste
+    // hängt: sie sperrt den Knopf und schreibt „Nichts gefunden.".
+    expect(searchDeck(deck, 'Straße').length > 0).toBe(zaehleFunde(deck, 'Straße') > 0);
+    expect(zaehleFunde(deck, 'Straße')).toBe(1);
+    expect(searchDeck(deck, 'Straße')).toHaveLength(1);
+  });
+
+  it('findet auch das Wort, das das Zeichen selbst trägt', () => {
+    const deck = parseDeck('# İstanbul im Text\n');
+    expect(zaehleFunde(deck, 'İstanbul')).toBe(1);
+    expect(searchDeck(deck, 'İstanbul')).toHaveLength(1);
+  });
+
+  it('bleibt dabei blind für Groß und Klein, wo das Falten trägt', () => {
+    const deck = parseDeck('# ÄPFEL und Äpfel\n');
+    expect(searchDeck(deck, 'äpfel')).toHaveLength(1);
+    expect(zaehleFunde(deck, 'äpfel')).toBe(2);
+    expect(ersetzeAlle('ÄPFEL und Äpfel', 'äpfel', 'Birnen').anzahl).toBe(2);
+  });
+
+  it('hält die Zusage über das ganze Prüfdeck', () => {
+    /*
+       Die Regel und nicht der Einzelfall: für jedes Wort, das im Prüfdeck
+       vorkommt, müssen Liste und Zähler sich einig sein, ob es etwas gibt.
+       Ein Einzelfall bewacht den Fall, den jemand aufgeschrieben hat.
+    */
+    const woerter = new Set(
+      DECK.slides
+        .flatMap((slide) => [slide.markdown, slide.meta.notes ?? ''])
+        .join(' ')
+        .split(/[^\p{L}\p{N}]+/u)
+        .filter((wort) => wort.length >= 2),
+    );
+    expect(woerter.size).toBeGreaterThan(10);
+    const uneinig = [...woerter].filter(
+      (wort) => searchDeck(DECK, wort).length > 0 !== zaehleFunde(DECK, wort) > 0,
+    );
+    expect(uneinig).toEqual([]);
+  });
+});

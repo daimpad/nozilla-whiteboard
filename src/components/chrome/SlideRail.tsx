@@ -69,6 +69,21 @@ export function SlideRail() {
             }}
             onClick={() => goTo(index)}
             title={`${index + 1}. ${slideTitle(slide, index)}`}
+            /*
+               Die Ansage muss gesetzt werden, sonst rechnet der Browser sie
+               aus dem Inhalt — und der Inhalt ist eine gezeichnete Folie.
+               Gemessen im Barrierebaum: jede Kachel hieß „nozilla Whiteboard
+               1", „nozilla Whiteboard 2" … Das ist der Alternativtext der
+               Wortmarke aus der Fußzeile plus die Nummer; welche Folie das
+               ist, stand nur im `title`, und den liest eine Hilfstechnik
+               nicht, sobald der Inhalt einen Namen hergibt.
+
+               Die Übersicht (⌘K) zeichnet dieselben Folien und hatte das
+               Problem nicht: dort steht der Titel als *sichtbarer* Text im
+               Knopf. Zwei Ansichten desselben Decks, eine benennt es und eine
+               nicht — und vor Augen steht der Unterschied nie.
+            */
+            aria-label={`Folie ${index + 1}: ${slideTitle(slide, index)}`}
             aria-current={index === slideIndex}
             className={cx(
               'group relative shrink-0 overflow-hidden rounded-sm border bg-ui-surface transition-all',
