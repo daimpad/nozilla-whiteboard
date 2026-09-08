@@ -23,7 +23,8 @@
  *
  * `hinweis` ist das, was der Nächste wissen muss und nicht raten soll.
  */
-import { nozillaTheme, readPaths, readViewBox } from '@/theme';
+import { nozillaTheme, readPaths, readViewBox, ungeleseneAngaben } from '@/theme';
+import { zaehle } from '@/lib/labels';
 import { parsePath } from '@/lib/geometry/path';
 import { AA, AA_GROSS, kanaele, kontrast, unterscheidbar } from '@/lib/contrast';
 import {
@@ -81,6 +82,27 @@ export function ankerFuer(feld: Feld, rolle: string): string {
 
 /** Die Leitern, die der Schritt „Maße" untereinander führt. */
 export const massgruppen = ['leiter', 'sonder', 'laufweite', 'strich', 'schatten'] as const;
+
+/**
+ * Wie eine Maßgruppe heißt — einzeln und als Überschrift.
+ *
+ * Zwei Kunden, und deshalb steht der Name hier und nicht zweimal: der Schritt
+ * „Maße" schreibt die Überschrift über seine Felder, und die Änderungsliste
+ * des Rücklaufs stellt den Einzelnamen vor die Rolle. Standen sie getrennt,
+ * hieß dieselbe Gruppe an der einen Stelle „Schattenversätze" und an der
+ * anderen „Schattenversatz" — und ein Wegweiser, der die Stelle anders nennt
+ * als das Formular, ist einer, den man zweimal lesen muss.
+ *
+ * Ein `Record` über die Union, damit eine sechste Gruppe hier anschlägt und
+ * nicht stumm ohne Namen dasteht.
+ */
+export const MASSGRUPPE: Record<Massgruppe, { eine: string; ueberschrift: string }> = {
+  leiter: { eine: 'Größenleiter', ueberschrift: 'Größenleiter' },
+  sonder: { eine: 'Stufe', ueberschrift: 'Stufen außerhalb der Leiter' },
+  laufweite: { eine: 'Laufweite', ueberschrift: 'Laufweite der Auszeichnung' },
+  strich: { eine: 'Strichstärke', ueberschrift: 'Strichstärken' },
+  schatten: { eine: 'Schattenversatz', ueberschrift: 'Schattenversätze' },
+};
 export type Massgruppe = (typeof massgruppen)[number];
 
 /**
@@ -702,6 +724,39 @@ function pruefeWortmarke(entwurf: CiEntwurf): Befund[] {
       rang: 'fehler',
       feld,
       text: `Die viewBox hat die Größe ${box[2]} × ${box[3]}. Daraus lässt sich nichts zeichnen — die Marke fiele aus jeder Ausgabe heraus, ohne dass etwas anschlägt.`,
+    });
+  }
+
+  /*
+     Was in der Datei steht und dieser Leser nicht mitnimmt, wird **genannt**.
+
+     Zwei Angaben fielen sonst wortlos heraus. Eine Transformation an einem
+     `<g>` oder `<path>` — Inkscape schreibt sie an jede Ebene — wird nicht
+     angewandt: gemessen wurde aus `<g transform="translate(0,-1004.36)">` ein
+     Schriftzug bei y 1014…1042 in einer 48 Einheiten hohen viewBox, also 966
+     Einheiten unter der Unterkante seines eigenen Kastens und außerhalb jeder
+     Folie. Und jede Form, die kein `<path>` ist, sieht der Leser gar nicht:
+     ein `<circle>` als Punkt am Wortende — die naheliegendste Schreibweise
+     überhaupt — fällt aus jeder Ausgabe, und die Prüfliste sagte dazu
+     „erlaubt: nicht jede Marke hat einen Punkt am Wortende".
+
+     Gerechnet wird beides nicht (der Grund steht im Kopf von
+     `ungeleseneAngaben`). Der Rang ist trotzdem „fehler": eine Marke, die zur
+     Hälfte fehlt oder neben ihrem Kasten steht, ist keine.
+  */
+  const ungelesen = ungeleseneAngaben(marke.svg);
+  if (ungelesen.transformationen > 0) {
+    befunde.push({
+      rang: 'fehler',
+      feld,
+      text: `Die Datei trägt ${zaehle(ungelesen.transformationen, 'Transformation', 'Transformationen')} (transform=…). Dieser Leser wendet sie nicht an — die Pfade landen dort, wo ihre Zahlen stehen, und das ist bei einer Inkscape-Ebene weit außerhalb der viewBox. Exportiere die Datei mit eingerechneten Transformationen (Inkscape: „Transformationen speichern: optimiert“; Illustrator und Figma: Gruppe vorher auflösen).`,
+    });
+  }
+  if (ungelesen.formen > 0) {
+    befunde.push({
+      rang: 'fehler',
+      feld,
+      text: `Die Datei enthält ${zaehle(ungelesen.formen, 'Form', 'Formen')}, die kein <path> ist — Rechteck, Kreis, Ellipse, Linie, Polygon oder ein Verweis. Gelesen werden nur Pfade; diese Formen fallen aus jeder Ausgabe heraus. Wandle sie vor dem Export in Pfade um (Inkscape und Illustrator: „In Pfad umwandeln“).`,
     });
   }
 

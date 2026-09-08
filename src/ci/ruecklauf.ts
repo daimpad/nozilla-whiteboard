@@ -46,7 +46,7 @@ import {
 } from './entwurf';
 import { ohneCodezaun } from '@/lib/prompt/zaun';
 import { normalisiereFarbe } from './farbwert';
-import type { Feld } from './pruefung';
+import type { Feld, Massgruppe } from './pruefung';
 
 export type Ruecklaufrang = 'fehler' | 'korrigiert' | 'uebergangen' | 'fehlt' | 'gelesen';
 
@@ -78,8 +78,20 @@ export interface Ruecklauf {
 /** Ein einzelner Wert, der sich ändern würde. */
 export interface Aenderung {
   feld: Feld;
-  /** Der Name der Rolle, wie er im Formular steht. */
+  /**
+   * Der Name der Rolle, wie er im Formular steht.
+   *
+   * Unter „Maße" ist er **nicht eindeutig**: `sm` und `lg` stehen sowohl in der
+   * Größenleiter als auch bei den Schattenversätzen. Gemessen an zwei
+   * Entwürfen, die alle vier ändern, kamen vier Zeilen mit den Namen
+   * `["sm", "lg", "sm", "lg"]` heraus — zweimal derselbe React-Schlüssel, und
+   * für den Leser zweimal derselbe Wegweiser auf zwei verschiedene Felder.
+   * Genau diese Mehrdeutigkeit hat `massAnker()` in `pruefung.ts` schon einmal
+   * gekostet; sie galt nur dort nicht.
+   */
   name: string;
+  /** Die Maßgruppe, wo der Name allein zu wenig ist. */
+  gruppe?: Massgruppe;
   war: string;
   wird: string;
 }
@@ -813,7 +825,7 @@ export function unterschiede(alt: CiEntwurf, neu: CiEntwurf): Aenderung[] {
   const zeig = (wert: unknown): string =>
     typeof wert === 'string' ? wert || '(leer)' : String(wert);
 
-  const einzeln = (feld: Feld, name: string, a: unknown, b: unknown) => {
+  const einzeln = (feld: Feld, name: string, a: unknown, b: unknown, gruppe?: Massgruppe) => {
     /*
        `Object.is` und nicht `===`, wegen genau eines Wertes: NaN. Ein leeres
        Zahlenfeld schreibt ihn in den Entwurf (die Prüfliste meldet das zu
@@ -827,7 +839,7 @@ export function unterschiede(alt: CiEntwurf, neu: CiEntwurf): Aenderung[] {
        „Rückgängig".
     */
     if (Object.is(a, b)) return;
-    aus.push({ feld, name, war: zeig(a), wird: zeig(b) });
+    aus.push({ feld, name, gruppe, war: zeig(a), wird: zeig(b) });
   };
 
   for (const name of ['id', 'label', 'markenname', 'produkt'] as const) {
@@ -837,18 +849,18 @@ export function unterschiede(alt: CiEntwurf, neu: CiEntwurf): Aenderung[] {
     einzeln('Farbe', rolle, alt.palette[rolle], neu.palette[rolle]);
   }
   for (const stufe of textStufen) {
-    einzeln('Maße', stufe, alt.textScale[stufe], neu.textScale[stufe]);
+    einzeln('Maße', stufe, alt.textScale[stufe], neu.textScale[stufe], 'leiter');
   }
   for (const stufe of sonderstufen) {
-    einzeln('Maße', stufe, alt.sonderstufen[stufe], neu.sonderstufen[stufe]);
+    einzeln('Maße', stufe, alt.sonderstufen[stufe], neu.sonderstufen[stufe], 'sonder');
   }
   for (const rolle of strichRollen) {
-    einzeln('Maße', rolle, alt.stroke[rolle], neu.stroke[rolle]);
+    einzeln('Maße', rolle, alt.stroke[rolle], neu.stroke[rolle], 'strich');
   }
   for (const rolle of schattenRollen) {
-    einzeln('Maße', rolle, alt.shadowOffset[rolle], neu.shadowOffset[rolle]);
+    einzeln('Maße', rolle, alt.shadowOffset[rolle], neu.shadowOffset[rolle], 'schatten');
   }
-  einzeln('Maße', 'auszeichnungEnger', alt.auszeichnungEnger, neu.auszeichnungEnger);
+  einzeln('Maße', 'auszeichnungEnger', alt.auszeichnungEnger, neu.auszeichnungEnger, 'laufweite');
   for (const rolle of schriftRollen) {
     einzeln('Schrift', rolle, alt.fontFamily[rolle], neu.fontFamily[rolle]);
     einzeln('Schrift', `${rolle} (PDF)`, alt.pdfFontFamily[rolle], neu.pdfFontFamily[rolle]);

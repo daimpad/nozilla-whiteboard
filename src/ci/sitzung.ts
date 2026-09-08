@@ -104,7 +104,7 @@ export function vergissEntwurf(): void {
  * Kennung machen die Liste unbedienbar, und das ist genau der Fehler, wegen
  * dessen es sie gibt.
  */
-export function liesEntwurf(): CiEntwurf | null {
+export function liesEntwurf(): Zusammengelegt | null {
   const speicher = ablage();
   if (!speicher) return null;
 
@@ -119,7 +119,19 @@ export function liesEntwurf(): CiEntwurf | null {
   try {
     const gelesen = JSON.parse(roh) as Partial<CiEntwurf>;
     if (!gelesen || typeof gelesen !== 'object' || Array.isArray(gelesen)) return null;
-    return zusammen(gelesen).entwurf;
+    /*
+       Der ganze Bericht und nicht nur der Entwurf.
+
+       Hier stand `zusammen(gelesen).entwurf` — und damit fiel für den
+       Sitzungsweg genau die Auskunft heraus, die der Dateiweg zwanzig Zeilen
+       weiter anzeigt. Gemessen an einer gemerkten Sitzung mit `palette.ink: 42`
+       und `markenname: 7`: `zusammen()` meldet `verworfen: ['markenname',
+       'palette.ink']`, der Benutzer bekam davon kein Wort, und die Tinte stand
+       auf nozillas Schwarz — ein gültiger Wert, über den die Prüfliste nichts
+       sagen kann. Der zweite Kunde derselben Rechnung, beim Reparieren
+       übersehen.
+    */
+    return zusammen(gelesen);
   } catch {
     return null;
   }
