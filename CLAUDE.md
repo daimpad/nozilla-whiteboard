@@ -4246,6 +4246,32 @@ angeht. Der Compiler hilft dabei mehr als erwartet: `zusammen()` zählt jedes
 Feld einzeln auf, ein neues bricht `tsc` ab — die Gegenprobe dazu musste
 deshalb drei Stellen anfassen, um überhaupt zu bauen.
 
+**Und der Prompt wurde an der Vorlage durchgespielt, die ihn ausgelöst hat.**
+Nicht als Modelltest — wer die Datei schon von Hand vermessen hat, liest beim
+Beantworten seine eigenen Ergebnisse ab und nicht die Datei. Geprüft wurde das
+andere: ob die sechs Anweisungen, **wörtlich befolgt**, zu den richtigen
+Werten führen. Zwei taten es nicht.
+
+*Zählen rankt das Logo über die Marke.* Nach Abzug der Vorgabestile sind die
+beiden häufigsten Farben `#FFFFFF` (48×) und `#D5D6D6` (14×) — beides
+Innereien des Schriftzugs; die Signalfarbe steht mit sechs Nennungen auf Platz
+sechs. „Zähle, was benutzt wird" führt also genau daneben, und der Punkt fragt
+jetzt nach der *Aufgabe* einer Farbe: die Fläche über die ganze Folie ist das
+Papier, die Farbe eines Textlaufs Tinte oder Signal, und was innerhalb der
+Logo-Gruppe steht, gehört dem Logo.
+
+*Und `<a:gradFill>` kommt in der ganzen Datei kein einziges Mal vor.* Der
+Verlauf ist ein PNG, und zwei der drei Markenorange liegen allein in dessen
+Pixeln. Ein Punkt, der „findest du einen Verlauf" sagt, schickt niemanden
+dorthin, wo er liegt; er nennt jetzt `ppt/media/`.
+
+Die Strecke selbst lief durch: gelesen, berichtet, geprüft, Designdatei
+geschrieben. Und der Bericht nannte die zehn ausgelassenen Palettenrollen beim
+Namen, statt sie stillschweigend auf nozilla stehen zu lassen — auf der
+Probefolie ist genau das zu sehen, `signalSoft` steht dort als nozillas
+Minzgrün auf TZ Glehns Orange. Das ist die richtige Auskunft an der richtigen
+Stelle: die Politik stimmt, und das Schweigen fehlt nicht.
+
 **Und `git checkout --` ist kein Weg, eine Sabotage zurückzunehmen.** Der
 Prüfstand dieser Runde sicherte vor jeder Gegenprobe nichts und stellte danach
 mit einem Checkout wieder her — gegen `HEAD`, und dort lag der Stand *vor* der
