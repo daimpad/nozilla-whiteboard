@@ -26,6 +26,7 @@ import {
   palette,
   strokeWidth as strokeWidthOf,
   typeScale,
+  PUNKT_JE_EINHEIT,
 } from '@/theme';
 import { flowFrame, flowOffsetY, footerFrame } from '@/lib/layout/slideLayout';
 import { segsBounds, type Seg } from '@/lib/geometry/path';
@@ -88,7 +89,7 @@ export function slideCy(): number {
 
 const emu = (units: number) => Math.round(units * EMU);
 /** Schriftgrößen stehen in Hundertstel Punkt; eine Einheit ist ¾ Punkt. */
-const pt100 = (units: number) => Math.round(units * 0.75 * 100);
+const pt100 = (units: number) => Math.round(units * PUNKT_JE_EINHEIT * 100);
 
 export interface PptxOptions {
   title?: string;

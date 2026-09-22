@@ -25,7 +25,7 @@
  * eine Lücke, die keine ist. Genau diese Fehlerklasse steht im Kopf von
  * `entwurf.ts` als Grund dafür, dass die Feldliste gelesen wird.
  */
-import { nozillaTheme } from '@/theme';
+import { nozillaTheme, PUNKT_JE_EINHEIT } from '@/theme';
 import { SCHLUESSELREGEL } from './emitter';
 import {
   paletteRollen,
@@ -209,6 +209,83 @@ function block(schluessel: PromptSchluessel): string[] {
   }
 }
 
+/** Woraus das Modell das Erscheinungsbild ablesen soll. */
+export const promptquellen = ['richtlinien', 'artefakt'] as const;
+export type Promptquelle = (typeof promptquellen)[number];
+
+/** `0.75` → „0,75". Der Prompt ist deutscher Text, also mit Komma. */
+const komma = (zahl: number) => String(zahl).replace('.', ',');
+
+/**
+ * Woher die Werte kommen — der eine Abschnitt, der von der Quelle abhängt.
+ *
+ * Er stand hier als *ein* Text, und der sagte „Nimm die Markenrichtlinien, die
+ * ich dir gebe". Bei einer angehängten Präsentation ist dieser Satz nicht
+ * unvollständig, sondern falsch: aus einer `.pptx` liest man nicht ab, was in
+ * ihr *steht*, sondern was in ihr *benutzt wird* — und die beiden gehen weit
+ * auseinander. Deshalb ein Abschnitt mit zwei Füllungen und kein zweiter
+ * Prompt daneben: es gibt einen Auftrag, und er ist in sich stimmig.
+ *
+ * Der `switch` ist erschöpfend über die Union. Käme eine dritte Quelle dazu
+ * und fehlte hier ihr Zweig, bräche `tsc` ab — ein `default` hätte
+ * stattdessen einen Prompt ergeben, der gar nicht sagt, woher die Werte
+ * kommen sollen.
+ */
+function woherDieWerte(quelle: Promptquelle): string {
+  switch (quelle) {
+    case 'richtlinien':
+      return [
+        '## Woher die Werte kommen',
+        '',
+        'Nimm die Markenrichtlinien, die ich dir gebe. Wo sie schweigen, leite ab —',
+        'und schreibe an *keiner* Stelle „TODO" oder einen Platzhalter: ein Feld,',
+        'das du nicht belegen kannst, lässt du weg. Der Generator behält dafür',
+        'seinen bisherigen Wert und sagt es.',
+        '',
+      ].join('\n');
+    case 'artefakt':
+      /*
+         Die sechs Punkte sind keine Vorsichtsmaßnahmen, sondern sechs Fehler,
+         die beim Auslesen einer echten Vorlage nacheinander aufgetreten sind.
+         Der erste ist der teuerste: er liefert ein Ergebnis, das vollständig
+         und plausibel aussieht und mit der Marke nichts zu tun hat.
+      */
+      return [
+        '## Woher die Werte kommen',
+        '',
+        'Ich hänge dir ein Gestaltungsartefakt an — eine Präsentation, ein PDF, ein',
+        'paar Screenshots. Lies das Erscheinungsbild **daraus ab**. Sechs Dinge, an',
+        'denen das erfahrungsgemäß schiefgeht:',
+        '',
+        '1. **Die offiziellen Stellen sind oft leer.** In einer `.pptx` stehen Farb-',
+        '   und Schriftschema in `ppt/theme/theme1.xml` und die Textstile im',
+        '   Folienmaster; bei einem Export aus Google Slides oder Canva sind das',
+        '   unveränderte Standardwerte — Arial und das Office-Blau `#4F81BD`. Nimm',
+        '   sie nur, wenn sie davon abweichen. Sonst lieferst du Microsoft statt',
+        '   der Marke, und es sieht vollständig aus.',
+        '2. **Zähle, was wirklich benutzt wird.** Die Gestaltung steht in den',
+        '   Füllfarben der Formen, den Farben der Textläufe und den tatsächlich',
+        '   gesetzten Größen. Eine Farbe, die einmal in einem Dekobild vorkommt,',
+        '   ist etwas anderes als eine, die an elf Stellen Text einfärbt.',
+        '3. **Trenne Vorgabe von Verwendung.** Eine Größe, die in den Vorgabestilen',
+        '   des Masters steht, aber an keinem einzigen echten Textlauf, ist keine',
+        '   Größe der Marke.',
+        '4. **Größen sind Folien-Einheiten, nicht Punkt.** Eine Einheit ist',
+        `   ${komma(PUNKT_JE_EINHEIT)} Punkt: teile jede Punktangabe durch`,
+        `   ${komma(PUNKT_JE_EINHEIT)}. Aus 60 pt werden ${60 / PUNKT_JE_EINHEIT}, aus 18 pt`,
+        `   werden ${18 / PUNKT_JE_EINHEIT}. Wer das vergisst, liefert eine Leiter, die ein`,
+        '   Drittel zu klein ist — und nichts daran sieht falsch aus.',
+        '5. **Ein Verlauf ist zwei Farben.** Findest du einen, nimm seine Enden für',
+        '   `signal` und `signalStrong`. Eine Fläche ist hier immer Vollton.',
+        '6. **Was keine Quelle hat, lässt du weg.** Rate keine Rolle voll, damit das',
+        '   Objekt vollständig aussieht, und schreibe an *keiner* Stelle „TODO"',
+        '   oder einen Platzhalter. Ein weggelassenes Feld behält seinen bisherigen',
+        '   Wert, und der Generator sagt „kam nicht" — ein geratenes sagt niemand.',
+        '',
+      ].join('\n');
+  }
+}
+
 /**
  * Der Prompt.
  *
@@ -216,8 +293,13 @@ function block(schluessel: PromptSchluessel): string[] {
  * den Schlüssel und den Markennamen bereits eingetragen hat, will sie nicht
  * erfunden bekommen. Ist noch nichts ausgefüllt, fällt der Abschnitt weg —
  * ein Prompt, der „Schlüssel: (leer)" sagt, lädt zum Raten ein.
+ *
+ * `quelle` belegt nur den Abschnitt „Woher die Werte kommen". Die Form, die
+ * acht Regeln und das, was nicht geliefert wird, bleiben Zeichen für Zeichen
+ * gleich — sonst bekäme dasselbe Werkzeug je nach Herkunft zwei verschiedene
+ * Verträge, und der Rücklauf-Leser kennt nur einen.
  */
-export function promptText(entwurf: CiEntwurf): string {
+export function promptText(entwurf: CiEntwurf, quelle: Promptquelle = 'richtlinien'): string {
   const bekannt = [
     entwurf.id && `- Schlüssel (id): ${entwurf.id}`,
     entwurf.label && `- Name in der Auswahl: ${entwurf.label}`,
@@ -238,15 +320,7 @@ export function promptText(entwurf: CiEntwurf): string {
        ausgerechnet der Satz, der ihm sagt, woher es die Werte nehmen soll, samt
        dem Verbot, Platzhalter zu erfinden.
     */
-    [
-      '## Woher die Werte kommen',
-      '',
-      'Nimm die Markenrichtlinien, die ich dir gebe. Wo sie schweigen, leite ab —',
-      'und schreibe an *keiner* Stelle „TODO" oder einen Platzhalter: ein Feld,',
-      'das du nicht belegen kannst, lässt du weg. Der Generator behält dafür',
-      'seinen bisherigen Wert und sagt es.',
-      '',
-    ].join('\n'),
+    woherDieWerte(quelle),
     bekannt.length
       ? [
           '## Das steht schon fest',

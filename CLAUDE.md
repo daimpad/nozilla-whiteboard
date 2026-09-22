@@ -126,6 +126,7 @@ src/
   theme/      brandTheme.ts   Was ein Erscheinungsbild ausmacht — und was nicht
               runtime.ts      Welches gerade gilt (lebendige Bindungen)
               folienformat.ts Auf welchem Blatt dieses Deck liegt (ebenso)
+                              — und was eine Folien-Einheit in Punkt misst
               surface.ts      Hell oder dunkel — die Erscheinung des Werkzeugs
               fonts.ts        Die Schnitte anfordern und den Zähler hochzählen
                               (`cssZeichenkette` — ein Name ist keine CSS-Syntax)
@@ -142,7 +143,8 @@ src/
               texte.ts        Wofür jede Rolle da ist — Formular *und* Prompt
               schritte.tsx    Die acht Schritte und ihre Felder
               felder.tsx      Die Feldarten, aus denen ein Schritt besteht
-              prompt.ts       Das Lastenheft für ein Sprachmodell
+              prompt.ts       Das Lastenheft für ein Sprachmodell — für
+                              Richtlinien oder ein angehängtes Artefakt
               ruecklauf.ts    Dessen Antwort lesen und jede Korrektur nennen
               sitzung.ts      Der Entwurf über ein ⌘R hinweg (eigener Griff)
               farbwert.ts     rgb(), Kurzform, fehlende Raute → #RRGGBB
@@ -4194,6 +4196,70 @@ zweite Wort**. Ein Sucher, der sich auf einen Fehler stützt, wird rot, sobald
 ihn jemand behebt; und genau umgekehrt wäre es richtig. Verglichen wird jetzt
 genau, was hier ohnehin nötig ist: `signal` ist der Anfang von `signalStrong`,
 `signalSoft` und `signalDeep`.
+
+**Der Prompt hatte einen Adressaten, und der stand nirgends.** Er beginnt mit
+„Nimm die Markenrichtlinien, die ich dir gebe" — gedacht für eine Quelle, die
+ihre Werte *benennt*. Der naheliegende Handgriff ist aber ein anderer: man
+hängt dem Modell die Präsentation an, die man hat. Eine Präsentation benennt
+nichts, sie benutzt, und die beiden gehen weit auseinander.
+
+Gemessen an einer echten Vorlage — einem Google-Slides-Export, wie ihn eine
+Agentur liefert: `ppt/theme/theme1.xml` trug `clrScheme name="Office"` samt
+`#4F81BD`, das Schriftschema Arial, und die Vorgabestile des Folienmasters
+Arial 14 pt auf allen neun Ebenen. **Dreimal die offizielle Stelle, dreimal
+leer.** Die Marke stand auf den Folien: ein Orange an elf Stellen, ein zweites
+nur in den Pixeln eines Dekobildes, Inter in 296 Nennungen gegen 137 Arial,
+die sämtlich in den Standardteilen standen. Ein Modell, das brav „das Theme"
+abliest, liefert daraus ein vollständiges, plausibles und vollständig fremdes
+Erscheinungsbild — und meldet dabei Erfolg.
+
+Der Prompt hat deshalb **einen Abschnitt mit zwei Füllungen** und keinen
+zweiten Prompt daneben. „Woher die Werte kommen" gab es schon; er war nur für
+eine Quelle geschrieben. Zwei Verträge für einen Leser wären genau der zweite
+Weg, den die erste Regel dieses Projekts verbietet — und die Zusicherung, die
+das hält, vergleicht beide Prompts **abschnittsweise**: alles außer diesem
+einen muss Zeichen für Zeichen gleich bleiben.
+
+Fünf der sechs Punkte sind Fehler, die beim Auslesen jener Vorlage wirklich
+passiert sind. Der sechste ist der, den der alte Text schon trug und der beim
+Aufteilen zu verlieren gewesen wäre: **an keiner Stelle „TODO"**. Er steht
+jetzt in beiden Zweigen, und eine Prüfung geht dafür `promptquellen` durch
+statt zwei Zeilen zu tippen.
+
+**Und die Umrechnung stand an drei Stellen.** Eine Folien-Einheit ist ¾ Punkt
+— als `PDF_SCALE`, als nackte `0.75` im PPTX-Weg und ab jetzt auch als Satz im
+Prompt, der einem Modell erklärt, dass 60 pt achtzig Einheiten sind. Die
+dritte hätte die beiden ersten nicht bemerkt: ein Prompt, der ein Drittel zu
+kleine Größen verlangt, liefert eine Leiter, an der nichts falsch aussieht.
+`PUNKT_JE_EINHEIT` steht deshalb neben `DIN_HOCH`, dessen Kommentar genau das
+seit zwei Runden ankündigt. Nicht in `canvas`: das ist eine lebendige Bindung
+und wechselt mit dem Blatt, diese Zahl nie.
+
+Geprüft wird sie am **Ergebnis** und nicht am Vergleich zweier Konstanten: im
+Prompt müssen die gerechneten Beispiele stehen. Eine Zusicherung `PDF_SCALE
+=== PUNKT_JE_EINHEIT` allein wäre auch für zwei zufällig gleiche Zahlen grün.
+
+**Und die Wahl gehört dem Handgriff, nicht dem Entwurf.** Sie beschreibt, was
+gerade neben dem Rechner liegt. Stünde sie in `CiEntwurf`, ginge sie in die
+`.nzci.json` und käme morgen mit einer Auskunft zurück, die niemanden mehr
+angeht. Der Compiler hilft dabei mehr als erwartet: `zusammen()` zählt jedes
+Feld einzeln auf, ein neues bricht `tsc` ab — die Gegenprobe dazu musste
+deshalb drei Stellen anfassen, um überhaupt zu bauen.
+
+**Und `git checkout --` ist kein Weg, eine Sabotage zurückzunehmen.** Der
+Prüfstand dieser Runde sicherte vor jeder Gegenprobe nichts und stellte danach
+mit einem Checkout wieder her — gegen `HEAD`, und dort lag der Stand *vor* der
+ganzen Runde. Die erste Gegenprobe nahm damit nicht ihre Sabotage zurück,
+sondern die halbe Arbeit: `prompt.ts` stand wieder auf dem alten Stand, und die
+übrigen neun Gegenproben hätten gegen ihn geprüft.
+
+Gemerkt hat es nicht der Blick auf die Datei, sondern die Prüfziffer, die der
+Harnisch selbst zieht: er vergleicht nach dem Zurücknehmen gegen den Stand
+*vor* der Sabotage und meldete „NICHT ZURÜCKGENOMMEN". Ohne diese eine Zeile
+wären neun grüne Gegenproben herausgekommen, die nichts geprüft hätten.
+Gesichert wird jetzt die Datei selbst. Dieselbe Familie wie „Ein abgebrochener
+Befehl kann seine Sabotage überleben", nur andersherum — dort blieb zu viel
+stehen, hier verschwand zu viel.
 
 ---
 

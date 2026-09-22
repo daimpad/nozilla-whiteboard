@@ -3863,6 +3863,73 @@ async function main() {
     await generator.close();
   });
 
+  await pruefe('der Prompt sagt, woher das Modell ablesen soll', async () => {
+    /*
+       Der Prompt ist das Lastenheft, und er hatte einen Adressaten: jemanden
+       mit Markenrichtlinien vor sich, also mit einer Quelle, die ihre Werte
+       *benennt*. Eine Präsentation benennt sie nicht, sie benutzt sie — und
+       gemessen an einer echten Vorlage trugen `theme1.xml` und die
+       Vorgabestile des Masters unverändertes Office-Standard, während die
+       Marke auf den Folien stand. Ein Modell, das brav „das Theme" abliest,
+       liefert daraus ein vollständiges, plausibles und völlig fremdes
+       Erscheinungsbild.
+
+       Geprüft wird am *Knopf* und nicht an der Vorschau daneben: die Rechnung
+       kann stimmen und die Zwischenablage trotzdem den vorigen Text tragen.
+       Die Ablage wird deshalb mitgeschrieben, statt ihr zu glauben.
+
+       Und in beide Richtungen. Ein Vorspann, der immer dasteht, ist keiner —
+       er erklärte dann einem Modell mit einem PDF vor sich die Innereien
+       einer .pptx.
+    */
+    const generator = await oeffneGenerator(kontext);
+
+    await generator.evaluate(() => {
+      globalThis.__kopiert = [];
+      Object.defineProperty(navigator, 'clipboard', {
+        value: {
+          writeText: (text) => {
+            globalThis.__kopiert.push(text);
+            return Promise.resolve();
+          },
+        },
+        configurable: true,
+      });
+    });
+    const zuletzt = () => generator.evaluate(() => globalThis.__kopiert.at(-1) ?? null);
+    const kopiere = generator.getByRole('button', { name: 'Prompt kopieren' });
+
+    await kopiere.click();
+    const richtlinien = await bisWahr(zuletzt, 'der Prompt kam nicht in die Zwischenablage');
+    wahr(
+      /Markenrichtlinien/.test(richtlinien),
+      'der Prompt nennt die Markenrichtlinien nicht mehr',
+    );
+    wahr(
+      !/theme1\.xml/.test(richtlinien),
+      'der Prompt für Richtlinien erklärt die Innereien einer .pptx',
+    );
+
+    await generator.getByLabel('Was du dem Modell mitgibst').selectOption('artefakt');
+    await kopiere.click();
+    const artefakt = await bisWahr(async () => {
+      const text = await zuletzt();
+      return text && /theme1\.xml/.test(text) ? text : null;
+    }, 'nach dem Umschalten lag weiter der alte Prompt in der Ablage');
+    wahr(/#4F81BD/.test(artefakt), 'der Prompt warnt nicht vor dem Standard-Farbschema');
+    wahr(
+      /Folien-Einheiten, nicht Punkt/.test(artefakt),
+      'der Prompt sagt nicht, dass Größen in Folien-Einheiten stehen',
+    );
+    // Und die Form bleibt dieselbe — sonst kennte der Leser sie nicht mehr.
+    for (const text of [richtlinien, artefakt]) {
+      wahr(/"signalStrong"/.test(text), 'die Form fehlt im Prompt');
+      wahr(/shadowOffset/.test(text), 'die Form fehlt im Prompt');
+    }
+
+    await generator.close();
+  });
+
   await pruefe('im CI-Generator lässt sich ein Schriftname tippen', async () => {
     /*
        Der Defekt, gegen den das steht, war die schwerste Stelle der Seite: der
