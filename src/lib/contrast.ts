@@ -101,3 +101,42 @@ export const UNTERSCHEIDBAR = 8;
 export function unterscheidbar(a: string, b: string): boolean {
   return kanalabstand(a, b) >= UNTERSCHEIDBAR;
 }
+
+/**
+ * Die Farbfamilie eines `#RRGGBB` — oder `null`, wenn die Farbe keine hat.
+ *
+ * „Familie" ist hier die **Rangfolge der Kanäle**: welcher führt, welcher
+ * schließt. `#F8AB1F` ist `RGB`, `#00FF9C` ist `GBR`. Zwei Farben derselben
+ * Rangfolge können verschieden hell und verschieden bunt sein — eine Stufe
+ * eben —, aber sie kippen nicht in einen anderen Farbkreis.
+ *
+ * Gefragt wird so und nicht über einen Farbton in Grad, weil der Farbton eine
+ * zweite Rechnung wäre: `kanaele()` steht hier schon, und aus drei Zahlen eine
+ * Rangfolge zu machen braucht keine Umrechnung, die jemand nachprüfen müsste.
+ *
+ * **Ein fast neutraler Ton hat keine Familie, und das ist kein Mangel.** Bei
+ * `#0C0C0A` entscheiden zwei Zählschritte über die Rangfolge; sie darüber zu
+ * befragen hieße, Rauschen zu verurteilen. Die Grenze ist deshalb nicht neu
+ * erfunden, sondern dieselbe, die dieses Modul schon kalibriert hat: eine
+ * Farbe hat genau dann eine Familie, wenn sie von ihrem *eigenen* Grau
+ * unterscheidbar ist. Gemessen an den beiden mitgelieferten Erscheinungsbildern
+ * fällt damit die ganze Tintenrampe heraus (Abstand 1 bis 7) und die ganze
+ * Signalrampe bleibt drin (38 bis 145).
+ */
+export function farbfamilie(hex: string): string | null {
+  const roh = kanaele(hex);
+  if (!roh) return null;
+  const mitte = Math.round((roh[0] + roh[1] + roh[2]) / 3);
+  const grau = `#${[mitte, mitte, mitte].map((k) => k.toString(16).padStart(2, '0')).join('')}`;
+  if (!unterscheidbar(hex, grau)) return null;
+  return (
+    [
+      ['R', roh[0]],
+      ['G', roh[1]],
+      ['B', roh[2]],
+    ] as Array<[string, number]>
+  )
+    .sort((a, b) => b[1] - a[1])
+    .map(([name]) => name)
+    .join('');
+}
