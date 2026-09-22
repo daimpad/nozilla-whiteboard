@@ -21,8 +21,8 @@
  */
 import { useMemo, useState } from 'react';
 import { Button, cx } from '@/components/ui/controls';
-import { Abschnitt } from './felder';
-import { promptText } from './prompt';
+import { Abschnitt, Wahlfeld } from './felder';
+import { promptText, type Promptquelle } from './prompt';
 import {
   fortsetzenAb,
   liesRuecklauf,
@@ -78,8 +78,15 @@ export function AnfangSchritt({
   rueckgaengig: (() => void) | null;
 }) {
   const [kopiert, setKopiert] = useState<string | null>(null);
+  /*
+     Die Quelle gehört dem Handgriff und nicht dem Entwurf: sie beschreibt,
+     was gerade neben dem Rechner liegt, und nicht die Marke. In die
+     `.nzci.json` gehört sie deshalb nicht — wer einen Entwurf morgen wieder
+     aufmacht, hat sein PDF vielleicht längst nicht mehr.
+  */
+  const [quelle, setQuelle] = useState<Promptquelle>('richtlinien');
 
-  const prompt = useMemo(() => promptText(entwurf), [entwurf]);
+  const prompt = useMemo(() => promptText(entwurf, quelle), [entwurf, quelle]);
   const veraltet = vorschlag !== null && vorschlag.gelesenGegen !== entwurf;
 
   const kopiere = async () => {
@@ -121,9 +128,31 @@ export function AnfangSchritt({
       </Abschnitt>
 
       <Abschnitt
-        titel="Oder: aus den Markenrichtlinien"
-        hinweis="Den Prompt kopieren, einem Sprachmodell zusammen mit den Richtlinien geben, die Antwort hier einfügen. Der Weg dazwischen ist die Zwischenablage — nichts verlässt diesen Rechner von selbst."
+        titel="Oder: von einem Sprachmodell ausfüllen lassen"
+        hinweis="Den Prompt kopieren, ihn einem Sprachmodell zusammen mit dem Material geben, die Antwort hier einfügen. Der Weg dazwischen ist die Zwischenablage — nichts verlässt diesen Rechner von selbst."
       >
+        {/*
+           Die Wahl steht *vor* dem Knopf, weil sie ändert, was er kopiert.
+           Stünde sie darunter, wäre die Reihenfolge auf dem Bildschirm eine
+           andere als die der Handgriffe — und wer zuerst kopiert und dann
+           umschaltet, hat den falschen Text in der Ablage, ohne dass etwas
+           davon zu sehen wäre.
+        */}
+        <Wahlfeld
+          label="Was du dem Modell mitgibst"
+          wert={quelle}
+          auf={setQuelle}
+          optionen={[
+            { value: 'richtlinien', label: 'Markenrichtlinien' },
+            { value: 'artefakt', label: 'Präsentation, PDF oder Screenshots' },
+          ]}
+          hinweis={
+            quelle === 'artefakt'
+              ? 'Der Prompt verlangt dann Ablesen statt Ableiten und nennt die sechs Stellen, an denen das schiefgeht — allen voran die, dass das Farbschema einer .pptx meistens unverändertes Office-Standard ist.'
+              : 'Der Prompt lässt das Modell ableiten, wo die Richtlinien schweigen.'
+          }
+        />
+
         <div className="flex items-center gap-2">
           <Button icon="copy" onClick={() => void kopiere()}>
             Prompt kopieren

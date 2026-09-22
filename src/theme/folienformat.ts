@@ -48,6 +48,25 @@ import { canvas as ciCanvas } from '@theme';
  */
 export const DIN_HOCH = Math.SQRT2;
 
+/**
+ * Wie viele Punkt eine Folien-Einheit misst.
+ *
+ * Das ist die Zahl, über die dieses Werkzeug mit der übrigen Welt redet: ein
+ * PDF rechnet in Punkt, eine `.pptx` in Hundertstel Punkt, und wer eine
+ * Schriftgröße aus einer fremden Präsentation abliest, bekommt sie in Punkt.
+ * Aus 1280 × 720 Einheiten wird damit eine Seite von 960 × 540 Punkt.
+ *
+ * Sie steht hier und **nicht** in `canvas`, obwohl beide die Folie vermessen:
+ * `canvas` ist eine lebendige Bindung und wechselt mit dem Blatt, diese Zahl
+ * nie. Ein A4-Deck ist höher, seine Einheit bleibt ¾ Punkt.
+ *
+ * Und sie steht überhaupt an *einer* Stelle, weil sie an dreien stand — als
+ * `PDF_SCALE`, als nackte 0,75 im PPTX-Weg und als Satz im Prompt, der einem
+ * Sprachmodell die Umrechnung erklärt. Dieselbe Begründung wie bei `DIN_HOCH`
+ * eine Zeile weiter oben, und derselbe Ausgang, wenn man sie missachtet.
+ */
+export const PUNKT_JE_EINHEIT = 0.75;
+
 export const folienformate = ['16-9', 'a4-hoch', 'a4-quer'] as const;
 export type Folienformat = (typeof folienformate)[number];
 

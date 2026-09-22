@@ -19,7 +19,7 @@
  * der Normalfall.
  */
 import type { jsPDF, Matrix } from 'jspdf';
-import { brand, canvas as canvasTokens, pdfFontFamily } from '@/theme';
+import { brand, canvas as canvasTokens, pdfFontFamily, PUNKT_JE_EINHEIT } from '@/theme';
 import { measureText, type FontFamilyKey } from '@/lib/text/measure';
 import { facesFor, kursivNeigung, loadTtf, toBase64, type FaceRef } from './fontFiles';
 import { glyphCoverFor, leereDeckung, splitByFace, type GlyphCover } from './glyphCover';
@@ -36,7 +36,7 @@ import { meldeFehlendeBilder } from './images';
 import type { Scene, ScenePrim, SceneRun } from './scene';
 
 /** Folien-Einheiten → PDF-Punkte: aus 1280 × 720 wird eine Seite 960 × 540 pt. */
-export const PDF_SCALE = 0.75;
+export const PDF_SCALE = PUNKT_JE_EINHEIT;
 
 export interface PdfOptions {
   title?: string;

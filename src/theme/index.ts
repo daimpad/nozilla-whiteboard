@@ -192,6 +192,7 @@ export {
   subscribeFolienformat,
   folienformatVersion,
   DIN_HOCH,
+  PUNKT_JE_EINHEIT,
 } from './folienformat';
 export type { Folienformat, Folienmasse } from './folienformat';
 // Die Erscheinung des Werkzeugs — hell oder dunkel. Sie wechselt unabhängig
