@@ -127,12 +127,29 @@ describe('was der Artefakt-Prompt zusätzlich sagt', () => {
     expect(Number.isInteger(18 / PUNKT_JE_EINHEIT)).toBe(true);
   });
 
-  it('sagt, dass ein Verlauf zwei Farben sind', () => {
-    // Die Vorlage der Runde trug einen Verlauf von #F8AA1E nach #FB9800; die
-    // CI kennt nur Vollton. Ungesagt liefert ein Modell eine der beiden und
-    // unterschlägt die andere.
+  it('schickt den Leser in die eingebetteten Bilder', () => {
+    /*
+       Der Befund, der erst beim Durchspielen kam: in jener Vorlage steht
+       `<a:gradFill>` **kein einziges Mal** im XML. Der Verlauf ist ein PNG,
+       und zwei der drei Markenorange — `#F18700` und das tiefe Ende des
+       Verlaufs — liegen allein in dessen Pixeln. Ein Prompt, der nur „findest
+       du einen Verlauf" sagt, schickt niemanden dorthin, wo er liegt.
+    */
+    expect(text).toContain('ppt/media/');
     expect(text).toContain('Verlauf');
     expect(text).toContain('signalStrong');
+  });
+
+  it('warnt davor, nach Häufigkeit allein zu greifen', () => {
+    /*
+       Ebenfalls gemessen: nach Abzug der Vorgabestile sind die beiden
+       häufigsten Farben `#FFFFFF` (48×) und `#D5D6D6` (14×) — beides
+       Innereien des Schriftzugs. Die Signalfarbe steht mit sechs Nennungen
+       auf Platz sechs. „Zähle, was benutzt wird" allein führt also genau
+       daneben.
+    */
+    expect(text).toContain('Logo-Gruppe');
+    expect(text).toContain('Platz sechs');
   });
 
   it('steht nicht im Prompt für Markenrichtlinien', () => {
