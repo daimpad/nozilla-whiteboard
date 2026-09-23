@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "sync:ci": "node scripts/sync-ci.mjs",
+    "fonts:bibliothek": "node scripts/schriftbibliothek.mjs",
     "format": "prettier --write \"src/**/*.{ts,tsx}\" \"*.ts\" \"scripts/*.mjs\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\" \"*.ts\" \"scripts/*.mjs\"",
     "test:ui": "node scripts/smoke.mjs"

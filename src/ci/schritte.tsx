@@ -51,11 +51,14 @@ import { zeichenwahl } from './entwurf';
 import { SCHLUESSELREGEL } from './emitter';
 import { MASSGRUPPE } from './pruefung';
 import { STUMME_ROLLEN } from './probedeck';
+import { schriftbibliothek } from '@/assets/schriftbibliothek';
+import { gewaehlteFamilie, waehleFamilie } from './bibliothekswahl';
 import { Abschnitt, Farbfeld, Textfeld, Wahlfeld, Zahlenfeld } from './felder';
 import {
   LEITERTEXT,
   PALETTENTEXT,
   SCHATTENTEXT,
+  SCHRIFTARTTEXT,
   SCHRIFTTEXT,
   STRICHTEXT,
   STUFENTEXT,
@@ -208,12 +211,27 @@ export function SchriftSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aende
       hinweis="Hinter der eigenen Schrift steht die andere dieser Marke, und erst danach das System. Keine Schrift führt jedes Zeichen — ohne eine zweite fällt ⌘ aus PNG und PDF heraus."
     >
       {schriftRollen.map((rolle) => (
-        <Textfeld
-          key={rolle}
-          label={SCHRIFTTEXT[rolle]}
-          wert={entwurf.fontFamily[rolle]}
-          auf={(wert) => aendere({ fontFamily: { ...entwurf.fontFamily, [rolle]: wert } })}
-        />
+        <div key={rolle} className="flex flex-col gap-1.5">
+          {/*
+            Die Wahl steht über dem Stapel und nicht an seiner Stelle: eine
+            Hausschrift, die nicht in der Bibliothek liegt, bleibt von Hand
+            einzutragen. Die Wahl ist der Weg, auf dem Stapel, Geschwister und
+            Schnittliste gar nicht erst auseinanderlaufen können.
+          */}
+          <Wahlfeld<string>
+            label={`${SCHRIFTTEXT[rolle]} aus der Bibliothek`}
+            wert={gewaehlteFamilie(entwurf, rolle)}
+            optionen={bibliotheksOptionen()}
+            auf={(familie) => {
+              if (familie) aendere(waehleFamilie(entwurf, rolle, familie));
+            }}
+          />
+          <Textfeld
+            label={SCHRIFTTEXT[rolle]}
+            wert={entwurf.fontFamily[rolle]}
+            auf={(wert) => aendere({ fontFamily: { ...entwurf.fontFamily, [rolle]: wert } })}
+          />
+        </div>
       ))}
 
       <p className="pt-1 text-[11px] font-medium text-ui-muted">Ersatz im PDF</p>
@@ -230,6 +248,22 @@ export function SchriftSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aende
       <Schnitte entwurf={entwurf} aendere={aendere} />
     </Abschnitt>
   );
+}
+
+/**
+ * Die Familien der Bibliothek als Auswahl.
+ *
+ * Der leere Eintrag steht für „keine aus der Bibliothek" — er ist der Zustand
+ * einer von Hand eingetragenen Hausschrift und keine Wahl, die etwas tut.
+ */
+function bibliotheksOptionen(): Array<{ value: string; label: string }> {
+  return [
+    { value: '', label: '— eigene Angabe' },
+    ...schriftbibliothek().map((eintrag) => ({
+      value: eintrag.familie,
+      label: `${eintrag.familie} · ${SCHRIFTARTTEXT[eintrag.art]}`,
+    })),
+  ];
 }
 
 /**
@@ -336,8 +370,9 @@ function Schnitte({ entwurf, aendere }: { entwurf: CiEntwurf; aendere: Aendere }
         Schnitt
       </Button>
       <p className="mt-1 text-[11px] leading-snug text-ui-faint">
-        Vorbelegt sind die {nozillaTheme.webfont.faces.length} Schnitte, die schon unter{' '}
-        <span className="font-mono">public/fonts/</span> liegen.
+        Vorbelegt sind die {nozillaTheme.webfont.faces.length} Schnitte der nozilla-CI. Unter{' '}
+        <span className="font-mono">public/fonts/</span> liegen {schriftbibliothek().length}{' '}
+        Familien; die Auswahl oben trägt ihre Schnitte ein.
       </p>
     </div>
   );
