@@ -26,6 +26,7 @@
  * `entwurf.ts` als Grund dafür, dass die Feldliste gelesen wird.
  */
 import { nozillaTheme, PUNKT_JE_EINHEIT } from '@/theme';
+import { schriftbibliothek } from '@/assets/schriftbibliothek';
 import { SCHLUESSELREGEL } from './emitter';
 import {
   paletteRollen,
@@ -43,6 +44,7 @@ import {
   LEITERTEXT,
   PALETTENTEXT,
   SCHATTENTEXT,
+  SCHRIFTARTTEXT,
   SCHRIFTTEXT,
   STRICHTEXT,
   STUFENTEXT,
@@ -154,13 +156,22 @@ function block(schluessel: PromptSchluessel): string[] {
           ]),
         ),
       );
-    case 'webfontFaces':
+    case 'webfontFaces': {
+      /*
+         Das Beispiel ist ein echter Eintrag der Bibliothek und kein
+         ausgedachter. Vorher stand hier `zilla-slab-400.woff2` — eine Datei,
+         die es nicht gibt, in einem Gewicht, das Zilla Slab hier nicht führt.
+         Ein Modell schreibt Beispiele ab.
+      */
+      const beispiel = schriftbibliothek()[0];
+      const schnitt = beispiel.schnitte[0];
       return [
-        '  "webfontFaces": [   // jeder selbst gehostete Schnitt, als .woff2',
-        '    { "family": "Zilla Slab", "weight": 400, "style": "normal", "file": "zilla-slab-400.woff2" }',
+        '  "webfontFaces": [   // jeder Schnitt, als .woff2 — nur aus der Liste oben',
+        `    { "family": ${JSON.stringify(beispiel.familie)}, "weight": ${schnitt.weight}, "style": "normal", "file": ${JSON.stringify(schnitt.file)} }`,
         '  ],',
         '',
       ];
+    }
     case 'textScale':
       return gruppe(
         '  "textScale": {   // die Größenleiter in Folien-Einheiten; sie muss steigen',
@@ -294,6 +305,37 @@ function woherDieWerte(quelle: Promptquelle): string {
 }
 
 /**
+ * Die Schriften, die in diesem Werkzeug als Dateien vorliegen — gerechnet aus
+ * der Bibliothek und nicht getippt.
+ *
+ * Ohne diesen Abschnitt nennt ein Modell die Hausschrift der Marke und
+ * erfindet ihr Dateinamen. Die Antwort ist dann vollständig, die Prüfliste
+ * zufrieden, und im Export steht jede Zeile in der Ersatzschrift — die Datei
+ * gibt es nirgends. Mit dem Abschnitt wählt es aus dem, was da ist, und der
+ * Entwurf sieht auf der Probefolie so aus, wie er später überall aussieht.
+ *
+ * Die Liste wächst mit der Bibliothek: ein Lauf von `npm run fonts:bibliothek`
+ * ändert den Prompt, ohne dass jemand diese Datei anfasst.
+ */
+function schriftenAbschnitt(): string {
+  return [
+    '## Die Schriften, die hier liegen',
+    '',
+    'Nimm Schriften nur aus dieser Liste, mit genau diesem Namen und genau diesen',
+    'Dateien. Führt die Marke eine Schrift, die hier nicht steht, nimm die',
+    'nächstliegende aus der Liste — gleiche Art, ähnliche Anmutung. Eine Schrift',
+    'ohne Datei setzt der Export in einer Ersatzschrift, und niemand sieht es.',
+    '',
+    ...schriftbibliothek().map(
+      (eintrag) =>
+        `- "${eintrag.familie}" (${SCHRIFTARTTEXT[eintrag.art]}): ` +
+        eintrag.schnitte.map((schnitt) => `${schnitt.weight} ${schnitt.file}`).join(' · '),
+    ),
+    '',
+  ].join('\n');
+}
+
+/**
  * Der Prompt.
  *
  * `entwurf` geht mit ein, weil das Modell wissen soll, was schon dasteht: wer
@@ -338,6 +380,7 @@ export function promptText(entwurf: CiEntwurf, quelle: Promptquelle = 'richtlini
           '',
         ].join('\n')
       : '',
+    schriftenAbschnitt(),
     '## Die Form',
     '',
     '```json',

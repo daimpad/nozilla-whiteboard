@@ -30,10 +30,31 @@
  *    unten, an dem die Fläche hängt.
  */
 import { webfont } from './runtime';
-import type { WebfontFace } from './brandTheme';
+import { nozillaTheme, type Webfont, type WebfontFace } from './brandTheme';
+import { uiFont } from '@theme';
 import { resetMeasurementCache } from '@/lib/text/measure';
 
 const STYLE_ID = 'nz-webfonts';
+const WERKZEUG_ID = 'nz-werkzeug-schrift';
+
+/**
+ * Die `@font-face`-Regeln der Oberfläche.
+ *
+ * Unter eigenen Familiennamen (`uiFont.familie`) und aus nozillas Dateien —
+ * mit nozillas Verzeichnis und nicht mit dem der gültigen Marke. Sie stehen
+ * immer im Dokument und werden von keinem Wechsel angefasst: die Leisten
+ * gehören dem Werkzeug, und das Werkzeug wechselt nie mit.
+ */
+export function werkzeugSchriftRegeln(base = import.meta.env.BASE_URL ?? '/'): string {
+  const faces = nozillaTheme.webfont.faces.flatMap<WebfontFace>((face) =>
+    face.family === uiFont.quelle.text
+      ? [{ ...face, family: uiFont.familie.text }]
+      : face.family === uiFont.quelle.mono
+        ? [{ ...face, family: uiFont.familie.mono }]
+        : [],
+  );
+  return fontFaceRules(faces, base, nozillaTheme.webfont);
+}
 
 /**
  * Einen blanken Namen in eine CSS-Zeichenkette setzen.
@@ -118,13 +139,14 @@ function announce(): void {
 export function fontFaceRules(
   faces: readonly WebfontFace[],
   base = import.meta.env.BASE_URL ?? '/',
+  ablage: Pick<Webfont, 'directory' | 'format'> = webfont,
 ): string {
-  const prefix = `${base.replace(/\/$/, '')}/${webfont.directory}`;
+  const prefix = `${base.replace(/\/$/, '')}/${ablage.directory}`;
   return faces
     .map(
       (face) => `@font-face {
   font-family: '${cssZeichenkette(face.family)}';
-  src: url('${cssZeichenkette(`${prefix}/${face.file}`)}') format('${webfont.format}');
+  src: url('${cssZeichenkette(`${prefix}/${face.file}`)}') format('${ablage.format}');
   font-weight: ${face.weight};
   font-style: ${face.style};
   font-display: swap;
@@ -172,6 +194,10 @@ export function setzeSchriftregeln(id: string, regeln: string): void {
  */
 export function installWebfonts(base = import.meta.env.BASE_URL ?? '/'): void {
   if (typeof document === 'undefined') return;
+
+  // Zuerst die Schrift der Oberfläche. Sie hängt an keiner Marke und steht
+  // deshalb auch bei einer Marke ohne Webfonts im Dokument.
+  setzeSchriftregeln(WERKZEUG_ID, werkzeugSchriftRegeln(base));
 
   /*
      Eine Marke *ohne* Webfonts räumt die der vorigen weg — und das war der

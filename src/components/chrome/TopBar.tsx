@@ -221,6 +221,7 @@ export function TopBar() {
 function DateiMenu({ onSave }: { onSave: () => void }) {
   const newDeck = useDeckStore((state) => state.newDeck);
   const loadMarkdown = useDeckStore((state) => state.loadMarkdown);
+  const toggleMarken = useDeckStore((state) => state.toggleMarken);
   const menue = useMenu<HTMLDivElement>();
   const { offen: open, schliessen } = menue;
 
@@ -276,10 +277,10 @@ function DateiMenu({ onSave }: { onSave: () => void }) {
           </div>
 
           {/*
-            Der Generator ist eine eigene Seite und kein Panel: er meldet ein
-            Erscheinungsbild an und aktiviert es, um damit ein Probedeck zu
-            zeichnen. Täte er das im laufenden Werkzeug, führe die offene Folie
-            bei jedem Tastendruck mit.
+            Der Generator ist eine eigene Seite und kein Panel: er rechnet bei
+            jedem Tastendruck mit einem fremden Erscheinungsbild, um damit ein
+            Probedeck zu zeichnen. Täte er das im laufenden Werkzeug, führe die
+            offene Folie jedes Mal mit.
 
             Er stand bis hierher im Zahnrad. Dort war er richtig einsortiert,
             solange „Einstellungen" der einzige Ort für alles Nicht-Folienhafte
@@ -294,6 +295,18 @@ function DateiMenu({ onSave }: { onSave: () => void }) {
               hint="Eigene Seite, eigener Tab"
               href="./ci.html"
               onClick={schliessen}
+            />
+            {/*
+              Daneben und nicht im Zahnrad: ein Import ist ein Dateivorgang,
+              und alles, was mit Datei und Marke zu tun hat, steht links. Er
+              ändert, was dieser Browser kennt — die Wahl für das Deck bleibt
+              im Inspektor.
+            */}
+            <MenuItem
+              icon="upload"
+              label="Erscheinungsbilder…"
+              hint="Importieren, sichern, entfernen"
+              onClick={dann(() => toggleMarken(true))}
             />
           </div>
         </div>
@@ -561,7 +574,9 @@ function MenuItem({
  */
 function Hinweis() {
   const text = useDeckStore((state) => state.hinweis);
+  const aktion = useDeckStore((state) => state.hinweisAktion);
   const zeigeHinweis = useDeckStore((state) => state.zeigeHinweis);
+  const toggleMarken = useDeckStore((state) => state.toggleMarken);
   if (!text) return null;
 
   return (
@@ -571,6 +586,23 @@ function Hinweis() {
     >
       <Icon name="triangle-exclamation" size={15} className="mt-0.5 shrink-0 text-ui-warn" />
       <span className="min-w-0">{text}</span>
+      {/*
+        Ein Satz ohne Weg ist bei einer fehlenden Marke der halbe Hinweis: wer
+        ihn liest, weiß, dass etwas fehlt, und sucht dann den Ort, an dem es
+        sich beheben lässt. Der Knopf nimmt den Hinweis mit — die Schicht sagt
+        dasselbe ausführlicher.
+      */}
+      {aktion === 'marken' ? (
+        <Button
+          className="shrink-0"
+          onClick={() => {
+            zeigeHinweis(null);
+            toggleMarken(true);
+          }}
+        >
+          Erscheinungsbilder…
+        </Button>
+      ) : null}
       <IconButton icon="xmark" label="Hinweis schließen" onClick={() => zeigeHinweis(null)} />
     </div>
   );

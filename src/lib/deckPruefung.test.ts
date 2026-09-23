@@ -16,6 +16,15 @@ import welcome from '@/decks/welcome.md?raw';
 import musterkunde from '@/decks/musterkunde.md?raw';
 import { parseDeck } from '@/lib/markdown/deck';
 import { pruefeDeck, zaehleBefunde, type Rang } from './deckPruefung';
+import { registerThemes } from '@/themes';
+
+/*
+   Was das Werkzeug beim Start tut, tut diese Prüfung auch: die mitgelieferten
+   Erscheinungsbilder anmelden. Ohne das nennt das Deck des Musterkunden eine
+   Marke, die „dieser Browser nicht kennt" — ein Befund, den es im Werkzeug
+   nie gäbe, und genau der eine, den die Stille unten ausschließen soll.
+*/
+registerThemes();
 
 /**
  * Ein Deck, in dem jede Regel genau einmal verletzt ist.
@@ -206,5 +215,24 @@ describe('was die Prüfliste in Ruhe lässt', () => {
 
   it('sagt zu einem leeren Deck nichts', () => {
     expect(pruefeDeck(parseDeck(''))).toEqual([]);
+  });
+});
+
+describe('die Marke des Decks', () => {
+  it('nennt eine Marke, die dieser Browser nicht kennt — als Befund des ganzen Decks', () => {
+    const deck = parseDeck(musterkunde.replace('theme: musterkunde', 'theme: kunde-a'));
+    expect(deck.meta.theme).toBe('kunde-a');
+    const befunde = pruefeDeck(deck);
+    const marke = befunde.find((b) => b.ziel === 'marken');
+    expect(marke?.folie).toBeNull();
+    expect(marke?.rang).toBe('warnung');
+    expect(marke?.text).toContain('kunde-a');
+    // Und er steht oben, vor jeder Folie.
+    expect(befunde[0]).toBe(marke);
+  });
+
+  it('schweigt zu einer Marke, die angemeldet ist, und zu einem Deck ohne Marke', () => {
+    expect(pruefeDeck(parseDeck(musterkunde)).some((b) => b.ziel === 'marken')).toBe(false);
+    expect(pruefeDeck(parseDeck(welcome)).some((b) => b.ziel === 'marken')).toBe(false);
   });
 });

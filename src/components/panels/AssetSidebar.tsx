@@ -21,6 +21,7 @@ import { createElement } from '@/model/factory';
 import type { CanvasElement, IconFrame } from '@/model/types';
 import { useDeckStore } from '@/state/deckStore';
 import { useThemeVersion } from '@/hooks/useTheme';
+import { useFontsVersion } from '@/hooks/useFonts';
 import { BrandIcon, Icon } from '@/components/ui/Icon';
 import { cx, SectionTitle } from '@/components/ui/controls';
 
@@ -213,6 +214,17 @@ interface PresetTileProps {
 
 const PresetTile = memo(function PresetTile({ preset, tone, onInsert }: PresetTileProps) {
   const skin = useThemeVersion();
+  /*
+     Die Kachel setzt Text, also misst sie — und der Wechsel des
+     Erscheinungsbilds kommt *vor* seinen Schriften an. Ohne diesen Zähler
+     rechnete sie im Augenblick des Wechsels mit der Ersatzschrift und blieb
+     dabei: gemessen stand unter einer importierten Marke „Gutedigitale
+     Dienste." in der Bibliothek, auch nach einem Neuladen, während dieselbe
+     Stufe auf der Folie richtig stand. Die Fläche hängt seit je an diesem
+     Zähler; die Bibliothek fiel nicht auf, solange die einzige Marke beim
+     Start schon geladen war.
+  */
+  const schriften = useFontsVersion();
   const markup = useMemo(() => {
     const element = createElement(preset.kind, {
       ...preset.patch,
@@ -226,7 +238,7 @@ const PresetTile = memo(function PresetTile({ preset, tone, onInsert }: PresetTi
       h: Math.max(element.h, 24),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preset, tone, skin]);
+  }, [preset, tone, skin, schriften]);
 
   const pad = 10;
 

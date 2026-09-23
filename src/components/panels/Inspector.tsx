@@ -314,6 +314,7 @@ function ThemeField() {
   useThemeVersion();
   const theme = useDeckStore((state) => state.deck.meta.theme);
   const setDeckMeta = useDeckStore((state) => state.setDeckMeta);
+  const toggleMarken = useDeckStore((state) => state.toggleMarken);
   const known = availableThemes();
   const current = theme ?? 'nozilla';
   const unknown = !known.some((entry) => entry.id === current);
@@ -331,7 +332,7 @@ function ThemeField() {
           ? `„${current}" ist hier nicht angemeldet. Gezeichnet wird im Standard; der Eintrag bleibt in der Datei stehen.`
           : known.length > 1
             ? 'Steht im Frontmatter — die Datei trägt ihre Zugehörigkeit mit.'
-            : 'Weitere Erscheinungsbilder werden in src/themes/ angemeldet.'
+            : 'Weitere kommen über Datei → Erscheinungsbilder… oder werden in src/themes/ angemeldet.'
       }
     >
       <Select
@@ -339,6 +340,16 @@ function ThemeField() {
         onChange={(event) => setDeckMeta({ theme: event.target.value })}
         options={options}
       />
+      {/*
+        Der Satz darüber sagt, dass etwas fehlt; der Knopf führt dorthin, wo es
+        sich beheben lässt. Ohne ihn stünde hier eine Auskunft ohne Weg — die
+        Sorte, die man liest und dann sucht.
+      */}
+      {unknown ? (
+        <Button className="mt-2" icon="upload" onClick={() => toggleMarken(true)}>
+          Erscheinungsbilder…
+        </Button>
+      ) : null}
     </Field>
   );
 }

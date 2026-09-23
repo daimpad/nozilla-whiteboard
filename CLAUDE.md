@@ -49,10 +49,10 @@ PPTX-Weg (siehe unten), und sie ist im Kopf von `pptx.ts` ausgeschrieben.
 
 `theme.config.ts` führt zwei Sätze, und sie dürfen sich nicht berühren:
 
-|              | Namensraum                                                                                               | Wofür                                                 |
-| ------------ | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| **Inhalt**   | `palette`, `color`, `elementTones` → `bg-signal`, `text-ink`, `border-line`, `shadow-md`, `rounded-none` | alles, was auf einer Folie landet und exportiert wird |
-| **Werkzeug** | `ui`, `uiRadius`, `uiShadow` → `bg-ui-surface`, `text-ui-ink`, `border-ui`, `shadow-ui-md`, `rounded-md` | Leisten, Paletten, Felder, Griffe, Auswahlrahmen      |
+|              | Namensraum                                                                                                                      | Wofür                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| **Inhalt**   | `palette`, `color`, `elementTones` → `bg-signal`, `text-ink`, `border-line`, `shadow-md`, `rounded-none`                        | alles, was auf einer Folie landet und exportiert wird |
+| **Werkzeug** | `ui`, `uiRadius`, `uiShadow`, `uiFont` → `bg-ui-surface`, `text-ui-ink`, `border-ui`, `shadow-ui-md`, `rounded-md`, `font-sans` | Leisten, Paletten, Felder, Griffe, Auswahlrahmen      |
 
 Die Oberfläche leiht sich **nichts** von der Marke, auch keinen Akzent: Weiß,
 sechs Graustufen, Schwarz. Der Grund steht in `theme.config.ts` — ein
@@ -73,8 +73,9 @@ Fehler schon zweimal gemacht wurde.
 
 Die linke Spalte der Tabelle gehört einem **Erscheinungsbild**, und davon kann
 es mehrere geben: nozilla plus je eines pro Marke. Angemeldet wird in
-`src/themes/`, gewählt wird im Inspektor, gemerkt wird es im Frontmatter
-(`theme:`) — die Datei trägt ihre Zugehörigkeit mit.
+`src/themes/` oder im Browser über **Datei → Erscheinungsbilder…**
+(`themes/importe.ts`), gewählt wird im Inspektor, gemerkt wird es im
+Frontmatter (`theme:`) — die Datei trägt ihre Zugehörigkeit mit.
 
 ```
 theme.config.ts ──► brandTheme.ts ──► runtime.ts ──► theme/index.ts ──► alles
@@ -114,14 +115,18 @@ CLAUDE.md                     Diese Datei
 README.md                     Für Menschen, die das Werkzeug benutzen
 PROMPT.md                     Der Deck-Prompt, erklärt
 index.html · ci.html          Zwei Einstiege — das Werkzeug und der Generator
-public/fonts/                 WOFF2 für den Bildschirm, TTF für den Export
+public/fonts/                 WOFF2 für den Bildschirm, TTF für den Export —
+                              nozilla und die Bibliothek, Lizenzen daneben
 scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
           ciAbgleich.mjs      Was ein Sync verlöre — die Rechnung dazu
-          smoke.mjs           Der Rauchtest: 77 Handgriffe gegen das Bauwerk
+          schriftbibliothek.mjs  Schneidet zwanzig Familien aus Google Fonts
+                              zu festen Schnitten
+          smoke.mjs           Der Rauchtest: 85 Handgriffe gegen das Bauwerk
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set
               icons.ts        Das Set des gültigen Erscheinungsbilds
               presets.ts      Die Bausteine, die die Bibliothek anbietet
+              schriftbibliothek.ts  Die Familien, die der Generator anbietet
               *.generated.ts  ERZEUGT — nicht von Hand ändern
   theme/      brandTheme.ts   Was ein Erscheinungsbild ausmacht — und was nicht
               runtime.ts      Welches gerade gilt (lebendige Bindungen)
@@ -136,12 +141,16 @@ src/
                               Werkzeug aus der Konfiguration
   themes/     index.ts        Hier kommen die eigenen Erscheinungsbilder an
               musterkunde.ts  Die Vorlage: jede wechselbare Rolle einmal belegt
+              importe.ts      Die im Browser importierten — Ablage, Anmelden,
+                              Entfernen, und was keine Marke ersetzen darf
   ci/         main.tsx        Der CI-Generator — zweite Seite, eigener Einstieg
               CiGenerator.tsx Der Wizard: acht Schritte, Vorschau, Prüfliste
               Anfang.tsx      Woher ein Entwurf kommt — leer, Datei, Rücklauf
               entwurf.ts      Wonach gefragt wird; alles andere wird gerechnet
               texte.ts        Wofür jede Rolle da ist — Formular *und* Prompt
               schritte.tsx    Die acht Schritte und ihre Felder
+              bibliothekswahl.ts  Eine Familie wählen: Stapel, Geschwister
+                              und Schnittliste in einem Zug
               felder.tsx      Die Feldarten, aus denen ein Schritt besteht
               prompt.ts       Das Lastenheft für ein Sprachmodell — für
                               Richtlinien oder ein angehängtes Artefakt
@@ -265,7 +274,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Siebenundsiebzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Fünfundachtzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im
   Kopf von `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`;
   die Fassung passt nicht zur Bibliothek, deshalb
@@ -4334,6 +4343,148 @@ Gelesen wird dabei der *Eintrag* und nicht die Seite: der Rangaufdruck „Läuft
 ist aber falsch · Farbe" steht nur in `RANGTEXT`, also nur in der Liste. Eine
 Prüfung, die `document.body.innerText` durchsucht, findet ihre eigene
 Ankündigung — das steht in dieser Liste schon einmal.
+
+**Eine zweite Tür für Marken — durch dieselbe Prüfung.** Bis hierher kam ein
+Erscheinungsbild nur über den Quelltext ins Werkzeug. Jetzt auch über **Datei →
+Erscheinungsbilder…**, und die Entscheidung, an der alles hängt, ist das
+Format: importiert wird die `.nzci.json` aus „Entwurf sichern", also der
+*Entwurf*, und nicht ein fertiges `BrandTheme` als JSON. Das wäre bequemer zu
+laden und liefe an genau den Rechnungen vorbei, deretwegen es den Generator
+gibt. So geht ein Import durch `zusammen()`, `pruefe()` und `themeAusEntwurf()`
+— denselben Leser, dieselbe Prüfliste, dieselbe Rechnung wie die Vorschau — und
+kann keine Regel umgehen, die die Designdatei bestehen muss.
+
+Drei Dinge hängen daran. Welche Schlüssel **mitgeliefert** sind und sich
+deshalb nicht überschreiben lassen, steht in keiner Liste: es sind die, die
+angemeldet und nicht importiert sind. Eine getippte Liste wäre eine zweite
+Wahrheit über `src/themes/`, und die dritte mitgelieferte Marke wäre die erste,
+die ein Import still ersetzt. Ein Import **stellt das Deck nicht um**: er
+ändert, was dieser Browser kennt, die Wahl gehört dem Deck, und dafür steht
+danach ein eigener Knopf da. Und eine Regel der Prüfliste gilt ausdrücklich
+nicht — ob der Schlüssel ein Bezeichner ist. `kunde-2024` trägt jedes Deck
+klaglos; zum Fehler wird es erst in einer Designdatei, und ein Import schreibt
+keine. `pruefe(entwurf, 'import')` lässt genau diese eine weg.
+
+Gezeigt wird vom Befund nur der mittlere Rang. „Zu wissen" richtet sich an
+jemanden, der gerade entwirft; über einer fertigen Datei ist es eine Liste
+allgemeiner Sätze, und ein Wächter, der beim ersten Import eine solche Liste
+zeigt, wird beim zweiten nicht mehr gelesen.
+
+**Eine Marke liegt in der Ablage, ihre Schriften nicht.** Der Entwurf steht im
+`localStorage` (`nz-themes:v1`) und nicht im `sessionStorage` wie der des
+Generators: der gehört einem Anlass, eine importierte Marke dagegen so lange,
+wie ein Deck sie über `theme:` verlangt — und das Frontmatter überlebt jedes
+Neuladen. Die Ablage teilt sich ihre rund fünf Millionen Zeichen mit der
+Selbstsicherung des Decks, und deshalb liegen dort **keine Schriftdateien**,
+nur ihre Namen. Was unter `public/fonts/` fehlt, nennt der Import beim Namen,
+bevor er übernimmt. Gemerkt wird dabei *vor* dem Anmelden: ein
+Erscheinungsbild, das angemeldet ist und nicht in der Ablage steht, wäre nach
+dem nächsten ⌘R weg, und das Deck stünde wortlos wieder auf „nicht
+installiert".
+
+**Eine fehlende Datei antwortet mit 200.** Ob eine Schriftdatei da ist, fragte
+`fetchBytes()` an `response.ok` — und ein Server für eine Einzelseiten-App,
+`vite preview` ebenso wie die `.htaccess` dieses Projekts, beantwortet eine
+*fehlende* Datei mit Status 200 und der `index.html`. Gemessen:
+`/fonts/KundeA-Bold.woff2` kam als `200 text/html` mit 842 Bytes, der
+SVG-Export bettete diese Seite als Schrift ein, und der Umriss-Leser warf eine
+Meldung, die auf alles zeigte außer auf die fehlende Datei. Gefragt wird jetzt
+die **Kennung** in den ersten vier Bytes — die eine Frage, die keine
+Server-Einstellung beantworten kann. Und `schnittFehlt()`, mit dem der Import
+prüft, geht über denselben Abruf: eine zweite Rechnung für „liegt die Datei da"
+liefe genau an dieser Stelle auseinander.
+
+**Das Deck fand seine Marke nicht, wenn sie nach ihm kam.** `useDeckTheme()`
+hing am Schlüssel im Deck, und solange jede Marke beim Start angemeldet wurde,
+war das die ganze Frage. Mit dem Import hängt sie auch am Verzeichnis: das Deck
+nennt `kunde-a`, `kunde-a` wird importiert — und das Deck ist dasselbe Objekt
+wie vorher. Der Effekt lief nicht noch einmal, die Folie blieb in nozilla, und
+der Import meldete Erfolg über einer Fläche, an der sich nichts geändert hatte.
+Der Zähler des Verzeichnisses steht jetzt in den Abhängigkeiten, in der
+Referentenansicht ebenso; ein zweites Fenster erfährt es über das
+`storage`-Ereignis und gleicht mit `gleicheAb()` ab.
+
+Dieselbe Stelle sagt es jetzt auch, wenn eine Marke fehlt — oben im Fenster und
+mit dem Knopf zum Import daneben. Vorher stand das nur im Inspektor, im Reiter
+„Deck", also dort, wo man es nur findet, wenn man schon weiß, dass etwas fehlt.
+Und die Prüfliste des Decks führt es als ersten Befund, ohne Folie: es betrifft
+alle.
+
+**Die Leisten zogen die Schrift der Marke.** Der Körper stand auf
+`var(--nz-font-body)`, und diese Variable folgt dem gültigen Erscheinungsbild.
+Mit dem Musterkunden fiel das nie auf: er setzt seinen Fließtext ebenfalls in
+Inter. Gesehen hat es erst ein Bildschirmfoto — nach dem Umstellen auf eine
+importierte Marke stand der ganze Inspektor in Source Sans 3, und dabei war die
+Folie das Einzige, was sich ändern sollte. Und es war doppelt falsch:
+`font-sans` und `font-mono` riefen zwar bauzeitlich nozillas Namen, aber deren
+`@font-face`-Regeln stehen nur für die *gültige* Marke im Dokument. Eine Marke
+ohne Space Mono nimmt die Regel mit, und jedes Markdown-Feld der Leiste ruft
+danach einen Namen, hinter dem nichts mehr steht.
+
+Die Oberfläche führt ihre Schrift jetzt unter eigenen Namen (`uiFont`:
+`nz-werkzeug`, `nz-werkzeug-mono`), gespeist aus nozillas Dateien und nozillas
+Verzeichnis, und die Regeln dazu stehen immer im Dokument — `installWebfonts()`
+legt sie *vor* dem Ausstieg für eine Marke ohne Webfonts. Der Stapel dahinter
+nennt keine Familie, deren Regeln eine Marke stellt: sonst griffe der Browser,
+solange die eigene Schrift lädt, zu dem, was eine Marke unter „Inter"
+angemeldet hat. Geprüft wird am Dokument, an Tailwind und an `index.css` — und
+im Rauchtest an der berechneten Schrift des Körpers und an den
+`CSSFontFaceRule`s, vor und nach dem Wechsel.
+
+**Eine Kachel hing am Erscheinungsbild und nicht an seinen Schriften.** Die
+Bausteinbibliothek setzt Text, also misst sie — und der Wechsel des
+Erscheinungsbilds kommt *vor* seinen Schriften an. Die Kachel rechnete im
+Augenblick des Wechsels mit der Ersatzschrift und blieb dabei: unter der
+importierten Marke stand „Gutedigitale Dienste." in der Bibliothek, auch nach
+einem Neuladen, während dieselbe Stufe auf der Folie richtig stand. Mit dem
+Musterkunden fiel es nie auf: er setzt in Inter und Space Mono, und die waren
+beim Wechsel längst geladen. Die erste Marke mit eigenen Dateien zeigte es
+sofort.
+
+Der Quelltext-Wächter „wer rechnet, abonniert" sah sie nicht, und das ist keine
+Lücke in seiner Bauart, sondern seine Grenze: er kennt vier Rechnungen des
+Inspektors, und der Setzer ist keine davon. Bewacht wird deshalb am Ergebnis.
+Der Rauchtest wartet, bis die Schrift der Marke geladen ist, liest die Kachel,
+erzwingt ein Neurechnen — ein anderer Ton und zurück, der am Kampagnensatz kein
+Zeichen ändert — und verlangt dasselbe Markup.
+
+**Variable Schriften zeichnen im Export Regular.** Google liefert die meisten
+Familien nur noch als *variable* Datei mit einer Gewichtsachse, und
+`truetype.ts` kennt keine Variationsachsen: aus einer solchen Datei stünde im
+PDF und im PNG jede fette Überschrift in den Umrissen der Grundstellung —
+wörtlich „Der Bildschirm simuliert fett, die Datei nicht".
+`scripts/schriftbibliothek.mjs` schneidet deshalb einmal zu festen Schnitten
+(400, 500, 600, 700), aus einem festgelegten Commit von google/fonts, und
+verlangt danach `glyf` und kein `fvar`. Zwanzig Familien, achtzig Schnitte, 24
+MB mit den TTF für den Export; Merriweather allein trägt 5,6 davon.
+
+Die Wahl im Generator setzt Stapel, Ersatzkette und Schnittliste in einem Zug
+(`waehleFamilie()`), und sie fasst dabei nur an, was ihr gehört: teilen sich
+zwei Rollen eine Familie, ersetzt die Wahl für die eine nicht den ersten Namen
+der anderen. Die erste Fassung tat genau das, und `bibliothekswahl.test.ts`
+wurde rot, bevor es jemand sah.
+
+**Eine Kette von Prüfungen erbt ihren Zustand — und den Fehlschlag gleich
+mit.** Die Import-Prüfungen des Rauchtests bauen aufeinander auf: der Generator
+sichert die Datei, das Werkzeug importiert sie, danach wird entfernt und wieder
+importiert. Die Gegenprobe gegen die Werkzeugschrift machte fünf davon rot,
+denn ihre Zusicherung stand *vor* dem Import, und ohne Import hatte keine der
+folgenden etwas zu prüfen. Zugesichert wird jetzt am Ende; die Prüfung zur
+fehlenden Marke räumt ihre Schicht im `finally` ab, und die Abweisung stellt
+ihre Vorbedingung selbst her und hält gegen ihr eigenes Vorher statt gegen die
+Marke, die gerade gelten sollte. Nachgemessen an den beiden Gegenproben, die es
+gezeigt hatten: je eine rote Zeile. Die an der Bibliothekswahl macht weiter
+drei rot, und zwar zu Recht — die Datei, die die beiden anderen importieren,
+trägt dann wirklich kein Montserrat.
+
+**Und das Vorher wartete nicht auf die Schriften.** Unter derselben Gegenprobe
+war die Abweisung einmal rot und einmal grün. Ein Entfernen nimmt die
+`@font-face`-Regeln der Marke mit, ein erneuter Import legt sie neu an, und bis
+sie geladen sind, misst die Folie mit der Ersatzschrift — ein Vorher aus diesem
+Augenblick ist ein anderes Bild als das Nachher, ohne dass eine Datei etwas
+verändert hätte. Genommen wird es jetzt nach `document.fonts.ready` und nach
+der Notbremse von `loadFaces()`: dieselbe Wartezeit mit demselben Grund wie bei
+der dunklen Erscheinung.
 
 ---
 

@@ -134,12 +134,22 @@
  * fremde Zeichen an, ohne dass jemand das entschieden hat.
  */
 import { registerTheme, type BrandTheme } from '@/theme';
+import { meldeImporteAn, type Anmeldebericht } from './importe';
 import { musterkunde } from './musterkunde';
 
 /** Ein Eintrag je Marke. Die Reihenfolge ist die der Auswahl im Inspektor. */
 const brandThemes: BrandTheme[] = [musterkunde];
 
-/** Beim Start einmal aufrufen, bevor ein Deck sein Erscheinungsbild verlangt. */
-export function registerThemes(): void {
+/**
+ * Beim Start einmal aufrufen, bevor ein Deck sein Erscheinungsbild verlangt.
+ *
+ * Erst die mitgelieferten, dann die im Browser importierten (`importe.ts`) —
+ * in dieser Reihenfolge, denn ein importierter Eintrag, dessen Schlüssel
+ * inzwischen mitgeliefert wird, soll die mitgelieferte Marke nicht ersetzen.
+ * Zurück kommt der Bericht über die Importe; das Werkzeug zeigt ihn, der
+ * CI-Generator hat keinen Ort dafür und braucht ihn nicht.
+ */
+export function registerThemes(): Anmeldebericht {
   for (const theme of brandThemes) registerTheme(theme);
+  return meldeImporteAn();
 }

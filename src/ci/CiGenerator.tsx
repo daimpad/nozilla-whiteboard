@@ -879,7 +879,12 @@ function Pruefliste({
 /* -------------------------------------------------------------------------- */
 
 /**
- * Was am Ende herauskommt: zwei Dateien und vier Handgriffe.
+ * Was am Ende herauskommt: zwei Wege.
+ *
+ * Die Designdatei samt Wortmarke für das Repo, und die `.nzci.json` für den
+ * Import im Browser. Der zweite stand hier lange nicht — der Import las genau
+ * die Datei, die „Entwurf sichern" aushändigt, und diese Seite sagte nirgends,
+ * dass es ihn gibt: eine Wirkung ohne einen Weg dorthin.
  *
  * Die Anleitung steht getrennt vom Kopfkommentar der erzeugten Datei, weil sie
  * *woanders* hingehört — in `src/themes/index.ts` und unter `public/fonts/`.
@@ -899,9 +904,10 @@ function FertigSchritt({
     <section className="px-4 py-4">
       <h2 className="text-ui-title font-semibold text-ui-ink">Fertig</h2>
       <p className="mt-1 text-[11px] leading-snug text-ui-faint">
-        Zwei Dateien, vier Handgriffe. Solange in der Prüfliste ein Fehler steht, entsteht keine
-        Datei — eine mit <span className="font-mono">NaN</span> darin übersetzt anstandslos und
-        setzt danach jahrelang leise falsch.
+        Zwei Dateien und vier Handgriffe für das Repo — oder eine Datei für den Browser. Solange in
+        der Prüfliste ein Fehler steht, entsteht keine davon: eine mit{' '}
+        <span className="font-mono">NaN</span> darin übersetzt anstandslos und setzt danach
+        jahrelang leise falsch.
       </p>
 
       <div className="mt-3 flex gap-2">
@@ -934,6 +940,34 @@ function FertigSchritt({
           Wortmarke
         </Button>
       </div>
+
+      <h3 className="mb-2 mt-4 text-ui-title font-semibold">Im Browser, ohne Designdatei</h3>
+      <p className="text-[11px] leading-snug text-ui-muted">
+        Dieselbe Marke als eine Datei, die das Werkzeug unter{' '}
+        <span className="font-medium text-ui-ink">Datei → Erscheinungsbilder…</span> importiert. Sie
+        gilt danach in diesem Browser; weitergegeben wird sie neben der{' '}
+        <span className="font-mono">.md</span>, denn ein Deck nennt seine Marke nur beim Schlüssel.
+      </p>
+      {/*
+         Gesperrt wie die Designdatei und aus demselben Grund: der Import
+         weist einen Entwurf mit Fehler oder ohne Wortmarke ab. „Entwurf
+         sichern" oben bleibt dagegen offen — ein halber Entwurf ist dort ein
+         Zwischenstand und kein Ergebnis.
+      */}
+      <Button
+        className="mt-2"
+        icon="download"
+        disabled={fehlerhaft || !entwurf.wortmarke}
+        onClick={() =>
+          void sichere(
+            JSON.stringify(entwurf, null, 2),
+            `${entwurf.id}.nzci.json`,
+            'application/json',
+          )
+        }
+      >
+        Für den Import
+      </Button>
 
       <h3 className="mb-2 mt-4 text-ui-title font-semibold">Danach</h3>
       <pre className="whitespace-pre-wrap rounded-sm border border-ui bg-ui-sunken p-3 font-mono text-[11px] leading-relaxed text-ui-muted">

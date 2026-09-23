@@ -62,6 +62,26 @@ export function registerTheme(theme: BrandTheme): void {
   else announce();
 }
 
+/**
+ * Ein Erscheinungsbild wieder abmelden.
+ *
+ * Gebraucht, seit es angemeldete Erscheinungsbilder gibt, die nicht aus dem
+ * Quelltext kommen: ein importiertes, das jemand entfernt, darf nicht bis zum
+ * nächsten Neuladen in der Auswahl stehen bleiben. nozilla lässt sich nicht
+ * abmelden — es ist die Voreinstellung, auf die jedes unbekannte Deck fällt,
+ * und ohne sie gäbe es nichts, worauf man zurückstellen könnte.
+ *
+ * War es das gültige, gilt danach nozilla. Das Deck behält seinen Eintrag,
+ * wie bei jedem unbekannten Schlüssel.
+ */
+export function unregisterTheme(id: string): boolean {
+  if (id === nozillaTheme.id) return false;
+  if (!registry.delete(id)) return false;
+  if (current.id === id) activate(nozillaTheme);
+  else announce();
+  return true;
+}
+
 export function availableThemes(): Array<{ id: string; label: string }> {
   return [...registry.values()].map(({ id, label }) => ({ id, label }));
 }

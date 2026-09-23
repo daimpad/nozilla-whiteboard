@@ -12,6 +12,7 @@ import {
 } from './theme';
 import { installWebfonts } from './theme/fonts';
 import { registerThemes } from './themes';
+import { ABLAGE_KEY, gleicheAb } from './themes/importe';
 import './index.css';
 
 // Die angelegten Erscheinungsbilder anmelden, bevor ein Deck sein eigenes
@@ -47,6 +48,18 @@ watchSystemSurface();
    Folienhöhe ausgibt und eine andere nennt, ist schlechter als keiner.
 */
 subscribeFolienformat(() => applyThemeVariables());
+
+/*
+   Die importierten Erscheinungsbilder teilen sich eine Ablage über alle
+   Fenster dieses Werkzeugs. Schreibt eines, erfährt es das andere hier — die
+   Referentenansicht zeichnet sonst ein Deck in nozilla, dessen Marke im
+   Hauptfenster gerade angekommen ist, und ein zweiter Tab böte eine entfernte
+   Marke weiter an. Der Horcher feuert nur in den *anderen* Fenstern, nie in
+   dem, das geschrieben hat.
+*/
+window.addEventListener('storage', (event) => {
+  if (event.key === ABLAGE_KEY || event.key === null) gleicheAb();
+});
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Root container #root is missing from index.html');

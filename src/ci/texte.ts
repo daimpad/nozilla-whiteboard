@@ -17,6 +17,7 @@
  * in `src/lib/labels.ts`.
  */
 import type { FamilyRole, PaletteRole, ShadowRole, StrokeRole, TextStepRole } from '@/theme';
+import type { Schriftart } from '@/assets/schriftbibliothek';
 import type { Sonderstufe, Zeichenwahl } from './entwurf';
 
 export const PALETTENTEXT: Record<PaletteRole, string> = {
@@ -53,6 +54,18 @@ export const ZEICHENTEXT: Record<Zeichenwahl, string> = {
 export const SCHRIFTTEXT: Record<FamilyRole, string> = {
   display: 'Auszeichnung',
   body: 'Fließtext',
+  mono: 'Monospace',
+};
+
+/**
+ * Was für eine Schrift eine Familie der Bibliothek ist — für die Auswahl im
+ * Formular und für die Liste im Prompt. Die Frage beim Wählen ist „eine
+ * Grotesk für den Fließtext?" und nicht die Klassifikation eines Katalogs.
+ */
+export const SCHRIFTARTTEXT: Record<Schriftart, string> = {
+  sans: 'Grotesk',
+  serif: 'Antiqua',
+  slab: 'Slab-Serif',
   mono: 'Monospace',
 };
 
