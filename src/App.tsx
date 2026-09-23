@@ -16,12 +16,14 @@ import { useDeckTheme } from '@/hooks/useDeckTheme';
 import { useDeckFolienformat } from '@/hooks/useFolienformat';
 import { selectCurrentSlide, useDeckStore } from '@/state/deckStore';
 import { guardUnsavedChanges, loadSession, startAutosave, darfErsetzen } from '@/state/persistence';
+import { anmeldebericht, anmeldeHinweis } from '@/themes/importe';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useClipboard } from '@/hooks/useClipboard';
 import { CanvasStage } from '@/components/canvas/CanvasStage';
 import { AssetSidebar } from '@/components/panels/AssetSidebar';
 import { Inspector } from '@/components/panels/Inspector';
 import { PromptStudio } from '@/components/panels/PromptStudio';
+import { MarkenPanel } from '@/components/panels/MarkenPanel';
 import { SearchPanel } from '@/components/panels/SearchPanel';
 import { PruefPanel } from '@/components/panels/PruefPanel';
 import { Overview } from '@/components/chrome/Overview';
@@ -90,6 +92,7 @@ export default function App() {
   const promptOpen = useDeckStore((state) => state.promptOpen);
   const searchOpen = useDeckStore((state) => state.searchOpen);
   const pruefungOpen = useDeckStore((state) => state.pruefungOpen);
+  const markenOpen = useDeckStore((state) => state.markenOpen);
   const panels = useDeckStore((state) => state.panels);
   const deck = useDeckStore((state) => state.deck);
   const slide = useDeckStore(selectCurrentSlide);
@@ -129,6 +132,14 @@ export default function App() {
     } else {
       loadMarkdown(starterDeck.source, { fileName: starterDeck.file });
     }
+    /*
+       Die importierten Erscheinungsbilder wurden vor dem ersten Bild
+       angemeldet, in `main.tsx` — dort gibt es noch keinen Ort für eine
+       Meldung. Was dabei nicht zurückkam, wird hier gesagt, mit dem Weg in
+       die Verwaltung daneben.
+    */
+    const marken = anmeldeHinweis(anmeldebericht());
+    if (marken) useDeckStore.getState().zeigeHinweis(marken, 'marken');
     const stopAutosave = startAutosave();
     const stopGuard = guardUnsavedChanges();
 
@@ -255,6 +266,7 @@ export default function App() {
       {promptOpen ? <PromptStudio /> : null}
       {searchOpen ? <SearchPanel /> : null}
       {pruefungOpen ? <PruefPanel /> : null}
+      {markenOpen ? <MarkenPanel /> : null}
 
       <div
         className={cx(

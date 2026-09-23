@@ -52,6 +52,13 @@ import { readPanels, writePanels, type PanelName, type PanelState } from './work
 
 export type EditorMode = 'edit' | 'present';
 
+/**
+ * Was ein Hinweis anbieten kann. Heute eines: die Verwaltung der
+ * Erscheinungsbilder — für ein Deck, dessen Marke dieser Browser nicht kennt,
+ * und für eine Ablage, aus der eine Marke nicht zurückkam.
+ */
+export type HinweisAktion = 'marken';
+
 export interface EditorState {
   /* Document */
   deck: Deck;
@@ -75,6 +82,15 @@ export interface EditorState {
    * deshalb schrieben sie vorher auf die Konsole.
    */
   hinweis: string | null;
+  /**
+   * Was der Hinweis anbietet, wenn er mehr kann als sich schließen lassen.
+   *
+   * Ein Schlüssel und keine Funktion: der Zustand bleibt Daten, und die Leiste
+   * entscheidet, was der Knopf tut. Ein neuer Hinweis ohne Angebot nimmt das
+   * alte mit weg — sonst stünde ein Knopf unter einem Satz, zu dem er nicht
+   * gehört.
+   */
+  hinweisAktion: HinweisAktion | null;
 
   /* Navigation */
   slideIndex: number;
@@ -91,6 +107,11 @@ export interface EditorState {
    * nur, was schon dasteht.
    */
   pruefungOpen: boolean;
+  /**
+   * Ob die Verwaltung der Erscheinungsbilder offen steht. Gehört dem
+   * Arbeitsplatz — sie ändert, was dieser Browser kennt, und nicht das Deck.
+   */
+  markenOpen: boolean;
   /**
    * Welche Leisten offen stehen. Gehört dem Arbeitsplatz und nicht dem Deck —
    * siehe `state/workspace.ts`, dort steht auch, wo es gemerkt wird.
@@ -119,7 +140,7 @@ export interface EditorState {
   /** Die Selbstsicherung meldet, ob sie durchkam — siehe `persistence.ts`. */
   meldeSicherung: (gelungen: boolean) => void;
   /** Einen Hinweis zeigen; `null` nimmt ihn weg. */
-  zeigeHinweis: (text: string | null) => void;
+  zeigeHinweis: (text: string | null, aktion?: HinweisAktion) => void;
   setDeckMeta: (patch: Partial<DeckMeta>) => void;
 
   goTo: (index: number) => void;
@@ -133,6 +154,7 @@ export interface EditorState {
   togglePrompt: (open?: boolean) => void;
   toggleSearch: (open?: boolean) => void;
   togglePruefung: (open?: boolean) => void;
+  toggleMarken: (open?: boolean) => void;
   togglePanel: (name: PanelName, open?: boolean) => void;
 
   addSlide: (at?: number, patch?: Partial<Slide>) => void;
@@ -429,6 +451,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
     promptOpen: false,
     searchOpen: false,
     pruefungOpen: false,
+    markenOpen: false,
     panels: readPanels(),
 
     selection: [],
@@ -442,6 +465,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
 
     sicherungGescheitert: false,
     hinweis: null,
+    hinweisAktion: null,
 
     /* ------------------------------------------------------------ document */
 
@@ -484,7 +508,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
 
     meldeSicherung: (gelungen) => set({ sicherungGescheitert: !gelungen }),
 
-    zeigeHinweis: (text) => set({ hinweis: text }),
+    zeigeHinweis: (text, aktion) => set({ hinweis: text, hinweisAktion: aktion ?? null }),
 
     setDeckMeta: (patch) =>
       set((state) => ({
@@ -556,6 +580,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
 
     toggleSearch: (open) => set((state) => ({ searchOpen: open ?? !state.searchOpen })),
     togglePruefung: (open) => set((state) => ({ pruefungOpen: open ?? !state.pruefungOpen })),
+    toggleMarken: (open) => set((state) => ({ markenOpen: open ?? !state.markenOpen })),
 
     togglePanel: (name, open) =>
       set((state) => {

@@ -4600,6 +4600,311 @@ async function main() {
     }
   });
 
+  console.log('\nEigene Erscheinungsbilder:');
+
+  /*
+     Die Datei, um die es geht, entsteht dort, wo sie auch sonst entsteht: im
+     CI-Generator, über „Entwurf sichern". Eine im Rauchtest getippte JSON wäre
+     eine zweite Wahrheit über das Format und liefe davon, sobald der Entwurf
+     ein Feld dazubekommt — geprüft würde dann ein Import, den es so nie gibt.
+  */
+  const IMPORT_SIGNAL = '#E4003A';
+  let importInhalt = null;
+  const importdatei = (inhalt = importInhalt) => ({
+    name: 'rauchimport.nzci.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(inhalt),
+  });
+  const markenschicht = () => seite.getByRole('dialog', { name: 'Erscheinungsbilder' });
+  const oeffneMarken = async () => {
+    await seite.getByRole('button', { name: 'Datei', exact: true }).click();
+    await seite.getByRole('menuitem', { name: /Erscheinungsbilder/ }).click();
+    await markenschicht().waitFor();
+  };
+
+  await pruefe('der Generator sichert eine Marke mit Schriften aus der Bibliothek', async () => {
+    const generator = await kontext.newPage();
+    // Der Dateiauswahl-Dialog lässt sich nicht fernsteuern; ohne ihn kommt
+    // „Entwurf sichern" als gewöhnlicher Download an.
+    await generator.addInitScript(() => {
+      delete window.showSaveFilePicker;
+    });
+    await oeffneGenerator(kontext, generator);
+
+    await zumSchritt(generator, 'Marke');
+    await generator.getByLabel('Schlüssel').fill('rauchimport');
+    await generator.getByLabel('Name in der Auswahl').fill('Rauchimport');
+    await generator.getByLabel('Markenname').fill('rauch');
+
+    await zumSchritt(generator, 'Farbe');
+    await setzeFarbe(generator, 'signal', IMPORT_SIGNAL);
+
+    await zumSchritt(generator, 'Schrift');
+    await generator.getByLabel('Auszeichnung aus der Bibliothek').selectOption('Montserrat');
+    await generator.getByLabel('Fließtext aus der Bibliothek').selectOption('Source Sans 3');
+
+    await zumSchritt(generator, 'Wortmarke');
+    await generator.setInputFiles('input[accept*="svg"]', {
+      name: 'rauchimport-wortmarke.svg',
+      mimeType: 'image/svg+xml',
+      buffer: Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48">' +
+          '<path fill="#000000" d="M4 8 L96 8 L96 40 L4 40 Z"/>' +
+          `<path fill="${IMPORT_SIGNAL}" d="M108 24 L132 24 L132 40 L108 40 Z"/></svg>`,
+      ),
+    });
+    // Die Quittung steht erst da, wenn die Datei gelesen und übernommen ist.
+    await generator.getByText('rauchimport-wortmarke.svg', { exact: true }).waitFor();
+
+    const [download] = await Promise.all([
+      generator.waitForEvent('download'),
+      generator.getByRole('button', { name: 'Entwurf sichern', exact: true }).click(),
+    ]);
+    importInhalt = readFileSync(await download.path(), 'utf8');
+    await generator.close();
+
+    // Geprüft wird an der Datei, die herauskam, und nicht an den Feldern.
+    const entwurf = JSON.parse(importInhalt);
+    gleich(entwurf.id, 'rauchimport', 'der Schlüssel steht nicht in der Datei');
+    wahr(
+      entwurf.fontFamily.display.startsWith("'Montserrat'"),
+      `die Auszeichnung ist nicht Montserrat: ${entwurf.fontFamily.display}`,
+    );
+    wahr(
+      entwurf.webfontFaces.some((face) => face.file === 'Montserrat-Bold.woff2'),
+      'die Schnittliste führt die Bibliotheksdatei nicht',
+    );
+    wahr(entwurf.wortmarke, 'die Wortmarke fehlt in der Datei');
+  });
+
+  await pruefe('eine Marke aus dem Generator kommt im Werkzeug an', async () => {
+    wahr(importInhalt, 'es gibt keine Datei aus dem Generator');
+
+    /*
+       Die Leisten dürfen dabei nichts merken. Sie zogen den Stapel der
+       gültigen Marke, und nach dem Umstellen stand der ganze Inspektor in
+       Source Sans 3 — gesehen hat es ein Bildschirmfoto, nicht ein Test.
+       Gemessen wird der Körper, weil jedes Feld ohne eigene Klasse von ihm
+       erbt, und die Regeln der Werkzeugschrift, weil ohne sie auch der
+       richtige Name nur die Systemschrift ruft.
+    */
+    const LEISTE = () => ({
+      koerper: getComputedStyle(document.body).fontFamily,
+      regeln: [...document.styleSheets]
+        .flatMap((blatt) => [...blatt.cssRules])
+        .filter(
+          (regel) =>
+            regel instanceof CSSFontFaceRule &&
+            regel.style.getPropertyValue('font-family').includes('nz-werkzeug'),
+        )
+        .map((regel) => regel.cssText)
+        .join('\n'),
+    });
+    // Gelesen wird hier, zugesichert erst am Ende: der Import soll auch dann
+    // stattfinden, wenn die Leisten falsch stehen — sonst fielen die Prüfungen
+    // danach mit, und ein Fehler meldete sich unter fünf fremden Namen.
+    const leisteVorher = await seite.evaluate(LEISTE);
+
+    await oeffneMarken();
+    await markenschicht().locator('input[type="file"]').setInputFiles(importdatei());
+    await markenschicht().getByRole('button', { name: 'Anmelden', exact: true }).click();
+    await markenschicht().getByRole('status').getByText('ist angemeldet').waitFor();
+
+    // Ein Import ändert, was dieser Browser kennt — nicht das Deck.
+    wahr(
+      !(await seite.evaluate(FOLIE)).markup.includes(IMPORT_SIGNAL),
+      'der Import hat das Deck von selbst umgestellt',
+    );
+
+    await markenschicht()
+      .getByRole('button', { name: /^Dieses Deck auf „Rauchimport" umstellen$/ })
+      .click();
+    const markup = await bis(async () => {
+      const inhalt = (await seite.evaluate(FOLIE)).markup;
+      return inhalt.includes(IMPORT_SIGNAL) ? inhalt : null;
+    }, 'die Folie nahm die importierte Marke nicht an');
+    wahr(markup.includes('Montserrat'), 'die Auszeichnung der Marke fehlt auf der Folie');
+    await seite.keyboard.press('Escape');
+
+    wahr(leisteVorher.regeln, 'die Werkzeugschrift steht nicht im Dokument');
+    gleich(
+      JSON.stringify(await seite.evaluate(LEISTE)),
+      JSON.stringify(leisteVorher),
+      'die Leisten wechselten mit der Marke',
+    );
+  });
+
+  await pruefe('die Bausteinkacheln messen mit der Schrift der neuen Marke', async () => {
+    /*
+       Der Wechsel des Erscheinungsbilds kommt vor seinen Schriften an. Eine
+       Kachel, die nur daran hängt, rechnet im Augenblick des Wechsels mit der
+       Ersatzschrift und bleibt dabei: „Gutedigitale Dienste." stand in der
+       Bibliothek, auch nach einem Neuladen.
+
+       Die Gegenprobe ist ein erzwungenes Neurechnen — ein anderer Ton und
+       zurück. Der Kampagnensatz hat keine Fläche, der Ton ändert an ihm kein
+       Zeichen; was sich trotzdem ändert, war vorher gegen die falsche Schrift
+       gemessen.
+    */
+    await seite.waitForFunction(() => document.fonts.check('700 68px "Montserrat"'), null, {
+      timeout: 20000,
+    });
+    await nachDemWechsel(seite);
+
+    const kachel = () =>
+      seite.evaluate(() => {
+        const knopf = [
+          ...document.querySelectorAll('[aria-label="Bausteinbibliothek"] button'),
+        ].find((kandidat) => kandidat.textContent?.includes('Kampagnensatz'));
+        return knopf?.querySelector('svg')?.innerHTML ?? null;
+      });
+    const stehen = await kachel();
+    wahr(stehen, 'keine Kachel „Kampagnensatz" in der Bibliothek');
+    wahr(stehen.includes('Montserrat'), 'die Kachel setzt nicht in der Schrift der Marke');
+
+    const toene = seite.getByRole('button', { name: /^Ton .+ wählen$/ });
+    const gewaehlt = seite.getByRole('button', { name: /^Ton .+ wählen$/, pressed: true });
+    const vorher = await gewaehlt.getAttribute('aria-label');
+    await toene.last().click();
+    await seite.getByRole('button', { name: vorher, exact: true }).click();
+    gleich(await kachel(), stehen, 'die Kachel stand in den Maßen der Ersatzschrift');
+  });
+
+  await pruefe('eine importierte Marke steht auch im nächsten Fenster', async () => {
+    // Sie liegt in der Ablage und nicht im Speicher dieses Fensters — ein
+    // Neuladen und ein zweites Fenster lesen sie auf demselben Weg.
+    await bisWahr(
+      () =>
+        seite.evaluate(() =>
+          (localStorage.getItem('nozilla-whiteboard:session:v1') ?? '').includes(
+            'theme: rauchimport',
+          ),
+        ),
+      'die Selbstsicherung trägt die Marke nicht',
+    );
+    const zweites = await kontext.newPage();
+    try {
+      await zweites.goto(URL, { waitUntil: 'networkidle' });
+      await bisWahr(
+        async () => (await zweites.evaluate(FOLIE))?.markup.includes(IMPORT_SIGNAL),
+        'das zweite Fenster zeichnet die importierte Marke nicht',
+      );
+      gleich(
+        await zweites.getByRole('alert').filter({ hasText: 'nicht kennt' }).count(),
+        0,
+        'das zweite Fenster meldet die Marke als unbekannt',
+      );
+    } finally {
+      await zweites.close();
+    }
+  });
+
+  await pruefe('eine fehlende Marke sagt es und führt zum Import', async () => {
+    // Aufgeräumt wird im `finally`: bleibt die Schicht bei einem Fehlschlag
+    // offen, fände die nächste Prüfung das Datei-Menü nicht und meldete sich
+    // unter fremdem Namen.
+    try {
+      await oeffneMarken();
+      seite.once('dialog', (dialog) => void dialog.accept());
+      await markenschicht().getByRole('button', { name: '„Rauchimport" entfernen' }).click();
+      await bis(
+        async () => (await seite.evaluate(FOLIE)).markup.includes('#00FF9C'),
+        'das Deck fiel nach dem Entfernen nicht auf nozilla zurück',
+      );
+      await seite.keyboard.press('Escape');
+
+      // Gesagt wird es dort, wo man hinsieht — und mit dem Weg daneben.
+      const hinweis = seite.getByRole('alert').filter({ hasText: 'rauchimport' });
+      await hinweis.waitFor();
+      await hinweis.getByRole('button', { name: 'Erscheinungsbilder…', exact: true }).click();
+      await markenschicht().waitFor();
+
+      // Das Deck trägt den Schlüssel noch: wer die Datei wieder importiert,
+      // bekommt sein Deck zurück, ohne es umzustellen.
+      await markenschicht().locator('input[type="file"]').setInputFiles(importdatei());
+      await markenschicht().getByRole('button', { name: 'Anmelden', exact: true }).click();
+      await bis(
+        async () => (await seite.evaluate(FOLIE)).markup.includes(IMPORT_SIGNAL),
+        'das Deck kam nach dem erneuten Import nicht zur Marke zurück',
+      );
+      await bisGleich(() => hinweis.count(), 0, 'der Hinweis blieb nach dem Import stehen');
+    } finally {
+      await seite.keyboard.press('Escape');
+    }
+  });
+
+  await pruefe(
+    'was keine Marke ist oder eine mitgelieferte ersetzte, wird abgewiesen',
+    async () => {
+      await oeffneMarken();
+      const eingabe = markenschicht().locator('input[type="file"]');
+
+      /*
+         Die Vorbedingung stellt diese Prüfung selbst her: ohne angemeldete
+         Marke gibt es nichts zu ersetzen, und ob die Prüfung davor sie
+         zurückgebracht hat, hängt an deren Erfolg. Deren Fehlschlag soll hier
+         nicht noch einmal rot werden.
+      */
+      if (
+        !(await markenschicht()
+          .getByText(/^rauchimport · importiert/)
+          .count())
+      ) {
+        await eingabe.setInputFiles(importdatei());
+        await markenschicht().getByRole('button', { name: 'Anmelden', exact: true }).click();
+        await markenschicht().getByRole('status').getByText('ist angemeldet').waitFor();
+      }
+
+      /*
+         Gehalten wird gegen das eigene Vorher und nicht gegen die Marke — und
+         das Vorher wird erst genommen, wenn die Schriften stehen. Ein
+         Entfernen nimmt die `@font-face`-Regeln der Marke mit, ein erneuter
+         Import legt sie neu an, und bis sie geladen sind, misst die Folie mit
+         der Ersatzschrift. Ein Vorher aus diesem Augenblick wäre ein anderes
+         Bild als das Nachher, ohne dass eine Datei etwas verändert hätte.
+      */
+      await seite.evaluate(() => document.fonts.ready);
+      await nachDemWechsel(seite);
+      const folieVorher = (await seite.evaluate(FOLIE)).markup;
+      const abgewiesen = async (inhalt, was) => {
+        await eingabe.setInputFiles(importdatei(inhalt));
+        await markenschicht()
+          .getByRole('alert')
+          .getByText('lässt sich nicht importieren')
+          .waitFor();
+        gleich(
+          await markenschicht()
+            .getByRole('button', { name: /^(Anmelden|Ersetzen)$/ })
+            .count(),
+          0,
+          `${was} ließe sich anmelden`,
+        );
+      };
+      try {
+        const entwurf = JSON.parse(importInhalt);
+        await abgewiesen(JSON.stringify({ ...entwurf, id: 'nozilla' }), 'eine zweite nozilla');
+        await abgewiesen(
+          JSON.stringify({ ...entwurf, id: 'musterkunde' }),
+          'ein zweiter Musterkunde',
+        );
+        await abgewiesen(JSON.stringify({ name: 'paket', version: '1.0.0' }), 'eine package.json');
+
+        // Und dieselbe importierte Marke noch einmal: das ist erlaubt, aber es
+        // wird gesagt, dass es eine vorhandene ersetzt.
+        await eingabe.setInputFiles(importdatei());
+        await markenschicht().getByRole('button', { name: 'Ersetzen', exact: true }).waitFor();
+        await markenschicht().getByRole('button', { name: 'Verwerfen', exact: true }).click();
+      } finally {
+        await seite.keyboard.press('Escape');
+      }
+      gleich(
+        (await seite.evaluate(FOLIE)).markup,
+        folieVorher,
+        'eine abgewiesene Datei hat die Folie verändert',
+      );
+    },
+  );
+
   await pruefe('nichts hat sich in der Konsole beschwert', async () => {
     gleich(gezaehlt(fehler), '', 'Fehler in der Konsole');
   });

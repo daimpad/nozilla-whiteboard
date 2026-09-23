@@ -41,6 +41,7 @@ export {
   isThemeId,
   registerTheme,
   setActiveTheme,
+  unregisterTheme,
   withTheme,
   subscribeTheme,
   themeVersion,
@@ -114,6 +115,7 @@ export {
   fontWeight,
   syntheticItalicDegrees,
   uiType,
+  uiFont,
   RADIUS,
   strokeNames,
   shadowNames,
@@ -157,6 +159,7 @@ import {
   motion,
   RADIUS,
   space,
+  uiFont,
   uiRadius,
   type ShadowName,
   type StrokeName,
@@ -271,6 +274,11 @@ export function cssVariables(): Record<string, string> {
   for (const [key, value] of Object.entries(activeUiShadow())) {
     vars[`--nz-ui-shadow-${kebab(key)}`] = value;
   }
+  // Die Schrift der Oberfläche steht fest und folgt keiner Marke — der Kopf
+  // von `uiFont` in theme.config.ts sagt, warum. `--nz-font-*` darunter
+  // bleibt lebendig: das ist die Schrift der Folie, für fremdes CSS.
+  vars['--nz-ui-font-text'] = uiFont.stapel.text;
+  vars['--nz-ui-font-mono'] = uiFont.stapel.mono;
   for (const [key, value] of Object.entries(stroke)) {
     vars[`--nz-stroke-${kebab(key)}`] = `${value}px`;
   }

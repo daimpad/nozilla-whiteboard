@@ -28,6 +28,7 @@ import {
   setzeFolienformat,
 } from '@/theme';
 import { slideTitle, type Deck } from '@/model/types';
+import { useThemeVersion } from '@/hooks/useTheme';
 import { SlideView } from '@/components/canvas/SlideView';
 import { Button, IconButton } from '@/components/ui/controls';
 
@@ -72,6 +73,8 @@ export function PresenterView() {
     };
   }, []);
 
+  const themaVersion = useThemeVersion();
+
   /*
      Das Deck bestimmt auch hier das Erscheinungsbild — dieselbe Richtung wie
      im Werkzeug, nur ohne Store. Ohne das zeichnete die Referentenansicht ein
@@ -90,7 +93,14 @@ export function PresenterView() {
        sieht — und die Notizen daneben gehörten zu einer anderen Höhe.
     */
     setzeFolienformat(istFolienformat(deck?.meta.format) ? deck.meta.format : '16-9');
-  }, [deck]);
+    /*
+       Der Zähler steht hier, seit sich eine Marke im laufenden Fenster
+       importieren lässt. Das Hauptfenster schreibt die Ablage, der
+       `storage`-Horcher in `main.tsx` meldet sie hier an — und das Deck ist
+       dabei dasselbe Objekt geblieben. Ohne den Zähler liefe dieser Effekt
+       nicht noch einmal, und der Vortragende säße in nozilla.
+    */
+  }, [deck, themaVersion]);
 
   const sende = (nachricht: Vortragsnachricht) => kanal.current?.postMessage(nachricht);
 

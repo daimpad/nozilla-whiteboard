@@ -103,15 +103,66 @@ function baseUrl(): string {
 
 const bytesCache = new Map<string, Promise<ArrayBuffer>>();
 
+/**
+ * Woran eine Schriftdatei zu erkennen ist: an ihren ersten vier Bytes.
+ *
+ * `response.ok` allein sagt nichts. Ein Server, der für eine Einzelseiten-App
+ * ausliefert — `vite preview` ebenso wie die `.htaccess` dieses Projekts —,
+ * beantwortet eine **fehlende** Datei mit Status 200 und der `index.html`.
+ * Gemessen: `/fonts/KundeA-Bold.woff2` kam als `200 text/html` mit 842 Bytes.
+ * Der SVG-Export bettete diese Seite danach als Schrift ein, und der
+ * Umriss-Leser warf eine Meldung, die auf alles zeigte außer auf die fehlende
+ * Datei. Die Kennung ist die eine Frage, die keine Server-Einstellung
+ * beantworten kann.
+ */
+const KENNUNGEN: Record<'woff2' | 'ttf', readonly string[]> = {
+  woff2: ['wOF2'],
+  // 0x00010000 = TrueType, 'true' = die ältere Apple-Variante; dieselben zwei,
+  // die `parseTrueType()` annimmt.
+  ttf: ['\u0000\u0001\u0000\u0000', 'true'],
+};
+
+function pruefeKennung(file: string, bytes: ArrayBuffer): void {
+  const art = file.endsWith('.ttf') ? 'ttf' : 'woff2';
+  const kopf = String.fromCharCode(...new Uint8Array(bytes, 0, Math.min(4, bytes.byteLength)));
+  if (KENNUNGEN[art].includes(kopf)) return;
+  const html = /^\s*</.test(
+    new TextDecoder().decode(new Uint8Array(bytes, 0, Math.min(64, bytes.byteLength))),
+  );
+  throw new Error(
+    `${file} liegt nicht vor — der Server lieferte ${html ? 'eine HTML-Seite' : `etwas anderes als eine ${art.toUpperCase()}-Datei`}`,
+  );
+}
+
 function fetchBytes(file: string): Promise<ArrayBuffer> {
   const hit = bytesCache.get(file);
   if (hit) return hit;
-  const pending = fetch(`${baseUrl()}/${file}`).then((response) => {
+  const pending = fetch(`${baseUrl()}/${file}`).then(async (response) => {
     if (!response.ok) throw new Error(`Schrift ${file} nicht ladbar (${response.status})`);
-    return response.arrayBuffer();
+    const bytes = await response.arrayBuffer();
+    pruefeKennung(file, bytes);
+    return bytes;
   });
   bytesCache.set(file, pending);
   return pending;
+}
+
+/**
+ * Liegt ein Schnitt in beiden Fassungen vor, die dieses Werkzeug braucht?
+ *
+ * Gibt `null` zurück, wenn ja, sonst den Grund. Gefragt wird über denselben
+ * Abruf, mit dem der Export die Dateien später holt — eine zweite Rechnung
+ * für „liegt die Datei da" liefe auseinander, und zwar genau an der Stelle,
+ * an der der Server eine fehlende Datei mit Status 200 beantwortet. Was hier
+ * geholt wird, ist danach auch für den Export schon da.
+ */
+export async function schnittFehlt(file: string): Promise<string | null> {
+  try {
+    await Promise.all([fetchBytes(file), fetchBytes(file.replace(/\.woff2$/, '.ttf'))]);
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
 }
 
 /** Die TrueType-Fassung eines Schnitts (für PDF-Einbettung und Umrisse). */

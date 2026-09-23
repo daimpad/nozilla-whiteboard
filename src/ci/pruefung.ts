@@ -138,7 +138,7 @@ export function massAnker(gruppe: Massgruppe, rolle: string): string {
  */
 const VERGEBEN = new Set(['nozilla', 'musterkunde']);
 
-function pruefeMarke(entwurf: CiEntwurf): Befund[] {
+function pruefeMarke(entwurf: CiEntwurf, zweck: Pruefzweck): Befund[] {
   const befunde: Befund[] = [];
   const feld = 'Marke';
 
@@ -156,13 +156,17 @@ function pruefeMarke(entwurf: CiEntwurf): Befund[] {
       feld,
       text: `„${entwurf.id}" ist vergeben. Ein bereits angemeldeter Schlüssel ersetzt das dortige Erscheinungsbild kommentarlos — bei „nozilla" also die eigene CI.`,
     });
-  } else {
+  } else if (zweck === 'designdatei') {
     /*
        Die Regel darüber lässt Ziffern und Bindestriche zu, und das ist
        richtig — `kunde-2024` ist ein guter Schlüssel für eine `.md`. Er ist
        nur kein guter *Bezeichner*, und der Emitter macht aus dem einen den
        anderen. Gefragt wird deshalb der Emitter selbst: eine zweite Rechnung
        hier gäbe eine Datei frei, die nicht übersetzt.
+
+       Nur für die Designdatei. Ein Import schreibt keine — und verurteilte
+       sonst einen Schlüssel, den jedes Deck klaglos trägt, für einen Fehler
+       in einer Datei, die nie entsteht.
     */
     const problem = bezeichnerProblem(entwurf.id);
     if (problem) befunde.push({ rang: 'fehler', feld, text: problem });
@@ -993,9 +997,19 @@ function hinweise(entwurf: CiEntwurf): Befund[] {
   ];
 }
 
-export function pruefe(entwurf: CiEntwurf): Befund[] {
+/**
+ * Wofür geprüft wird.
+ *
+ * Fast alle Regeln gelten für beides — was eine Designdatei falsch zeichnen
+ * ließe, zeichnet ein importiertes Erscheinungsbild genauso falsch, denn
+ * beide gehen durch `themeAusEntwurf()`. Die eine Ausnahme ist, was nur beim
+ * *Schreiben* einer Datei entsteht: ein Bezeichner im erzeugten Quelltext.
+ */
+export type Pruefzweck = 'designdatei' | 'import';
+
+export function pruefe(entwurf: CiEntwurf, zweck: Pruefzweck = 'designdatei'): Befund[] {
   return [
-    ...pruefeMarke(entwurf),
+    ...pruefeMarke(entwurf, zweck),
     ...pruefeFarbe(entwurf),
     ...pruefeSchrift(entwurf),
     ...pruefeMasse(entwurf),

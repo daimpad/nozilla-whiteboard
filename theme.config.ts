@@ -683,6 +683,51 @@ export const uiType = {
   read: { size: 20, lineHeight: 1.55, weight: fontWeight.regular, tracking: 0 },
 } as const;
 
+/**
+ * Die Schrift der Oberfläche — unter einem eigenen Namen.
+ *
+ * Die Leisten zogen `var(--nz-font-body)`, und diese Variable folgt dem
+ * gültigen Erscheinungsbild. Mit dem Musterkunden fiel das nie auf: er setzt
+ * seinen Fließtext ebenfalls in Inter. Mit der Schriftbibliothek schon — eine
+ * Marke in Source Sans 3 stellte den ganzen Inspektor auf Source Sans 3 um,
+ * und dabei war die Folie das Einzige, was sich ändern sollte.
+ *
+ * Und es war doppelt falsch: die `@font-face`-Regeln stehen nur für die
+ * Schnitte der *gültigen* Marke im Dokument. Eine Marke ohne Inter räumte
+ * Inter weg, und die Leisten fielen auf die Systemschrift, auch wo sie „Inter"
+ * riefen. Die Oberfläche bekommt deshalb eigene Familiennamen, deren Regeln
+ * immer dastehen und die keine Marke ersetzen kann — gespeist aus denselben
+ * Dateien wie Fließtext und Monospace der nozilla-CI.
+ */
+const ersteFamilie = (stapel: string) =>
+  stapel
+    .split(',')[0]
+    .trim()
+    .replace(/^['"]|['"]$/g, '');
+const markenfrei = (stapel: string) =>
+  stapel
+    .split(',')
+    .map((teil) => teil.trim())
+    .filter(
+      (teil) =>
+        !Object.values(fontFamily).some(
+          (rolle) => ersteFamilie(rolle) === teil.replace(/^['"]|['"]$/g, ''),
+        ),
+    )
+    .join(', ');
+
+export const uiFont = {
+  /** Die Namen, unter denen die Oberfläche ihre Schrift führt. */
+  familie: { text: 'nz-werkzeug', mono: 'nz-werkzeug-mono' },
+  /** Welche Familie der nozilla-CI hinter dem Namen steht — abgelesen. */
+  quelle: { text: ersteFamilie(fontFamily.body), mono: ersteFamilie(fontFamily.mono) },
+  /** Die Stapel: der eigene Name, dahinter nur noch das System. */
+  stapel: {
+    text: `'nz-werkzeug', ${markenfrei(fontFamily.body)}`,
+    mono: `'nz-werkzeug-mono', ${markenfrei(fontFamily.mono)}`,
+  },
+} as const;
+
 /* -------------------------------------------------------------------------- */
 /* Formensprache                                                               */
 /* -------------------------------------------------------------------------- */
@@ -943,6 +988,7 @@ export const theme = {
   fontWeight,
   typeScale,
   uiType,
+  uiFont,
   RADIUS,
   stroke,
   space,

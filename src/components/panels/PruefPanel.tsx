@@ -37,6 +37,7 @@ export function PruefPanel() {
   const goTo = useDeckStore((state) => state.goTo);
   const select = useDeckStore((state) => state.select);
   const clearSelection = useDeckStore((state) => state.clearSelection);
+  const toggleMarken = useDeckStore((state) => state.toggleMarken);
 
   /*
      Drei der Rechnungen dahinter hängen nicht am Deck allein: an der echten
@@ -53,6 +54,15 @@ export function PruefPanel() {
   const zahl = zaehleBefunde(befunde);
 
   const hin = (befund: DeckBefund) => {
+    if (befund.folie === null) {
+      // Ein Befund über das ganze Deck führt nicht auf eine Folie, sondern
+      // dorthin, wo er sich beheben lässt.
+      if (befund.ziel === 'marken') {
+        close(false);
+        toggleMarken(true);
+      }
+      return;
+    }
     goTo(befund.folie);
     if (befund.element) select([befund.element]);
     else clearSelection();
@@ -90,7 +100,7 @@ export function PruefPanel() {
                   >
                     <span className="flex items-baseline gap-2">
                       <span className="tabular-nums text-ui-label font-semibold text-ui-faint">
-                        {befund.folie + 1}
+                        {befund.folie === null ? '—' : befund.folie + 1}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1 text-ui-label uppercase tracking-wide text-ui-faint">
@@ -100,7 +110,9 @@ export function PruefPanel() {
                             className={RANG[befund.rang].ton}
                           />
                           {RANG[befund.rang].wort} ·{' '}
-                          {slideTitle(deck.slides[befund.folie], befund.folie)}
+                          {befund.folie === null
+                            ? 'Deck'
+                            : slideTitle(deck.slides[befund.folie], befund.folie)}
                         </span>
                         <span className="block text-ui-body text-ui-muted">{befund.text}</span>
                       </span>

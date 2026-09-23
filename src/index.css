@@ -33,7 +33,7 @@
     margin: 0;
     background: var(--nz-ui-canvas);
     color: var(--nz-ui-ink);
-    font-family: var(--nz-font-body);
+    font-family: var(--nz-ui-font-text);
     font-size: 13px;
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;

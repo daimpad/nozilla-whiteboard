@@ -39,7 +39,7 @@
  * mit dunkler Signalfarbe jede Signalfolie auf, und der Benutzer könnte
  * nichts dagegen tun.
  */
-import { canvas } from '@/theme';
+import { canvas, isThemeId } from '@/theme';
 import { liesChart } from '@/lib/chart';
 import { backgroundStyle, unsichtbareFlaeche } from '@/lib/export/scene';
 import { unterDerKante } from '@/lib/layout/slideLayout';
@@ -54,8 +54,17 @@ const GEWICHT: Record<Rang, number> = { fehler: 2, warnung: 1, hinweis: 0 };
 
 export interface DeckBefund {
   rang: Rang;
-  /** Der Index der Folie, auf die der Befund zeigt. */
-  folie: number;
+  /**
+   * Der Index der Folie, auf die der Befund zeigt — oder `null`, wenn er dem
+   * ganzen Deck gilt. Die Marke ist so ein Fall: sie steht im Frontmatter,
+   * und „Zu Folie 1" führte auf eine Folie, an der nichts falsch ist.
+   */
+  folie: number | null;
+  /**
+   * Wohin ein Befund ohne Folie führt. Ein Wort und kein Rückruf: diese Datei
+   * ist eine Rechnung und kennt die Oberfläche nicht.
+   */
+  ziel?: 'marken';
   /**
    * Die Kennung des gemeinten Elements — wenn es eines gibt.
    *
@@ -77,6 +86,25 @@ export function pruefeDeck(deck: Deck): DeckBefund[] {
   const unterKante = new Set(
     unterDerKante(deck, canvas.height).map(({ folie, element }) => `${folie}:${element.id}`),
   );
+
+  /*
+     Zuerst, was dem ganzen Deck gilt. Eine Marke, die dieser Browser nicht
+     kennt, ist der Rang „läuft, ist aber falsch" in Reinform: jede Folie
+     steht da, jede Ausgabe entsteht — in nozilla statt in der Marke, die die
+     Datei nennt. Gesagt wurde das bisher nur im Inspektor, im Reiter „Deck",
+     also dort, wo man es nur findet, wenn man schon weiß, dass etwas fehlt.
+  */
+  if (deck.meta.theme && !isThemeId(deck.meta.theme)) {
+    befunde.push({
+      rang: 'warnung',
+      folie: null,
+      ziel: 'marken',
+      text:
+        `Das Deck trägt die Marke „${deck.meta.theme}", die dieser Browser nicht kennt. ` +
+        'Jede Folie steht deshalb in nozilla, in jeder Ausgabe. Die Marke kommt als ' +
+        '.nzci.json aus dem CI-Generator.',
+    });
+  }
 
   deck.slides.forEach((slide, folie) => {
     const dieseFolie: DeckBefund[] = [];

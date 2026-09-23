@@ -58,7 +58,8 @@ export function useKeyboardShortcuts(): void {
       /* -------------------------------------------------- always available */
 
       if (event.key === 'Escape') {
-        if (store.searchOpen) store.toggleSearch(false);
+        if (store.markenOpen) store.toggleMarken(false);
+        else if (store.searchOpen) store.toggleSearch(false);
         else if (store.pruefungOpen) store.togglePruefung(false);
         else if (store.promptOpen) store.togglePrompt(false);
         else if (store.overviewOpen) store.toggleOverview(false);
@@ -193,7 +194,11 @@ export function useKeyboardShortcuts(): void {
          Übersicht den Vortrag.
       */
       const zugedeckt =
-        store.searchOpen || store.pruefungOpen || store.promptOpen || store.overviewOpen;
+        store.markenOpen ||
+        store.searchOpen ||
+        store.pruefungOpen ||
+        store.promptOpen ||
+        store.overviewOpen;
 
       /* -------------------------------------------------------- blättern */
 

@@ -1,7 +1,6 @@
 import type { Config } from 'tailwindcss';
 import {
   color,
-  fontFamily,
   inkAlpha,
   motion,
   palette,
@@ -9,6 +8,7 @@ import {
   shadow,
   space,
   stroke,
+  uiFont,
   uiRadius,
   uiShadow,
   uiType,
@@ -141,10 +141,15 @@ const config: Config = {
       'ui-info': uiVar('info'),
       'ui-info-bg': uiVar('info-bg'),
     },
+    /*
+     * Die Schrift der Oberfläche, unter eigenem Namen (`uiFont`). Vorher stand
+     * hier der Stapel der Marke — bauzeitlich, also nozilla, aber mit Namen,
+     * deren `@font-face`-Regeln mit jeder Marke wechseln. Eine Marke ohne Space
+     * Mono ließ jedes `font-mono` der Leisten auf die Systemschrift fallen.
+     */
     fontFamily: {
-      display: [fontFamily.display],
-      sans: [fontFamily.body],
-      mono: [fontFamily.mono],
+      sans: [uiFont.stapel.text],
+      mono: [uiFont.stapel.mono],
     },
     /*
      * Auf der Folie ist der Radius 0 — dafür steht `rounded-none`, und der

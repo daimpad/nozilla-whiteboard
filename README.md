@@ -94,8 +94,9 @@ recht.
 
 Die linke Spalte ist wechselbar. Ein **Erscheinungsbild** belegt Farben,
 Typo-Leiter, Schriften, Strichstärken, Schattenversätze, die Wortmarke und das
-Icon-Set; angelegt wird es in `src/themes/` (eine Datei je Marke), gewählt im
-Inspektor unter *Brand theme*, gemerkt im Frontmatter:
+Icon-Set; angelegt wird es in `src/themes/` (eine Datei je Marke) oder im
+Browser importiert (siehe unten), gewählt im Inspektor unter
+*Erscheinungsbild*, gemerkt im Frontmatter:
 
 ```md
 ---
@@ -121,7 +122,7 @@ Ein Erscheinungsbild von Hand anzulegen heißt, sechzehn Farben, acht
 Größenstufen, drei Schriftstapel, neun Schnitte und eine Wortmarke richtig in
 eine Datei zu schreiben — und dabei elf Regeln einzuhalten, von denen
 `registerTheme()` genau eine prüft. Dafür gibt es eine eigene Seite:
-**Zahnrad → Eigenes Design erstellen** (`ci.html`).
+**Datei → Eigenes Design erstellen** (`ci.html`).
 
 Sie führt in **acht Schritten**: Anfang, Marke, Farbe, Schrift, Maße,
 Wortmarke, Zeichen, Fertig. Links steht immer genau einer davon — die Rollen
@@ -146,6 +147,25 @@ aber falsch"** — zwei Töne, die dieselbe Farbe malen; ein Schriftstapel ohne
 zweite Marken-Schrift, dessen `⌘` still aus PNG und PDF fällt; schwarze Schrift
 auf einem dunklen Signal. Das ist die Klasse Fehler, die man sonst erst im
 fertigen Deck sieht.
+
+### Schriften aus der Bibliothek
+
+Die Schrift ist die eine Rolle, die sich nicht aus einem Hexwert ergibt: sie
+braucht Dateien. Im Schritt *Schrift* steht deshalb über jedem Stapel eine
+Auswahl aus **zwanzig Familien**, die schon in `public/fonts/` liegen — elf
+Grotesk, fünf Antiqua, eine Egyptienne, drei Monospace, alle frei lizenziert
+(Lizenztexte unter `public/fonts/lizenzen/`). Wer eine wählt, bekommt Stapel,
+Ersatzkette und Schnittliste in einem Zug; eine Hausschrift, die nicht dabei
+ist, bleibt von Hand einzutragen und braucht ihre Dateien im Repo.
+
+Jede Familie liegt in vier **festen** Schnitten vor (400, 500, 600, 700), als
+WOFF2 für den Bildschirm und als TTF für den Export. Fest und nicht variabel,
+weil der Export seine Buchstaben selbst zeichnet und keine Variationsachsen
+kennt: aus einer variablen Datei stünde im PDF und im PNG jede fette
+Überschrift in Regular. Gebaut wird die Bibliothek mit
+`npm run fonts:bibliothek` aus dem Repository von Google Fonts, auf einen
+Commit festgelegt (braucht Python mit fontTools; ausgeliefert werden nur die
+fertigen Dateien).
 
 ### Und der Weg über ein Sprachmodell
 
@@ -186,8 +206,31 @@ lässt sich als Datei sichern und wieder laden — für den anderen Rechner.
 Gefragt wird dabei nur, was ein Mensch entscheiden muss. Die neunundzwanzig
 semantischen Tokens, die vier Flächenrollen und die Deckkraftstufen rechnet der
 Generator — danach zu fragen wäre nicht Gründlichkeit, sondern die Fehlerklasse.
-Heraus kommt eine fertige `src/themes/<id>.ts` plus die Zeilen, die zum
-Anmelden fehlen.
+Heraus kommen zwei Dinge: eine fertige `src/themes/<id>.ts` plus die Zeilen,
+die zum Anmelden fehlen — und die `.nzci.json` aus „Entwurf sichern", die ohne
+Build auskommt.
+
+### Eine Marke im Browser, ohne Build
+
+**Datei → Erscheinungsbilder…** liest eine `.nzci.json` aus dem Generator und
+meldet sie in diesem Browser an. Sie geht durch dieselbe Prüfliste wie dort;
+gezeigt wird vor dem Übernehmen, was die Prüfliste sagt, welche Schriftdateien
+hier fehlen und ob eine vorhandene Marke ersetzt würde. Übernommen wird erst
+auf „Anmelden", und das offene Deck stellt sich danach nicht von selbst um —
+dafür steht ein eigener Knopf da.
+
+Gemerkt wird die Marke in der Ablage des Browsers; sie ist nach einem Neuladen
+und in jedem weiteren Fenster wieder da. nozilla und Muster lassen sich nicht
+überschreiben, ein Entwurf ohne Wortmarke wird abgewiesen, und ein
+importiertes Erscheinungsbild lässt sich an derselben Stelle wieder als Datei
+sichern oder entfernen.
+
+Weitergegeben wird ein Deck unter eigener Marke deshalb als **zwei Dateien**:
+die `.md` und die `.nzci.json`. Öffnet jemand die `.md` ohne die Marke, sagt
+das Werkzeug es gleich oben — mit dem Knopf zum Import daneben — und zeichnet
+so lange in nozilla, ohne den Eintrag in der Datei anzufassen. Die Schriften
+müssen dabei im Werkzeug liegen: wer die Bibliothek benutzt, hat damit nichts
+zu tun.
 
 Dazu gehört ein **Deck**, das ihm gehört: *Beispiel öffnen → Probenhaus*. Es ist
 kein Schaustück, sondern der Beleg — die Willkommensmappe gehört nozilla, und
@@ -504,14 +547,18 @@ theme.config.ts               Die CI. Eine Datei. Alles liest von hier.
 CLAUDE.md                     Arbeitsanweisung — Regeln und bekannte Fallen
 PROMPT.md                     Der Deck-Prompt, erklärt
 index.html · ci.html          Zwei Einstiege — das Werkzeug und der Generator
-public/fonts/                 WOFF2 für den Bildschirm, TTF für den Export
+public/fonts/                 WOFF2 für den Bildschirm, TTF für den Export —
+                              nozilla und die Bibliothek, Lizenzen daneben
 scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
           ciAbgleich.mjs      Was ein Sync verlöre — die Rechnung dazu
-          smoke.mjs           Der Rauchtest: 77 Handgriffe gegen das Bauwerk
+          schriftbibliothek.mjs  Schneidet zwanzig Familien aus Google Fonts
+                              zu festen Schnitten
+          smoke.mjs           Der Rauchtest: 85 Handgriffe gegen das Bauwerk
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set (554 Icons)
               icons.ts        Das Set des gültigen Erscheinungsbilds
               presets.ts      Die Bausteine, die die Bibliothek anbietet
+              schriftbibliothek.ts  Die Familien, die der Generator anbietet
               *.generated.ts  Erzeugt — nicht von Hand ändern
   theme/      brandTheme.ts   Was ein Erscheinungsbild ausmacht — und was nicht
               runtime.ts      Welches gerade gilt (lebendige Bindungen)
@@ -521,6 +568,7 @@ src/
               index.ts        Die Fassade über CI und Laufzeit
   themes/     index.ts        Hier kommen die eigenen Erscheinungsbilder an
               musterkunde.ts  Die Vorlage: jede wechselbare Rolle einmal belegt
+              importe.ts      Die im Browser importierten Erscheinungsbilder
   ci/         main.tsx        Der CI-Generator — zweite Seite, eigener Einstieg
               CiGenerator.tsx Der Wizard: acht Schritte, Vorschau, Prüfliste
               entwurf.ts      Wonach gefragt wird; alles andere wird gerechnet
@@ -760,7 +808,7 @@ CI-Konformität aller 554 Icons.
 
 Das prüft alles, was das Werkzeug **herstellt**. Ob man es **bedienen** kann,
 prüft `npm run test:ui`: Playwright klickt gegen `vite preview`, also gegen
-das gebaute Verzeichnis. Siebenundsiebzig Handgriffe, jeder für einen Fehler,
+das gebaute Verzeichnis. Fünfundachtzig Handgriffe, jeder für einen Fehler,
 der einmal durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
 ihrem Kasten, eine Vorschau schwarz auf dunkelgrau. Beides läuft bei jedem
 Pull Request.
