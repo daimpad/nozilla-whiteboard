@@ -4287,6 +4287,54 @@ Gesichert wird jetzt die Datei selbst. Dieselbe Familie wie „Ein abgebrochener
 Befehl kann seine Sabotage überleben", nur andersherum — dort blieb zu viel
 stehen, hier verschwand zu viel.
 
+**Eine Stufe, die in einen anderen Farbkreis kippt.** Eine Rampe ist eine
+Farbe in Stufen — `signalStrong`, `signalSoft` und `signalDeep` sind das
+Signal, heller und dunkler, und nicht drei Farben. Der Fall ist gemessen und
+nicht ausgedacht: ein Modell liest eine Präsentation aus, liefert `signal`,
+`signalStrong` und `signalDeep` als Orange und lässt `signalSoft` weg. Der
+Bericht nennt die Lücke — richtig so —, und danach trägt der Entwurf nozillas
+Minzgrün als „weiche Stufe" eines orangen Signals. Auf der Probefolie steht
+ein mintgrüner Codeblock auf oranger Fläche, und die Prüfliste sagte dazu
+kein Wort: jede Farbe für sich ist gültig, und die beiden unterscheiden sich
+sauber. Wieder der mittlere Rang — „läuft, ist aber falsch".
+
+Gefragt wird nach der **Familie** und nicht nach der Helligkeit, und das ist
+nachgemessen: an genau jener Palette hielt die Reihenfolge „strong dunkler,
+deep am dunkelsten, soft am hellsten" (134 < 150, 125 am tiefsten, 221 am
+höchsten). Ein Wächter über die Helligkeit wäre grün geblieben. Es ist der
+Farbkreis, der kippt, und `farbfamilie()` in `lib/contrast.ts` liest ihn als
+**Rangfolge der Kanäle** — `#F8AB1F` ist `RGB`, `#00FF9C` ist `GBR`. Keine
+zweite Rechnung daneben: ein Farbton in Grad wäre eine Umrechnung, die jemand
+nachprüfen müsste, und die Schwelle ist dieselbe, die dieses Modul schon
+kalibriert hat — eine Farbe hat genau dann eine Familie, wenn sie von ihrem
+*eigenen* Grau unterscheidbar ist. Damit fällt die ganze Tintenrampe heraus
+(Abstand 1 bis 7) und die ganze Signalrampe bleibt drin (38 bis 145).
+
+Und ein Parameter, der das Ergebnis nie ändert, ist die Papierform eines
+Felds, dessen Inhalt verworfen wird. Die erste Fassung nahm — wie
+`trennbefunde()` daneben — die Liste der unlesbaren Rollen entgegen; die
+Gegenprobe blieb grün, und nachgerechnet konnte sie es auch: eine Rolle steht
+genau dann auf dieser Liste, wenn `kanaele()` ihren Wert nicht liest, und dann
+gibt `farbfamilie()` ohnehin `null` zurück. Der zweite Anlauf war dann selbst
+ein Wächter, der nichts bewacht: `expect(rampenbefunde.length).toBe(1)` bleibt
+grün, wenn man den Parameter wieder anhängt — `Function.length` zählt nicht
+weiter, sobald ein Vorgabewert kommt.
+
+**Und die Gegenprobe zeigte, welche Hälfte die Fläche prüft.** Der Rauchtest
+setzt drei Stufen wirklich auf Orange und liest, was in der Liste steht — die
+Rechnung hat `rampe.test.ts`. Eine Sabotage an der Liste (`raenge` ohne den
+mittleren Rang) ließ **alle 4354 vitest-Prüfungen grün** und machte allein den
+Handgriff im Browser rot. Die andere Richtung derselben Sorte: nur `signal` zu
+setzen ließ drei Stufen aus der Familie fallen, `first()` traf `signalStrong`,
+und die Zusicherung meldete zu Recht „der Befund nennt die Rolle nicht".
+Gesetzt wird deshalb genau das, was das Modell wirklich lieferte, und gezählt
+wird, dass **eine** Stufe übrig bleibt.
+
+Gelesen wird dabei der *Eintrag* und nicht die Seite: der Rangaufdruck „Läuft,
+ist aber falsch · Farbe" steht nur in `RANGTEXT`, also nur in der Liste. Eine
+Prüfung, die `document.body.innerText` durchsucht, findet ihre eigene
+Ankündigung — das steht in dieser Liste schon einmal.
+
 ---
 
 ## Git

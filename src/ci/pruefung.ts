@@ -26,7 +26,7 @@
 import { nozillaTheme, readPaths, readViewBox, ungeleseneAngaben } from '@/theme';
 import { zaehle } from '@/lib/labels';
 import { parsePath } from '@/lib/geometry/path';
-import { AA, AA_GROSS, kanaele, kontrast, unterscheidbar } from '@/lib/contrast';
+import { AA, AA_GROSS, farbfamilie, kanaele, kontrast, unterscheidbar } from '@/lib/contrast';
 import {
   paletteRollen,
   pdfSchriften,
@@ -243,6 +243,84 @@ const TRENNPAARE: Array<{ a: string; b: string; wo: string }> = [
 ];
 
 /**
+ * Die Rampen — Rollen, die eine *Stufe* derselben Farbe sein sollen.
+ *
+ * Das ist keine Auslegung, sondern das, was `texte.ts` den Rollen neben das
+ * Feld schreibt und was der Prompt dem Modell sagt: `signalStrong` ist „eine
+ * Stufe dunkler", `signalSoft` „die weiche Stufe", `signalDeep` „die
+ * dunkelste Stufe". Eine Stufe wechselt die Helligkeit, nicht den Farbkreis.
+ *
+ * Die Tinten- und Papierrampen stehen mit dabei, obwohl sie in beiden
+ * mitgelieferten CIs fast neutral sind und damit ohnehin durchfallen — genau
+ * deshalb: eine Marke mit farbiger Tinte soll nicht durch eine getippte Liste
+ * ausgenommen sein, die niemand nachzieht. Ob eine Rolle befragt wird,
+ * entscheidet `farbfamilie()` und nicht diese Tabelle.
+ */
+const RAMPEN: Array<{ grund: string; stufen: string[]; wo: string }> = [
+  {
+    grund: 'signal',
+    stufen: ['signalStrong', 'signalSoft', 'signalDeep'],
+    wo: 'die Signalfläche und der Code darauf',
+  },
+  {
+    grund: 'ink',
+    stufen: ['ink900', 'ink800', 'ink700', 'ink600'],
+    wo: 'die Folie in Tinte und der Code darauf',
+  },
+  {
+    grund: 'paper',
+    stufen: ['paperAlt', 'paperDeep'],
+    wo: 'die Papierstufen',
+  },
+];
+
+/**
+ * Die Rampenbefunde — für sich, wie die Trennbefunde, damit ein Test sie an
+ * jedem angemeldeten Erscheinungsbild fahren kann.
+ *
+ * **Der Fall, der das ausgelöst hat, ist gemessen und nicht gedacht.** Ein
+ * Modell, das eine Präsentation ausliest, liefert die Rollen, die dastehen,
+ * und lässt den Rest weg — richtig so, der Bericht nennt ihn dann. Bei einer
+ * echten Vorlage kamen `signal`, `signalStrong` und `signalDeep` als Orange
+ * an und `signalSoft` blieb auf nozillas Minzgrün stehen. Auf der Probefolie
+ * steht danach ein mintgrüner Codeblock auf oranger Fläche; die Prüfliste
+ * sagte dazu **nichts**, weil jede einzelne Farbe für sich gültig ist und
+ * beide Töne sich sauber unterscheiden.
+ *
+ * Gefragt wird nach der **Familie** und nicht nach der Helligkeit. Nachgemessen
+ * an genau jener Palette: die Reihenfolge „strong dunkler, deep am dunkelsten,
+ * soft am hellsten" hielt (134 < 150, 125 am tiefsten, 221 am höchsten) — eine
+ * Prüfung darauf wäre grün geblieben. Es ist der Farbkreis, der kippt.
+ *
+ * Anders als `trennbefunde()` nimmt diese Funktion **keine Liste der
+ * kaputten Rollen**. Sie hatte eine, und die Gegenprobe zeigte, dass deren
+ * zwei Zeilen nichts tun konnten: eine Rolle steht genau dann auf dieser
+ * Liste, wenn `kanaele()` ihren Wert nicht liest — und dann gibt
+ * `farbfamilie()` ohnehin `null` zurück. Ein Parameter, der das Ergebnis
+ * nie ändert, ist die Papierform eines Felds, dessen Inhalt verworfen wird.
+ */
+export function rampenbefunde(palette: Record<string, string>): Befund[] {
+  const befunde: Befund[] = [];
+  for (const rampe of RAMPEN) {
+    const familie = farbfamilie(palette[rampe.grund] ?? '');
+    // Ein fast neutraler Grundton gibt keine Familie vor, an der eine Stufe
+    // sich messen ließe — dann ist hier nichts zu sagen.
+    if (!familie) continue;
+    for (const stufe of rampe.stufen) {
+      const ihre = farbfamilie(palette[stufe] ?? '');
+      if (!ihre || ihre === familie) continue;
+      befunde.push({
+        rang: 'warnung',
+        feld: 'Farbe',
+        anker: ankerFuer('Farbe', stufe),
+        text: `„${stufe}" liegt in einer anderen Farbfamilie als „${rampe.grund}" (${ihre} gegen ${familie}). Die Rolle ist als Stufe desselben Tons gedacht. Betroffen ist ${rampe.wo}. Häufigster Grund: die Rolle kam aus der Vorlage nicht und steht noch auf nozillas Wert.`,
+      });
+    }
+  }
+  return befunde;
+}
+
+/**
  * Die Trennbefunde zu einer Palette — für sich, damit ein Test sie an jedem
  * angemeldeten Erscheinungsbild fahren kann.
  *
@@ -306,6 +384,7 @@ function pruefeFarbe(entwurf: CiEntwurf): Befund[] {
   }
 
   befunde.push(...trennbefunde(p, kaputt));
+  befunde.push(...rampenbefunde(p));
 
   for (const paar of LESEPAARE) {
     if (kaputt.has(paar.vorn) || kaputt.has(paar.hinten)) continue;

@@ -3863,6 +3863,71 @@ async function main() {
     await generator.close();
   });
 
+  await pruefe('eine weiche Stufe aus fremder Familie wird genannt', async () => {
+    /*
+       Gemessen an einer echten Vorlage: ein Sprachmodell liest die
+       Präsentation aus, liefert `signal`, `signalStrong` und `signalDeep` als
+       Orange und lässt `signalSoft` weg. Der Rücklauf-Bericht nennt die Lücke
+       — der steht aber nur einmal da, und danach trägt der Entwurf nozillas
+       Minzgrün als „weiche Stufe" eines orangen Signals. Auf der Probefolie
+       steht ein mintgrüner Codeblock auf oranger Fläche.
+
+       Die Prüfliste sagte dazu nichts: jede Farbe für sich ist gültig, und
+       die beiden unterscheiden sich sauber. Geprüft wird hier am *Eintrag
+       der Liste* und nicht an der Rechnung — `rampe.test.ts` hat die
+       Rechnung; was diese Zeile beiträgt, ist, dass die Leiste den Befund
+       wirklich zeigt.
+
+       Und in beide Richtungen: eine weiche Stufe in derselben Familie muss
+       stumm bleiben. Eine Warnung, die immer dasteht, ist keine.
+    */
+    const generator = await oeffneGenerator(kontext);
+    await zumSchritt(generator, 'Farbe');
+
+    /*
+       Gesucht wird der *Eintrag* der Prüfliste und nicht der Text der Seite.
+       Eine Prüfung, die `document.body.innerText` liest, findet irgendwann
+       ihre eigene Ankündigung — das ist hier schon einmal passiert. Der
+       Rangaufdruck steht nur in `RANGTEXT`, also nur in der Liste: damit
+       belegt dieselbe Zeile, dass der Befund dort steht *und* dass er im
+       mittleren Rang steht, in dem er gemeint ist.
+    */
+    const befund = generator
+      .locator('p', {
+        hasText: 'Läuft, ist aber falsch · Farbe',
+      })
+      .filter({ hasText: 'Farbfamilie' });
+
+    /*
+       Gesetzt wird genau das, was das Modell wirklich lieferte: drei Stufen
+       in Orange, die weiche ausgelassen. Nur `signal` zu setzen wäre eine
+       leichtere Aufgabe — dann fielen gleich drei Stufen aus der Familie,
+       und `first()` träfe irgendeine davon. Der Fall, um den es geht, hat
+       genau eine übrig.
+    */
+    await setzeFarbe(generator, 'signal', '#F8AB1F');
+    await setzeFarbe(generator, 'signalStrong', '#FB9800');
+    await setzeFarbe(generator, 'signalDeep', '#F18700');
+    await bisWahr(
+      () => befund.count(),
+      async () =>
+        `die Prüfliste nennt die fremde Familie nicht. Sie sagt: ${JSON.stringify(
+          await generator.locator('p').allInnerTexts(),
+        ).slice(0, 400)}`,
+    );
+    gleich(await befund.count(), 1, 'die Liste nennt mehr als die eine Stufe');
+    wahr(/signalSoft/.test(await befund.first().innerText()), 'der Befund nennt die Rolle nicht');
+
+    // Die Gegenrichtung: eine weiche Stufe im selben Ton schweigt wieder.
+    await setzeFarbe(generator, 'signalSoft', '#FDE6BC');
+    await bisWahr(
+      async () => (await befund.count()) === 0,
+      'der Befund blieb stehen, obwohl die Stufe zur Familie passt',
+    );
+
+    await generator.close();
+  });
+
   await pruefe('der Prompt sagt, woher das Modell ablesen soll', async () => {
     /*
        Der Prompt ist das Lastenheft, und er hatte einen Adressaten: jemanden
