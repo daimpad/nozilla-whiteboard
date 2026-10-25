@@ -49,6 +49,7 @@ export function AssetSidebar() {
 
   return (
     <aside
+      data-tour="bibliothek"
       className="flex h-full w-[268px] shrink-0 flex-col border-r border-ui bg-ui-surface"
       aria-label="Bausteinbibliothek"
     >

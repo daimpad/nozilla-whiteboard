@@ -47,6 +47,7 @@ export function SlideRail() {
 
   return (
     <nav
+      data-tour="filmstreifen"
       className="flex h-[104px] shrink-0 items-center gap-2 border-t border-ui bg-ui-surface px-2"
       aria-label="Folien"
     >

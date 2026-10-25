@@ -31,6 +31,7 @@ import { TopBar } from '@/components/chrome/TopBar';
 import { SessionWarning } from '@/components/chrome/SessionWarning';
 import { SlideRail } from '@/components/chrome/SlideRail';
 import { PanelHandle } from '@/components/chrome/PanelHandle';
+import { Tour, TourAngebot } from '@/components/chrome/Tour';
 import { PresentView } from '@/components/present/PresentView';
 import { cx } from '@/components/ui/controls';
 
@@ -93,6 +94,7 @@ export default function App() {
   const searchOpen = useDeckStore((state) => state.searchOpen);
   const pruefungOpen = useDeckStore((state) => state.pruefungOpen);
   const markenOpen = useDeckStore((state) => state.markenOpen);
+  const tourOpen = useDeckStore((state) => state.tourOpen);
   const panels = useDeckStore((state) => state.panels);
   const deck = useDeckStore((state) => state.deck);
   const slide = useDeckStore(selectCurrentSlide);
@@ -267,6 +269,8 @@ export default function App() {
       {searchOpen ? <SearchPanel /> : null}
       {pruefungOpen ? <PruefPanel /> : null}
       {markenOpen ? <MarkenPanel /> : null}
+      <TourAngebot />
+      {tourOpen ? <Tour /> : null}
 
       <div
         className={cx(

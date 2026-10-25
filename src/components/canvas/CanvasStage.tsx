@@ -372,6 +372,7 @@ export function CanvasStage({ slide, deck, slideNumber, totalSlides }: CanvasSta
       <div
         ref={surfaceRef}
         className="nz-stage relative shrink-0 touch-none select-none"
+        data-tour="flaeche"
         style={surfaceStyle}
         onPointerDown={onSurfacePointerDown}
         onPointerMove={handlePointerMove}

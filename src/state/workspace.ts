@@ -54,6 +54,34 @@ export function readPanels(): PanelState {
   }
 }
 
+/*
+   Ob dieser Browser die Tour schon angeboten bekommen hat.
+
+   Dieselbe Grenze wie bei den Leisten: es gehört dem Menschen vor dem
+   Bildschirm und nicht der Datei. Ein gesperrter Speicher zählt als
+   „gesehen" — sonst stünde das Angebot bei jedem Start wieder da, ohne dass
+   ein „Später" je hielte.
+*/
+const TOUR_KEY = 'nz-tour';
+
+export function tourGesehen(): boolean {
+  if (typeof localStorage === 'undefined') return true;
+  try {
+    return localStorage.getItem(TOUR_KEY) !== null;
+  } catch {
+    return true;
+  }
+}
+
+export function merkeTourGesehen(): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(TOUR_KEY, 'gesehen');
+  } catch {
+    // Gesperrter Speicher: dann fragt das nächste Fenster eben noch einmal.
+  }
+}
+
 export function writePanels(panels: PanelState): void {
   if (typeof localStorage === 'undefined') return;
   try {

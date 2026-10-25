@@ -20,6 +20,7 @@ import { setSurfaceMode, surfaceModes, type SurfaceMode } from '@/theme';
 import { build, buildDate } from '@/lib/version';
 import { useSurface } from '@/hooks/useSurface';
 import { useMenu } from '@/hooks/useMenu';
+import { useDeckStore } from '@/state/deckStore';
 import { Icon } from '@/components/ui/Icon';
 import { cx, IconButton, SectionTitle } from '@/components/ui/controls';
 import type { ToolIconName } from '@/assets/icons';
@@ -43,9 +44,10 @@ export function SettingsMenu() {
   const menue = useMenu<HTMLDivElement>('dialog');
   const open = menue.offen;
   const { mode, resolved } = useSurface();
+  const starteTour = useDeckStore((state) => state.toggleTour);
 
   return (
-    <div className="relative" ref={menue.huelle}>
+    <div className="relative" ref={menue.huelle} data-tour="einstellungen">
       <IconButton icon="gears" label="Einstellungen" {...menue.knopfProps} />
 
       {open ? (
@@ -88,6 +90,32 @@ export function SettingsMenu() {
               ? ` Das System steht gerade auf ${resolved === 'dark' ? 'dunkel' : 'hell'}.`
               : ''}
           </p>
+
+          {/*
+             Die Tour steht hier und nicht im Datei-Menü: sie erklärt den
+             Arbeitsplatz und fasst das Deck nicht an — dieselbe Grenze, nach
+             der dieses Feld überhaupt sortiert ist.
+          */}
+          <div className="border-t border-ui p-1">
+            <button
+              type="button"
+              onClick={() => {
+                menue.schliessen();
+                /*
+                   Erst zurück aufs Zahnrad, dann die Tour: sie merkt sich, wo
+                   der Fokus stand, und gibt ihn beim Schließen dorthin
+                   zurück. Dieser Eintrag ist dann schon aus dem Baum — die
+                   Tour fände `<body>`, und das nächste Tab finge ganz vorn an.
+                */
+                menue.knopf.current?.focus();
+                starteTour(true);
+              }}
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-ui-body text-ui-ink hover:bg-ui-subtle"
+            >
+              <Icon name="signs-post" size={15} />
+              Geführte Tour
+            </button>
+          </div>
 
           <div className="border-t border-ui">
             <SectionTitle>Stand</SectionTitle>

@@ -121,6 +121,7 @@ export function Inspector() {
     <aside
       className="flex h-full w-[300px] shrink-0 flex-col border-l border-ui bg-ui-surface"
       aria-label="Inspektor"
+      data-tour="inspektor"
     >
       <div className="flex items-center gap-1 border-b border-ui px-2 py-2">
         <TabButton active={effectiveTab === 'slide'} onClick={() => setTab('slide')}>

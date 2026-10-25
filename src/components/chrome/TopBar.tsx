@@ -103,38 +103,46 @@ export function TopBar() {
 
       <Divider className="mx-1" />
 
-      <IconButton
-        icon="rotate"
-        label="Rückgängig (⌘Z)"
-        disabled={!canUndo}
-        onClick={undo}
-        className="-scale-x-100"
-      />
-      <IconButton icon="rotate" label="Wiederholen (⇧⌘Z)" disabled={!canRedo} onClick={redo} />
+      {/*
+         Die `data-tour`-Hüllen fassen zusammen, was die Tour in einem Schritt
+         erklärt. Sie tragen dieselbe Lücke wie die Leiste selbst, damit sich
+         an den Abständen nichts verschiebt.
+      */}
+      <div className="flex items-center gap-2" data-tour="verlauf">
+        <IconButton
+          icon="rotate"
+          label="Rückgängig (⌘Z)"
+          disabled={!canUndo}
+          onClick={undo}
+          className="-scale-x-100"
+        />
+        <IconButton icon="rotate" label="Wiederholen (⇧⌘Z)" disabled={!canRedo} onClick={redo} />
+      </div>
 
       <Divider className="mx-1" />
 
-      <IconButton icon="plus" label="Folie hinzufügen (N)" onClick={() => addSlide()} />
-      <IconButton
-        icon="table"
-        label="Folienübersicht (⌘K)"
-        active={overviewOpen}
-        onClick={() => toggleOverview()}
-      />
-      {/*
+      <div className="flex items-center gap-2" data-tour="deckwerkzeuge">
+        <IconButton icon="plus" label="Folie hinzufügen (N)" onClick={() => addSlide()} />
+        <IconButton
+          icon="table"
+          label="Folienübersicht (⌘K)"
+          active={overviewOpen}
+          onClick={() => toggleOverview()}
+        />
+        {/*
          Suchen und Ersetzen war das einzige Merkmal ohne einen Weg mit der
          Maus: `⌘F` stand in zwei Kommentaren im Quelltext und in keiner
          einzigen sichtbaren Beschriftung. Wer das Kürzel nicht kannte, konnte
          im Deck nicht suchen — das Gegenstück zum toten Bedienelement, eine
          Wirkung ohne einen Weg dorthin.
       */}
-      <IconButton
-        icon="magnifying-glass"
-        label="Suchen und Ersetzen (⌘F)"
-        active={searchOpen}
-        onClick={() => toggleSearch()}
-      />
-      {/*
+        <IconButton
+          icon="magnifying-glass"
+          label="Suchen und Ersetzen (⌘F)"
+          active={searchOpen}
+          onClick={() => toggleSearch()}
+        />
+        {/*
          Die Prüfliste steht neben der Suche, weil sie dieselbe Frage stellt:
          wo im Deck ist etwas.
 
@@ -146,13 +154,14 @@ export function TopBar() {
          die Sorte Trägheit, die niemand einem Knopf zuschreibt, den er nie
          drückt.
       */}
-      <IconButton
-        icon="list-check"
-        label="Prüfliste"
-        active={pruefungOpen}
-        onClick={() => togglePruefung()}
-      />
-      <Button icon="wand-magic-sparkles" onClick={() => togglePrompt(true)}>
+        <IconButton
+          icon="list-check"
+          label="Prüfliste"
+          active={pruefungOpen}
+          onClick={() => togglePruefung()}
+        />
+      </div>
+      <Button icon="wand-magic-sparkles" data-tour="prompt" onClick={() => togglePrompt(true)}>
         Prompt
       </Button>
 
@@ -163,26 +172,38 @@ export function TopBar() {
 
         <Divider />
 
-        <IconButton
-          icon="layer-group"
-          label="An Raster und Hilfslinien einrasten"
-          active={snap.grid || snap.smart}
-          onClick={() => setSnap({ grid: !snap.grid, smart: !snap.smart })}
-        />
-        <IconButton icon="table" label="Raster zeigen (G)" active={showGrid} onClick={toggleGrid} />
+        <div className="flex items-center gap-2" data-tour="ansicht">
+          <IconButton
+            icon="layer-group"
+            label="An Raster und Hilfslinien einrasten"
+            active={snap.grid || snap.smart}
+            onClick={() => setSnap({ grid: !snap.grid, smart: !snap.smart })}
+          />
+          <IconButton
+            icon="table"
+            label="Raster zeigen (G)"
+            active={showGrid}
+            onClick={toggleGrid}
+          />
 
-        <Segmented
-          value={zoom === 'fit' ? 'fit' : 'custom'}
-          onChange={(value) => setZoom(value === 'fit' ? 'fit' : 1)}
-          options={[
-            { value: 'fit', label: 'Passend' },
-            { value: 'custom', label: '100%' },
-          ]}
-        />
+          <Segmented
+            value={zoom === 'fit' ? 'fit' : 'custom'}
+            onChange={(value) => setZoom(value === 'fit' ? 'fit' : 1)}
+            options={[
+              { value: 'fit', label: 'Passend' },
+              { value: 'custom', label: '100%' },
+            ]}
+          />
+        </div>
 
         <Divider />
 
-        <Button variant="primary" icon="play" onClick={() => setMode('present')}>
+        <Button
+          variant="primary"
+          icon="play"
+          data-tour="vortragen"
+          onClick={() => setMode('present')}
+        >
           Vortragen
         </Button>
       </div>
@@ -239,7 +260,7 @@ function DateiMenu({ onSave }: { onSave: () => void }) {
   };
 
   return (
-    <div className="relative" ref={menue.huelle}>
+    <div className="relative" ref={menue.huelle} data-tour="datei">
       <Button icon="file-lines" {...menue.knopfProps}>
         Datei
       </Button>
@@ -385,7 +406,7 @@ function ExportMenu({
   };
 
   return (
-    <div className="relative" ref={menue.huelle}>
+    <div className="relative" ref={menue.huelle} data-tour="export">
       {/*
         Beschriftet und nicht nur ein Zeichen: „Datei" steht daneben und trägt
         sein Wort, und ein nacktes Symbol dazwischen liest sich wie eine
