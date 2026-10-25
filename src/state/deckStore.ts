@@ -113,6 +113,11 @@ export interface EditorState {
    */
   markenOpen: boolean;
   /**
+   * Ob die geführte Tour läuft. Gehört dem Arbeitsplatz wie die Leisten: sie
+   * erklärt das Werkzeug und fasst das Deck nicht an.
+   */
+  tourOpen: boolean;
+  /**
    * Welche Leisten offen stehen. Gehört dem Arbeitsplatz und nicht dem Deck —
    * siehe `state/workspace.ts`, dort steht auch, wo es gemerkt wird.
    */
@@ -155,6 +160,7 @@ export interface EditorState {
   toggleSearch: (open?: boolean) => void;
   togglePruefung: (open?: boolean) => void;
   toggleMarken: (open?: boolean) => void;
+  toggleTour: (open?: boolean) => void;
   togglePanel: (name: PanelName, open?: boolean) => void;
 
   addSlide: (at?: number, patch?: Partial<Slide>) => void;
@@ -452,6 +458,7 @@ export const useDeckStore = create<EditorState>()((set, get) => {
     searchOpen: false,
     pruefungOpen: false,
     markenOpen: false,
+    tourOpen: false,
     panels: readPanels(),
 
     selection: [],
@@ -581,6 +588,24 @@ export const useDeckStore = create<EditorState>()((set, get) => {
     toggleSearch: (open) => set((state) => ({ searchOpen: open ?? !state.searchOpen })),
     togglePruefung: (open) => set((state) => ({ pruefungOpen: open ?? !state.pruefungOpen })),
     toggleMarken: (open) => set((state) => ({ markenOpen: open ?? !state.markenOpen })),
+    /*
+       Wer die Tour öffnet, räumt die übrigen Schichten ab. Die Übersicht
+       liegt über dem ganzen Fenster, und eine Tour, die auf die Kopfleiste
+       zeigt, während die Übersicht sie verdeckt, zeigt auf nichts.
+    */
+    toggleTour: (open) =>
+      set((state) =>
+        (open ?? !state.tourOpen)
+          ? {
+              tourOpen: true,
+              overviewOpen: false,
+              searchOpen: false,
+              pruefungOpen: false,
+              promptOpen: false,
+              markenOpen: false,
+            }
+          : { tourOpen: false },
+      ),
 
     togglePanel: (name, open) =>
       set((state) => {

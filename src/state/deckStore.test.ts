@@ -966,6 +966,7 @@ describe('das Netz über alle Aktionen', () => {
     'toggleSearch',
     'togglePruefung',
     'toggleMarken',
+    'toggleTour',
     'togglePanel',
     'select',
     'toggleSelect',

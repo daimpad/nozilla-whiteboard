@@ -699,6 +699,10 @@ async function main() {
   await seite.addInitScript(() => {
     delete window.showSaveFilePicker;
     delete window.showOpenFilePicker;
+    // Das Angebot der Tour gilt dem ersten Besuch. Hier ist jeder Besuch der
+    // erste — es stünde über jeder Prüfung in der Ecke. Geprüft wird es
+    // weiter unten in einem eigenen Kontext.
+    localStorage.setItem('nz-tour', 'gesehen');
   });
 
   await seite.goto(URL, { waitUntil: 'networkidle' });
@@ -4904,6 +4908,231 @@ async function main() {
       );
     },
   );
+
+  console.log('\nGeführte Tour:');
+
+  const tour = () => seite.getByRole('dialog', { name: 'Geführte Tour' });
+  const starteTour = async () => {
+    await seite.getByRole('button', { name: 'Einstellungen', exact: true }).click();
+    await seite.getByRole('button', { name: 'Geführte Tour', exact: true }).click();
+    await tour().waitFor();
+  };
+  /*
+     Was ein Schritt gerade zeigt — gelesen am Ergebnis: das Ziel, das der
+     Kasten nennt, der Bereich, den es im Fenster wirklich gibt, und der
+     Lichtkegel, den die Tour darum legt.
+  */
+  const TOURSTAND = () => {
+    const kasten = document.querySelector('[role="dialog"][aria-label="Geführte Tour"]');
+    if (!kasten) return null;
+    const ziel = kasten.getAttribute('data-tour-ziel');
+    const rechteck = (knoten) => {
+      if (!knoten) return null;
+      const r = knoten.getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height };
+    };
+    const zaehler = /Schritt (\d+) von (\d+)/.exec(kasten.textContent ?? '');
+    return {
+      ziel,
+      schritt: zaehler ? Number(zaehler[1]) : null,
+      von: zaehler ? Number(zaehler[2]) : null,
+      bereich: ziel ? rechteck(document.querySelector(`[data-tour="${ziel}"]`)) : null,
+      licht: rechteck(document.querySelector('[data-tour-licht]')),
+      karte: rechteck(kasten),
+      fenster: { w: innerWidth, h: innerHeight },
+      fokusImKasten: kasten.contains(document.activeElement),
+      inert: document.getElementById('root')?.inert ?? null,
+    };
+  };
+
+  await pruefe('die Tour zeigt auf jeden Bereich, den sie erklärt', async () => {
+    /*
+       Ein Schritt, dessen Bereich es im Fenster nicht gibt, zeigt auf nichts —
+       und das sähe man nur, wenn man die Tour bis dorthin durchklickt. Gefragt
+       wird deshalb in jedem Schritt, ob der genannte Bereich im gezeichneten
+       Fenster steht und ob der Lichtkegel wirklich auf ihm liegt.
+    */
+    /*
+       Der Lichtkegel gleitet ein paar Bildrahmen lang zum neuen Ziel. Ob er
+       angekommen ist, ist deshalb die Bedingung und nicht eine Zusicherung
+       danach: die erste Fassung wartete nur auf die linke Kante und las die
+       obere mitten in der Bewegung.
+    */
+    const liegtAuf = (stand) =>
+      !stand.ziel ||
+      (stand.licht &&
+        stand.bereich &&
+        Math.abs(stand.licht.x + 6 - stand.bereich.x) <= 1 &&
+        Math.abs(stand.licht.y + 6 - stand.bereich.y) <= 1 &&
+        Math.abs(stand.licht.w - 12 - stand.bereich.w) <= 1 &&
+        Math.abs(stand.licht.h - 12 - stand.bereich.h) <= 1);
+    await starteTour();
+    try {
+      let stand = await bis(() => seite.evaluate(TOURSTAND), 'die Tour ging nicht auf');
+      const von = stand.von;
+      wahr(von > 2, `die Tour nennt keine Schrittzahl: ${JSON.stringify(stand)}`);
+      const gesehen = new Set();
+      for (let schritt = 1; schritt <= von; schritt++) {
+        stand = await bisWahr(
+          async () => {
+            const jetzt = await seite.evaluate(TOURSTAND);
+            return jetzt?.schritt === schritt && liegtAuf(jetzt) ? jetzt : null;
+          },
+          async () =>
+            `Schritt ${schritt}: der Lichtkegel liegt nicht auf seinem Bereich: ` +
+            JSON.stringify(await seite.evaluate(TOURSTAND)),
+        );
+
+        wahr(stand.fokusImKasten, `Schritt ${schritt}: der Fokus steht nicht in der Tour`);
+        wahr(stand.inert === true, `Schritt ${schritt}: das Fenster darunter ist nicht gesperrt`);
+        const k = stand.karte;
+        wahr(
+          k.x >= 0 && k.y >= 0 && k.x + k.w <= stand.fenster.w && k.y + k.h <= stand.fenster.h,
+          `Schritt ${schritt}: der Kasten ragt aus dem Fenster: ${JSON.stringify(k)}`,
+        );
+        if (stand.ziel) {
+          wahr(!gesehen.has(stand.ziel), `Schritt ${schritt}: „${stand.ziel}" kommt zweimal vor`);
+          gesehen.add(stand.ziel);
+          wahr(
+            stand.bereich.w > 0 && stand.bereich.h > 0,
+            `Schritt ${schritt}: „${stand.ziel}" ist leer`,
+          );
+        }
+        if (schritt < von)
+          await tour().getByRole('button', { name: 'Weiter', exact: true }).click();
+      }
+      await tour().getByRole('button', { name: 'Fertig', exact: true }).click();
+      await bisGleich(() => tour().count(), 0, 'die Tour ging nach „Fertig" nicht zu');
+      gleich(
+        await seite.evaluate(() => document.getElementById('root')?.inert),
+        false,
+        'das Fenster blieb nach der Tour gesperrt',
+      );
+    } finally {
+      // Eine offene Tour sperrt das ganze Fenster: jede folgende Prüfung
+      // meldete sonst den Fehler dieser hier unter ihrem eigenen Namen.
+      if (await tour().count()) await seite.keyboard.press('Escape');
+    }
+  });
+
+  await pruefe('während der Tour gehört die Tastatur der Tour', async () => {
+    /*
+       Unter der abgedunkelten Fläche wären die Tasten des Werkzeugs
+       Handgriffe, die niemand sieht: ein `→` blätterte die Folie statt der
+       Tour, ein `n` legte eine Folie an. Und der Fokus kommt beim Schließen
+       dorthin zurück, wo er vorher stand — sonst fängt das nächste Tab ganz
+       vorn an.
+    */
+    // Gezählt wird am Filmstreifen, also an dem, was eine Taste verändert
+    // hätte: eine Folie mehr, eine weniger, eine andere gezeigt.
+    const zaehler = () =>
+      seite.evaluate(() => {
+        const kacheln = [...document.querySelectorAll('nav[aria-label="Folien"] button[title]')];
+        return `${kacheln.findIndex((k) => k.getAttribute('aria-current') === 'true')} / ${kacheln.length}`;
+      });
+    const vorher = await zaehler();
+    await starteTour();
+    try {
+      await seite.keyboard.press('ArrowRight');
+      await bisGleich(
+        async () => (await seite.evaluate(TOURSTAND))?.schritt,
+        2,
+        '→ blätterte die Tour nicht',
+      );
+      for (const taste of ['n', 'Delete', 'p', 'Control+KeyK']) await seite.keyboard.press(taste);
+      await seite.keyboard.press('ArrowLeft');
+      await bisGleich(
+        async () => (await seite.evaluate(TOURSTAND))?.schritt,
+        1,
+        '← blätterte die Tour nicht zurück',
+      );
+      gleich(await zaehler(), vorher, 'eine Taste unter der Tour hat die Folien verändert');
+      gleich(
+        await seite.getByRole('dialog', { name: 'Übersicht' }).count(),
+        0,
+        '⌘K öffnete unter der Tour die Übersicht',
+      );
+
+      // Tab läuft im Kasten im Kreis und nie in das Fenster darunter.
+      for (const [i, taste] of [
+        'Tab',
+        'Tab',
+        'Tab',
+        'Tab',
+        'Shift+Tab',
+        'Shift+Tab',
+        'Shift+Tab',
+      ].entries()) {
+        await seite.keyboard.press(taste);
+        wahr(
+          (await seite.evaluate(TOURSTAND)).fokusImKasten,
+          `nach ${i + 1} Anschlägen (${taste}) stand der Fokus außerhalb der Tour`,
+        );
+      }
+
+      await seite.keyboard.press('Escape');
+      await bisGleich(() => tour().count(), 0, 'Esc beendete die Tour nicht');
+      gleich(
+        await seite.evaluate(() => document.activeElement?.getAttribute('aria-label')),
+        'Einstellungen',
+        'der Fokus kam nicht zum Zahnrad zurück',
+      );
+    } finally {
+      if (await tour().count()) await seite.keyboard.press('Escape');
+    }
+  });
+
+  await pruefe('die Tour klappt eine zugeklappte Leiste auf, bevor sie darauf zeigt', async () => {
+    const bibliothek = seite.locator('[data-tour="bibliothek"]');
+    await seite.keyboard.press('Control+Digit1');
+    await bisGleich(() => bibliothek.count(), 0, '⌘1 klappte die Bibliothek nicht zu');
+    try {
+      await starteTour();
+      await bisWahr(async () => {
+        const stand = await seite.evaluate(TOURSTAND);
+        if (stand?.ziel === 'bibliothek') return true;
+        await seite.keyboard.press('ArrowRight');
+        return null;
+      }, 'die Tour kam nie zur Bibliothek');
+      await bisGleich(() => bibliothek.count(), 1, 'die Tour zeigte auf eine zugeklappte Leiste');
+    } finally {
+      await seite.keyboard.press('Escape');
+      if (!(await bibliothek.count())) await seite.keyboard.press('Control+Digit1');
+    }
+  });
+
+  await pruefe('beim ersten Besuch bietet sich die Tour an — und danach nicht mehr', async () => {
+    /*
+       Ein eigener Kontext, denn dieser Rauchtest merkt sich die Tour gleich
+       beim Start als gesehen: sonst stünde das Angebot über jeder Prüfung in
+       der Ecke und finge Klicks ab, die anderswo hingehören.
+    */
+    const frisch = await browser.newContext({ viewport: { width: 1500, height: 940 } });
+    try {
+      const neu = await frisch.newPage();
+      await neu.goto(URL, { waitUntil: 'networkidle' });
+      const angebot = neu.getByRole('region', { name: 'Tour-Angebot' });
+      await angebot.waitFor();
+      await angebot.getByRole('button', { name: 'Später', exact: true }).click();
+      await bisGleich(() => angebot.count(), 0, '„Später" nahm das Angebot nicht weg');
+
+      await neu.reload({ waitUntil: 'networkidle' });
+      await neu.locator('[data-tour="flaeche"]').waitFor();
+      gleich(await angebot.count(), 0, 'das Angebot kam nach „Später" wieder');
+
+      // Und der andere Ausgang: angenommen, steht die Tour da.
+      await neu.evaluate(() => localStorage.removeItem('nz-tour'));
+      await neu.reload({ waitUntil: 'networkidle' });
+      await angebot.getByRole('button', { name: 'Tour starten', exact: true }).click();
+      await neu.getByRole('dialog', { name: 'Geführte Tour' }).waitFor();
+      await neu.keyboard.press('Escape');
+      await neu.reload({ waitUntil: 'networkidle' });
+      await neu.locator('[data-tour="flaeche"]').waitFor();
+      gleich(await angebot.count(), 0, 'das Angebot kam nach der Tour wieder');
+    } finally {
+      await frisch.close();
+    }
+  });
 
   await pruefe('nichts hat sich in der Konsole beschwert', async () => {
     gleich(gezaehlt(fehler), '', 'Fehler in der Konsole');

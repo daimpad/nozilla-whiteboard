@@ -121,7 +121,7 @@ scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
           ciAbgleich.mjs      Was ein Sync verlöre — die Rechnung dazu
           schriftbibliothek.mjs  Schneidet zwanzig Familien aus Google Fonts
                               zu festen Schnitten
-          smoke.mjs           Der Rauchtest: 85 Handgriffe gegen das Bauwerk
+          smoke.mjs           Der Rauchtest: 89 Handgriffe gegen das Bauwerk
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set
               icons.ts        Das Set des gültigen Erscheinungsbilds
@@ -207,8 +207,11 @@ src/
               useSurface.ts · useDeckTheme.ts
   state/      deckStore.ts    Zustand, Aktionen, Verlauf
               persistence.ts  Öffnen, Sichern, Selbstsicherung, darfErsetzen()
-              workspace.ts    Welche Leisten offen stehen — dem Arbeitsplatz
+              workspace.ts    Welche Leisten offen stehen, ob die Tour schon
+                              angeboten wurde — beides dem Arbeitsplatz
   components/ canvas · panels · chrome · present · ui
+              chrome/Tour.tsx Die geführte Tour: vierzehn Schritte, je einer
+                              auf einen Bereich mit `data-tour`
 ```
 
 **Nicht von Hand ändern:** `src/assets/icons.generated.ts`,
@@ -274,11 +277,13 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Fünfundachtzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Neunundachtzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im
   Kopf von `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`;
   die Fassung passt nicht zur Bibliothek, deshalb
-  `SMOKE_CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
+  `SMOKE_CHROMIUM=/opt/pw-browsers/chromium` — ein Verweis auf die Fassung,
+  die gerade daliegt. Der alte Pfad mit Versionsnummer zeigte nach einem
+  neuen Abbild ins Leere.
 
 Wenn du eine Ausgabe änderst, sieh sie dir an. Nicht die Zusicherung — das
 Bild.
@@ -4485,6 +4490,71 @@ Augenblick ist ein anderes Bild als das Nachher, ohne dass eine Datei etwas
 verändert hätte. Genommen wird es jetzt nach `document.fonts.ready` und nach
 der Notbremse von `loadFaces()`: dieselbe Wartezeit mit demselben Grund wie bei
 der dunklen Erscheinung.
+
+**Eine Tour, die erklärt, darf nichts drücken lassen.** Die geführte Tour legt
+einen Kasten über das Fenster und hebt der Reihe nach einen Bereich hervor.
+Darunter bleibt alles lebendig, wenn man nichts tut: `useKeyboardShortcuts`
+hört am `window`, ein `→` blätterte die Folie statt der Tour, ein `n` legte
+hinter der Erklärung eine Folie an, und ein Tab lief durch den Kasten hindurch
+auf „Folie hinzufügen". Die Tour hört deshalb in der **Einfangphase** und hält
+jede Taste an, bevor sie das Fenster erreicht; `#root` wird `inert`. Die
+eingebaute Bedienung bleibt — Leertaste und Eingabe auf dem Knopf, auf dem der
+Fokus steht.
+
+Drei Dinge daran, die erst der Browser gezeigt hat. **`inert` nimmt den Fokus
+mit**: wer sich das Ziel für die Rückgabe erst danach merkt, merkt sich
+`<body>`. Merken, sperren, beim Schließen erst entsperren, dann zurückgeben —
+in *einem* Effekt; `useFokusZurueck()` kann das nicht, zwei Effekte räumen in
+der Reihenfolge ab, in der sie stehen, und genau falsch herum. **Ein Knoten mit
+`visibility: hidden` nimmt keinen Fokus an**: der Kasten war im ersten
+Bildrahmen versteckt, bis seine Lage gemessen ist, und der Fokus landete auf
+`<body>`. Er ist jetzt durchsichtig statt versteckt. Und **Tab lief nach drei
+Anschlägen aus dem Kasten** auf `<body>`, von wo kein Tab zurückführt: ein
+Fenster, das `inert` ist, hat keinen nächsten Tabstopp. Der Kasten führt Tab
+deshalb im Kreis. Das ist kein Widerspruch zur Regel, `Tab` nicht abzufangen —
+dort sperrte das Abfangen den Benutzer ein, hier gibt es nichts anderes, das
+er erreichen könnte, und hinaus geht es mit `Esc`.
+
+Und die Rückgabe zeigte zuerst ins Leere, aus einem Grund, der in dieser Liste
+schon einmal steht: gestartet wird aus dem Einstellungsmenü, und dessen Eintrag
+ist aus dem Baum, wenn die Tour sich den Fokus merkt. Das Menü gibt ihn deshalb
+vorher ans Zahnrad zurück.
+
+Die Ziele werden über `data-tour` gefunden und nicht über einen Selektor auf
+Beschriftungen oder Klassen: eine umbenannte Leiste soll eine Prüfung rot
+machen und nicht einen Schritt still auf nichts zeigen lassen. `tour.test.ts`
+liest die Quellen und hält beide Richtungen — jedes Ziel genau einmal gesetzt,
+kein Anker, den kein Schritt nennt. Der Rauchtest geht die Tour bis zum Ende
+durch und verlangt in jedem Schritt, dass der Lichtkegel auf seinem Bereich
+*liegt*. Seine erste Fassung wartete dafür nur auf die linke Kante und las die
+obere mitten im Gleiten — derselbe Fehler wie „ein `fill()` ist ein Handgriff
+und keine Bedingung": wer auf eine Hälfte wartet, prüft die andere im Flug.
+
+Gegengeprüft an fünf Sabotagen, jede baut: ein umbenannter Anker macht zwei
+Prüfungen in vitest rot, und vier Eingriffe in einem Lauf — kein `inert`, kein
+Kreis für Tab, keine aufgeklappte Leiste, ein „Später", das nichts merkt —
+machen im Rauchtest genau vier Handgriffe rot, jeden mit seinem eigenen Satz.
+Damit eine rote Tour-Prüfung nicht die nächsten unter ihrem Namen mitnimmt,
+schließt jede ihre Tour im `finally` — eine offene Tour sperrt das ganze
+Fenster.
+
+Das Angebot beim ersten Start gilt dem Menschen und nicht der Datei
+(`nz-tour` im `localStorage`), und ein gesperrter Speicher zählt als
+„gesehen": sonst stünde es bei jedem Start wieder da. Der Rauchtest setzt den
+Schlüssel deshalb in seinem Startskript — für ihn ist jeder Besuch der erste —
+und prüft das Angebot in einem eigenen Kontext.
+
+Das Sprachsieb schlug zweimal auf Klempnerei an, die großgeschrieben oder
+gesperrt war: `max-w-[calc(100vw-1.5rem)]` in einer Klassenliste und der
+Selektor `button:not(:disabled)`. Es urteilt nach der Schreibweise, und beide
+sehen für es aus wie Text. Die Breite steht deshalb als Zahl im `style`, und
+die gesperrten Knöpfe werden am Element gefiltert — beides ist ohnehin die
+lesbarere Form.
+
+**Und ein fremdes Prettier formatiert fremde Dateien.** In einem frischen
+Container fehlte `node_modules`; `npx prettier` holte sich eine andere Fassung
+und stellte fünf Dateien um, die niemand angefasst hatte. Erst `npm ci`, dann
+formatieren — und vor dem Commit `git diff --stat` lesen.
 
 ---
 

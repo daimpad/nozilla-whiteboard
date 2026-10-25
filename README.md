@@ -255,6 +255,22 @@ Garantie auf, dass hier nur konformes Material entstehen kann.
 
 ## Was das Werkzeug kann
 
+### Die geführte Tour
+
+Wer das Werkzeug zum ersten Mal öffnet, bekommt unten rechts eine Tour
+angeboten: vierzehn Schritte, die der Reihe nach jeden Bereich des Fensters
+hervorheben und sagen, wofür er da ist — Datei, Export, Einstellungen,
+Verlauf, die Werkzeuge des Decks, der Prompt, die Ansicht, Bibliothek,
+Fläche, Filmstreifen, Inspektor und Vortrag. Eine zugeklappte Leiste klappt
+sie dafür auf. Später steht sie jederzeit unter dem Zahnrad →
+**Geführte Tour**.
+
+Während der Tour gehört die Tastatur ihr: `→` und `←` blättern, `Esc`
+beendet, `Tab` läuft im Kasten im Kreis. Das Fenster darunter ist gesperrt —
+eine Taste, die eine Folie anlegt, während man eine Erklärung liest, wäre ein
+Handgriff, den niemand sieht. Ob die Tour schon angeboten wurde, merkt sich
+der Browser und nicht das Deck.
+
 ### Markdown-Motor
 
 Deck aus einer `.md` laden (Knopf, `⌘O`, oder Datei ins
@@ -553,7 +569,7 @@ scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
           ciAbgleich.mjs      Was ein Sync verlöre — die Rechnung dazu
           schriftbibliothek.mjs  Schneidet zwanzig Familien aus Google Fonts
                               zu festen Schnitten
-          smoke.mjs           Der Rauchtest: 85 Handgriffe gegen das Bauwerk
+          smoke.mjs           Der Rauchtest: 89 Handgriffe gegen das Bauwerk
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set (554 Icons)
               icons.ts        Das Set des gültigen Erscheinungsbilds
@@ -617,8 +633,10 @@ src/
                               Die Zähler, an denen ein Merker verfällt
   state/      deckStore.ts    Zustand, Aktionen, Verlauf
               persistence.ts  Öffnen, Sichern, Selbstsicherung, Rückfragen
-              workspace.ts    Welche Leisten offen stehen
+              workspace.ts    Welche Leisten offen stehen, ob die Tour schon
+                              angeboten wurde
   components/ canvas · panels · chrome · present · ui
+              chrome/Tour.tsx Die geführte Tour
 ```
 
 ---
@@ -808,7 +826,7 @@ CI-Konformität aller 554 Icons.
 
 Das prüft alles, was das Werkzeug **herstellt**. Ob man es **bedienen** kann,
 prüft `npm run test:ui`: Playwright klickt gegen `vite preview`, also gegen
-das gebaute Verzeichnis. Fünfundachtzig Handgriffe, jeder für einen Fehler,
+das gebaute Verzeichnis. Neunundachtzig Handgriffe, jeder für einen Fehler,
 der einmal durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
 ihrem Kasten, eine Vorschau schwarz auf dunkelgrau. Beides läuft bei jedem
 Pull Request.
