@@ -64,19 +64,25 @@ export function readPanels(): PanelState {
 */
 const TOUR_KEY = 'nz-tour';
 
-export function tourGesehen(): boolean {
+/*
+   Der CI-Generator hat seine eigene Tour und darum seinen eigenen Merker:
+   wer das Werkzeug kennt, kennt den Generator noch lange nicht.
+*/
+export const TOUR_CI_KEY = 'nz-tour-ci';
+
+export function tourGesehen(schluessel: string = TOUR_KEY): boolean {
   if (typeof localStorage === 'undefined') return true;
   try {
-    return localStorage.getItem(TOUR_KEY) !== null;
+    return localStorage.getItem(schluessel) !== null;
   } catch {
     return true;
   }
 }
 
-export function merkeTourGesehen(): void {
+export function merkeTourGesehen(schluessel: string = TOUR_KEY): void {
   if (typeof localStorage === 'undefined') return;
   try {
-    localStorage.setItem(TOUR_KEY, 'gesehen');
+    localStorage.setItem(schluessel, 'gesehen');
   } catch {
     // Gesperrter Speicher: dann fragt das nächste Fenster eben noch einmal.
   }

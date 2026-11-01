@@ -15,10 +15,20 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { merkeTourGesehen, tourGesehen } from '@/state/workspace';
+import { merkeTourGesehen, tourGesehen, TOUR_CI_KEY } from '@/state/workspace';
+import type { FuehrungsSchritt } from '@/components/ui/Fuehrung';
+import { ciTourSchritte } from '@/ci/Tour';
 import { tourSchritte } from './Tour';
 
-const ROOT = join(process.cwd(), 'src', 'components');
+/*
+   Zwei Touren, zwei Seiten, je ein Verzeichnis. Jede sucht ihre Anker nur dort,
+   wo ihre Seite gezeichnet wird: ein `ci-`-Anker im Werkzeug wäre einer, den
+   keine Tour je findet, weil die beiden nie im selben Fenster stehen.
+*/
+const TOUREN: [string, string, readonly FuehrungsSchritt[]][] = [
+  ['das Werkzeug', join(process.cwd(), 'src', 'components'), tourSchritte],
+  ['den CI-Generator', join(process.cwd(), 'src', 'ci'), ciTourSchritte],
+];
 
 function quellen(ordner: string): string[] {
   return readdirSync(ordner).flatMap((name) => {
@@ -35,9 +45,9 @@ const ohneKommentare = (text: string) =>
     .replace(/(^|[^:])\/\/[^\n]*/g, (_: string, davor: string) => davor);
 
 /** Jeder gesetzte Anker samt der Datei, in der er steht. */
-function anker(): Map<string, string[]> {
+function anker(ordner: string): Map<string, string[]> {
   const gefunden = new Map<string, string[]>();
-  for (const pfad of quellen(ROOT)) {
+  for (const pfad of quellen(ordner)) {
     const text = ohneKommentare(readFileSync(pfad, 'utf8'));
     // Ein Name aus Kleinbuchstaben: so steht ein Anker als Attribut da. Der
     // Selektor in `Tour.tsx`, der ihn sucht, setzt keinen.
@@ -48,9 +58,9 @@ function anker(): Map<string, string[]> {
   return gefunden;
 }
 
-describe('die geführte Tour', () => {
-  const gesetzt = anker();
-  const genannt = tourSchritte.flatMap((schritt) => (schritt.ziel ? [schritt.ziel] : []));
+describe.each(TOUREN)('die geführte Tour durch %s', (_, ordner, schritte) => {
+  const gesetzt = anker(ordner);
+  const genannt = schritte.flatMap((schritt) => (schritt.ziel ? [schritt.ziel] : []));
 
   it('zeigt mit jedem Schritt auf genau einen Bereich', () => {
     for (const ziel of genannt) {
@@ -68,8 +78,8 @@ describe('die geführte Tour', () => {
 
   it('fängt mit einem Gruß an und hört mit einem Abschied auf', () => {
     // Beide ohne Ziel: der erste sagt, was kommt, der letzte, wo es weitergeht.
-    expect(tourSchritte[0]?.ziel).toBeNull();
-    expect(tourSchritte[tourSchritte.length - 1]?.ziel).toBeNull();
+    expect(schritte[0]?.ziel).toBeNull();
+    expect(schritte[schritte.length - 1]?.ziel).toBeNull();
   });
 });
 
@@ -84,6 +94,15 @@ describe('das Angebot der Tour', () => {
     expect(tourGesehen()).toBe(false);
     merkeTourGesehen();
     expect(tourGesehen()).toBe(true);
+  });
+
+  it('merkt sich je Seite für sich', () => {
+    // Wer das Werkzeug kennt, kennt den Generator noch nicht — und umgekehrt.
+    localStorage.clear();
+    merkeTourGesehen();
+    expect(tourGesehen(TOUR_CI_KEY)).toBe(false);
+    merkeTourGesehen(TOUR_CI_KEY);
+    expect(tourGesehen(TOUR_CI_KEY)).toBe(true);
   });
 
   it('zählt einen gesperrten Speicher als gesehen', () => {

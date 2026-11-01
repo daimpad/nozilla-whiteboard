@@ -725,6 +725,7 @@ async function main() {
     // erste — es stünde über jeder Prüfung in der Ecke. Geprüft wird es
     // weiter unten in einem eigenen Kontext.
     localStorage.setItem('nz-tour', 'gesehen');
+    localStorage.setItem('nz-tour-ci', 'gesehen');
   });
 
   await seite.goto(URL, { waitUntil: 'networkidle' });
@@ -4933,7 +4934,7 @@ async function main() {
 
   console.log('\nGeführte Tour:');
 
-  const tour = () => seite.getByRole('dialog', { name: 'Geführte Tour' });
+  const tour = (fenster = seite) => fenster.getByRole('dialog', { name: 'Geführte Tour' });
   const starteTour = async () => {
     await seite.getByRole('button', { name: 'Einstellungen', exact: true }).click();
     await seite.getByRole('button', { name: 'Geführte Tour', exact: true }).click();
@@ -4967,69 +4968,73 @@ async function main() {
     };
   };
 
+  /*
+     Eine Tour von vorn bis „Fertig" durchgehen, auf jeder Seite, die eine hat.
+     Ein Schritt, dessen Bereich es im Fenster nicht gibt, zeigt auf nichts —
+     und das sähe man nur, wenn man die Tour bis dorthin durchklickt. Gefragt
+     wird deshalb in jedem Schritt, ob der genannte Bereich im gezeichneten
+     Fenster steht und ob der Lichtkegel wirklich auf ihm liegt.
+
+     Der Lichtkegel gleitet ein paar Bildrahmen lang zum neuen Ziel. Ob er
+     angekommen ist, ist deshalb die Bedingung und nicht eine Zusicherung
+     danach: die erste Fassung wartete nur auf die linke Kante und las die
+     obere mitten in der Bewegung.
+  */
+  const liegtAuf = (stand) =>
+    !stand.ziel ||
+    (stand.licht &&
+      stand.bereich &&
+      Math.abs(stand.licht.x + 6 - stand.bereich.x) <= 1 &&
+      Math.abs(stand.licht.y + 6 - stand.bereich.y) <= 1 &&
+      Math.abs(stand.licht.w - 12 - stand.bereich.w) <= 1 &&
+      Math.abs(stand.licht.h - 12 - stand.bereich.h) <= 1);
+  const geheTourDurch = async (fenster) => {
+    let stand = await bis(() => fenster.evaluate(TOURSTAND), 'die Tour ging nicht auf');
+    const von = stand.von;
+    wahr(von > 2, `die Tour nennt keine Schrittzahl: ${JSON.stringify(stand)}`);
+    const gesehen = new Set();
+    for (let schritt = 1; schritt <= von; schritt++) {
+      stand = await bisWahr(
+        async () => {
+          const jetzt = await fenster.evaluate(TOURSTAND);
+          return jetzt?.schritt === schritt && liegtAuf(jetzt) ? jetzt : null;
+        },
+        async () =>
+          `Schritt ${schritt}: der Lichtkegel liegt nicht auf seinem Bereich: ` +
+          JSON.stringify(await fenster.evaluate(TOURSTAND)),
+      );
+
+      wahr(stand.fokusImKasten, `Schritt ${schritt}: der Fokus steht nicht in der Tour`);
+      wahr(stand.inert === true, `Schritt ${schritt}: das Fenster darunter ist nicht gesperrt`);
+      const k = stand.karte;
+      wahr(
+        k.x >= 0 && k.y >= 0 && k.x + k.w <= stand.fenster.w && k.y + k.h <= stand.fenster.h,
+        `Schritt ${schritt}: der Kasten ragt aus dem Fenster: ${JSON.stringify(k)}`,
+      );
+      if (stand.ziel) {
+        wahr(!gesehen.has(stand.ziel), `Schritt ${schritt}: „${stand.ziel}" kommt zweimal vor`);
+        gesehen.add(stand.ziel);
+        wahr(
+          stand.bereich.w > 0 && stand.bereich.h > 0,
+          `Schritt ${schritt}: „${stand.ziel}" ist leer`,
+        );
+      }
+      if (schritt < von)
+        await tour(fenster).getByRole('button', { name: 'Weiter', exact: true }).click();
+    }
+    await tour(fenster).getByRole('button', { name: 'Fertig', exact: true }).click();
+    await bisGleich(() => tour(fenster).count(), 0, 'die Tour ging nach „Fertig" nicht zu');
+    gleich(
+      await fenster.evaluate(() => document.getElementById('root')?.inert),
+      false,
+      'das Fenster blieb nach der Tour gesperrt',
+    );
+  };
+
   await pruefe('die Tour zeigt auf jeden Bereich, den sie erklärt', async () => {
-    /*
-       Ein Schritt, dessen Bereich es im Fenster nicht gibt, zeigt auf nichts —
-       und das sähe man nur, wenn man die Tour bis dorthin durchklickt. Gefragt
-       wird deshalb in jedem Schritt, ob der genannte Bereich im gezeichneten
-       Fenster steht und ob der Lichtkegel wirklich auf ihm liegt.
-    */
-    /*
-       Der Lichtkegel gleitet ein paar Bildrahmen lang zum neuen Ziel. Ob er
-       angekommen ist, ist deshalb die Bedingung und nicht eine Zusicherung
-       danach: die erste Fassung wartete nur auf die linke Kante und las die
-       obere mitten in der Bewegung.
-    */
-    const liegtAuf = (stand) =>
-      !stand.ziel ||
-      (stand.licht &&
-        stand.bereich &&
-        Math.abs(stand.licht.x + 6 - stand.bereich.x) <= 1 &&
-        Math.abs(stand.licht.y + 6 - stand.bereich.y) <= 1 &&
-        Math.abs(stand.licht.w - 12 - stand.bereich.w) <= 1 &&
-        Math.abs(stand.licht.h - 12 - stand.bereich.h) <= 1);
     await starteTour();
     try {
-      let stand = await bis(() => seite.evaluate(TOURSTAND), 'die Tour ging nicht auf');
-      const von = stand.von;
-      wahr(von > 2, `die Tour nennt keine Schrittzahl: ${JSON.stringify(stand)}`);
-      const gesehen = new Set();
-      for (let schritt = 1; schritt <= von; schritt++) {
-        stand = await bisWahr(
-          async () => {
-            const jetzt = await seite.evaluate(TOURSTAND);
-            return jetzt?.schritt === schritt && liegtAuf(jetzt) ? jetzt : null;
-          },
-          async () =>
-            `Schritt ${schritt}: der Lichtkegel liegt nicht auf seinem Bereich: ` +
-            JSON.stringify(await seite.evaluate(TOURSTAND)),
-        );
-
-        wahr(stand.fokusImKasten, `Schritt ${schritt}: der Fokus steht nicht in der Tour`);
-        wahr(stand.inert === true, `Schritt ${schritt}: das Fenster darunter ist nicht gesperrt`);
-        const k = stand.karte;
-        wahr(
-          k.x >= 0 && k.y >= 0 && k.x + k.w <= stand.fenster.w && k.y + k.h <= stand.fenster.h,
-          `Schritt ${schritt}: der Kasten ragt aus dem Fenster: ${JSON.stringify(k)}`,
-        );
-        if (stand.ziel) {
-          wahr(!gesehen.has(stand.ziel), `Schritt ${schritt}: „${stand.ziel}" kommt zweimal vor`);
-          gesehen.add(stand.ziel);
-          wahr(
-            stand.bereich.w > 0 && stand.bereich.h > 0,
-            `Schritt ${schritt}: „${stand.ziel}" ist leer`,
-          );
-        }
-        if (schritt < von)
-          await tour().getByRole('button', { name: 'Weiter', exact: true }).click();
-      }
-      await tour().getByRole('button', { name: 'Fertig', exact: true }).click();
-      await bisGleich(() => tour().count(), 0, 'die Tour ging nach „Fertig" nicht zu');
-      gleich(
-        await seite.evaluate(() => document.getElementById('root')?.inert),
-        false,
-        'das Fenster blieb nach der Tour gesperrt',
-      );
+      await geheTourDurch(seite);
     } finally {
       // Eine offene Tour sperrt das ganze Fenster: jede folgende Prüfung
       // meldete sonst den Fehler dieser hier unter ihrem eigenen Namen.
@@ -5150,6 +5155,67 @@ async function main() {
       await neu.keyboard.press('Escape');
       await neu.reload({ waitUntil: 'networkidle' });
       await neu.locator('[data-tour="flaeche"]').waitFor();
+      gleich(await angebot.count(), 0, 'das Angebot kam nach der Tour wieder');
+    } finally {
+      await frisch.close();
+    }
+  });
+
+  await pruefe(
+    'der CI-Generator hat eine eigene Tour, und sie gehört seiner Tastatur',
+    async () => {
+      /*
+       Dieselbe Tour auf der zweiten Seite, über `ui/Fuehrung.tsx`. Geprüft wird,
+       was dort anders ist: die Bereiche, der Knopf in der Kopfleiste, und das
+       eine Kürzel der Seite — ⌘↵ schaltet einen Schritt weiter und darf das
+       unter der Tour nicht tun.
+    */
+      const generator = await oeffneGenerator(kontext);
+      try {
+        const reiterJetzt = () =>
+          generator.evaluate(
+            () => document.querySelector('[role="tab"][aria-selected="true"]')?.id ?? null,
+          );
+        const vorher = await reiterJetzt();
+        const knopf = generator.getByRole('button', { name: 'Tour', exact: true });
+        await knopf.click();
+        await tour(generator).waitFor();
+        await generator.keyboard.press('ControlOrMeta+Enter');
+        gleich(await reiterJetzt(), vorher, '⌘↵ schaltete unter der Tour den Schritt weiter');
+        await geheTourDurch(generator);
+        gleich(
+          await generator.evaluate(() => document.activeElement?.textContent?.trim()),
+          'Tour',
+          'der Fokus kam nicht zum Knopf „Tour" zurück',
+        );
+      } finally {
+        if (await tour(generator).count()) await generator.keyboard.press('Escape');
+        await generator.close();
+      }
+    },
+  );
+
+  await pruefe('der CI-Generator bietet seine Tour beim ersten Besuch an', async () => {
+    /*
+       Ein eigener Kontext wie beim Werkzeug, und mit einer Vorgeschichte: wer
+       die Tour des Werkzeugs schon gesehen hat, kennt den Generator trotzdem
+       nicht. Stünde dort derselbe Merker, käme das Angebot hier nie.
+    */
+    const frisch = await browser.newContext({ viewport: { width: 1500, height: 940 } });
+    try {
+      await frisch.addInitScript(() => {
+        if (!localStorage.getItem('nz-tour')) localStorage.setItem('nz-tour', 'gesehen');
+      });
+      const neu = await frisch.newPage();
+      await neu.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+      const angebot = neu.getByRole('region', { name: 'Tour-Angebot' });
+      await angebot.waitFor();
+      await angebot.getByRole('button', { name: 'Tour starten', exact: true }).click();
+      await tour(neu).waitFor();
+      await neu.keyboard.press('Escape');
+      await bisGleich(() => tour(neu).count(), 0, 'Esc beendete die Tour des Generators nicht');
+      await neu.reload({ waitUntil: 'networkidle' });
+      await neu.getByRole('tablist').waitFor();
       gleich(await angebot.count(), 0, 'das Angebot kam nach der Tour wieder');
     } finally {
       await frisch.close();

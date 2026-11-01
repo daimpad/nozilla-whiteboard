@@ -52,6 +52,7 @@ import {
   schrittFuerFeld,
 } from './schritte';
 import { PROBEFOLIEN, Vorschau } from './Vorschau';
+import { CiTour, CiTourAngebot } from './Tour';
 
 /**
  * Beim Öffnen: fortsetzen oder frisch anfangen?
@@ -106,6 +107,10 @@ function verworfenSatz(woher: string, verworfen: readonly string[]): string | nu
 export function CiGenerator() {
   const [entwurf, setEntwurf] = useState<CiEntwurf>(() => ersterEntwurf().entwurf);
   const [schritt, setSchritt] = useState(0);
+  const [tourOffen, setTourOffen] = useState(false);
+  // Stabil, weil die Tour ihren Tastengriff daran hängt und ihn sonst bei
+  // jedem Zeichnen ab- und wieder anlegte.
+  const schliesseTour = useCallback(() => setTourOffen(false), []);
   const [blatt, setBlatt] = useState(0);
   const [hinweis, setHinweis] = useState<string | null>(() =>
     verworfenSatz('Der Entwurf von vorhin ist zurück.', ersterEntwurf().verworfen),
@@ -410,7 +415,7 @@ export function CiGenerator() {
           </span>
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2" data-tour="ci-entwurf">
           {/*
             Sichern und Laden als Datei — der Weg, den die Ablage im Browser
             nicht abdeckt: an einem anderen Rechner weiterarbeiten, einen Stand
@@ -480,6 +485,9 @@ export function CiGenerator() {
           >
             Zurück zum Werkzeug
           </Button>
+          <Button variant="ghost" icon="signs-post" onClick={() => setTourOffen(true)}>
+            Tour
+          </Button>
         </div>
       </header>
 
@@ -496,7 +504,10 @@ export function CiGenerator() {
 
       <div className="flex min-h-0 flex-1">
         {/* Der Schritt */}
-        <div className="flex w-[440px] shrink-0 flex-col border-r border-ui bg-ui-surface">
+        <div
+          className="flex w-[440px] shrink-0 flex-col border-r border-ui bg-ui-surface"
+          data-tour="ci-formular"
+        >
           <div
             ref={spalte}
             id="nz-ci-schritt"
@@ -615,7 +626,7 @@ export function CiGenerator() {
             </p>
           ) : null}
 
-          <div className={cx('shrink-0', veraltet && 'opacity-60')}>
+          <div className={cx('shrink-0', veraltet && 'opacity-60')} data-tour="ci-vorschau">
             <Vorschau theme={theme} blatt={blatt} />
           </div>
 
@@ -625,11 +636,17 @@ export function CiGenerator() {
             Liste: eine Folie, die etwas kleiner ist, sagt dasselbe; eine Liste,
             von der ein Rand zu sehen ist, sagt nichts.
           */}
-          <div className="mt-4 flex min-h-24 flex-1 flex-col overflow-y-auto">
+          <div
+            className="mt-4 flex min-h-24 flex-1 flex-col overflow-y-auto"
+            data-tour="ci-pruefliste"
+          >
             <Pruefliste befunde={befunde} jetzt={schritt} auf={gehe} />
           </div>
         </div>
       </div>
+
+      <CiTourAngebot starten={() => setTourOffen(true)} verborgen={tourOffen} />
+      {tourOffen ? <CiTour beenden={schliesseTour} /> : null}
     </div>
   );
 }
@@ -732,6 +749,7 @@ function Schrittbalken({
     <div
       role="tablist"
       aria-label="Schritte"
+      data-tour="ci-schritte"
       onKeyDown={taste}
       className="flex shrink-0 items-stretch gap-1 overflow-x-auto border-b border-ui bg-ui-surface px-4 py-2"
     >
