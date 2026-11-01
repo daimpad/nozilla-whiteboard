@@ -647,6 +647,28 @@ function pruefeBauwerk() {
       `Tote Chunks im Bauwerk: ${tot.join(', ')} — der Alias in vite.config.ts greift nicht.`,
     );
   }
+
+  /*
+     Die Exportwege kommen erst beim Klick (`wege()` in `TopBar.tsx`). Ein
+     einziger statischer Import aus `@/lib/export` an irgendeiner Stelle zöge
+     sie wieder in den Start — ohne Fehler, ohne Warnung, nur ein schwereres
+     Bündel. Gefragt wird deshalb an dem, was `index.html` wirklich lädt, nach
+     einer Zeichenkette, die nur der PowerPoint-Schreiber führt.
+  */
+  const start = readFileSync(join('dist', 'index.html'), 'utf8');
+  const geladen = [...start.matchAll(/(?:src|href)="[^"]*?assets\/([^"]+\.js)"/g)].map(
+    ([, name]) => name,
+  );
+  const schwer = geladen.filter((name) =>
+    readFileSync(join('dist', 'assets', name), 'utf8').includes('ppt/slides/'),
+  );
+  if (geladen.length === 0 || schwer.length > 0) {
+    throw new Error(
+      geladen.length === 0
+        ? 'index.html lädt kein einziges Skript — der Wächter liest das Falsche.'
+        : `Der PowerPoint-Schreiber steht im Start: ${schwer.join(', ')}`,
+    );
+  }
 }
 
 async function main() {

@@ -28,7 +28,13 @@ const { exportMarkdown, openMarkdownFile } = vi.hoisted(() => ({
   exportMarkdown: vi.fn(),
   openMarkdownFile: vi.fn(),
 }));
-vi.mock('@/lib/export', () => ({ exportMarkdown, openMarkdownFile }));
+// Ersetzt wird dort, wo `persistence.ts` wirklich liest — seit die Exportwege
+// nachgeladen werden, ist das nicht mehr die Fassade `@/lib/export`.
+vi.mock('@/lib/export/angebot', () => ({ exportMarkdown }));
+vi.mock('@/lib/export/download', async (original) => ({
+  ...(await original<typeof import('@/lib/export/download')>()),
+  openMarkdownFile,
+}));
 
 const schmutzig = (wert: boolean) => useDeckStore.setState({ dirty: wert });
 

@@ -7,7 +7,8 @@
  * Datenbank, kein Abgleich, kein Server: das ist der ganze Punkt des
  * Werkzeugs.
  */
-import { exportMarkdown, openMarkdownFile } from '@/lib/export';
+import { exportMarkdown } from '@/lib/export/angebot';
+import { openMarkdownFile } from '@/lib/export/download';
 import { parseDeck, serializeDeck } from '@/lib/markdown/deck';
 import type { Deck } from '@/model/types';
 import { useDeckStore } from './deckStore';
