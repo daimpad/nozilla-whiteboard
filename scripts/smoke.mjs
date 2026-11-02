@@ -36,6 +36,7 @@
  */
 import { spawn } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { probeschrift } from './probeschrift.mjs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -647,6 +648,28 @@ function pruefeBauwerk() {
       `Tote Chunks im Bauwerk: ${tot.join(', ')} — der Alias in vite.config.ts greift nicht.`,
     );
   }
+
+  /*
+     Die Exportwege kommen erst beim Klick (`wege()` in `TopBar.tsx`). Ein
+     einziger statischer Import aus `@/lib/export` an irgendeiner Stelle zöge
+     sie wieder in den Start — ohne Fehler, ohne Warnung, nur ein schwereres
+     Bündel. Gefragt wird deshalb an dem, was `index.html` wirklich lädt, nach
+     einer Zeichenkette, die nur der PowerPoint-Schreiber führt.
+  */
+  const start = readFileSync(join('dist', 'index.html'), 'utf8');
+  const geladen = [...start.matchAll(/(?:src|href)="[^"]*?assets\/([^"]+\.js)"/g)].map(
+    ([, name]) => name,
+  );
+  const schwer = geladen.filter((name) =>
+    readFileSync(join('dist', 'assets', name), 'utf8').includes('ppt/slides/'),
+  );
+  if (geladen.length === 0 || schwer.length > 0) {
+    throw new Error(
+      geladen.length === 0
+        ? 'index.html lädt kein einziges Skript — der Wächter liest das Falsche.'
+        : `Der PowerPoint-Schreiber steht im Start: ${schwer.join(', ')}`,
+    );
+  }
 }
 
 async function main() {
@@ -703,6 +726,7 @@ async function main() {
     // erste — es stünde über jeder Prüfung in der Ecke. Geprüft wird es
     // weiter unten in einem eigenen Kontext.
     localStorage.setItem('nz-tour', 'gesehen');
+    localStorage.setItem('nz-tour-ci', 'gesehen');
   });
 
   await seite.goto(URL, { waitUntil: 'networkidle' });
@@ -4710,7 +4734,7 @@ async function main() {
     const leisteVorher = await seite.evaluate(LEISTE);
 
     await oeffneMarken();
-    await markenschicht().locator('input[type="file"]').setInputFiles(importdatei());
+    await markenschicht().locator('input[accept*="json"]').setInputFiles(importdatei());
     await markenschicht().getByRole('button', { name: 'Anmelden', exact: true }).click();
     await markenschicht().getByRole('status').getByText('ist angemeldet').waitFor();
 
@@ -4825,7 +4849,7 @@ async function main() {
 
       // Das Deck trägt den Schlüssel noch: wer die Datei wieder importiert,
       // bekommt sein Deck zurück, ohne es umzustellen.
-      await markenschicht().locator('input[type="file"]').setInputFiles(importdatei());
+      await markenschicht().locator('input[accept*="json"]').setInputFiles(importdatei());
       await markenschicht().getByRole('button', { name: 'Anmelden', exact: true }).click();
       await bis(
         async () => (await seite.evaluate(FOLIE)).markup.includes(IMPORT_SIGNAL),
@@ -4841,7 +4865,7 @@ async function main() {
     'was keine Marke ist oder eine mitgelieferte ersetzte, wird abgewiesen',
     async () => {
       await oeffneMarken();
-      const eingabe = markenschicht().locator('input[type="file"]');
+      const eingabe = markenschicht().locator('input[accept*="json"]');
 
       /*
          Die Vorbedingung stellt diese Prüfung selbst her: ohne angemeldete
@@ -4909,9 +4933,263 @@ async function main() {
     },
   );
 
+  console.log('\nEigene Schriften:');
+
+  /*
+     Eine Familie, die es nirgends gibt — aus Inter gebaut, nur der Name
+     getauscht (`probeschrift.mjs`). Mit einer Familie der Bibliothek wäre
+     jede Zusicherung hier grün, weil `waehlbareFamilie()` dann die Bibliothek
+     nimmt und die Dateien unter `public/fonts/` liegen.
+  */
+  const probedatei = (datei, name) => {
+    const roh = readFileSync(join('public', 'fonts', datei));
+    const bytes = probeschrift(roh.buffer.slice(roh.byteOffset, roh.byteOffset + roh.byteLength));
+    return { name, mimeType: 'font/ttf', buffer: Buffer.from(bytes) };
+  };
+  /*
+     Ob eine Schrift geladen ist, fragt `document.fonts` nach einer FontFace
+     mit diesem Namen, die `loaded` meldet — und **nicht** `fonts.check()`.
+     Das sagt „wahr" auch für eine Familie, für die gar keine Regel im
+     Dokument steht: es gibt dann nichts zu laden. Die erste Fassung dieser
+     Prüfung war damit nach einem Neuladen grün, auf einer Folie in nozilla.
+  */
+  let schriftInhalt = null;
+  const SCHRIFT_SIGNAL = '#2B6CB0';
+
+  await pruefe(
+    'der Generator nimmt eine eigene Schrift und zeigt sie auf der Probefolie',
+    async () => {
+      const generator = await kontext.newPage();
+      await generator.addInitScript(() => {
+        delete window.showSaveFilePicker;
+      });
+      try {
+        await oeffneGenerator(kontext, generator);
+        await zumSchritt(generator, 'Marke');
+        await generator.getByLabel('Schlüssel').fill('rauchschrift');
+        await generator.getByLabel('Name in der Auswahl').fill('Rauchschrift');
+        await generator.getByLabel('Markenname').fill('rauch');
+        await zumSchritt(generator, 'Farbe');
+        await setzeFarbe(generator, 'signal', SCHRIFT_SIGNAL);
+
+        await zumSchritt(generator, 'Schrift');
+        await generator
+          .getByLabel('Eigene Schrift für Fließtext hochladen')
+          .setInputFiles([
+            probedatei('Inter-Regular.ttf', 'Probe Regular.ttf'),
+            probedatei('Inter-Bold.ttf', 'Probe Bold.ttf'),
+          ]);
+        const quittung = generator.getByRole('status', { name: 'Hochgeladen für Fließtext' });
+        await quittung.getByText('„Probe" trägt jetzt diese Rolle.').waitFor();
+
+        // Die Familie steht jetzt in der Auswahl — für jede Rolle, nicht nur für
+        // die, für die sie hochgeladen wurde.
+        gleich(
+          await generator.getByLabel('Fließtext aus der Bibliothek').inputValue(),
+          'Probe',
+          'die Rolle trägt die hochgeladene Familie nicht',
+        );
+        wahr(
+          await generator
+            .getByLabel('Auszeichnung aus der Bibliothek')
+            .locator('option', { hasText: 'Probe · hochgeladen' })
+            .count(),
+          'die Auswahl der anderen Rollen kennt die Familie nicht',
+        );
+
+        // Und die Probefolie zeichnet wirklich in ihr: der Browser hat die
+        // Schrift geladen, und zwar aus der Ablage — unter `public/fonts/`
+        // liegt sie nicht.
+        await bisWahr(
+          () =>
+            generator.evaluate(() =>
+              [...document.fonts].some(
+                (schnitt) =>
+                  schnitt.family.replace(/["']/g, '') === 'Probe' && schnitt.status === 'loaded',
+              ),
+            ),
+          'die Probefolie lud die hochgeladene Schrift nicht',
+        );
+
+        await zumSchritt(generator, 'Wortmarke');
+        await generator.setInputFiles('input[accept*="svg"]', {
+          name: 'rauchschrift-wortmarke.svg',
+          mimeType: 'image/svg+xml',
+          buffer: Buffer.from(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48">' +
+              '<path fill="#000000" d="M4 8 L96 8 L96 40 L4 40 Z"/>' +
+              `<path fill="${SCHRIFT_SIGNAL}" d="M108 24 L132 24 L132 40 L108 40 Z"/></svg>`,
+          ),
+        });
+        await generator.getByText('rauchschrift-wortmarke.svg', { exact: true }).waitFor();
+
+        // „Fertig" bietet die Dateien an, die nur in diesem Browser liegen.
+        await zumSchritt(generator, 'Fertig');
+        const angebot = generator.getByLabel('Hochgeladene Schriften');
+        const [ttf] = await Promise.all([
+          generator.waitForEvent('download'),
+          angebot.getByRole('button', { name: 'Probe 700' }).click(),
+        ]);
+        const kopf = readFileSync(await ttf.path()).subarray(0, 4);
+        gleich(
+          kopf.toString('hex'),
+          '00010000',
+          'die ausgehändigte Datei ist keine TrueType-Schrift',
+        );
+
+        const [download] = await Promise.all([
+          generator.waitForEvent('download'),
+          generator.getByRole('button', { name: 'Entwurf sichern', exact: true }).click(),
+        ]);
+        schriftInhalt = readFileSync(await download.path(), 'utf8');
+        const entwurf = JSON.parse(schriftInhalt);
+        gleich(
+          entwurf.webfontFaces
+            .filter((face) => face.family === 'Probe')
+            .map((face) => face.file)
+            .join(' '),
+          'eigen-Probe-Regular.ttf eigen-Probe-Bold.ttf',
+          'die Schnittliste führt die hochgeladenen Dateien nicht',
+        );
+      } finally {
+        await generator.close();
+      }
+    },
+  );
+
+  await pruefe(
+    'eine Marke mit eigener Schrift zeichnet im Werkzeug — auch nach dem Neuladen',
+    async () => {
+      wahr(schriftInhalt, 'es gibt keine Datei aus dem Generator');
+      /*
+       Derselbe Browser, ein anderer Tab: die Ablage ist geteilt, und das
+       Werkzeug hat es über den Kanal erfahren. Fehlen darf beim Import deshalb
+       nichts — stünde hier „nachreichen", hätte das Werkzeug die Schriften
+       nicht gesehen, die der Generator eben abgelegt hat.
+    */
+      await oeffneMarken();
+      await markenschicht()
+        .locator('input[accept*="json"]')
+        .setInputFiles(importdatei(schriftInhalt));
+      const befund = markenschicht().getByLabel('Befund zum Import');
+      await befund.waitFor();
+      gleich(
+        await befund.getByText('nachreichen').count(),
+        0,
+        'der Import vermisst Schriften, die in diesem Browser liegen',
+      );
+      await markenschicht().getByRole('button', { name: 'Anmelden', exact: true }).click();
+      await markenschicht()
+        .getByRole('button', { name: /^Dieses Deck auf „Rauchschrift" umstellen$/ })
+        .click();
+      await seite.keyboard.press('Escape');
+
+      const stand = async () => {
+        const markup = (await seite.evaluate(FOLIE)).markup;
+        return {
+          marke: markup.includes(SCHRIFT_SIGNAL),
+          familie: markup.includes('Probe'),
+          geladen: await seite.evaluate(() =>
+            [...document.fonts].some(
+              (schnitt) =>
+                schnitt.family.replace(/["']/g, '') === 'Probe' && schnitt.status === 'loaded',
+            ),
+          ),
+        };
+      };
+      const zeichnetInProbe = async () => {
+        const jetzt = await stand();
+        return jetzt.marke && jetzt.familie && jetzt.geladen;
+      };
+      await bisWahr(
+        zeichnetInProbe,
+        async () =>
+          `die Folie zeichnet nicht in der hochgeladenen Schrift: ${JSON.stringify(await stand())}`,
+      );
+
+      /*
+         Das Neuladen ist die eigentliche Frage: im Speicher lag sie ohnehin.
+         Die Marke wird danach von Hand wieder eingestellt — ein Startskript
+         weiter oben legt bei jedem Laden eine feste Sitzung ab, und mit ihr
+         käme das Deck in nozilla zurück. Gefragt ist hier nicht, ob die
+         Sitzung die Marke behält, sondern ob die Schrift ein Neuladen
+         übersteht.
+      */
+      await seite.reload({ waitUntil: 'networkidle' });
+      await seite.getByRole('button', { name: 'Deck', exact: true }).click();
+      await seite
+        .locator('select')
+        .filter({ has: seite.locator('option[value="rauchschrift"]') })
+        .first()
+        .selectOption('rauchschrift');
+      await bisWahr(
+        zeichnetInProbe,
+        async () =>
+          `nach dem Neuladen fehlte die hochgeladene Schrift: ${JSON.stringify(await stand())}`,
+      );
+    },
+  );
+
+  await pruefe(
+    'in einem fremden Browser lässt sich eine fehlende Schrift nachreichen',
+    async () => {
+      wahr(schriftInhalt, 'es gibt keine Datei aus dem Generator');
+      const frisch = await browser.newContext({ viewport: { width: 1500, height: 940 } });
+      try {
+        await frisch.addInitScript(() => {
+          localStorage.setItem('nz-tour', 'gesehen');
+        });
+        const fremd = await frisch.newPage();
+        await fremd.goto(URL, { waitUntil: 'networkidle' });
+        await fremd.getByRole('button', { name: 'Datei', exact: true }).click();
+        await fremd.getByRole('menuitem', { name: /Erscheinungsbilder/ }).click();
+        const schicht = fremd.getByRole('dialog', { name: 'Erscheinungsbilder' });
+        await schicht.locator('input[accept*="json"]').setInputFiles(importdatei(schriftInhalt));
+        const befund = schicht.getByLabel('Befund zum Import');
+        await befund.waitFor();
+
+        const regular = befund.getByLabel('eigen-Probe-Regular.ttf als TrueType nachreichen');
+        const bold = befund.getByLabel('eigen-Probe-Bold.ttf als TrueType nachreichen');
+        wahr(
+          (await regular.count()) && (await bold.count()),
+          'der Import nennt die fehlenden Schriften nicht',
+        );
+
+        // Eine WOFF2 wird abgewiesen, mit Grund — und die Zeile bleibt stehen.
+        const woff2 = readFileSync(join('public', 'fonts', 'Inter-Bold.woff2'));
+        await bold.setInputFiles({
+          name: 'Probe-Bold.woff2',
+          mimeType: 'font/woff2',
+          buffer: woff2,
+        });
+        await befund.getByRole('alert').getByText(/WOFF2/).waitFor();
+        wahr(await bold.count(), 'eine abgewiesene Datei nahm die Zeile mit');
+
+        await regular.setInputFiles(probedatei('Inter-Regular.ttf', 'Probe Regular.ttf'));
+        await bold.setInputFiles(probedatei('Inter-Bold.ttf', 'Probe Bold.ttf'));
+        await bisGleich(
+          () => befund.getByText('nachreichen').count(),
+          0,
+          'nachgereichte Schriften blieben als fehlend stehen',
+        );
+
+        await schicht.getByRole('button', { name: 'Anmelden', exact: true }).click();
+        const liste = schicht.getByLabel('Hochgeladene Schriften');
+        await liste.waitFor();
+        gleich(
+          await liste.getByRole('listitem').count(),
+          2,
+          'die Liste zeigt nicht beide hochgeladenen Schnitte',
+        );
+      } finally {
+        await frisch.close();
+      }
+    },
+  );
+
   console.log('\nGeführte Tour:');
 
-  const tour = () => seite.getByRole('dialog', { name: 'Geführte Tour' });
+  const tour = (fenster = seite) => fenster.getByRole('dialog', { name: 'Geführte Tour' });
   const starteTour = async () => {
     await seite.getByRole('button', { name: 'Einstellungen', exact: true }).click();
     await seite.getByRole('button', { name: 'Geführte Tour', exact: true }).click();
@@ -4945,69 +5223,73 @@ async function main() {
     };
   };
 
+  /*
+     Eine Tour von vorn bis „Fertig" durchgehen, auf jeder Seite, die eine hat.
+     Ein Schritt, dessen Bereich es im Fenster nicht gibt, zeigt auf nichts —
+     und das sähe man nur, wenn man die Tour bis dorthin durchklickt. Gefragt
+     wird deshalb in jedem Schritt, ob der genannte Bereich im gezeichneten
+     Fenster steht und ob der Lichtkegel wirklich auf ihm liegt.
+
+     Der Lichtkegel gleitet ein paar Bildrahmen lang zum neuen Ziel. Ob er
+     angekommen ist, ist deshalb die Bedingung und nicht eine Zusicherung
+     danach: die erste Fassung wartete nur auf die linke Kante und las die
+     obere mitten in der Bewegung.
+  */
+  const liegtAuf = (stand) =>
+    !stand.ziel ||
+    (stand.licht &&
+      stand.bereich &&
+      Math.abs(stand.licht.x + 6 - stand.bereich.x) <= 1 &&
+      Math.abs(stand.licht.y + 6 - stand.bereich.y) <= 1 &&
+      Math.abs(stand.licht.w - 12 - stand.bereich.w) <= 1 &&
+      Math.abs(stand.licht.h - 12 - stand.bereich.h) <= 1);
+  const geheTourDurch = async (fenster) => {
+    let stand = await bis(() => fenster.evaluate(TOURSTAND), 'die Tour ging nicht auf');
+    const von = stand.von;
+    wahr(von > 2, `die Tour nennt keine Schrittzahl: ${JSON.stringify(stand)}`);
+    const gesehen = new Set();
+    for (let schritt = 1; schritt <= von; schritt++) {
+      stand = await bisWahr(
+        async () => {
+          const jetzt = await fenster.evaluate(TOURSTAND);
+          return jetzt?.schritt === schritt && liegtAuf(jetzt) ? jetzt : null;
+        },
+        async () =>
+          `Schritt ${schritt}: der Lichtkegel liegt nicht auf seinem Bereich: ` +
+          JSON.stringify(await fenster.evaluate(TOURSTAND)),
+      );
+
+      wahr(stand.fokusImKasten, `Schritt ${schritt}: der Fokus steht nicht in der Tour`);
+      wahr(stand.inert === true, `Schritt ${schritt}: das Fenster darunter ist nicht gesperrt`);
+      const k = stand.karte;
+      wahr(
+        k.x >= 0 && k.y >= 0 && k.x + k.w <= stand.fenster.w && k.y + k.h <= stand.fenster.h,
+        `Schritt ${schritt}: der Kasten ragt aus dem Fenster: ${JSON.stringify(k)}`,
+      );
+      if (stand.ziel) {
+        wahr(!gesehen.has(stand.ziel), `Schritt ${schritt}: „${stand.ziel}" kommt zweimal vor`);
+        gesehen.add(stand.ziel);
+        wahr(
+          stand.bereich.w > 0 && stand.bereich.h > 0,
+          `Schritt ${schritt}: „${stand.ziel}" ist leer`,
+        );
+      }
+      if (schritt < von)
+        await tour(fenster).getByRole('button', { name: 'Weiter', exact: true }).click();
+    }
+    await tour(fenster).getByRole('button', { name: 'Fertig', exact: true }).click();
+    await bisGleich(() => tour(fenster).count(), 0, 'die Tour ging nach „Fertig" nicht zu');
+    gleich(
+      await fenster.evaluate(() => document.getElementById('root')?.inert),
+      false,
+      'das Fenster blieb nach der Tour gesperrt',
+    );
+  };
+
   await pruefe('die Tour zeigt auf jeden Bereich, den sie erklärt', async () => {
-    /*
-       Ein Schritt, dessen Bereich es im Fenster nicht gibt, zeigt auf nichts —
-       und das sähe man nur, wenn man die Tour bis dorthin durchklickt. Gefragt
-       wird deshalb in jedem Schritt, ob der genannte Bereich im gezeichneten
-       Fenster steht und ob der Lichtkegel wirklich auf ihm liegt.
-    */
-    /*
-       Der Lichtkegel gleitet ein paar Bildrahmen lang zum neuen Ziel. Ob er
-       angekommen ist, ist deshalb die Bedingung und nicht eine Zusicherung
-       danach: die erste Fassung wartete nur auf die linke Kante und las die
-       obere mitten in der Bewegung.
-    */
-    const liegtAuf = (stand) =>
-      !stand.ziel ||
-      (stand.licht &&
-        stand.bereich &&
-        Math.abs(stand.licht.x + 6 - stand.bereich.x) <= 1 &&
-        Math.abs(stand.licht.y + 6 - stand.bereich.y) <= 1 &&
-        Math.abs(stand.licht.w - 12 - stand.bereich.w) <= 1 &&
-        Math.abs(stand.licht.h - 12 - stand.bereich.h) <= 1);
     await starteTour();
     try {
-      let stand = await bis(() => seite.evaluate(TOURSTAND), 'die Tour ging nicht auf');
-      const von = stand.von;
-      wahr(von > 2, `die Tour nennt keine Schrittzahl: ${JSON.stringify(stand)}`);
-      const gesehen = new Set();
-      for (let schritt = 1; schritt <= von; schritt++) {
-        stand = await bisWahr(
-          async () => {
-            const jetzt = await seite.evaluate(TOURSTAND);
-            return jetzt?.schritt === schritt && liegtAuf(jetzt) ? jetzt : null;
-          },
-          async () =>
-            `Schritt ${schritt}: der Lichtkegel liegt nicht auf seinem Bereich: ` +
-            JSON.stringify(await seite.evaluate(TOURSTAND)),
-        );
-
-        wahr(stand.fokusImKasten, `Schritt ${schritt}: der Fokus steht nicht in der Tour`);
-        wahr(stand.inert === true, `Schritt ${schritt}: das Fenster darunter ist nicht gesperrt`);
-        const k = stand.karte;
-        wahr(
-          k.x >= 0 && k.y >= 0 && k.x + k.w <= stand.fenster.w && k.y + k.h <= stand.fenster.h,
-          `Schritt ${schritt}: der Kasten ragt aus dem Fenster: ${JSON.stringify(k)}`,
-        );
-        if (stand.ziel) {
-          wahr(!gesehen.has(stand.ziel), `Schritt ${schritt}: „${stand.ziel}" kommt zweimal vor`);
-          gesehen.add(stand.ziel);
-          wahr(
-            stand.bereich.w > 0 && stand.bereich.h > 0,
-            `Schritt ${schritt}: „${stand.ziel}" ist leer`,
-          );
-        }
-        if (schritt < von)
-          await tour().getByRole('button', { name: 'Weiter', exact: true }).click();
-      }
-      await tour().getByRole('button', { name: 'Fertig', exact: true }).click();
-      await bisGleich(() => tour().count(), 0, 'die Tour ging nach „Fertig" nicht zu');
-      gleich(
-        await seite.evaluate(() => document.getElementById('root')?.inert),
-        false,
-        'das Fenster blieb nach der Tour gesperrt',
-      );
+      await geheTourDurch(seite);
     } finally {
       // Eine offene Tour sperrt das ganze Fenster: jede folgende Prüfung
       // meldete sonst den Fehler dieser hier unter ihrem eigenen Namen.
@@ -5128,6 +5410,67 @@ async function main() {
       await neu.keyboard.press('Escape');
       await neu.reload({ waitUntil: 'networkidle' });
       await neu.locator('[data-tour="flaeche"]').waitFor();
+      gleich(await angebot.count(), 0, 'das Angebot kam nach der Tour wieder');
+    } finally {
+      await frisch.close();
+    }
+  });
+
+  await pruefe(
+    'der CI-Generator hat eine eigene Tour, und sie gehört seiner Tastatur',
+    async () => {
+      /*
+       Dieselbe Tour auf der zweiten Seite, über `ui/Fuehrung.tsx`. Geprüft wird,
+       was dort anders ist: die Bereiche, der Knopf in der Kopfleiste, und das
+       eine Kürzel der Seite — ⌘↵ schaltet einen Schritt weiter und darf das
+       unter der Tour nicht tun.
+    */
+      const generator = await oeffneGenerator(kontext);
+      try {
+        const reiterJetzt = () =>
+          generator.evaluate(
+            () => document.querySelector('[role="tab"][aria-selected="true"]')?.id ?? null,
+          );
+        const vorher = await reiterJetzt();
+        const knopf = generator.getByRole('button', { name: 'Tour', exact: true });
+        await knopf.click();
+        await tour(generator).waitFor();
+        await generator.keyboard.press('ControlOrMeta+Enter');
+        gleich(await reiterJetzt(), vorher, '⌘↵ schaltete unter der Tour den Schritt weiter');
+        await geheTourDurch(generator);
+        gleich(
+          await generator.evaluate(() => document.activeElement?.textContent?.trim()),
+          'Tour',
+          'der Fokus kam nicht zum Knopf „Tour" zurück',
+        );
+      } finally {
+        if (await tour(generator).count()) await generator.keyboard.press('Escape');
+        await generator.close();
+      }
+    },
+  );
+
+  await pruefe('der CI-Generator bietet seine Tour beim ersten Besuch an', async () => {
+    /*
+       Ein eigener Kontext wie beim Werkzeug, und mit einer Vorgeschichte: wer
+       die Tour des Werkzeugs schon gesehen hat, kennt den Generator trotzdem
+       nicht. Stünde dort derselbe Merker, käme das Angebot hier nie.
+    */
+    const frisch = await browser.newContext({ viewport: { width: 1500, height: 940 } });
+    try {
+      await frisch.addInitScript(() => {
+        if (!localStorage.getItem('nz-tour')) localStorage.setItem('nz-tour', 'gesehen');
+      });
+      const neu = await frisch.newPage();
+      await neu.goto(`${URL}ci.html`, { waitUntil: 'networkidle' });
+      const angebot = neu.getByRole('region', { name: 'Tour-Angebot' });
+      await angebot.waitFor();
+      await angebot.getByRole('button', { name: 'Tour starten', exact: true }).click();
+      await tour(neu).waitFor();
+      await neu.keyboard.press('Escape');
+      await bisGleich(() => tour(neu).count(), 0, 'Esc beendete die Tour des Generators nicht');
+      await neu.reload({ waitUntil: 'networkidle' });
+      await neu.getByRole('tablist').waitFor();
       gleich(await angebot.count(), 0, 'das Angebot kam nach der Tour wieder');
     } finally {
       await frisch.close();

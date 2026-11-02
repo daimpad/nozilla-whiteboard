@@ -8,11 +8,6 @@ import { brand, canvas as canvasTokens } from '@/theme';
 import { bundledDecks } from '@/decks';
 import {
   exportMarkdown,
-  exportHandoutPdf,
-  exportPdf,
-  exportPng,
-  exportPptx,
-  exportSvg,
   seitenformatHints,
   seitenformatLabels,
   seitenformate,
@@ -21,7 +16,7 @@ import {
   textModes,
   type Seitenformat,
   type TextMode,
-} from '@/lib/export';
+} from '@/lib/export/angebot';
 import { selectCanRedo, selectCanUndo, useDeckStore } from '@/state/deckStore';
 import { Button, Divider, IconButton, SectionTitle, Segmented, cx } from '@/components/ui/controls';
 import { Icon } from '@/components/ui/Icon';
@@ -387,6 +382,15 @@ function ExportMenu({
      Ein geschlossener Dateidialog bleibt stumm: das ist keine Panne, sondern
      die Antwort „doch nicht".
   */
+  /*
+     Die Wege selbst kommen erst beim Klick: PowerPoint-Schreiber, ZIP und
+     Handout-Satz braucht kein Start (warum sie nicht mehr sparen, steht im
+     Kopf von `angebot.ts`). Scheitert das Nachladen —
+     eine neue Fassung ist ausgeliefert und der alte Bündelname weg —, landet
+     das im selben `catch` wie jeder andere Fehlschlag und steht im Hinweis.
+  */
+  const wege = () => import('@/lib/export');
+
   const run = async (label: string, task: () => Promise<unknown>) => {
     schliessen();
     // Der nächste Versuch räumt den vorigen Hinweis weg — sonst stünde nach
@@ -435,46 +439,58 @@ function ExportMenu({
             label="SVG — diese Folie"
             hint={`${canvasTokens.width}×${canvasTokens.height}, echte Pfade`}
             onClick={() =>
-              run('Zeichne SVG', () => exportSvg(deck, { slideIndex, text: textMode }))
+              run('Zeichne SVG', async () =>
+                (await wege()).exportSvg(deck, { slideIndex, text: textMode }),
+              )
             }
           />
           <MenuItem
             icon="image"
             label="PNG — diese Folie"
             hint={`${canvasTokens.width * SCHAERFE}×${canvasTokens.height * SCHAERFE}, zum Verschicken`}
-            onClick={() => run('Rastere PNG', () => exportPng(deck, { slideIndex }))}
+            onClick={() =>
+              run('Rastere PNG', async () => (await wege()).exportPng(deck, { slideIndex }))
+            }
           />
           <MenuItem
             icon="layer-group"
             label="SVG — ganzes Deck"
             hint="Eine Datei, Folien untereinander"
-            onClick={() => run('Zeichne SVG', () => exportSvg(deck, { text: textMode }))}
+            onClick={() =>
+              run('Zeichne SVG', async () => (await wege()).exportSvg(deck, { text: textMode }))
+            }
           />
           <MenuItem
             icon="book"
             label="PDF — ganzes Deck"
             hint={pdfHinweis()}
-            onClick={() => run('Zeichne PDF', () => exportPdf(deck, { text: textMode, seite }))}
+            onClick={() =>
+              run('Zeichne PDF', async () =>
+                (await wege()).exportPdf(deck, { text: textMode, seite }),
+              )
+            }
           />
           <MenuItem
             icon="file-lines"
             label="PDF — Handout mit Notizen"
             hint="Hochformat, je Seite eine Folie und ihre Notizen"
-            onClick={() => run('Setze Handout', () => exportHandoutPdf(deck))}
+            onClick={() => run('Setze Handout', async () => (await wege()).exportHandoutPdf(deck))}
           />
           <MenuItem
             icon="play"
             label="PDF — diese Folie"
             hint={`Eine Seite · ${pdfHinweis()}`}
             onClick={() =>
-              run('Zeichne PDF', () => exportPdf(deck, { slideIndex, text: textMode, seite }))
+              run('Zeichne PDF', async () =>
+                (await wege()).exportPdf(deck, { slideIndex, text: textMode, seite }),
+              )
             }
           />
           <MenuItem
             icon="table"
             label="PowerPoint (.pptx)"
             hint="Bearbeitbar — auch für Google Slides"
-            onClick={() => run('Baue PPTX', () => exportPptx(deck))}
+            onClick={() => run('Baue PPTX', async () => (await wege()).exportPptx(deck))}
           />
 
           <div className="border-t border-ui px-2 pb-1.5 pt-2">

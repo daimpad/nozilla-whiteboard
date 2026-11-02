@@ -19,7 +19,7 @@ import { primsToSvgMarkup } from '@/lib/export/svg';
 import { overflowOf } from '@/lib/overflow';
 import { canvas } from '@/theme';
 import { fontFaceRules, loadFaces, setzeSchriftregeln } from '@/theme/fonts';
-import { useFontsVersion } from '@/hooks/useFonts';
+import { useFontsVersion, useSchriftablageVersion } from '@/hooks/useFonts';
 import { PROBEDECK } from './probedeck';
 
 /**
@@ -114,7 +114,14 @@ export function Vorschau({ theme, blatt }: { theme: BrandTheme | null; blatt: nu
      lädt nichts: der Browser holt eine Datei erst, wenn ein gezeichnetes
      Zeichen sie braucht — und der Setzer misst vorher.
   */
-  const regeln = useMemo(() => (theme ? fontFaceRules(theme.webfont.faces) : ''), [theme]);
+  // Ein Schnitt, der nachträglich in die Ablage kommt, ändert die Regeln, ohne
+  // dass sich am Entwurf etwas ändert — deshalb hängt der Merker auch daran.
+  const ablage = useSchriftablageVersion();
+  const regeln = useMemo(
+    () => (theme ? fontFaceRules(theme.webfont.faces) : ''),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- der Zähler ist der Anlass, nicht ein Wert
+    [theme, ablage],
+  );
 
   useEffect(() => {
     if (!regeln || !theme) return;

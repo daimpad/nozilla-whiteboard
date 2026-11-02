@@ -155,8 +155,23 @@ braucht Dateien. Im Schritt *Schrift* steht deshalb über jedem Stapel eine
 Auswahl aus **zwanzig Familien**, die schon in `public/fonts/` liegen — elf
 Grotesk, fünf Antiqua, eine Egyptienne, drei Monospace, alle frei lizenziert
 (Lizenztexte unter `public/fonts/lizenzen/`). Wer eine wählt, bekommt Stapel,
-Ersatzkette und Schnittliste in einem Zug; eine Hausschrift, die nicht dabei
-ist, bleibt von Hand einzutragen und braucht ihre Dateien im Repo.
+Ersatzkette und Schnittliste in einem Zug.
+
+Eine **Hausschrift**, die nicht dabei ist, lädst du direkt darunter hoch: über
+*Eigene Schrift hochladen (.ttf)*, gern alle Schnitte auf einmal. Familie und
+Gewicht liest das Werkzeug aus der Datei, die Familie steht danach in der
+Auswahl jeder Rolle und geht denselben Weg wie eine aus der Bibliothek. Die
+Dateien liegen in der Schriftablage dieses Browsers (IndexedDB) und gelten im
+Generator wie im Werkzeug, auf dem Bildschirm wie in jedem Export; im Schritt
+*Fertig* lassen sie sich wieder herunterladen, für das Repo oder einen anderen
+Rechner.
+
+Angenommen wird nur, was auch der Export lesen kann: **TrueType mit festem
+Schnitt**. Eine WOFF2, eine OpenType-Schrift mit PostScript-Konturen (CFF)
+oder eine variable Schrift wird mit Grund abgewiesen — der Bildschirm zeichnete
+aus ihr, PDF und PNG stünden in der Ersatzschrift. Kursive Schnitte werden
+abgelegt, aber nicht eingetragen: Kursiv neigt das Werkzeug aus dem aufrechten
+Schnitt, auf der Folie wie im Export.
 
 Jede Familie liegt in vier **festen** Schnitten vor (400, 500, 600, 700), als
 WOFF2 für den Bildschirm und als TTF für den Export. Fest und nicht variabel,
@@ -228,9 +243,12 @@ sichern oder entfernen.
 Weitergegeben wird ein Deck unter eigener Marke deshalb als **zwei Dateien**:
 die `.md` und die `.nzci.json`. Öffnet jemand die `.md` ohne die Marke, sagt
 das Werkzeug es gleich oben — mit dem Knopf zum Import daneben — und zeichnet
-so lange in nozilla, ohne den Eintrag in der Datei anzufassen. Die Schriften
-müssen dabei im Werkzeug liegen: wer die Bibliothek benutzt, hat damit nichts
-zu tun.
+so lange in nozilla, ohne den Eintrag in der Datei anzufassen. Wer die
+Bibliothek benutzt, hat mit Schriftdateien nichts zu tun; eine hochgeladene
+Hausschrift steht nicht in der `.nzci.json` und wird im fremden Browser einmal
+nachgereicht — der Import nennt jede fehlende Datei mit einem Knopf
+*.ttf nachreichen*, und unter *Schriften* steht danach, was dieser Browser
+hochgeladen hat.
 
 Dazu gehört ein **Deck**, das ihm gehört: *Beispiel öffnen → Probenhaus*. Es ist
 kein Schaustück, sondern der Beleg — die Willkommensmappe gehört nozilla, und
@@ -258,7 +276,8 @@ Garantie auf, dass hier nur konformes Material entstehen kann.
 ### Die geführte Tour
 
 Wer das Werkzeug zum ersten Mal öffnet, bekommt unten rechts eine Tour
-angeboten: vierzehn Schritte, die der Reihe nach jeden Bereich des Fensters
+angeboten (der CI-Generator hat seine eigene, sieben Schritte, oben über
+„Tour"): vierzehn Schritte, die der Reihe nach jeden Bereich des Fensters
 hervorheben und sagen, wofür er da ist — Datei, Export, Einstellungen,
 Verlauf, die Werkzeuge des Decks, der Prompt, die Ansicht, Bibliothek,
 Fläche, Filmstreifen, Inspektor und Vortrag. Eine zugeklappte Leiste klappt
@@ -569,7 +588,7 @@ scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
           ciAbgleich.mjs      Was ein Sync verlöre — die Rechnung dazu
           schriftbibliothek.mjs  Schneidet zwanzig Familien aus Google Fonts
                               zu festen Schnitten
-          smoke.mjs           Der Rauchtest: 89 Handgriffe gegen das Bauwerk
+          smoke.mjs           Der Rauchtest: 94 Handgriffe gegen das Bauwerk
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set (554 Icons)
               icons.ts        Das Set des gültigen Erscheinungsbilds
@@ -581,6 +600,7 @@ src/
               folienformat.ts Auf welchem Blatt dieses Deck liegt (ebenso)
               surface.ts      Hell oder dunkel — die Erscheinung des Werkzeugs
               fonts.ts        Die Schnitte anfordern, bevor gemessen wird
+              schriftablage.ts  Hochgeladene Schnitte im Browser
               index.ts        Die Fassade über CI und Laufzeit
   themes/     index.ts        Hier kommen die eigenen Erscheinungsbilder an
               musterkunde.ts  Die Vorlage: jede wechselbare Rolle einmal belegt
@@ -593,6 +613,7 @@ src/
               pruefung.ts     Jede Regel, die eine Designdatei bestehen muss
               emitter.ts      Entwurf → src/themes/<id>.ts
               Vorschau.tsx    Eine echte Folie, über die echte Zeichenstrecke
+              Tour.tsx        Die geführte Tour durch den Generator
   decks/      welcome.md      nozilla — jedes Layout, jede Elementart
               musterkunde.md  Ein Deck unter fremder Marke, als Beleg
   model/      types.ts        Deck / Folie / Element
@@ -607,6 +628,7 @@ src/
     text/     measure.ts      Schriftmaße (+ deterministischer Ersatz für Tests)
               typeset.ts      Markdown → gesetzter Text
               truetype.ts     Zeichen → Umriss (glyf, cmap, composite)
+              schriftdatei.ts Eine hochgeladene Schrift lesen und prüfen
     export/   scene.ts        Folie → Szene  ◄── die Drehscheibe
               svg.ts · pdf.ts Szene → Datei
               png.ts          Eine Folie als Bild, über das SVG
@@ -637,6 +659,7 @@ src/
                               angeboten wurde
   components/ canvas · panels · chrome · present · ui
               chrome/Tour.tsx Die geführte Tour
+              ui/Fuehrung.tsx Wie eine Tour sich benimmt — für beide Seiten
 ```
 
 ---
@@ -826,7 +849,7 @@ CI-Konformität aller 554 Icons.
 
 Das prüft alles, was das Werkzeug **herstellt**. Ob man es **bedienen** kann,
 prüft `npm run test:ui`: Playwright klickt gegen `vite preview`, also gegen
-das gebaute Verzeichnis. Neunundachtzig Handgriffe, jeder für einen Fehler,
+das gebaute Verzeichnis. Vierundneunzig Handgriffe, jeder für einen Fehler,
 der einmal durch alle Unit-Tests gekommen ist — leere Icon-Kacheln, eine Überschrift aus
 ihrem Kasten, eine Vorschau schwarz auf dunkelgrau. Beides läuft bei jedem
 Pull Request.

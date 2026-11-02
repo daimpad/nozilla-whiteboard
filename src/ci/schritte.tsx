@@ -52,7 +52,12 @@ import { SCHLUESSELREGEL } from './emitter';
 import { MASSGRUPPE } from './pruefung';
 import { STUMME_ROLLEN } from './probedeck';
 import { schriftbibliothek } from '@/assets/schriftbibliothek';
-import { gewaehlteFamilie, waehleFamilie } from './bibliothekswahl';
+import { eigeneFamilien, gewaehlteFamilie, waehleFamilie } from './bibliothekswahl';
+import { legeSchriftAb } from '@/theme/schriftablage';
+import { eigenerDateiname } from '@/lib/text/schriftdatei';
+import { useSchriftablageVersion } from '@/hooks/useFonts';
+import { Icon } from '@/components/ui/Icon';
+import type { FamilyRole } from '@/theme/brandTheme';
 import { Abschnitt, Farbfeld, Textfeld, Wahlfeld, Zahlenfeld } from './felder';
 import {
   LEITERTEXT,
@@ -205,6 +210,9 @@ export function FarbeSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aendere
 /* -------------------------------------------------------------------------- */
 
 export function SchriftSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aendere: Aendere }) {
+  // Die Auswahl listet, was in der Ablage liegt — auch was ein anderer Tab
+  // gerade hochgeladen hat.
+  useSchriftablageVersion();
   return (
     <Abschnitt
       titel="Schrift"
@@ -226,6 +234,7 @@ export function SchriftSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aende
               if (familie) aendere(waehleFamilie(entwurf, rolle, familie));
             }}
           />
+          <SchriftHochladen entwurf={entwurf} rolle={rolle} aendere={aendere} />
           <Textfeld
             label={SCHRIFTTEXT[rolle]}
             wert={entwurf.fontFamily[rolle]}
@@ -257,13 +266,124 @@ export function SchriftSchritt({ entwurf, aendere }: { entwurf: CiEntwurf; aende
  * einer von Hand eingetragenen Hausschrift und keine Wahl, die etwas tut.
  */
 function bibliotheksOptionen(): Array<{ value: string; label: string }> {
+  const bibliothek = new Set(schriftbibliothek().map((eintrag) => eintrag.familie));
   return [
     { value: '', label: '— eigene Angabe' },
     ...schriftbibliothek().map((eintrag) => ({
       value: eintrag.familie,
       label: `${eintrag.familie} · ${SCHRIFTARTTEXT[eintrag.art]}`,
     })),
+    // Gleichnamige stehen nur einmal da: `waehlbareFamilie()` nimmt bei
+    // gleichem Namen die Bibliothek, und zwei Einträge täten dasselbe.
+    ...eigeneFamilien()
+      .filter((eintrag) => !bibliothek.has(eintrag.familie))
+      .map((eintrag) => ({
+        value: eintrag.familie,
+        label: `${eintrag.familie} · hochgeladen`,
+      })),
   ];
+}
+
+/**
+ * Eine Hausschrift hochladen, die in keiner Bibliothek steht.
+ *
+ * Mehrere Dateien auf einmal, denn eine Familie kommt als Regular und Bold
+ * und nicht als eine Datei. Gelesen wird jede für sich (`liesSchriftdatei()`
+ * sagt, was nicht taugt, und warum), abgelegt in der Schriftablage dieses
+ * Browsers — und danach geht die Familie **denselben Weg** wie eine aus der
+ * Bibliothek: `waehleFamilie()` setzt Stapel, Geschwister und Schnittliste in
+ * einem Zug.
+ *
+ * Die Quittung bleibt stehen, bis jemand die nächste Datei wählt. Eine
+ * Meldung, die sich wegnimmt, ist für den gemacht, der gerade hinsieht.
+ */
+function SchriftHochladen({
+  entwurf,
+  rolle,
+  aendere,
+}: {
+  entwurf: CiEntwurf;
+  rolle: FamilyRole;
+  aendere: Aendere;
+}) {
+  const [quittung, setQuittung] = useState<string[]>([]);
+
+  const lade = async (dateien: File[]) => {
+    const zeilen: string[] = [];
+    const familien: string[] = [];
+    let nurSitzung = false;
+    for (const datei of dateien) {
+      const ergebnis = await legeSchriftAb(eigenerDateiname(datei.name), await datei.arrayBuffer());
+      if (ergebnis.grund || !ergebnis.schnitt) {
+        zeilen.push(`${datei.name}: ${ergebnis.grund ?? 'nicht abgelegt.'}`);
+        continue;
+      }
+      const { familie, gewicht, kursiv } = ergebnis.schnitt;
+      if (!ergebnis.gemerkt) nurSitzung = true;
+      if (kursiv) {
+        zeilen.push(
+          `${datei.name}: „${familie}" kursiv — abgelegt, aber nicht eingetragen. Kursiv neigt dieses Werkzeug aus dem aufrechten Schnitt, auf der Folie wie im Export; ein eigener kursiver Schnitt käme nur auf dem Bildschirm an.`,
+        );
+        continue;
+      }
+      zeilen.push(`${datei.name}: „${familie}" ${gewicht}`);
+      if (!familien.includes(familie)) familien.push(familie);
+    }
+
+    const [erste, ...weitere] = familien;
+    if (erste) {
+      aendere(waehleFamilie(entwurf, rolle, erste));
+      zeilen.unshift(`„${erste}" trägt jetzt diese Rolle.`);
+    }
+    if (weitere.length) {
+      zeilen.push(
+        `Weitere Familien stehen jetzt in der Auswahl oben: ${weitere.map((f) => `„${f}"`).join(', ')}.`,
+      );
+    }
+    if (nurSitzung) {
+      zeilen.push(
+        'Dieser Browser bietet keine dauerhafte Ablage an — die Schrift gilt bis zum nächsten Neuladen.',
+      );
+    }
+    setQuittung(zeilen);
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      {/*
+        `sr-only` und nicht `hidden`: dieselbe Lösung wie „Entwurf laden" in
+        der Kopfleiste, aus demselben Grund — ein Feld mit `display: none`
+        erreicht keine Tastatur.
+      */}
+      <label className="inline-flex w-fit cursor-pointer items-center gap-1.5 rounded-sm px-1 py-0.5 text-[11px] font-medium text-ui-muted hover:bg-ui-subtle hover:text-ui-ink focus-within:outline focus-within:outline-2 focus-within:outline-ui-accent">
+        <Icon name="upload" size={13} />
+        Eigene Schrift hochladen (.ttf)
+        <input
+          type="file"
+          multiple
+          accept=".ttf,font/ttf"
+          aria-label={`Eigene Schrift für ${SCHRIFTTEXT[rolle]} hochladen`}
+          className="sr-only"
+          onChange={(event) => {
+            const dateien = [...(event.target.files ?? [])];
+            event.target.value = '';
+            if (dateien.length) void lade(dateien);
+          }}
+        />
+      </label>
+      {quittung.length ? (
+        <ul
+          role="status"
+          aria-label={`Hochgeladen für ${SCHRIFTTEXT[rolle]}`}
+          className="flex flex-col gap-0.5 border-l-2 border-ui-strong pl-2 text-[11px] leading-snug text-ui-muted"
+        >
+          {quittung.map((zeile, index) => (
+            <li key={index}>{zeile}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
 }
 
 /**
@@ -292,12 +412,13 @@ function Schnitte({ entwurf, aendere }: { entwurf: CiEntwurf; aendere: Aendere }
   return (
     <div>
       <p className="pt-1 text-[11px] font-medium text-ui-muted">
-        Schnitte unter <span className="font-mono">public/fonts/</span>
+        Schnitte unter <span className="font-mono">public/fonts/</span> oder hochgeladen
       </p>
       <p className="mb-2 text-[11px] leading-snug text-ui-faint">
         Zu jeder <span className="font-mono">.woff2</span> gehört die gleichnamige{' '}
         <span className="font-mono">.ttf</span>: WOFF2 kann nichts lesen, was Glyphen braucht, und
-        PDF wie Umriss-Leser brauchen sie.
+        PDF wie Umriss-Leser brauchen sie. Eine <span className="font-mono">.ttf</span> allein
+        genügt — so stehen hochgeladene Schnitte hier.
       </p>
 
       <div className="flex flex-col gap-1">

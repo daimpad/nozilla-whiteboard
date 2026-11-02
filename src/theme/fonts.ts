@@ -33,6 +33,7 @@ import { webfont } from './runtime';
 import { nozillaTheme, type Webfont, type WebfontFace } from './brandTheme';
 import { uiFont } from '@theme';
 import { resetMeasurementCache } from '@/lib/text/measure';
+import { eigeneSchriftUrl } from './schriftablage';
 
 const STYLE_ID = 'nz-webfonts';
 const WERKZEUG_ID = 'nz-werkzeug-schrift';
@@ -142,11 +143,24 @@ export function fontFaceRules(
   ablage: Pick<Webfont, 'directory' | 'format'> = webfont,
 ): string {
   const prefix = `${base.replace(/\/$/, '')}/${ablage.directory}`;
+  /*
+     Ein Schnitt, den jemand hochgeladen hat, kommt aus der Schriftablage und
+     nicht vom Server — er liegt dort gar nicht. Und eine `.ttf` heißt
+     `truetype`: das Format aus der Konfiguration gilt den Dateien der
+     Bibliothek, und ein falsches `format()` lässt der Browser die Regel
+     überspringen, ohne ein Wort.
+  */
+  const quelle = (face: WebfontFace) => {
+    const eigen = eigeneSchriftUrl(face.file);
+    if (eigen) return `url('${cssZeichenkette(eigen)}') format('truetype')`;
+    const format = face.file.endsWith('.ttf') ? 'truetype' : ablage.format;
+    return `url('${cssZeichenkette(`${prefix}/${face.file}`)}') format('${format}')`;
+  };
   return faces
     .map(
       (face) => `@font-face {
   font-family: '${cssZeichenkette(face.family)}';
-  src: url('${cssZeichenkette(`${prefix}/${face.file}`)}') format('${ablage.format}');
+  src: ${quelle(face)};
   font-weight: ${face.weight};
   font-style: ${face.style};
   font-display: swap;

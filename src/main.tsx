@@ -11,6 +11,7 @@ import {
   watchSystemSurface,
 } from './theme';
 import { installWebfonts } from './theme/fonts';
+import { ladeSchriftablage, subscribeSchriftablage } from './theme/schriftablage';
 import { registerThemes } from './themes';
 import { ABLAGE_KEY, gleicheAb } from './themes/importe';
 import './index.css';
@@ -75,4 +76,19 @@ if (!container) throw new Error('Root container #root is missing from index.html
 */
 const wurzel = isPresenterWindow(window.location.search) ? <PresenterView /> : <App />;
 
-createRoot(container).render(<StrictMode>{wurzel}</StrictMode>);
+/*
+   Die Schriftablage vor dem ersten Bild. Ein Deck, dessen Marke einen
+   hochgeladenen Schnitt nennt, fragte sonst den Server nach einer Datei, die
+   dort nicht liegt — die `@font-face`-Regel scheiterte, und der Browser klagte
+   in der Konsole, bevor die Ablage nachgereicht hätte. Gewartet wird höchstens
+   anderthalb Sekunden: eine Ablage, die hängt, soll den Start nicht mitnehmen.
+   Kommt danach ein Schnitt dazu oder geht einer, werden die Regeln neu gebaut.
+*/
+subscribeSchriftablage(() => installWebfonts());
+const ablageBereit = Promise.race([
+  ladeSchriftablage(),
+  new Promise<void>((weiter) => window.setTimeout(weiter, 1500)),
+]);
+void ablageBereit.then(() => {
+  createRoot(container).render(<StrictMode>{wurzel}</StrictMode>);
+});

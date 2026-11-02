@@ -7,14 +7,17 @@
  * dort bricht eine von Hand eingetragene Schrift, und zwar still — der Export
  * setzt dann in der Ersatzschrift.
  */
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { resolveFace } from '@/lib/export/fontFiles';
 import { withTheme } from '@/theme';
 import { bibliothek } from '@/assets/schriftbibliothek.generated';
 import { schriftbibliothek } from '@/assets/schriftbibliothek';
-import { gewaehlteFamilie, waehleFamilie } from './bibliothekswahl';
+import { eigeneFamilien, gewaehlteFamilie, waehleFamilie } from './bibliothekswahl';
+import { anleitung } from './emitter';
+import { eigeneSchnitte, entferneSchrift, legeSchriftAb } from '@/theme/schriftablage';
+import { probeschrift } from '../../scripts/probeschrift.mjs';
 import { leererEntwurf, schriftRollen, themeAusEntwurf, type CiEntwurf } from './entwurf';
 import { pruefe } from './pruefung';
 import { promptText } from './prompt';
@@ -186,5 +189,95 @@ describe('der Prompt für das Sprachmodell', () => {
     for (const datei of dateien) {
       expect(existsSync(join(process.cwd(), 'public', 'fonts', datei)), datei).toBe(true);
     }
+  });
+});
+
+describe('eine hochgeladene Familie wählen', () => {
+  const schrift = (datei: string, kursiv = false): ArrayBuffer => {
+    const roh = readFileSync(join(process.cwd(), 'public', 'fonts', datei));
+    const bytes = probeschrift(roh.buffer.slice(roh.byteOffset, roh.byteOffset + roh.byteLength));
+    if (kursiv) {
+      // Dasselbe Bit, an dem `liesSchriftdatei()` einen kursiven Schnitt erkennt.
+      const view = new DataView(bytes);
+      for (let i = 0; i < view.getUint16(4); i += 1) {
+        const eintrag = 12 + i * 16;
+        if (String.fromCharCode(...new Uint8Array(bytes, eintrag, 4)) !== 'OS/2') continue;
+        const os2 = view.getUint32(eintrag + 8);
+        view.setUint16(os2 + 62, view.getUint16(os2 + 62) | 1);
+      }
+    }
+    return bytes;
+  };
+
+  afterEach(async () => {
+    for (const schnitt of eigeneSchnitte()) await entferneSchrift(schnitt.datei);
+  });
+
+  it('geht denselben Weg wie die Bibliothek — und der Export findet die Datei', async () => {
+    await legeSchriftAb('eigen-Probe-Regular.ttf', schrift('Inter-Regular.ttf'));
+    await legeSchriftAb('eigen-Probe-Bold.ttf', schrift('Inter-Bold.ttf'));
+    expect(eigeneFamilien().map((f) => f.familie)).toEqual(['Probe']);
+
+    const neu = waehle(entwurf(), 'body', 'Probe');
+    expect(neu.fontFamily.body.startsWith("'Probe'")).toBe(true);
+    expect(gewaehlteFamilie(neu, 'body')).toBe('Probe');
+    expect(
+      neu.webfontFaces.filter((f) => f.family === 'Probe').map((f) => [f.weight, f.file]),
+    ).toEqual([
+      [400, 'eigen-Probe-Regular.ttf'],
+      [700, 'eigen-Probe-Bold.ttf'],
+    ]);
+    expect(schriftbefunde(neu).filter((b) => b.rang === 'fehler')).toEqual([]);
+
+    withTheme(themeAusEntwurf(neu), () => {
+      expect(resolveFace({ family: 'body', weight: 700 })?.file).toBe('eigen-Probe-Bold.ttf');
+    });
+  });
+
+  it('trägt einen kursiven Schnitt nicht ein', async () => {
+    /*
+       Ein kursiver Schnitt in der Liste schaltete im Export das Neigen ab,
+       während `resolveFace()` weiter den aufrechten nimmt — Kursiv stünde in
+       PDF und PNG gerade. Abgelegt wird er trotzdem: er ist eine gültige Datei.
+    */
+    await legeSchriftAb('eigen-Probe-Regular.ttf', schrift('Inter-Regular.ttf'));
+    await legeSchriftAb('eigen-Probe-Italic.ttf', schrift('Inter-Regular.ttf', true));
+    const neu = waehle(entwurf(), 'body', 'Probe');
+    expect(neu.webfontFaces.filter((f) => f.family === 'Probe').map((f) => f.style)).toEqual([
+      'normal',
+    ]);
+  });
+
+  it('weicht bei gleichem Namen der Bibliothek', async () => {
+    // Wer Inter hochlädt, bekommt die Inter der Bibliothek — samt WOFF2 für
+    // den Bildschirm. Zwei Einträge desselben Namens täten dasselbe.
+    const roh = readFileSync(join(process.cwd(), 'public', 'fonts', 'Inter-Regular.ttf'));
+    await legeSchriftAb(
+      'eigen-Inter-Regular.ttf',
+      roh.buffer.slice(roh.byteOffset, roh.byteOffset + roh.byteLength),
+    );
+    const neu = waehle(entwurf(), 'body', 'Inter');
+    expect(neu.webfontFaces.some((f) => f.file.startsWith('eigen-'))).toBe(false);
+  });
+});
+
+describe('die Endung eines Schnitts', () => {
+  const mitDatei = (file: string): CiEntwurf => {
+    const e = entwurf();
+    return { ...e, webfontFaces: [{ ...e.webfontFaces[0], file }, ...e.webfontFaces.slice(1)] };
+  };
+  const endungsbefund = (e: CiEntwurf) =>
+    schriftbefunde(e).filter((b) => /weder WOFF2 noch TTF/.test(b.text));
+
+  it('lässt .woff2 und .ttf gelten, sonst nichts', () => {
+    expect(endungsbefund(mitDatei('Inter-Regular.woff2'))).toEqual([]);
+    expect(endungsbefund(mitDatei('eigen-Probe-Regular.ttf'))).toEqual([]);
+    expect(endungsbefund(mitDatei('Probe-Regular.otf'))).toHaveLength(1);
+  });
+
+  it('nennt hochgeladene Schnitte in der Anleitung beim Namen', () => {
+    const e = mitDatei('eigen-Probe-Regular.ttf');
+    expect(anleitung(e)).toContain('eigen-Probe-Regular.ttf');
+    expect(anleitung(entwurf())).not.toContain('Hochgeladen');
   });
 });

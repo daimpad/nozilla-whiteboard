@@ -11,7 +11,6 @@
  * siehe `TextMode`. Beide erzeugen dasselbe Bild; sie unterscheiden sich
  * darin, was die Gegenseite können muss.
  */
-import { serializeDeck } from '@/lib/markdown/deck';
 import type { Deck } from '@/model/types';
 import {
   aufBlatt,
@@ -23,6 +22,7 @@ import {
 } from './scene';
 import { resolveDeckImages, sizeResolver, inlineImageHrefs, type ImageMap } from './images';
 import { downloadBlob, saveText, slugify, type SaveResult } from './download';
+import { SVG_MIME, type Seitenformat, type TextMode } from './angebot';
 import { scenesToPdf, type PdfOptions } from './pdf';
 import { sceneToSvg, scenesToContactSheet } from './svg';
 import { embeddedFontCss, facesFor } from './fontFiles';
@@ -40,66 +40,7 @@ export * from './outline';
 export * from './png';
 export * from './pptx';
 export * from './zip';
-
-/**
- * Wie die Schrift in eine exportierte Datei kommt.
- *
- * `embedded`  Der Text bleibt Text und die Datei trägt die Schnitte mit sich —
- *             im PDF als eingebettete Teilmenge, im SVG als `@font-face` mit
- *             Daten-URI. Markierbar, durchsuchbar, nachträglich redigierbar.
- *             Die Vorgabe.
- *
- * `outlines`  Jede Glyphe wird zur Kontur. Es gibt keine Schriftreferenz mehr,
- *             also auch nichts, was ein Betrachter falsch auflösen könnte —
- *             der Weg für Druckvorstufe, Illustrator und Inkscape, die
- *             eingebettete SVG-Schriften ignorieren. Preis: kein markierbarer
- *             Text mehr, und die Datei wird größer.
- */
-export type TextMode = 'embedded' | 'outlines';
-
-export const textModes: readonly TextMode[] = ['embedded', 'outlines'];
-
-export const textModeLabels: Record<TextMode, string> = {
-  embedded: 'Schrift einbetten',
-  outlines: 'Text in Pfade',
-};
-
-export const textModeHints: Record<TextMode, string> = {
-  embedded: 'Text bleibt markierbar und durchsuchbar',
-  outlines: 'Überall gleich, auch ohne Schrift-Unterstützung',
-};
-
-/**
- * Wie groß die Seite eines PDF ist.
- *
- * `folie`     Die Seite *ist* die Folie: 1280 × 720 Einheiten, keine Ränder.
- *             Das Richtige zum Vorführen und für einen Anhang, den niemand
- *             ausdruckt. Die Vorgabe.
- *
- * `a4-hoch`   Ein Blatt A4 im Hochformat, die Folie mittig darauf.
- * `a4-quer`   Dasselbe im Querformat — auf einer 16:9-Folie das Format, das
- *             das Papier am besten ausnutzt.
- *
- * Die Folie wird dabei **nicht kleiner gerechnet**; das Blatt wächst um sie
- * herum, und der Massstab des ganzen Dokuments bringt es danach auf die Maße
- * eines echten A4-Bogens. Warum das der einzig gangbare Weg ist, steht im Kopf
- * von `aufBlatt()`.
- */
-export type Seitenformat = 'folie' | 'a4-hoch' | 'a4-quer';
-
-export const seitenformate: readonly Seitenformat[] = ['folie', 'a4-hoch', 'a4-quer'];
-
-export const seitenformatLabels: Record<Seitenformat, string> = {
-  folie: 'Folie',
-  'a4-hoch': 'A4 hoch',
-  'a4-quer': 'A4 quer',
-};
-
-export const seitenformatHints: Record<Seitenformat, string> = {
-  folie: 'Die Seite ist die Folie, ohne Rand',
-  'a4-hoch': 'Die Folie mittig auf A4, hochkant',
-  'a4-quer': 'Die Folie mittig auf A4, quer',
-};
+export * from './angebot';
 
 /**
  * Die kurze Kante von A4 in Punkt — 210 mm bei 72 Punkt je Zoll.
@@ -130,28 +71,6 @@ function blattlage(format: Seitenformat): Blattlage | null {
 function a4Massstab(szene: Scene | undefined): number | undefined {
   if (!szene) return undefined;
   return A4_KURZ_PT / Math.min(szene.width, szene.height);
-}
-
-export const MARKDOWN_MIME = 'text/markdown';
-export const PPTX_MIME =
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-export const SVG_MIME = 'image/svg+xml';
-export const PDF_MIME = 'application/pdf';
-
-/* -------------------------------------------------------------------------- */
-/* Markdown                                                                    */
-/* -------------------------------------------------------------------------- */
-
-export function deckToMarkdown(deck: Deck): string {
-  return serializeDeck(deck);
-}
-
-export async function exportMarkdown(
-  deck: Deck,
-  options: { filename?: string; handle?: FileSystemFileHandle } = {},
-): Promise<SaveResult> {
-  const filename = options.filename ?? `${slugify(deck.meta.title)}.md`;
-  return saveText(serializeDeck(deck), filename, MARKDOWN_MIME, options.handle);
 }
 
 /* -------------------------------------------------------------------------- */

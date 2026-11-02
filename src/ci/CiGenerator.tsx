@@ -33,7 +33,9 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import { type BrandTheme } from '@/theme';
-import { saveText } from '@/lib/export/download';
+import { saveBlob, saveText } from '@/lib/export/download';
+import { eigeneSchrift, type EigenerSchnitt } from '@/theme/schriftablage';
+import { useSchriftablageVersion } from '@/hooks/useFonts';
 import { Button, IconButton, cx } from '@/components/ui/controls';
 import { Icon } from '@/components/ui/Icon';
 import { leererEntwurf, vorschaustand, vorschauTheme, type CiEntwurf } from './entwurf';
@@ -52,6 +54,7 @@ import {
   schrittFuerFeld,
 } from './schritte';
 import { PROBEFOLIEN, Vorschau } from './Vorschau';
+import { CiTour, CiTourAngebot } from './Tour';
 
 /**
  * Beim Öffnen: fortsetzen oder frisch anfangen?
@@ -106,6 +109,10 @@ function verworfenSatz(woher: string, verworfen: readonly string[]): string | nu
 export function CiGenerator() {
   const [entwurf, setEntwurf] = useState<CiEntwurf>(() => ersterEntwurf().entwurf);
   const [schritt, setSchritt] = useState(0);
+  const [tourOffen, setTourOffen] = useState(false);
+  // Stabil, weil die Tour ihren Tastengriff daran hängt und ihn sonst bei
+  // jedem Zeichnen ab- und wieder anlegte.
+  const schliesseTour = useCallback(() => setTourOffen(false), []);
   const [blatt, setBlatt] = useState(0);
   const [hinweis, setHinweis] = useState<string | null>(() =>
     verworfenSatz('Der Entwurf von vorhin ist zurück.', ersterEntwurf().verworfen),
@@ -329,9 +336,9 @@ export function CiGenerator() {
   const quelltext = frischerQuelltext ?? letzterQuelltext.current;
   const platzhalter = !entwurf.wortmarke && theme !== null;
 
-  const sichere = async (text: string, name: string, typ: string) => {
+  const aushaendigen = async (tun: () => Promise<unknown>) => {
     try {
-      await saveText(text, name, typ);
+      await tun();
       setHinweis(null);
     } catch (fehler) {
       // Ein geschlossener Dateidialog bleibt stumm — das ist die Antwort
@@ -342,6 +349,15 @@ export function CiGenerator() {
       setHinweis(`Die Datei ließ sich nicht aushändigen: ${String(fehler)}`);
     }
   };
+  const sichere = (text: string, name: string, typ: string) =>
+    aushaendigen(() => saveText(text, name, typ));
+  const sichereSchrift = (schnitt: EigenerSchnitt) =>
+    aushaendigen(() =>
+      saveBlob(new Blob([schnitt.bytes], { type: 'font/ttf' }), schnitt.datei, {
+        mimeType: 'font/ttf',
+        extensions: ['.ttf'],
+      }),
+    );
 
   /**
    * Einen gesicherten Entwurf zurücklesen.
@@ -410,7 +426,7 @@ export function CiGenerator() {
           </span>
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2" data-tour="ci-entwurf">
           {/*
             Sichern und Laden als Datei — der Weg, den die Ablage im Browser
             nicht abdeckt: an einem anderen Rechner weiterarbeiten, einen Stand
@@ -480,6 +496,9 @@ export function CiGenerator() {
           >
             Zurück zum Werkzeug
           </Button>
+          <Button variant="ghost" icon="signs-post" onClick={() => setTourOffen(true)}>
+            Tour
+          </Button>
         </div>
       </header>
 
@@ -496,7 +515,10 @@ export function CiGenerator() {
 
       <div className="flex min-h-0 flex-1">
         {/* Der Schritt */}
-        <div className="flex w-[440px] shrink-0 flex-col border-r border-ui bg-ui-surface">
+        <div
+          className="flex w-[440px] shrink-0 flex-col border-r border-ui bg-ui-surface"
+          data-tour="ci-formular"
+        >
           <div
             ref={spalte}
             id="nz-ci-schritt"
@@ -542,6 +564,7 @@ export function CiGenerator() {
                 quelltext={quelltext}
                 fehlerhaft={fehlerhaft}
                 sichere={sichere}
+                sichereSchrift={sichereSchrift}
               />
             ) : null}
           </div>
@@ -615,7 +638,7 @@ export function CiGenerator() {
             </p>
           ) : null}
 
-          <div className={cx('shrink-0', veraltet && 'opacity-60')}>
+          <div className={cx('shrink-0', veraltet && 'opacity-60')} data-tour="ci-vorschau">
             <Vorschau theme={theme} blatt={blatt} />
           </div>
 
@@ -625,11 +648,17 @@ export function CiGenerator() {
             Liste: eine Folie, die etwas kleiner ist, sagt dasselbe; eine Liste,
             von der ein Rand zu sehen ist, sagt nichts.
           */}
-          <div className="mt-4 flex min-h-24 flex-1 flex-col overflow-y-auto">
+          <div
+            className="mt-4 flex min-h-24 flex-1 flex-col overflow-y-auto"
+            data-tour="ci-pruefliste"
+          >
             <Pruefliste befunde={befunde} jetzt={schritt} auf={gehe} />
           </div>
         </div>
       </div>
+
+      <CiTourAngebot starten={() => setTourOffen(true)} verborgen={tourOffen} />
+      {tourOffen ? <CiTour beenden={schliesseTour} /> : null}
     </div>
   );
 }
@@ -732,6 +761,7 @@ function Schrittbalken({
     <div
       role="tablist"
       aria-label="Schritte"
+      data-tour="ci-schritte"
       onKeyDown={taste}
       className="flex shrink-0 items-stretch gap-1 overflow-x-auto border-b border-ui bg-ui-surface px-4 py-2"
     >
@@ -894,12 +924,24 @@ function FertigSchritt({
   quelltext,
   fehlerhaft,
   sichere,
+  sichereSchrift,
 }: {
   entwurf: CiEntwurf;
   quelltext: string;
   fehlerhaft: boolean;
   sichere: (text: string, name: string, typ: string) => Promise<void>;
+  sichereSchrift: (schnitt: EigenerSchnitt) => Promise<void>;
 }) {
+  useSchriftablageVersion();
+  /*
+     Die hochgeladenen Schnitte, die dieser Entwurf nennt. Sie liegen in der
+     Ablage dieses Browsers und in keiner Datei, die hier entsteht — weder in
+     der Designdatei noch in der `.nzci.json`. Wer sie nicht mitnimmt, hat auf
+     jedem anderen Rechner die Ersatzschrift, und zwar ohne einen Fehler.
+  */
+  const hochgeladen = [...new Set(entwurf.webfontFaces.map((face) => face.file).filter(Boolean))]
+    .map((datei) => eigeneSchrift(datei))
+    .filter((schnitt): schnitt is EigenerSchnitt => Boolean(schnitt));
   return (
     <section className="px-4 py-4">
       <h2 className="text-ui-title font-semibold text-ui-ink">Fertig</h2>
@@ -940,6 +982,33 @@ function FertigSchritt({
           Wortmarke
         </Button>
       </div>
+
+      {hochgeladen.length ? (
+        <div className="mt-3" aria-label="Hochgeladene Schriften">
+          <p className="text-[11px] leading-snug text-ui-muted">
+            Hochgeladen und nur in diesem Browser. Für das Repo gehören sie unter{' '}
+            <span className="font-mono">public/fonts/</span>; ein anderer Browser lädt sie beim
+            Import einmal hoch.
+          </p>
+          <ul className="mt-1 flex flex-col gap-1">
+            {hochgeladen.map((schnitt) => (
+              <li key={schnitt.datei} className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ui-ink">
+                  {schnitt.datei}
+                </span>
+                <Button
+                  variant="ghost"
+                  icon="download"
+                  className="h-7"
+                  onClick={() => void sichereSchrift(schnitt)}
+                >
+                  {schnitt.familie} {schnitt.gewicht}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <h3 className="mb-2 mt-4 text-ui-title font-semibold">Im Browser, ohne Designdatei</h3>
       <p className="text-[11px] leading-snug text-ui-muted">

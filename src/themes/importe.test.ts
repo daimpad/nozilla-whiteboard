@@ -187,21 +187,26 @@ describe('was ein Import ablehnt', () => {
   it('nimmt keinen Entwurf mit einem Fehler der Prüfliste an und nennt ihn', async () => {
     /*
        Ein Fehler, den der Leser durchlässt und erst die Prüfliste sieht: eine
-       Schnittdatei, die kein WOFF2 ist. `loadTtf()` tauscht nur die Endung —
-       mit `.ttf` in der Liste suchte der Export eine `.ttf.ttf`.
+       Schnittdatei, die weder WOFF2 noch TTF ist. Bis zum Hochladen eigener
+       Schriften stand hier `.ttf`, mit der Begründung, der Export suchte dann
+       eine `.ttf.ttf` — das stimmte nie: `loadTtf()` ersetzt nur ein
+       abschließendes `.woff2`, und eine `.ttf` bleibt, was sie ist. Eine
+       `.otf` findet dagegen keiner der beiden Wege.
     */
     const m = await frisch();
     const basis = probe({}, m.leererEntwurf);
     const datei = {
       ...basis,
       webfontFaces: basis.webfontFaces.map((face, index) =>
-        index === 0 ? { ...face, file: face.file.replace(/\.woff2$/, '.ttf') } : face,
+        index === 0 ? { ...face, file: face.file.replace(/\.woff2$/, '.otf') } : face,
       ),
     };
     const geprueft = await m.pruefeImport(JSON.stringify(datei));
     expect(geprueft.ok).toBe(false);
     if (geprueft.ok) return;
-    expect(geprueft.befunde?.some((befund) => befund.text.includes('kein WOFF2'))).toBe(true);
+    expect(geprueft.befunde?.some((befund) => befund.text.includes('weder WOFF2 noch TTF'))).toBe(
+      true,
+    );
     expect(m.isThemeId('probenhaus')).toBe(false);
   });
 });

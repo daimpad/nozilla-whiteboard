@@ -614,10 +614,33 @@ export function anleitung(entwurf: CiEntwurf): string {
 
    Zu jeder .woff2 gehört die gleichnamige .ttf unter public/fonts/.
    Fehlt die .ttf, sehen Fläche und SVG richtig aus — PDF und PNG nicht.
+   Eine .ttf ohne .woff2 genügt allein; der Bildschirm lädt sie dann auch.${eigeneSchnitte(entwurf)}
 
 4 · Prüfen
 
    npm run build && npm run test
 
    Ein Deck stellt man mit  theme: ${entwurf.id}  im Frontmatter um.`;
+}
+
+/**
+ * Die hochgeladenen Schnitte, die die Anleitung beim Namen nennt.
+ *
+ * Sie liegen in der Schriftablage *dieses* Browsers und in keinem Repo — wer
+ * die Designdatei eincheckt und die Dateien vergisst, bekommt auf jedem
+ * anderen Rechner die Ersatzschrift, und zwar ohne Fehler. Die Anleitung sagt
+ * deshalb, welche es sind und wo sie herkommen.
+ */
+function eigeneSchnitte(entwurf: CiEntwurf): string {
+  const dateien = [
+    ...new Set(
+      entwurf.webfontFaces.map((face) => face.file).filter((file) => file.startsWith('eigen-')),
+    ),
+  ];
+  if (!dateien.length) return '';
+  return `
+
+   Hochgeladen und nur in diesem Browser — im Schritt „Fertig" herunterladen
+   und ebenfalls unter public/fonts/ ablegen:
+${dateien.map((datei) => `     ${datei}`).join('\n')}`;
 }

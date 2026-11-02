@@ -572,11 +572,18 @@ function pruefeSchrift(entwurf: CiEntwurf): Befund[] {
         text: `„${face.family || '(ohne Familie)'}" trägt das Gewicht ${face.weight}. Ein @font-face kennt 100 bis 900 — alles andere macht die Regel ungültig, und der Schnitt gilt still als 400.`,
       });
     }
-    if (face.file.trim() && !face.file.endsWith('.woff2')) {
+    /*
+       Zwei Endungen und nicht eine. Eine `.woff2` nennt die Datei für den
+       Bildschirm, und `loadTtf()` holt daneben die gleichnamige `.ttf` für den
+       Export. Eine `.ttf` allein trägt beides — so kommt ein hochgeladener
+       Schnitt in den Entwurf, und so darf ihn auch das Repo führen. Alles
+       andere findet keiner der beiden Wege.
+    */
+    if (face.file.trim() && !/\.(woff2|ttf)$/.test(face.file)) {
       befunde.push({
         rang: 'fehler',
         feld,
-        text: `„${face.file}" ist kein WOFF2. loadTtf() tauscht für den Export nur die Endung — die Angabe muss die WOFF2-Datei nennen.`,
+        text: `„${face.file}" ist weder WOFF2 noch TTF. Der Bildschirm lädt die genannte Datei, der Export die gleichnamige .ttf — eine andere Endung findet keiner von beiden.`,
       });
     }
   }
