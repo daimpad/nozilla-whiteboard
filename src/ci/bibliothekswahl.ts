@@ -17,7 +17,8 @@
  * Stapel der Überschrift auf eine Schrift, die es in dieser Marke nicht mehr
  * gibt, und der Bildschirm misst mit etwas anderem als der Export zeichnet.
  */
-import { bibliotheksfamilie } from '@/assets/schriftbibliothek';
+import { bibliotheksfamilie, type Bibliotheksfamilie } from '@/assets/schriftbibliothek';
+import { eigeneSchnitte } from '@/theme/schriftablage';
 import type { FamilyRole } from '@/theme/brandTheme';
 import { neueKennung, schriftRollen, type CiEntwurf, type Schnitt } from './entwurf';
 import { ersterName } from './pruefung';
@@ -37,7 +38,7 @@ export function waehleFamilie(
   rolle: FamilyRole,
   familie: string,
 ): Pick<CiEntwurf, 'fontFamily' | 'webfontFaces'> {
-  const eintrag = bibliotheksfamilie(familie);
+  const eintrag = waehlbareFamilie(familie);
   if (!eintrag) return { fontFamily: entwurf.fontFamily, webfontFaces: entwurf.webfontFaces };
 
   const alt = ersterName(entwurf.fontFamily[rolle]);
@@ -111,7 +112,50 @@ export function waehleFamilie(
   return { fontFamily, webfontFaces: [...behalten, ...dazu] };
 }
 
-/** Die Familie, die eine Rolle gerade trägt — sofern sie in der Bibliothek steht. */
+/** Die Familie, die eine Rolle gerade trägt — sofern sie zur Wahl steht. */
 export function gewaehlteFamilie(entwurf: CiEntwurf, rolle: FamilyRole): string {
-  return bibliotheksfamilie(ersterName(entwurf.fontFamily[rolle]))?.familie ?? '';
+  return waehlbareFamilie(ersterName(entwurf.fontFamily[rolle]))?.familie ?? '';
+}
+
+/**
+ * Die hochgeladenen Schnitte, als Familien gruppiert — in derselben Form wie
+ * die Bibliothek.
+ *
+ * Dieselbe Form, damit derselbe Weg sie in den Entwurf bringt. Ein eigener
+ * Weg für hochgeladene Schriften müsste Stapel, Geschwister und Schnittliste
+ * noch einmal zusammenhalten, und genau das ist die Panne, gegen die
+ * `waehleFamilie()` gebaut ist.
+ */
+export function eigeneFamilien(): Bibliotheksfamilie[] {
+  const nachFamilie = new Map<string, Bibliotheksfamilie['schnitte'][number][]>();
+  /*
+     Nur die aufrechten Schnitte. Ein kursiver in der Schnittliste schaltete
+     im Export das Neigen ab (`kursivNeigung()` fragt genau danach), während
+     `resolveFace()` weiter den aufrechten wählt — Kursiv stünde in PDF und
+     PNG gerade. Der Bildschirm neigt wie der Export, und das ist dieselbe
+     Schrift an beiden Orten.
+  */
+  for (const schnitt of eigeneSchnitte()) {
+    if (schnitt.kursiv) continue;
+    const liste = nachFamilie.get(schnitt.familie) ?? [];
+    liste.push({ weight: schnitt.gewicht, file: schnitt.datei });
+    nachFamilie.set(schnitt.familie, liste);
+  }
+  return [...nachFamilie].map(([familie, schnitte]) => ({
+    familie,
+    art: 'sans',
+    lizenz: 'eigen',
+    schnitte: schnitte.sort((a, b) => a.weight - b.weight),
+  }));
+}
+
+/**
+ * Eine Familie, die zur Wahl steht: aus der Bibliothek oder hochgeladen.
+ *
+ * Die Bibliothek gewinnt bei gleichem Namen. Wer „Inter" hochlädt, hat eine
+ * Schrift, die schon da ist, und die Bibliothek bringt die Fassungen für
+ * Bildschirm *und* Export mit.
+ */
+export function waehlbareFamilie(name: string): Bibliotheksfamilie | undefined {
+  return bibliotheksfamilie(name) ?? eigeneFamilien().find((eintrag) => eintrag.familie === name);
 }

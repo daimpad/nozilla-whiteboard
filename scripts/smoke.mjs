@@ -36,6 +36,7 @@
  */
 import { spawn } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { probeschrift } from './probeschrift.mjs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -4733,7 +4734,7 @@ async function main() {
     const leisteVorher = await seite.evaluate(LEISTE);
 
     await oeffneMarken();
-    await markenschicht().locator('input[type="file"]').setInputFiles(importdatei());
+    await markenschicht().locator('input[accept*="json"]').setInputFiles(importdatei());
     await markenschicht().getByRole('button', { name: 'Anmelden', exact: true }).click();
     await markenschicht().getByRole('status').getByText('ist angemeldet').waitFor();
 
@@ -4848,7 +4849,7 @@ async function main() {
 
       // Das Deck trägt den Schlüssel noch: wer die Datei wieder importiert,
       // bekommt sein Deck zurück, ohne es umzustellen.
-      await markenschicht().locator('input[type="file"]').setInputFiles(importdatei());
+      await markenschicht().locator('input[accept*="json"]').setInputFiles(importdatei());
       await markenschicht().getByRole('button', { name: 'Anmelden', exact: true }).click();
       await bis(
         async () => (await seite.evaluate(FOLIE)).markup.includes(IMPORT_SIGNAL),
@@ -4864,7 +4865,7 @@ async function main() {
     'was keine Marke ist oder eine mitgelieferte ersetzte, wird abgewiesen',
     async () => {
       await oeffneMarken();
-      const eingabe = markenschicht().locator('input[type="file"]');
+      const eingabe = markenschicht().locator('input[accept*="json"]');
 
       /*
          Die Vorbedingung stellt diese Prüfung selbst her: ohne angemeldete
@@ -4929,6 +4930,260 @@ async function main() {
         folieVorher,
         'eine abgewiesene Datei hat die Folie verändert',
       );
+    },
+  );
+
+  console.log('\nEigene Schriften:');
+
+  /*
+     Eine Familie, die es nirgends gibt — aus Inter gebaut, nur der Name
+     getauscht (`probeschrift.mjs`). Mit einer Familie der Bibliothek wäre
+     jede Zusicherung hier grün, weil `waehlbareFamilie()` dann die Bibliothek
+     nimmt und die Dateien unter `public/fonts/` liegen.
+  */
+  const probedatei = (datei, name) => {
+    const roh = readFileSync(join('public', 'fonts', datei));
+    const bytes = probeschrift(roh.buffer.slice(roh.byteOffset, roh.byteOffset + roh.byteLength));
+    return { name, mimeType: 'font/ttf', buffer: Buffer.from(bytes) };
+  };
+  /*
+     Ob eine Schrift geladen ist, fragt `document.fonts` nach einer FontFace
+     mit diesem Namen, die `loaded` meldet — und **nicht** `fonts.check()`.
+     Das sagt „wahr" auch für eine Familie, für die gar keine Regel im
+     Dokument steht: es gibt dann nichts zu laden. Die erste Fassung dieser
+     Prüfung war damit nach einem Neuladen grün, auf einer Folie in nozilla.
+  */
+  let schriftInhalt = null;
+  const SCHRIFT_SIGNAL = '#2B6CB0';
+
+  await pruefe(
+    'der Generator nimmt eine eigene Schrift und zeigt sie auf der Probefolie',
+    async () => {
+      const generator = await kontext.newPage();
+      await generator.addInitScript(() => {
+        delete window.showSaveFilePicker;
+      });
+      try {
+        await oeffneGenerator(kontext, generator);
+        await zumSchritt(generator, 'Marke');
+        await generator.getByLabel('Schlüssel').fill('rauchschrift');
+        await generator.getByLabel('Name in der Auswahl').fill('Rauchschrift');
+        await generator.getByLabel('Markenname').fill('rauch');
+        await zumSchritt(generator, 'Farbe');
+        await setzeFarbe(generator, 'signal', SCHRIFT_SIGNAL);
+
+        await zumSchritt(generator, 'Schrift');
+        await generator
+          .getByLabel('Eigene Schrift für Fließtext hochladen')
+          .setInputFiles([
+            probedatei('Inter-Regular.ttf', 'Probe Regular.ttf'),
+            probedatei('Inter-Bold.ttf', 'Probe Bold.ttf'),
+          ]);
+        const quittung = generator.getByRole('status', { name: 'Hochgeladen für Fließtext' });
+        await quittung.getByText('„Probe" trägt jetzt diese Rolle.').waitFor();
+
+        // Die Familie steht jetzt in der Auswahl — für jede Rolle, nicht nur für
+        // die, für die sie hochgeladen wurde.
+        gleich(
+          await generator.getByLabel('Fließtext aus der Bibliothek').inputValue(),
+          'Probe',
+          'die Rolle trägt die hochgeladene Familie nicht',
+        );
+        wahr(
+          await generator
+            .getByLabel('Auszeichnung aus der Bibliothek')
+            .locator('option', { hasText: 'Probe · hochgeladen' })
+            .count(),
+          'die Auswahl der anderen Rollen kennt die Familie nicht',
+        );
+
+        // Und die Probefolie zeichnet wirklich in ihr: der Browser hat die
+        // Schrift geladen, und zwar aus der Ablage — unter `public/fonts/`
+        // liegt sie nicht.
+        await bisWahr(
+          () =>
+            generator.evaluate(() =>
+              [...document.fonts].some(
+                (schnitt) =>
+                  schnitt.family.replace(/["']/g, '') === 'Probe' && schnitt.status === 'loaded',
+              ),
+            ),
+          'die Probefolie lud die hochgeladene Schrift nicht',
+        );
+
+        await zumSchritt(generator, 'Wortmarke');
+        await generator.setInputFiles('input[accept*="svg"]', {
+          name: 'rauchschrift-wortmarke.svg',
+          mimeType: 'image/svg+xml',
+          buffer: Buffer.from(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48">' +
+              '<path fill="#000000" d="M4 8 L96 8 L96 40 L4 40 Z"/>' +
+              `<path fill="${SCHRIFT_SIGNAL}" d="M108 24 L132 24 L132 40 L108 40 Z"/></svg>`,
+          ),
+        });
+        await generator.getByText('rauchschrift-wortmarke.svg', { exact: true }).waitFor();
+
+        // „Fertig" bietet die Dateien an, die nur in diesem Browser liegen.
+        await zumSchritt(generator, 'Fertig');
+        const angebot = generator.getByLabel('Hochgeladene Schriften');
+        const [ttf] = await Promise.all([
+          generator.waitForEvent('download'),
+          angebot.getByRole('button', { name: 'Probe 700' }).click(),
+        ]);
+        const kopf = readFileSync(await ttf.path()).subarray(0, 4);
+        gleich(
+          kopf.toString('hex'),
+          '00010000',
+          'die ausgehändigte Datei ist keine TrueType-Schrift',
+        );
+
+        const [download] = await Promise.all([
+          generator.waitForEvent('download'),
+          generator.getByRole('button', { name: 'Entwurf sichern', exact: true }).click(),
+        ]);
+        schriftInhalt = readFileSync(await download.path(), 'utf8');
+        const entwurf = JSON.parse(schriftInhalt);
+        gleich(
+          entwurf.webfontFaces
+            .filter((face) => face.family === 'Probe')
+            .map((face) => face.file)
+            .join(' '),
+          'eigen-Probe-Regular.ttf eigen-Probe-Bold.ttf',
+          'die Schnittliste führt die hochgeladenen Dateien nicht',
+        );
+      } finally {
+        await generator.close();
+      }
+    },
+  );
+
+  await pruefe(
+    'eine Marke mit eigener Schrift zeichnet im Werkzeug — auch nach dem Neuladen',
+    async () => {
+      wahr(schriftInhalt, 'es gibt keine Datei aus dem Generator');
+      /*
+       Derselbe Browser, ein anderer Tab: die Ablage ist geteilt, und das
+       Werkzeug hat es über den Kanal erfahren. Fehlen darf beim Import deshalb
+       nichts — stünde hier „nachreichen", hätte das Werkzeug die Schriften
+       nicht gesehen, die der Generator eben abgelegt hat.
+    */
+      await oeffneMarken();
+      await markenschicht()
+        .locator('input[accept*="json"]')
+        .setInputFiles(importdatei(schriftInhalt));
+      const befund = markenschicht().getByLabel('Befund zum Import');
+      await befund.waitFor();
+      gleich(
+        await befund.getByText('nachreichen').count(),
+        0,
+        'der Import vermisst Schriften, die in diesem Browser liegen',
+      );
+      await markenschicht().getByRole('button', { name: 'Anmelden', exact: true }).click();
+      await markenschicht()
+        .getByRole('button', { name: /^Dieses Deck auf „Rauchschrift" umstellen$/ })
+        .click();
+      await seite.keyboard.press('Escape');
+
+      const stand = async () => {
+        const markup = (await seite.evaluate(FOLIE)).markup;
+        return {
+          marke: markup.includes(SCHRIFT_SIGNAL),
+          familie: markup.includes('Probe'),
+          geladen: await seite.evaluate(() =>
+            [...document.fonts].some(
+              (schnitt) =>
+                schnitt.family.replace(/["']/g, '') === 'Probe' && schnitt.status === 'loaded',
+            ),
+          ),
+        };
+      };
+      const zeichnetInProbe = async () => {
+        const jetzt = await stand();
+        return jetzt.marke && jetzt.familie && jetzt.geladen;
+      };
+      await bisWahr(
+        zeichnetInProbe,
+        async () =>
+          `die Folie zeichnet nicht in der hochgeladenen Schrift: ${JSON.stringify(await stand())}`,
+      );
+
+      /*
+         Das Neuladen ist die eigentliche Frage: im Speicher lag sie ohnehin.
+         Die Marke wird danach von Hand wieder eingestellt — ein Startskript
+         weiter oben legt bei jedem Laden eine feste Sitzung ab, und mit ihr
+         käme das Deck in nozilla zurück. Gefragt ist hier nicht, ob die
+         Sitzung die Marke behält, sondern ob die Schrift ein Neuladen
+         übersteht.
+      */
+      await seite.reload({ waitUntil: 'networkidle' });
+      await seite.getByRole('button', { name: 'Deck', exact: true }).click();
+      await seite
+        .locator('select')
+        .filter({ has: seite.locator('option[value="rauchschrift"]') })
+        .first()
+        .selectOption('rauchschrift');
+      await bisWahr(
+        zeichnetInProbe,
+        async () =>
+          `nach dem Neuladen fehlte die hochgeladene Schrift: ${JSON.stringify(await stand())}`,
+      );
+    },
+  );
+
+  await pruefe(
+    'in einem fremden Browser lässt sich eine fehlende Schrift nachreichen',
+    async () => {
+      wahr(schriftInhalt, 'es gibt keine Datei aus dem Generator');
+      const frisch = await browser.newContext({ viewport: { width: 1500, height: 940 } });
+      try {
+        await frisch.addInitScript(() => {
+          localStorage.setItem('nz-tour', 'gesehen');
+        });
+        const fremd = await frisch.newPage();
+        await fremd.goto(URL, { waitUntil: 'networkidle' });
+        await fremd.getByRole('button', { name: 'Datei', exact: true }).click();
+        await fremd.getByRole('menuitem', { name: /Erscheinungsbilder/ }).click();
+        const schicht = fremd.getByRole('dialog', { name: 'Erscheinungsbilder' });
+        await schicht.locator('input[accept*="json"]').setInputFiles(importdatei(schriftInhalt));
+        const befund = schicht.getByLabel('Befund zum Import');
+        await befund.waitFor();
+
+        const regular = befund.getByLabel('eigen-Probe-Regular.ttf als TrueType nachreichen');
+        const bold = befund.getByLabel('eigen-Probe-Bold.ttf als TrueType nachreichen');
+        wahr(
+          (await regular.count()) && (await bold.count()),
+          'der Import nennt die fehlenden Schriften nicht',
+        );
+
+        // Eine WOFF2 wird abgewiesen, mit Grund — und die Zeile bleibt stehen.
+        const woff2 = readFileSync(join('public', 'fonts', 'Inter-Bold.woff2'));
+        await bold.setInputFiles({
+          name: 'Probe-Bold.woff2',
+          mimeType: 'font/woff2',
+          buffer: woff2,
+        });
+        await befund.getByRole('alert').getByText(/WOFF2/).waitFor();
+        wahr(await bold.count(), 'eine abgewiesene Datei nahm die Zeile mit');
+
+        await regular.setInputFiles(probedatei('Inter-Regular.ttf', 'Probe Regular.ttf'));
+        await bold.setInputFiles(probedatei('Inter-Bold.ttf', 'Probe Bold.ttf'));
+        await bisGleich(
+          () => befund.getByText('nachreichen').count(),
+          0,
+          'nachgereichte Schriften blieben als fehlend stehen',
+        );
+
+        await schicht.getByRole('button', { name: 'Anmelden', exact: true }).click();
+        const liste = schicht.getByLabel('Hochgeladene Schriften');
+        await liste.waitFor();
+        gleich(
+          await liste.getByRole('listitem').count(),
+          2,
+          'die Liste zeigt nicht beide hochgeladenen Schnitte',
+        );
+      } finally {
+        await frisch.close();
+      }
     },
   );
 

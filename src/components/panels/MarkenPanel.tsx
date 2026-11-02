@@ -15,9 +15,18 @@
  * für den Rücklauf des Sprachmodells, und hier gilt dasselbe: ein Import, der
  * erst übernimmt und dann prüft, hat nichts mehr zu fragen.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { availableThemes } from '@/theme';
 import { useThemeVersion } from '@/hooks/useTheme';
+import { useSchriftablageVersion } from '@/hooks/useFonts';
+import { schnittFehlt } from '@/lib/export/fontFiles';
+import {
+  eigeneSchnitte,
+  eigeneSchrift,
+  entferneSchrift,
+  legeSchriftAb,
+  type EigenerSchnitt,
+} from '@/theme/schriftablage';
 import { useFokusZurueck } from '@/hooks/useFokusZurueck';
 import { useDeckStore } from '@/state/deckStore';
 import { grund } from '@/state/persistence';
@@ -45,7 +54,8 @@ export function MarkenPanel() {
   useFokusZurueck();
   // Die Liste liest das Verzeichnis, und das ändert sich unter ihr: ein
   // Import, ein Entfernen, ein anderes Fenster.
-  useThemeVersion();
+  const themeVersion = useThemeVersion();
+  const ablageVersion = useSchriftablageVersion();
   const close = useDeckStore((state) => state.toggleMarken);
   const deckMarke = useDeckStore((state) => state.deck.meta.theme);
   const setDeckMeta = useDeckStore((state) => state.setDeckMeta);
@@ -60,6 +70,39 @@ export function MarkenPanel() {
 
   const bekannt = availableThemes();
   const ruhend = anmeldebericht().gescheitert;
+
+  /*
+     Die Schnitte der importierten Marken, deren Dateien hier nicht liegen.
+
+     Der Import nennt sie einmal, bevor er übernimmt — und danach nirgends
+     mehr. Wer „Anmelden" klickte, ohne die Schriften zu haben, fand keinen
+     Weg zurück zu dieser Liste, und das Deck stand still in der
+     Ersatzschrift. Gefragt wird über `schnittFehlt()`, also über denselben
+     Abruf, mit dem der Export die Dateien holt.
+  */
+  const [fehlend, setFehlend] = useState<Array<{ datei: string; marken: string[] }>>([]);
+  useEffect(() => {
+    let vorbei = false;
+    const nachDatei = new Map<string, string[]>();
+    for (const { id, label } of availableThemes()) {
+      if (!istImportiert(id)) continue;
+      for (const face of gemerkterEntwurf(id)?.webfontFaces ?? []) {
+        if (!face.file) continue;
+        nachDatei.set(face.file, [...(nachDatei.get(face.file) ?? []), label]);
+      }
+    }
+    void Promise.all(
+      [...nachDatei].map(async ([datei, marken]) =>
+        (await schnittFehlt(datei)) ? { datei, marken: [...new Set(marken)] } : null,
+      ),
+    ).then((liste) => {
+      if (!vorbei) setFehlend(liste.filter((eintrag) => eintrag !== null));
+    });
+    return () => {
+      vorbei = true;
+    };
+  }, [themeVersion, ablageVersion]);
+  const hochgeladen = eigeneSchnitte();
 
   const lies = async (datei: File) => {
     setStand({ art: 'liest', datei: datei.name });
@@ -175,13 +218,46 @@ export function MarkenPanel() {
             ))}
           </ul>
 
+          {fehlend.length || hochgeladen.length ? (
+            <>
+              <SectionTitle>Schriften</SectionTitle>
+              {fehlend.length ? (
+                <ul className="mb-2 flex flex-col" aria-label="Fehlende Schriften">
+                  {fehlend.map(({ datei, marken }) => (
+                    <li key={datei} className="flex items-center gap-2 border-b border-ui py-1.5">
+                      <Icon
+                        name="triangle-exclamation"
+                        size={14}
+                        className="shrink-0 text-ui-warn"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-mono text-[11px] text-ui-ink">{datei}</span>
+                        <span className="block text-[11px] leading-snug text-ui-muted">
+                          fehlt · {marken.join(', ')} · steht in der Ersatzschrift
+                        </span>
+                      </span>
+                      <SchnittNachreichen datei={datei} />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {hochgeladen.length ? (
+                <ul className="mb-3 flex flex-col" aria-label="Hochgeladene Schriften">
+                  {hochgeladen.map((schnitt) => (
+                    <EigenerSchnittZeile key={schnitt.datei} schnitt={schnitt} />
+                  ))}
+                </ul>
+              ) : null}
+            </>
+          ) : null}
+
           <SectionTitle>Importieren</SectionTitle>
           <p className="mb-2 text-[11px] leading-snug text-ui-muted">
             Eine <span className="font-mono">.nzci.json</span> aus dem CI-Generator („Entwurf
-            sichern"). Sie geht durch dieselbe Prüfliste wie dort, und die Schriften müssen unter{' '}
-            <span className="font-mono">public/fonts/</span> liegen — die Bibliothek im Generator
-            bietet nur solche an. Ein Erscheinungsbild gilt der Folie; die Leisten bleiben, wie sie
-            sind.
+            sichern"). Sie geht durch dieselbe Prüfliste wie dort. Schriften, die weder in der
+            Bibliothek noch in diesem Browser liegen, reichst du danach als{' '}
+            <span className="font-mono">.ttf</span> nach. Ein Erscheinungsbild gilt der Folie; die
+            Leisten bleiben, wie sie sind.
           </p>
           {/*
             Ein `sr-only`-Feld und kein `hidden`: `display: none` nimmt es aus
@@ -284,6 +360,7 @@ function Ergebnis({
   const { vorschlag } = ergebnis;
   const { entwurf } = vorschlag;
   const { befunde } = vorschlag;
+  const fehlendeSchnitte = vorschlag.fehlendeSchnitte.filter(({ datei }) => !eigeneSchrift(datei));
   return (
     <div className="mt-3 border border-ui bg-ui-surface px-3 py-2" aria-label="Befund zum Import">
       <p className="text-ui-body text-ui-ink">
@@ -298,13 +375,21 @@ function Ergebnis({
         </p>
       ) : null}
 
-      {vorschlag.fehlendeSchnitte.length ? (
+      {/*
+        Gefiltert gegen die Ablage, und zwar beim Zeichnen: was hier
+        nachgereicht wird, verschwindet aus der Liste, ohne dass die Datei
+        neu geprüft werden muss.
+      */}
+      {fehlendeSchnitte.length ? (
         <div className="mt-1 text-[11px] leading-snug text-ui-warn">
           Diese Schriftdateien liegen hier nicht; ihr Text steht auf dem Bildschirm und in jeder
-          Ausgabe in einer Ersatzschrift:
-          <ul className="list-disc pl-4 font-mono">
-            {vorschlag.fehlendeSchnitte.map(({ datei: name }) => (
-              <li key={name}>{name}</li>
+          Ausgabe in einer Ersatzschrift, bis du sie als .ttf nachreichst:
+          <ul className="mt-1 flex flex-col gap-1">
+            {fehlendeSchnitte.map(({ datei: name }) => (
+              <li key={name} className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate font-mono text-ui-ink">{name}</span>
+                <SchnittNachreichen datei={name} />
+              </li>
             ))}
           </ul>
         </div>
@@ -339,5 +424,97 @@ function Ergebnis({
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Eine fehlende Datei als TrueType nachreichen.
+ *
+ * Abgelegt wird unter dem Namen, den die Marke nennt — nur so findet der
+ * Export sie, ohne dass jemand die Marke anfasst. Die Familie in der Datei
+ * wird dabei nicht gegen den Stapel gehalten: der Bildschirm zeichnet sie
+ * unter dem Namen der Regel und der Export holt sie über den Dateinamen, also
+ * zeichnen beide dieselbe Datei, wie immer sie sich selbst nennt.
+ */
+function SchnittNachreichen({ datei }: { datei: string }) {
+  const zeigeHinweis = useDeckStore((state) => state.zeigeHinweis);
+  const [meldung, setMeldung] = useState<string | null>(null);
+
+  const reiche = async (quelle: File) => {
+    const ergebnis = await legeSchriftAb(datei, await quelle.arrayBuffer());
+    if (ergebnis.grund) {
+      setMeldung(ergebnis.grund);
+      return;
+    }
+    setMeldung(null);
+    if (!ergebnis.gemerkt) {
+      zeigeHinweis(
+        `„${quelle.name}" gilt bis zum nächsten Neuladen — dieser Browser bietet keine dauerhafte Ablage an.`,
+      );
+    }
+  };
+
+  return (
+    <span className="flex shrink-0 flex-col items-end">
+      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-sm border border-ui bg-ui-surface px-2 py-1 text-[11px] font-medium text-ui-ink hover:border-ui-strong hover:bg-ui-subtle focus-within:outline focus-within:outline-2 focus-within:outline-ui-accent">
+        <Icon name="upload" size={13} />
+        .ttf nachreichen
+        <input
+          type="file"
+          accept=".ttf,font/ttf"
+          aria-label={`${datei} als TrueType nachreichen`}
+          className="sr-only"
+          onChange={(event) => {
+            const quelle = event.target.files?.[0];
+            event.target.value = '';
+            if (quelle) void reiche(quelle);
+          }}
+        />
+      </label>
+      {meldung ? (
+        <span
+          role="alert"
+          className="mt-1 max-w-64 text-right text-[11px] leading-snug text-ui-danger"
+        >
+          {meldung}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function EigenerSchnittZeile({ schnitt }: { schnitt: EigenerSchnitt }) {
+  const entferne = () => {
+    /*
+       Gefragt wird, weil eine Marke den Schnitt nennen kann: danach steht ihr
+       Text in der Ersatzschrift. Ob eine es tut, sagt die Liste darüber, sobald
+       er weg ist — eine Rechnung im Voraus wäre eine zweite Antwort auf
+       dieselbe Frage.
+    */
+    if (!window.confirm(`„${schnitt.familie} ${schnitt.gewicht}" aus diesem Browser entfernen?`))
+      return;
+    void entferneSchrift(schnitt.datei);
+  };
+  return (
+    <li
+      className="flex items-center gap-2 border-b border-ui py-1.5 last:border-b-0"
+      aria-label={`Schrift ${schnitt.familie} ${schnitt.gewicht}`}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block text-ui-body text-ui-ink">
+          {schnitt.familie} {schnitt.gewicht}
+          {schnitt.kursiv ? ' kursiv' : ''}
+        </span>
+        <span className="block font-mono text-[11px] text-ui-faint">
+          {schnitt.datei} · {Math.round(schnitt.bytes.byteLength / 1024)} kB · hochgeladen
+        </span>
+      </span>
+      <IconButton
+        icon="trash"
+        tone="danger"
+        label={`„${schnitt.familie} ${schnitt.gewicht}" entfernen`}
+        onClick={entferne}
+      />
+    </li>
   );
 }

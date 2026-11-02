@@ -19,6 +19,7 @@
 import { webfont, familyName, fontFamily, syntheticItalicDegrees } from '@/theme';
 import type { FontFamilyKey, FontSpec } from '@/lib/text/measure';
 import { parseTrueType, type TrueTypeFont } from '@/lib/text/truetype';
+import { eigeneSchrift, subscribeSchriftablage } from '@/theme/schriftablage';
 
 export interface FaceRef {
   /** Rolle im Satzspiegel. */
@@ -135,6 +136,15 @@ function pruefeKennung(file: string, bytes: ArrayBuffer): void {
 }
 
 function fetchBytes(file: string): Promise<ArrayBuffer> {
+  /*
+     Ein hochgeladener Schnitt geht vor — vor dem Merker und vor dem Server.
+     Vor dem Merker, weil dort für eine fehlende Datei ein *gescheiterter*
+     Abruf liegt, und der bliebe stehen, nachdem jemand die Datei nachgereicht
+     hat. Gefragt wird nur nach der `.ttf`: die Ablage nimmt nur TrueType, und
+     wer eine `.woff2` will, fragt vorher `eigeneSchrift()`.
+  */
+  const eigen = file.endsWith('.ttf') ? eigeneSchrift(file) : undefined;
+  if (eigen) return Promise.resolve(eigen.bytes);
   const hit = bytesCache.get(file);
   if (hit) return hit;
   const pending = fetch(`${baseUrl()}/${file}`).then(async (response) => {
@@ -157,6 +167,9 @@ function fetchBytes(file: string): Promise<ArrayBuffer> {
  * geholt wird, ist danach auch für den Export schon da.
  */
 export async function schnittFehlt(file: string): Promise<string | null> {
+  // Ein hochgeladener Schnitt ist eine TrueType-Datei und trägt damit beide
+  // Fassungen in einer: der Bildschirm zeichnet aus ihr, der Export auch.
+  if (eigeneSchrift(file)) return null;
   try {
     await Promise.all([fetchBytes(file), fetchBytes(file.replace(/\.woff2$/, '.ttf'))]);
     return null;
@@ -176,6 +189,14 @@ export function loadWoff2(face: FaceRef): Promise<ArrayBuffer> {
 }
 
 const parsedCache = new Map<string, Promise<TrueTypeFont>>();
+
+/*
+   Kommt ein Schnitt in die Ablage oder geht er wieder, sind die gelesenen
+   Umrisse unter seinem Namen falsch — oder ein gescheiterter Versuch, der
+   jetzt gelänge. Geräumt wird alles, und das ist billig: der nächste Export
+   liest neu, was er braucht, und nur das.
+*/
+subscribeSchriftablage(() => parsedCache.clear());
 
 /** Einen Schnitt als lesbare Umriss-Quelle. */
 export function loadOutlines(face: FaceRef): Promise<TrueTypeFont> {
@@ -216,13 +237,19 @@ export async function embeddedFontCss(faces: readonly FaceRef[]): Promise<string
   if (faces.length === 0) return '';
   const rules = await Promise.all(
     faces.map(async (face) => {
-      const base64 = toBase64(await loadWoff2(face));
+      // Ein hochgeladener Schnitt liegt nur als TrueType vor — größer als
+      // WOFF2, aber dieselbe Schrift, und die Datei steht damit für sich.
+      const eigen = eigeneSchrift(face.file);
+      const base64 = toBase64(eigen ? eigen.bytes : await loadWoff2(face));
+      const quelle = eigen
+        ? `url(data:font/ttf;base64,${base64}) format('truetype')`
+        : `url(data:font/woff2;base64,${base64}) format('woff2')`;
       return [
         '@font-face {',
         `  font-family: '${face.family}';`,
         `  font-weight: ${face.weight};`,
         '  font-style: normal;',
-        `  src: url(data:font/woff2;base64,${base64}) format('woff2');`,
+        `  src: ${quelle};`,
         '}',
       ].join('\n');
     }),

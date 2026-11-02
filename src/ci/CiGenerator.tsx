@@ -33,7 +33,9 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import { type BrandTheme } from '@/theme';
-import { saveText } from '@/lib/export/download';
+import { saveBlob, saveText } from '@/lib/export/download';
+import { eigeneSchrift, type EigenerSchnitt } from '@/theme/schriftablage';
+import { useSchriftablageVersion } from '@/hooks/useFonts';
 import { Button, IconButton, cx } from '@/components/ui/controls';
 import { Icon } from '@/components/ui/Icon';
 import { leererEntwurf, vorschaustand, vorschauTheme, type CiEntwurf } from './entwurf';
@@ -334,9 +336,9 @@ export function CiGenerator() {
   const quelltext = frischerQuelltext ?? letzterQuelltext.current;
   const platzhalter = !entwurf.wortmarke && theme !== null;
 
-  const sichere = async (text: string, name: string, typ: string) => {
+  const aushaendigen = async (tun: () => Promise<unknown>) => {
     try {
-      await saveText(text, name, typ);
+      await tun();
       setHinweis(null);
     } catch (fehler) {
       // Ein geschlossener Dateidialog bleibt stumm — das ist die Antwort
@@ -347,6 +349,15 @@ export function CiGenerator() {
       setHinweis(`Die Datei ließ sich nicht aushändigen: ${String(fehler)}`);
     }
   };
+  const sichere = (text: string, name: string, typ: string) =>
+    aushaendigen(() => saveText(text, name, typ));
+  const sichereSchrift = (schnitt: EigenerSchnitt) =>
+    aushaendigen(() =>
+      saveBlob(new Blob([schnitt.bytes], { type: 'font/ttf' }), schnitt.datei, {
+        mimeType: 'font/ttf',
+        extensions: ['.ttf'],
+      }),
+    );
 
   /**
    * Einen gesicherten Entwurf zurücklesen.
@@ -553,6 +564,7 @@ export function CiGenerator() {
                 quelltext={quelltext}
                 fehlerhaft={fehlerhaft}
                 sichere={sichere}
+                sichereSchrift={sichereSchrift}
               />
             ) : null}
           </div>
@@ -912,12 +924,24 @@ function FertigSchritt({
   quelltext,
   fehlerhaft,
   sichere,
+  sichereSchrift,
 }: {
   entwurf: CiEntwurf;
   quelltext: string;
   fehlerhaft: boolean;
   sichere: (text: string, name: string, typ: string) => Promise<void>;
+  sichereSchrift: (schnitt: EigenerSchnitt) => Promise<void>;
 }) {
+  useSchriftablageVersion();
+  /*
+     Die hochgeladenen Schnitte, die dieser Entwurf nennt. Sie liegen in der
+     Ablage dieses Browsers und in keiner Datei, die hier entsteht — weder in
+     der Designdatei noch in der `.nzci.json`. Wer sie nicht mitnimmt, hat auf
+     jedem anderen Rechner die Ersatzschrift, und zwar ohne einen Fehler.
+  */
+  const hochgeladen = [...new Set(entwurf.webfontFaces.map((face) => face.file).filter(Boolean))]
+    .map((datei) => eigeneSchrift(datei))
+    .filter((schnitt): schnitt is EigenerSchnitt => Boolean(schnitt));
   return (
     <section className="px-4 py-4">
       <h2 className="text-ui-title font-semibold text-ui-ink">Fertig</h2>
@@ -958,6 +982,33 @@ function FertigSchritt({
           Wortmarke
         </Button>
       </div>
+
+      {hochgeladen.length ? (
+        <div className="mt-3" aria-label="Hochgeladene Schriften">
+          <p className="text-[11px] leading-snug text-ui-muted">
+            Hochgeladen und nur in diesem Browser. Für das Repo gehören sie unter{' '}
+            <span className="font-mono">public/fonts/</span>; ein anderer Browser lädt sie beim
+            Import einmal hoch.
+          </p>
+          <ul className="mt-1 flex flex-col gap-1">
+            {hochgeladen.map((schnitt) => (
+              <li key={schnitt.datei} className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ui-ink">
+                  {schnitt.datei}
+                </span>
+                <Button
+                  variant="ghost"
+                  icon="download"
+                  className="h-7"
+                  onClick={() => void sichereSchrift(schnitt)}
+                >
+                  {schnitt.familie} {schnitt.gewicht}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <h3 className="mb-2 mt-4 text-ui-title font-semibold">Im Browser, ohne Designdatei</h3>
       <p className="text-[11px] leading-snug text-ui-muted">

@@ -121,7 +121,9 @@ scripts/  sync-ci.mjs         Holt Schriften, Marke und Icons aus dem CI-Repo
           ciAbgleich.mjs      Was ein Sync verlöre — die Rechnung dazu
           schriftbibliothek.mjs  Schneidet zwanzig Familien aus Google Fonts
                               zu festen Schnitten
-          smoke.mjs           Der Rauchtest: 89 Handgriffe gegen das Bauwerk
+          smoke.mjs           Der Rauchtest: 94 Handgriffe gegen das Bauwerk
+          probeschrift.mjs    Eine Schrift, die es nirgends gibt — für die
+                              Prüfungen des Hochladens
 src/
   assets/     iconSet.ts      Ein Icon-Set als Wert; das nozilla-Set
               icons.ts        Das Set des gültigen Erscheinungsbilds
@@ -133,6 +135,8 @@ src/
               folienformat.ts Auf welchem Blatt dieses Deck liegt (ebenso)
                               — und was eine Folien-Einheit in Punkt misst
               surface.ts      Hell oder dunkel — die Erscheinung des Werkzeugs
+              schriftablage.ts  Hochgeladene Schnitte im Browser (IndexedDB) —
+                              zuerst gefragt von Bildschirm und Export
               fonts.ts        Die Schnitte anfordern und den Zähler hochzählen
                               (`cssZeichenkette` — ein Name ist keine CSS-Syntax)
               wordmark.ts     Eine Wortmarke aus einem SVG lesen — und sagen,
@@ -162,6 +166,7 @@ src/
               probedeck.ts    Die Folien, an denen ein Entwurf beurteilt wird —
                               und `STUMME_ROLLEN`: was keine zeigen kann
               Vorschau.tsx    Eine echte Folie, über die echte Zeichenstrecke
+              Tour.tsx        Die geführte Tour durch den Generator
   decks/      index.ts        Die mitgelieferten Decks
               welcome.md      nozilla — jedes Layout, jede Elementart
               musterkunde.md  Ein Deck unter fremder Marke, als Beleg
@@ -177,6 +182,8 @@ src/
     text/     measure.ts      Schriftmaße (+ Ersatz für Tests ohne Canvas)
               typeset.ts      Markdown → gesetzter Text
               truetype.ts     Zeichen → Umriss (glyf, cmap, composite)
+              schriftdatei.ts Eine hochgeladene Schrift lesen — oder sagen,
+                              warum sie nicht taugt
     export/   scene.ts        Folie → Szene  ◄── die Drehscheibe
               glyphCover.ts   Welcher Schnitt ein Zeichen wirklich zeichnet
               outline.ts      Textprimitive → Pfadprimitive
@@ -186,7 +193,8 @@ src/
               images.ts       Jedes Bild einmal laden, samt seinen Maßen
               fontFiles.ts    Schnitte beschaffen und einbetten
               download.ts     Die Datei aushändigen — Griff oder Download
-              index.ts        Was das Export-Menü ruft
+              index.ts        Was das Export-Menü ruft — nachgeladen beim Klick
+              angebot.ts      Was das Menü anbietet, ohne die Wege zu laden
     prompt/   buildPrompt.ts  Der Deck-Prompt, aus dem laufenden Schema gebaut
               zaun.ts         Einen Codezaun abnehmen — zwei Leser, eine Regel
     chart.ts table.ts         Zahlen und Zellen lesen (kein eigener Zeichner)
@@ -212,6 +220,7 @@ src/
   components/ canvas · panels · chrome · present · ui
               chrome/Tour.tsx Die geführte Tour: vierzehn Schritte, je einer
                               auf einen Bereich mit `data-tour`
+              ui/Fuehrung.tsx Wie eine Tour sich benimmt — für beide Seiten
 ```
 
 **Nicht von Hand ändern:** `src/assets/icons.generated.ts`,
@@ -277,7 +286,7 @@ prüft, ob eine Funktion schreibt, was sie schreibt.
   Relationship-Id auflösen**. Zusätzlich von Hand mit LibreOffice Impress
   öffnen (`soffice --headless --convert-to pdf`) und die Seiten ansehen.
 - **Oberfläche**: `npm run test:ui` — Playwright gegen `vite preview`, also
-  gegen das gebaute Verzeichnis. Neunundachtzig Handgriffe, die je einen
+  gegen das gebaute Verzeichnis. Vierundneunzig Handgriffe, die je einen
   Fehler abbilden, der einmal grün durchgekommen ist. Warum welcher, steht im
   Kopf von `scripts/smoke.mjs`. Chromium liegt hier unter `/opt/pw-browsers/`;
   die Fassung passt nicht zur Bibliothek, deshalb
@@ -4555,6 +4564,106 @@ lesbarere Form.
 Container fehlte `node_modules`; `npx prettier` holte sich eine andere Fassung
 und stellte fünf Dateien um, die niemand angefasst hatte. Erst `npm ci`, dann
 formatieren — und vor dem Commit `git diff --stat` lesen.
+
+**Ein Bündelname ist kein Inhalt.** Der Start lud zwei Skripte, 523 und
+207 kB, und im zweiten stand die Zeichenkette des PowerPoint-Schreibers —
+daraus wurde „207 kB PowerPoint, die jeder Start lädt". Nach dem Umbau, der
+die Exportwege erst beim Klick holt (`wege()` in `TopBar.tsx`, die
+Beschriftungen in `angebot.ts`), sind es 45 kB von 730, komprimiert 15 von
+218. Das zweite Skript war der Einstieg der Anwendung selbst, und der
+PowerPoint-Schreiber ein Teil davon. Gemessen wird seither an der Quellkarte:
+der Rest des Starts sind Zeichen, React, YAML, marked und die Szene, und die
+braucht die Fläche vom ersten Bild an.
+
+Bewacht wird das an `index.html` und nicht an der Konfiguration: ein einziger
+statischer Import aus `@/lib/export` an irgendeiner Stelle zöge die Wege wieder
+in den Start, ohne Fehler und ohne Warnung. `pruefeBauwerk()` sucht in den
+Skripten, die die Seite wirklich lädt, nach einer Zeichenkette, die nur der
+PowerPoint-Schreiber führt — die Gegenprobe mit genau so einem Import bricht
+den Rauchtest mit dem Namen der Datei ab.
+
+Und eine Attrappe gehört dorthin, wo gelesen wird. `persistence.test.ts`
+ersetzte die Fassade `@/lib/export`; nach dem Umzug las `persistence.ts` aus
+`angebot.ts` und `download.ts`, die Attrappe griff nicht mehr, und sieben
+Prüfungen meldeten „URL.createObjectURL is not a function" — eine Meldung über
+jsdom, nicht über den Umzug.
+
+**Eine Tour, zwei Seiten, ein Kern.** Der CI-Generator hat seine eigene Tour,
+und was eine Tour ausmacht — Lichtkegel, Tastatur in der Einfangphase,
+`inert`, Tab im Kreis, Fokus zurück — steht in `ui/Fuehrung.tsx` und nicht
+zweimal. Die beiden Touren unterscheiden sich in den Schritten, in dem, was
+vor einem Schritt geschieht (das Werkzeug klappt Leisten auf), und im Merker:
+`nz-tour` und `nz-tour-ci` sind zwei Schlüssel, denn wer das Werkzeug kennt,
+kennt den Generator noch nicht. `tour.test.ts` hält die Anker beider Touren je
+in ihrem Verzeichnis, und der Rauchtest prüft auf der zweiten Seite das, was
+dort anders ist: ⌘↵ darf unter der Tour keinen Schritt weiterschalten.
+
+**Schriften, die jemand mitbringt.** Bis hierher kam ein Schnitt nur über
+`public/fonts/` ins Werkzeug. Jetzt auch über den Browser: im Generator unter
+jeder Rolle (*Eigene Schrift hochladen*) und im Werkzeug unter
+*Erscheinungsbilder…*, wo der Import fehlende Dateien beim Namen nennt und
+nachreichen lässt. Abgelegt wird in **IndexedDB** und nicht im
+`localStorage`: ein Schnitt hat 100 bis 400 kB, und drei davon als Base64
+legten die Selbstsicherung des Decks still — „Ein eingebettetes Bild legte die
+Selbstsicherung still", mit Schriften statt Bildern.
+
+Die Ablage hat genau zwei Kunden, und beide fragen sie **zuerst**: die
+`@font-face`-Regeln (eine Blob-Adresse statt `/fonts/…`) und `fetchBytes()`
+im Export. Zuerst heißt dabei: vor dem Merker. Dort liegt für eine Datei, die
+beim Import fehlte, ein *gescheiterter* Abruf, und der bliebe stehen, nachdem
+jemand sie nachgereicht hat; dasselbe gilt für die gelesenen Umrisse, die bei
+jeder Änderung der Ablage geräumt werden. Die Prüfung dazu lässt den Schnitt
+erst fehlen und reicht ihn dann nach — der Fall, in dem ein Merker zur Falle
+wird.
+
+Angenommen wird nur, was der Export lesen kann: TrueType mit festem Schnitt.
+`liesSchriftdatei()` weist WOFF2, CFF und variable Schriften mit Grund ab,
+statt sie anzunehmen und PDF und PNG in die Ersatzschrift fallen zu lassen. Die
+Prüfliste lässt deshalb `.ttf` neben `.woff2` gelten — eine `.ttf` trägt beides
+—, und hochgeladene Dateien heißen `eigen-…`, damit niemand mit
+„Inter-Regular.ttf" still die Inter jeder anderen Marke ersetzt.
+
+Die alte Regel hatte eine Prüfung mit einer Begründung, die nie stimmte: mit
+`.ttf` in der Liste suche der Export eine `.ttf.ttf`. `loadTtf()` ersetzt aber
+nur ein *abschließendes* `.woff2`. Die Regel war strenger als nötig, und ihr
+Test bestätigte einen Satz statt ihn zu prüfen; er läuft jetzt mit einer
+`.otf`, die wirklich keiner der beiden Wege findet.
+
+**Ein kursiver Schnitt hätte Kursiv gerade gemacht.** `kursivNeigung()` neigt
+im Export nur, wenn die Schnittliste *keinen* kursiven führt, und
+`resolveFace()` wählt nur aufrechte. Ein hochgeladener kursiver Schnitt in der
+Liste hätte also das Neigen abgeschaltet und trotzdem den aufrechten gezeichnet
+— Kursiv stünde in PDF und PNG gerade. Er wird abgelegt, aber nicht
+eingetragen, und die Quittung sagt warum. Aufgefallen ist es beim Lesen der
+Funktion, an die die neue Zeile grenzt, nicht an einem Test: der wäre erst mit
+einer kursiven Datei rot geworden, und die gab es noch nicht.
+
+**`document.fonts.check()` sagt „wahr" für eine Schrift, die es nicht gibt.**
+Für eine Familie ohne `@font-face`-Regel gibt es nichts zu laden, also ist die
+Antwort wahr. Die erste Rauchtest-Prüfung „die Schrift übersteht ein
+Neuladen" war damit grün auf einer Folie in nozilla — die Diagnose zeigte
+`{"marke":false,"familie":false,"geladen":true}`. Gefragt wird jetzt nach einer
+`FontFace` dieses Namens, die `loaded` meldet. Und die Marke stand nach dem
+Neuladen nicht deshalb auf nozilla, weil etwas kaputt war: ein Startskript
+einer früheren Prüfung legt bei *jedem* Laden eine feste Sitzung ab. Die
+Prüfung stellt die Marke deshalb selbst wieder ein — gefragt ist, ob die
+Schrift das Neuladen übersteht, nicht die Sitzung.
+
+Zwei Kleinigkeiten, die die Prüfungen fanden: `entferneSchrift()` gab eine
+Blob-Adresse über `URL.revokeObjectURL` frei, ohne zu fragen, ob es die gibt —
+das Anlegen fragte. Und das Fenster *Erscheinungsbilder* hat jetzt mehrere
+Dateifelder; drei Rauchtest-Prüfungen griffen das Importfeld als
+`input[type="file"]`. Gesucht wird über `accept`, wie schon einmal im
+Generator.
+
+Gegengeprüft an zehn Sabotagen, jede baut und jede wird an der Datei
+zurückgenommen: fünf in vitest (Ablage vor dem Merker, Merker räumen, kursiver
+Schnitt, variable Schrift, Blob-Adresse in der Regel) machen je genau eine
+Prüfung rot; vier im Browser (Blob-Adresse, Ablage beim Start, Filter der
+nachgereichten Dateien, PowerPoint im Start) je ihre eigene, die erste davon
+mit zwei Folgeprüfungen, die ehrlich sagen, dass ihnen die Datei fehlt; und ein
+umbenannter Anker der Generator-Tour macht beide Richtungen der Ankerprüfung
+rot.
 
 ---
 
