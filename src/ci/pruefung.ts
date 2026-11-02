@@ -35,6 +35,7 @@ import {
   typeScaleAusEntwurf,
   type CiEntwurf,
 } from './entwurf';
+import { abweichungVomEintrag } from '@/theme/schriftablage';
 import { bezeichnerProblem } from './emitter';
 
 export type Rang = 'fehler' | 'warnung' | 'hinweis';
@@ -579,6 +580,20 @@ function pruefeSchrift(entwurf: CiEntwurf): Befund[] {
        Schnitt in den Entwurf, und so darf ihn auch das Repo führen. Alles
        andere findet keiner der beiden Wege.
     */
+    /*
+       Eine hochgeladene Datei kennt ihr Gewicht selbst. Steht sie unter einem
+       anderen, zeichnen Bildschirm und Export sie einig im falschen — warum,
+       steht an `abweichungVomEintrag()`. Hier kommt der Fall über ein von Hand
+       geändertes Gewicht in der Schnittliste herein.
+    */
+    const abweichung = abweichungVomEintrag(face);
+    if (abweichung.length) {
+      befunde.push({
+        rang: 'warnung',
+        feld,
+        text: `„${face.file}" ist ${abweichung.join(' und ')}. Die Regel behauptet, die Datei zeichnet: was in ${face.weight} gesetzt ist, steht auf der Folie und im Export im Schnitt der Datei.`,
+      });
+    }
     if (face.file.trim() && !/\.(woff2|ttf)$/.test(face.file)) {
       befunde.push({
         rang: 'fehler',

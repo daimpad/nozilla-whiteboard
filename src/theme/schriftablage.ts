@@ -91,6 +91,45 @@ export function eigeneSchnitte(): EigenerSchnitt[] {
   );
 }
 
+/**
+ * Worin ein abgelegter Schnitt von dem abweicht, als was ein Erscheinungsbild
+ * ihn einträgt — oder `null`, wenn er passt oder gar nicht hier liegt.
+ *
+ * Eine `@font-face`-Regel *behauptet* Gewicht und Lage, und der Browser
+ * glaubt ihr: steht unter „700" die Regular, simuliert er nichts, sondern
+ * zeichnet sie. Der Export holt dieselbe Datei über den Namen. Beide Wege sind
+ * sich damit einig — und beide falsch: jede fette Überschrift steht in
+ * Regular, und keine Ausgabe sieht anders aus als die andere. Der naheliegende
+ * Weg dorthin ist „.ttf nachreichen" mit der Nachbardatei aus demselben
+ * Ordner.
+ *
+ * Gemeldet wird ab hundert Einheiten Abstand. Eine Familie, deren Book auf
+ * 350 steht und als 400 eingetragen wird, ist kein Versehen, sondern eine
+ * Zuordnung — eine Warnung darüber wäre die Sorte, die man beim zweiten Mal
+ * überliest.
+ */
+export function abweichungVomEintrag(face: {
+  file: string;
+  weight: number;
+  style: string;
+}): string[] {
+  const schnitt = eigeneSchrift(face.file);
+  if (!schnitt) return [];
+  const teile: string[] = [];
+  if (Math.abs(schnitt.gewicht - face.weight) >= 100) {
+    teile.push(`als ${face.weight} eingetragen, die Datei ist ${schnitt.gewicht}`);
+  }
+  const kursivEingetragen = face.style === 'italic';
+  if (schnitt.kursiv !== kursivEingetragen) {
+    teile.push(
+      kursivEingetragen
+        ? 'als kursiv eingetragen, die Datei ist aufrecht'
+        : 'als aufrecht eingetragen, die Datei ist kursiv',
+    );
+  }
+  return teile;
+}
+
 export function subscribeSchriftablage(fn: () => void): () => void {
   horcher.add(fn);
   return () => horcher.delete(fn);

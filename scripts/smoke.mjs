@@ -5131,7 +5131,7 @@ async function main() {
   );
 
   await pruefe(
-    'in einem fremden Browser lässt sich eine fehlende Schrift nachreichen',
+    'in einem fremden Browser lässt sich eine fehlende Schrift nachreichen — und eine falsche fällt auf',
     async () => {
       wahr(schriftInhalt, 'es gibt keine Datei aus dem Generator');
       const frisch = await browser.newContext({ viewport: { width: 1500, height: 940 } });
@@ -5165,8 +5165,14 @@ async function main() {
         await befund.getByRole('alert').getByText(/WOFF2/).waitFor();
         wahr(await bold.count(), 'eine abgewiesene Datei nahm die Zeile mit');
 
+        /*
+           In den Platz der Bold kommt die Regular — der Griff in die
+           Nachbardatei desselben Ordners. Die Regel behauptet danach 700, der
+           Browser glaubt ihr, und Folie wie Export zeichnen Regular. Gesehen
+           wird das nur an der Datei, und genau dort muss es stehen.
+        */
         await regular.setInputFiles(probedatei('Inter-Regular.ttf', 'Probe Regular.ttf'));
-        await bold.setInputFiles(probedatei('Inter-Bold.ttf', 'Probe Bold.ttf'));
+        await bold.setInputFiles(probedatei('Inter-Regular.ttf', 'Probe Bold.ttf'));
         await bisGleich(
           () => befund.getByText('nachreichen').count(),
           0,
@@ -5180,6 +5186,19 @@ async function main() {
           await liste.getByRole('listitem').count(),
           2,
           'die Liste zeigt nicht beide hochgeladenen Schnitte',
+        );
+        const zeile = (datei) => liste.getByRole('listitem').filter({ hasText: datei });
+        await bisWahr(
+          async () =>
+            /als 700 eingetragen, die Datei ist 400/.test(
+              (await zeile('eigen-Probe-Bold.ttf').getByRole('alert').allInnerTexts()).join(' '),
+            ),
+          'die Regular im Platz der Bold blieb ohne Wort',
+        );
+        gleich(
+          await zeile('eigen-Probe-Regular.ttf').getByRole('alert').count(),
+          0,
+          'die richtig nachgereichte Regular trägt eine Warnung',
         );
       } finally {
         await frisch.close();
