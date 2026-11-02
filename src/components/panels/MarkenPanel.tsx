@@ -21,10 +21,12 @@ import { useThemeVersion } from '@/hooks/useTheme';
 import { useSchriftablageVersion } from '@/hooks/useFonts';
 import { schnittFehlt } from '@/lib/export/fontFiles';
 import {
+  abweichungVomEintrag,
   eigeneSchnitte,
   eigeneSchrift,
   entferneSchrift,
   legeSchriftAb,
+  ttfName,
   type EigenerSchnitt,
 } from '@/theme/schriftablage';
 import { useFokusZurueck } from '@/hooks/useFokusZurueck';
@@ -103,6 +105,29 @@ export function MarkenPanel() {
     };
   }, [themeVersion, ablageVersion]);
   const hochgeladen = eigeneSchnitte();
+
+  /*
+     Was eine importierte Marke über einen hochgeladenen Schnitt behauptet und
+     die Datei nicht hält — je Datei, mit dem Namen der Marke.
+
+     Gerechnet und nicht gemerkt. Eine Meldung beim Nachreichen stünde in der
+     Zeile „fehlt", und die verschwindet in genau dem Augenblick, in dem die
+     Datei ankommt; die Auskunft gehört an den Schnitt, der jetzt dasteht, und
+     sie muss ein Neuladen überstehen.
+  */
+  const abweichungen = new Map<string, string[]>();
+  for (const { id, label } of bekannt) {
+    if (!istImportiert(id)) continue;
+    for (const face of gemerkterEntwurf(id)?.webfontFaces ?? []) {
+      const teile = abweichungVomEintrag(face);
+      if (!teile.length) continue;
+      const datei = ttfName(face.file);
+      abweichungen.set(datei, [
+        ...(abweichungen.get(datei) ?? []),
+        `${label}: ${teile.join(' und ')}`,
+      ]);
+    }
+  }
 
   const lies = async (datei: File) => {
     setStand({ art: 'liest', datei: datei.name });
@@ -244,7 +269,11 @@ export function MarkenPanel() {
               {hochgeladen.length ? (
                 <ul className="mb-3 flex flex-col" aria-label="Hochgeladene Schriften">
                   {hochgeladen.map((schnitt) => (
-                    <EigenerSchnittZeile key={schnitt.datei} schnitt={schnitt} />
+                    <EigenerSchnittZeile
+                      key={schnitt.datei}
+                      schnitt={schnitt}
+                      abweichungen={abweichungen.get(schnitt.datei) ?? []}
+                    />
                   ))}
                 </ul>
               ) : null}
@@ -483,7 +512,13 @@ function SchnittNachreichen({ datei }: { datei: string }) {
   );
 }
 
-function EigenerSchnittZeile({ schnitt }: { schnitt: EigenerSchnitt }) {
+function EigenerSchnittZeile({
+  schnitt,
+  abweichungen,
+}: {
+  schnitt: EigenerSchnitt;
+  abweichungen: string[];
+}) {
   const entferne = () => {
     /*
        Gefragt wird, weil eine Marke den Schnitt nennen kann: danach steht ihr
@@ -508,6 +543,19 @@ function EigenerSchnittZeile({ schnitt }: { schnitt: EigenerSchnitt }) {
         <span className="block font-mono text-[11px] text-ui-faint">
           {schnitt.datei} · {Math.round(schnitt.bytes.byteLength / 1024)} kB · hochgeladen
         </span>
+        {abweichungen.map((zeile) => (
+          <span
+            key={zeile}
+            role="alert"
+            className="mt-0.5 flex items-start gap-1 text-[11px] leading-snug text-ui-ink"
+          >
+            <Icon name="triangle-exclamation" size={12} className="mt-0.5 shrink-0 text-ui-warn" />
+            <span>
+              {zeile}. Bildschirm und Export zeichnen beide die Datei — was in diesem Schnitt stehen
+              soll, steht in ihrem.
+            </span>
+          </span>
+        ))}
       </span>
       <IconButton
         icon="trash"

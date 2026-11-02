@@ -18,12 +18,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { nozillaTheme } from './brandTheme';
 import { fontFaceRules } from './fonts';
 import {
+  abweichungVomEintrag,
   eigeneSchnitte,
   eigeneSchrift,
   entferneSchrift,
   legeSchriftAb,
   subscribeSchriftablage,
 } from './schriftablage';
+import { leererEntwurf } from '@/ci/entwurf';
+import { pruefe } from '@/ci/pruefung';
 import { embeddedFontCss, loadOutlines, schnittFehlt, type FaceRef } from '@/lib/export/fontFiles';
 
 function schriftAus(datei: string): ArrayBuffer {
@@ -127,5 +130,58 @@ describe('der Export', () => {
     const css = await embeddedFontCss([face]);
     expect(css).toContain('data:font/ttf;base64,AAEAAA');
     expect(css).toContain("format('truetype')");
+  });
+});
+
+describe('ein Schnitt unter fremdem Eintrag', () => {
+  /*
+     Der Fall aus „.ttf nachreichen": die Marke nennt `Kunde-Bold.woff2` als
+     700, gegriffen wird die Regular aus demselben Ordner. Die Regel behauptet
+     700, der Browser glaubt ihr, und keine Ausgabe sieht anders aus als die
+     andere — gefragt wird deshalb an der Datei und nicht am Bild.
+  */
+  const fett = { file: 'Kunde-Bold.woff2', weight: 700, style: 'normal' };
+
+  it('nennt das Gewicht, das die Datei wirklich hat', async () => {
+    await legeSchriftAb(fett.file, schriftAus('Inter-Regular.ttf'));
+    expect(abweichungVomEintrag(fett)).toEqual(['als 700 eingetragen, die Datei ist 400']);
+  });
+
+  it('nennt eine kursive Datei unter einem aufrechten Eintrag', async () => {
+    const bytes = schriftAus('Inter-Bold.ttf');
+    const view = new DataView(bytes);
+    const anzahl = view.getUint16(4);
+    for (let i = 0; i < anzahl; i += 1) {
+      const eintrag = 12 + i * 16;
+      if (String.fromCharCode(...new Uint8Array(bytes, eintrag, 4)) !== 'OS/2') continue;
+      const os2 = view.getUint32(eintrag + 8);
+      view.setUint16(os2 + 62, view.getUint16(os2 + 62) | 1);
+    }
+    await legeSchriftAb(fett.file, bytes);
+    expect(abweichungVomEintrag(fett)).toEqual(['als aufrecht eingetragen, die Datei ist kursiv']);
+  });
+
+  it('schweigt über die richtige Datei, eine nahe Zuordnung und eine fremde Datei', async () => {
+    // Ohne diese Richtung bestünde die Prüfung auch für einen Wächter, der
+    // über jeder hochgeladenen Datei klagt.
+    expect(abweichungVomEintrag(fett)).toEqual([]);
+    await legeSchriftAb(fett.file, schriftAus('Inter-Bold.ttf'));
+    expect(abweichungVomEintrag(fett)).toEqual([]);
+    expect(abweichungVomEintrag({ ...fett, weight: 650 })).toEqual([]);
+  });
+
+  it('steht in der Prüfliste des Generators, im mittleren Rang', async () => {
+    await legeSchriftAb(NAME, schriftAus('Inter-Regular.ttf'));
+    const entwurf = leererEntwurf();
+    const mitDatei = {
+      ...entwurf,
+      webfontFaces: [
+        ...entwurf.webfontFaces,
+        { family: 'Probe', weight: 700, style: 'normal', file: NAME, kennung: 'probe-700' },
+      ],
+    };
+    const befund = pruefe(mitDatei).find((b) => b.text.includes(NAME));
+    expect(befund?.rang).toBe('warnung');
+    expect(befund?.text).toContain('als 700 eingetragen, die Datei ist 400');
   });
 });

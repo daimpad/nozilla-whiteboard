@@ -4665,6 +4665,31 @@ mit zwei Folgeprüfungen, die ehrlich sagen, dass ihnen die Datei fehlt; und ein
 umbenannter Anker der Generator-Tour macht beide Richtungen der Ankerprüfung
 rot.
 
+**Eine `@font-face`-Regel behauptet, und der Browser glaubt ihr.** „.ttf
+nachreichen" legte jede gültige TrueType-Datei unter den Namen, den die Marke
+nennt, und sagte danach nichts — die Zeile „fehlt" verschwand, und das war die
+ganze Quittung. Wer in den Platz von `Kunde-Bold` die Regular aus demselben
+Ordner griff, bekam eine Regel, die 700 sagt, und eine Datei, die 400 ist. Der
+Browser simuliert dann nichts, er zeichnet die Datei; der Export holt dieselbe
+über den Namen. Beide Wege waren sich einig und beide falsch: jede fette
+Überschrift in Regular, und keine Ausgabe sah anders aus als die andere — also
+kein Vergleich, der es je gezeigt hätte.
+
+Die Datei kennt ihr Gewicht und ihre Lage selbst, also wird an ihr gefragt
+(`abweichungVomEintrag()`), mit zwei Kunden: der Prüfliste des Generators, in
+die derselbe Fall über ein von Hand geändertes Gewicht kommt, und der Zeile des
+hochgeladenen Schnitts unter *Erscheinungsbilder…*. Dort und nicht beim
+Nachreichen: eine Meldung in der Zeile „fehlt" verschwände in dem Augenblick,
+in dem die Datei ankommt, und sie muss ein Neuladen überstehen — sie wird
+deshalb gerechnet und nicht gemerkt. Gemeldet wird ab hundert Einheiten: ein
+Book auf 350, als 400 eingetragen, ist eine Zuordnung und kein Versehen.
+
+Der Rauchtest reicht wirklich die Regular in den Platz der Bold und verlangt die
+Warnung an genau dieser Zeile — und keine an der richtig nachgereichten.
+Gegengeprüft an vier Sabotagen, jede baut: drei in vitest (die Rechnung stumm,
+die Prüfliste stumm, die Schwelle bei eins) und eine im Browser (die Leiste
+reicht die Rechnung nicht durch), je ihre eigene Prüfung rot.
+
 ---
 
 ## Git
